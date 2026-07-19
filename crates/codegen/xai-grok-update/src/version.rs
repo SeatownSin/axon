@@ -11,7 +11,9 @@ use xai_grok_shell::util::grok_home::grok_home;
 
 const TTL_SECONDS_BEFORE_AUTO_UPDATE: Duration = Duration::from_secs(60 * 30);
 const NPM_PACKAGE: &str = "@xai-official/grok";
-pub const GH_RELEASE_REPO: &str = "xai-org-shared/grok-build";
+/// GitHub repo `grok update` checks and installs from. This local build
+/// tracks the user's fork, not xAI's distribution repo.
+pub const GH_RELEASE_REPO: &str = "SeatownSin/grok-build-local";
 
 /// Primary CLI base URL: Cloudflare-fronted x.ai endpoint with edge caching
 /// for binaries and origin-respecting no-cache for channel pointers.

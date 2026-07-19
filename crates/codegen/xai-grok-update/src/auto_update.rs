@@ -27,19 +27,23 @@ const PROMPT_UPDATE_NOW: &str = "Update now? [Y/n/d]";
 const MSG_AUTO_UPDATE_BACKGROUND: &str = "Auto-update running in background.";
 const MSG_RUN_UPDATE_MANUAL: &str = "Run `grok update` to get the latest version.";
 /// Manual-install one-liner for this platform's bootstrap installer.
-fn manual_install_cmd() -> &'static str {
-    if cfg!(windows) {
-        "irm https://x.ai/cli/install.ps1 | iex"
-    } else {
-        "curl -fsSL https://x.ai/cli/install.sh | bash"
-    }
+fn manual_install_cmd() -> String {
+    // The x.ai install scripts are gone with the internal channel; point
+    // at this build's GitHub repo instead.
+    format!(
+        "gh release download --repo {} --pattern 'grok-*'",
+        crate::version::GH_RELEASE_REPO
+    )
 }
 
 /// Build a reinstall hint for a known installer type.
 fn reinstall_hint(installer: &str) -> String {
     match installer {
         "npm" => "Please reinstall via npm:\n  npm i -g @xai-official/grok".to_string(),
-        "gh-release" => "Please reinstall via GitHub Releases:\n  gh release download --repo xai-org-shared/grok-build --pattern 'grok-*' --output grok && chmod +x grok".to_string(),
+        "gh-release" => format!(
+            "Please reinstall via GitHub Releases:\n  gh release download --repo {} --pattern 'grok-*' --output grok && chmod +x grok",
+            crate::version::GH_RELEASE_REPO
+        ),
         _ => format!("Please reinstall via:\n  {}", manual_install_cmd()),
     }
 }
@@ -272,10 +276,13 @@ fn disk_version_for_installer(installer: &str) -> Option<String> {
 }
 
 fn env_installer() -> Option<&'static str> {
+    // The "internal" channel (x.ai CDN + GCS mirror) is removed: this
+    // build never contacts xAI infrastructure, so both the env override
+    // and the managed-by marker map to GitHub Releases instead.
     if let Ok(v) = std::env::var("GROK_INSTALLER") {
         return match v.to_ascii_lowercase().as_str() {
             "npm" => Some("npm"),
-            "internal" => Some("internal"),
+            "internal" => Some("gh-release"),
             "gh-release" | "gh" => Some("gh-release"),
             _ => None,
         };
@@ -284,7 +291,7 @@ fn env_installer() -> Option<&'static str> {
         return Some("npm");
     }
     if std::env::var_os("GROK_MANAGED_BY_INTERNAL").is_some() {
-        return Some("internal");
+        return Some("gh-release");
     }
     if std::env::var_os("npm_config_user_agent").is_some() {
         return Some("npm");
@@ -299,8 +306,9 @@ pub async fn get_installer() -> Option<&'static str> {
     let cfg = config::load_config().await;
     match cfg.cli.installer.as_deref() {
         Some("npm") => Some("npm"),
-        Some("gh-release") => Some("gh-release"),
-        _ => Some("internal"),
+        // Everything else (including the removed "internal" x.ai channel)
+        // resolves to GitHub Releases against GH_RELEASE_REPO.
+        _ => Some("gh-release"),
     }
 }
 
@@ -2001,7 +2009,7 @@ async fn gh_release_download(tag: &str, pattern: &str, dest: &std::path::Path) -
     Ok(())
 }
 
-/// Download and install grok from GitHub Releases (xai-org-shared/grok-build).
+/// Download and install grok from GitHub Releases ([`crate::version::GH_RELEASE_REPO`]).
 ///
 /// Uses `gh release download` to fetch the binary matching the current platform.
 /// This works anywhere the `gh` CLI is authenticated, without needing npm or
@@ -2030,7 +2038,20 @@ async fn install_gh_release(target: Option<&str>) -> Result<()> {
         version, platform
     );
 
-    gh_release_download(&tag, &binary_name, &binary_path).await?;
+    // Mirror the GCS path's Windows behavior: release assets may carry a
+    // conventional `.exe` suffix; try the bare name first, then `.exe`.
+    match gh_release_download(&tag, &binary_name, &binary_path).await {
+        Ok(()) => {}
+        Err(bare_err) if cfg!(windows) => {
+            let exe_name = format!("{binary_name}.exe");
+            gh_release_download(&tag, &exe_name, &binary_path)
+                .await
+                .map_err(|exe_err| {
+                    anyhow::anyhow!("{bare_err:#}; .exe fallback also failed: {exe_err:#}")
+                })?;
+        }
+        Err(e) => return Err(e),
+    }
 
     // chmod +x
     #[cfg(unix)]
@@ -3461,27 +3482,20 @@ mod tests {
             "should suggest gh release download: {hint}"
         );
         assert!(
-            hint.contains("xai-org-shared/grok-build"),
+            hint.contains(crate::version::GH_RELEASE_REPO),
             "should name the repo: {hint}"
         );
     }
 
     #[test]
-    fn test_reinstall_hint_internal_mentions_platform_installer() {
+    fn test_reinstall_hint_internal_mentions_gh_repo() {
+        // The x.ai install scripts are gone; the fallback hint points at
+        // this build's GitHub repo.
         let hint = reinstall_hint("internal");
-        if cfg!(windows) {
-            assert!(hint.contains("irm"), "should suggest irm install: {hint}");
-            assert!(
-                hint.contains("install.ps1"),
-                "should reference install.ps1: {hint}"
-            );
-        } else {
-            assert!(hint.contains("curl"), "should suggest curl install: {hint}");
-            assert!(
-                hint.contains("install.sh"),
-                "should reference install.sh: {hint}"
-            );
-        }
+        assert!(
+            hint.contains(crate::version::GH_RELEASE_REPO),
+            "should name the repo: {hint}"
+        );
     }
 
     #[test]
@@ -4273,10 +4287,12 @@ mod tests {
 
     #[test]
     #[serial_test::serial]
-    fn test_env_installer_explicit_internal() {
+    fn test_env_installer_explicit_internal_maps_to_gh_release() {
+        // The internal (x.ai CDN) channel is removed; the legacy env value
+        // resolves to GitHub Releases so stale environments keep updating.
         let _g = InstallerEnvGuard::isolate();
         unsafe { std::env::set_var("GROK_INSTALLER", "internal") };
-        assert_eq!(env_installer(), Some("internal"));
+        assert_eq!(env_installer(), Some("gh-release"));
     }
 
     #[test]
@@ -4352,10 +4368,10 @@ mod tests {
 
     #[test]
     #[serial_test::serial]
-    fn test_env_installer_managed_by_internal() {
+    fn test_env_installer_managed_by_internal_maps_to_gh_release() {
         let _g = InstallerEnvGuard::isolate();
         unsafe { std::env::set_var("GROK_MANAGED_BY_INTERNAL", "1") };
-        assert_eq!(env_installer(), Some("internal"));
+        assert_eq!(env_installer(), Some("gh-release"));
     }
 
     #[test]
@@ -4390,13 +4406,14 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_env_installer_explicit_internal_wins_over_npm_managed() {
-        // GROK_INSTALLER=internal must override an inherited MANAGED_BY_NPM.
+        // GROK_INSTALLER (even the legacy "internal" value) must override
+        // an inherited MANAGED_BY_NPM; it now resolves to gh-release.
         let _g = InstallerEnvGuard::isolate();
         unsafe {
             std::env::set_var("GROK_INSTALLER", "internal");
             std::env::set_var("GROK_MANAGED_BY_NPM", "1");
         }
-        assert_eq!(env_installer(), Some("internal"));
+        assert_eq!(env_installer(), Some("gh-release"));
     }
 
     // ──────────────────────────────────────────────────────────────────────
