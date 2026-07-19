@@ -112,6 +112,24 @@ impl XaiProtoBuilder {
             );
         }
 
+        // The dependency-analysis path below relies on /dev/stdout and
+        // /dev/null, which don't exist on Windows. There, emit coarser but
+        // correct invalidation: the proto files themselves plus every .proto
+        // reachable from the include dirs.
+        if cfg!(windows) {
+            let _ = protoc_include_dir;
+            for proto in protos {
+                println!(
+                    "cargo:rerun-if-changed={}",
+                    proto.to_str().context("path not UTF-8")?
+                );
+            }
+            for include in &includes {
+                Self::emit_rerun_for_protos_under(include)?;
+            }
+            return Ok(());
+        }
+
         // Can only process one input file when using --dependency_out=FILE.
         for proto in protos {
             let mut command = Command::new(protoc.unwrap_or(Path::new("protoc")));
@@ -170,6 +188,21 @@ impl XaiProtoBuilder {
             }
         }
 
+        Ok(())
+    }
+
+    fn emit_rerun_for_protos_under(dir: &Path) -> anyhow::Result<()> {
+        for entry in fs::read_dir(dir).with_context(|| format!("read_dir {}", dir.display()))? {
+            let path = entry?.path();
+            if path.is_dir() {
+                Self::emit_rerun_for_protos_under(&path)?;
+            } else if path.extension().is_some_and(|e| e == "proto") {
+                println!(
+                    "cargo:rerun-if-changed={}",
+                    path.to_str().context("path not UTF-8")?
+                );
+            }
+        }
         Ok(())
     }
 
