@@ -34,6 +34,7 @@ pub mod subagent;
 pub mod subscription;
 pub(crate) use effects::sanitize_user_error;
 mod event_loop;
+mod first_run;
 mod foreign_sessions;
 mod inline_edit;
 #[cfg(all(test, unix))]
@@ -475,6 +476,17 @@ pub async fn run(
     xai_grok_shell::util::config::set_remote_campaigns_from_settings(remote_settings.as_ref());
     let raw_config = xai_grok_shell::config::load_effective_config()
         .map_err(|e| anyhow::anyhow!("Failed to load config: {e}"))?;
+    // First-run local-model setup. This build has no xAI login, so a fresh
+    // install with no usable model would dead-end at the (removed) login
+    // screen. Runs before the terminal is put in raw mode; if it writes a
+    // model, reload config so the TUI starts straight into a session; if the
+    // user quits setup, exit cleanly rather than show the dead login.
+    let raw_config = match first_run::maybe_run(&raw_config).await {
+        first_run::Outcome::Configured => xai_grok_shell::config::load_effective_config()
+            .map_err(|e| anyhow::anyhow!("Failed to reload config after setup: {e}"))?,
+        first_run::Outcome::Skip => raw_config,
+        first_run::Outcome::Quit => return Ok(false),
+    };
     let prefetch_elapsed = startup_start.elapsed();
     let (use_leader, policy_disable_reason) = resolve_use_leader(
         args.leader,

@@ -28,6 +28,7 @@ pub use xai_grok_http as http;
 pub mod inspect;
 pub mod instrumentation;
 pub mod leader;
+pub mod local_setup;
 pub mod managed_config;
 pub mod mcp_doctor;
 pub use xai_grok_models as models;

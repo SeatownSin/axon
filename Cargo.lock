@@ -13694,6 +13694,7 @@ dependencies = [
  "jsonwebtoken",
  "kanal",
  "libc",
+ "mockito",
  "moka",
  "nix 0.30.1",
  "notify",
