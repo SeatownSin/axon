@@ -7,7 +7,9 @@
 //! session can start with no login. The pager drives the UI; this module is
 //! the reusable detect + write logic.
 
+use std::net::{IpAddr, Ipv4Addr};
 use std::path::Path;
+use std::time::Duration;
 
 /// A detected local model server and the models it advertises.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -20,14 +22,15 @@ pub struct LocalModelServer {
     pub models: Vec<String>,
 }
 
-/// Well-known localhost model servers, in preference order. Each speaks the
-/// OpenAI-compatible `GET /v1/models` API — Ollama included, via its `/v1`
-/// compatibility layer.
-const PROBE_TARGETS: &[(&str, &str)] = &[
-    ("Ollama", "http://localhost:11434"),
-    ("LM Studio", "http://localhost:1234"),
-    ("llama.cpp", "http://localhost:8080"),
-    ("vLLM", "http://localhost:8000"),
+/// Well-known OpenAI-compatible model-server ports and the product that
+/// conventionally serves on each. Probed on `localhost` and on every host of
+/// the machine's private LAN subnet(s). Each speaks `GET /v1/models` — Ollama
+/// included, via its `/v1` compatibility layer.
+const PROBE_PORTS: &[(&str, u16)] = &[
+    ("Ollama", 11434),
+    ("LM Studio", 1234),
+    ("llama.cpp", 8080),
+    ("vLLM", 8000),
 ];
 
 /// Extract model ids from an OpenAI `/v1/models` response body. Split out so
@@ -73,19 +76,193 @@ async fn probe_endpoint(
     })
 }
 
-/// Probe every well-known localhost server concurrently and return those that
-/// respond with at least one model. Best-effort and fast (short per-probe
-/// timeout); a server that is down simply doesn't appear in the result.
+/// Probe localhost and the machine's private LAN subnet(s) for OpenAI-compatible
+/// model servers, returning those that respond with at least one model.
+/// Localhost is checked first (instant); the LAN sweep TCP-pre-checks each
+/// `host:port` and only issues an HTTP request to ports that accept a
+/// connection, so a full /24 finishes in a couple of seconds. Best-effort:
+/// unreachable hosts simply don't appear.
 pub async fn probe_local_model_servers() -> Vec<LocalModelServer> {
     let client = crate::http::shared_client();
-    let probes = PROBE_TARGETS
+
+    // Local candidates: the well-known ports on IPv4 loopback, PLUS every port
+    // actually listening on this machine. LM Studio, llama.cpp & co. routinely
+    // serve on a dynamic/non-standard port (e.g. LM Studio on 49152), so a
+    // fixed list alone misses them. We also target `127.0.0.1`/`[::1]`
+    // explicitly rather than `localhost` — on Windows `localhost` prefers IPv6
+    // `::1`, and an unlistened `::1` silently drops (timeout) instead of
+    // refusing, which would burn the probe budget before IPv4 is even tried.
+    let mut candidates: Vec<(&'static str, String)> = PROBE_PORTS
         .iter()
-        .map(|&(label, base)| probe_endpoint(&client, label, base));
-    futures::future::join_all(probes)
-        .await
+        .map(|&(label, port)| (label, format!("http://127.0.0.1:{port}")))
+        .collect();
+    for (addr, port) in local_listening_ports() {
+        let host = if addr.is_ipv6() { "[::1]" } else { "127.0.0.1" };
+        candidates.push((label_for_port(port), format!("http://{host}:{port}")));
+    }
+    let mut seen = std::collections::HashSet::new();
+    candidates.retain(|(_, base)| seen.insert(base.clone()));
+
+    let local = futures::future::join_all(candidates.iter().map(|(label, base)| {
+        let client = &client;
+        async move { probe_endpoint(client, label, base).await }
+    }))
+    .await;
+    let mut found: Vec<LocalModelServer> = local.into_iter().flatten().collect();
+
+    // LAN: sweep private subnets on the well-known ports, de-duplicating.
+    for server in scan_lan(&client).await {
+        if !found.iter().any(|f| f.base_url == server.base_url) {
+            found.push(server);
+        }
+    }
+    found
+}
+
+/// Product conventionally serving on a well-known port; `"Local server"` for
+/// anything discovered on a dynamic/non-standard port.
+fn label_for_port(port: u16) -> &'static str {
+    match port {
+        11434 => "Ollama",
+        1234 => "LM Studio",
+        8080 => "llama.cpp",
+        8000 => "vLLM",
+        _ => "Local server",
+    }
+}
+
+/// TCP `(addr, port)` pairs in LISTEN state on this machine, bound to loopback
+/// or an all-interfaces address (so reachable via localhost). Privileged ports
+/// (<1024 — ssh, SMB, RPC) are skipped: model servers never run there and we
+/// shouldn't poke system services. Empty if the socket table can't be read.
+fn local_listening_ports() -> Vec<(IpAddr, u16)> {
+    use netstat2::{AddressFamilyFlags, ProtocolFlags, ProtocolSocketInfo, TcpState};
+    let sockets = match netstat2::get_sockets_info(
+        AddressFamilyFlags::IPV4 | AddressFamilyFlags::IPV6,
+        ProtocolFlags::TCP,
+    ) {
+        Ok(s) => s,
+        Err(_) => return Vec::new(),
+    };
+    sockets
         .into_iter()
-        .flatten()
+        .filter_map(|si| match si.protocol_socket_info {
+            ProtocolSocketInfo::Tcp(tcp)
+                if tcp.state == TcpState::Listen
+                    && tcp.local_port >= 1024
+                    && is_local_reachable(tcp.local_addr) =>
+            {
+                Some((tcp.local_addr, tcp.local_port))
+            }
+            _ => None,
+        })
         .collect()
+}
+
+/// True when a listener bound to `addr` is reachable over localhost: a loopback
+/// address, or an all-interfaces bind (`0.0.0.0` / `::`).
+fn is_local_reachable(addr: IpAddr) -> bool {
+    match addr {
+        IpAddr::V4(v4) => v4.is_loopback() || v4.is_unspecified(),
+        IpAddr::V6(v6) => v6.is_loopback() || v6.is_unspecified(),
+    }
+}
+
+/// Cap on host:port probes a single LAN sweep will issue, so an unusually large
+/// or misconfigured subnet can't turn setup into a long scan.
+const MAX_LAN_PROBES: usize = 4096;
+/// Concurrent in-flight probes during the LAN sweep.
+const LAN_CONCURRENCY: usize = 128;
+/// Per-host TCP connect budget. A refused port returns instantly, so this only
+/// bounds hosts that silently drop (filtered/absent).
+const LAN_CONNECT_TIMEOUT: Duration = Duration::from_millis(400);
+
+/// Sweep the machine's private IPv4 /24 subnet(s) for model servers. Returns
+/// empty when the host has no private LAN address (e.g. loopback-only). Only
+/// private (RFC1918) ranges are ever touched — never a routable/public host.
+async fn scan_lan(client: &reqwest::Client) -> Vec<LocalModelServer> {
+    use futures::stream::StreamExt;
+
+    let own = local_private_v4_ips();
+    let hosts = candidate_hosts(&own, MAX_LAN_PROBES / PROBE_PORTS.len());
+    if hosts.is_empty() {
+        return Vec::new();
+    }
+
+    let targets: Vec<(Ipv4Addr, &'static str, u16)> = hosts
+        .iter()
+        .flat_map(|&host| PROBE_PORTS.iter().map(move |&(label, port)| (host, label, port)))
+        .collect();
+
+    futures::stream::iter(targets)
+        .map(|(host, label, port)| {
+            let client = client.clone();
+            async move {
+                if !tcp_open(host, port, LAN_CONNECT_TIMEOUT).await {
+                    return None;
+                }
+                probe_endpoint(&client, label, &format!("http://{host}:{port}")).await
+            }
+        })
+        .buffer_unordered(LAN_CONCURRENCY)
+        .filter_map(|r| async move { r })
+        .collect()
+        .await
+}
+
+/// True if a TCP connection to `host:port` completes within `timeout`.
+async fn tcp_open(host: Ipv4Addr, port: u16, timeout: Duration) -> bool {
+    matches!(
+        tokio::time::timeout(timeout, tokio::net::TcpStream::connect((host, port))).await,
+        Ok(Ok(_))
+    )
+}
+
+/// The machine's own private (RFC1918) IPv4 addresses, one per interface.
+fn local_private_v4_ips() -> Vec<Ipv4Addr> {
+    if_addrs::get_if_addrs()
+        .map(|ifaces| ifaces.iter().filter_map(|i| scannable_private_v4(i.ip())).collect())
+        .unwrap_or_default()
+}
+
+/// Keep only private, non-loopback, non-link-local IPv4 addresses — the ones
+/// whose /24 is worth sweeping. IPv6 and public addresses are dropped: the
+/// sweep never reaches beyond the local wire, and never a routable range.
+fn scannable_private_v4(ip: std::net::IpAddr) -> Option<Ipv4Addr> {
+    match ip {
+        std::net::IpAddr::V4(v4)
+            if v4.is_private() && !v4.is_loopback() && !v4.is_link_local() =>
+        {
+            Some(v4)
+        }
+        _ => None,
+    }
+}
+
+/// Expand each owned address's /24 into candidate host addresses (`.1`–`.254`),
+/// de-duplicating shared subnets and excluding the machine's own addresses.
+/// Capped at `max` hosts so the sweep stays bounded.
+fn candidate_hosts(own: &[Ipv4Addr], max: usize) -> Vec<Ipv4Addr> {
+    let own_set: std::collections::HashSet<Ipv4Addr> = own.iter().copied().collect();
+    let mut seen_subnet = std::collections::HashSet::new();
+    let mut hosts = Vec::new();
+    for ip in own {
+        let o = ip.octets();
+        if !seen_subnet.insert([o[0], o[1], o[2]]) {
+            continue;
+        }
+        for last in 1..=254u8 {
+            let host = Ipv4Addr::new(o[0], o[1], o[2], last);
+            if own_set.contains(&host) {
+                continue;
+            }
+            hosts.push(host);
+            if hosts.len() >= max {
+                return hosts;
+            }
+        }
+    }
+    hosts
 }
 
 /// Derive a TOML-bare-key-friendly config section id from a model id, so the
@@ -108,6 +285,27 @@ pub fn config_id_for_model(model: &str) -> String {
         "local".to_string()
     } else {
         trimmed.to_string()
+    }
+}
+
+/// Human-friendly display name for a model id. Server model ids are often the
+/// filesystem path to a weights file — llama.cpp names models by their `.gguf`
+/// path — which reads terribly in a menu. Collapse those to the file stem
+/// (last path component, known weights extension stripped). Non-path ids
+/// (`qwen2.5-coder`, `gemma@q4_k_m`) are returned unchanged.
+pub fn display_name_for_model(model: &str) -> String {
+    if !model.contains('/') && !model.contains('\\') {
+        return model.to_string();
+    }
+    let base = model.rsplit(['/', '\\']).next().unwrap_or(model);
+    let stem = [".gguf", ".bin", ".safetensors", ".ggml"]
+        .iter()
+        .find_map(|ext| base.strip_suffix(ext))
+        .unwrap_or(base);
+    if stem.is_empty() {
+        model.to_string()
+    } else {
+        stem.to_string()
     }
 }
 
@@ -145,7 +343,9 @@ pub fn write_local_model_config(
     let mut entry = toml_edit::Table::new();
     entry["model"] = toml_edit::value(model);
     entry["base_url"] = toml_edit::value(base_url);
-    entry["name"] = toml_edit::value(model);
+    // Display name is prettified (a `.gguf` path collapses to its stem); the
+    // `model` id above stays verbatim so the server gets exactly what it expects.
+    entry["name"] = toml_edit::value(display_name_for_model(model).as_str());
     if no_auth {
         entry["no_auth"] = toml_edit::value(true);
     }
@@ -288,5 +488,82 @@ mod tests {
         assert_eq!(entry.info.base_url, "http://127.0.0.1:1234/v1");
         // Loopback → auto no-auth (no key, no login).
         assert!(entry.requires_no_auth());
+    }
+
+    #[test]
+    fn scannable_private_v4_keeps_only_private_wire_addresses() {
+        use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+        let v4 = |a, b, c, d| IpAddr::V4(Ipv4Addr::new(a, b, c, d));
+        // RFC1918 ranges are scannable.
+        assert!(scannable_private_v4(v4(192, 168, 1, 10)).is_some());
+        assert!(scannable_private_v4(v4(10, 0, 0, 5)).is_some());
+        assert!(scannable_private_v4(v4(172, 16, 4, 9)).is_some());
+        // Public, loopback, link-local, and any IPv6 are dropped — the sweep
+        // never reaches a routable host.
+        assert!(scannable_private_v4(v4(8, 8, 8, 8)).is_none());
+        assert!(scannable_private_v4(v4(127, 0, 0, 1)).is_none());
+        assert!(scannable_private_v4(v4(169, 254, 1, 1)).is_none());
+        assert!(scannable_private_v4(IpAddr::V6(Ipv6Addr::LOCALHOST)).is_none());
+    }
+
+    #[test]
+    fn candidate_hosts_dedupes_subnet_excludes_self_and_caps() {
+        // Two addresses on the same /24 → 254 hosts minus the two own = 252.
+        let same = [Ipv4Addr::new(192, 168, 1, 50), Ipv4Addr::new(192, 168, 1, 77)];
+        let hosts = candidate_hosts(&same, MAX_LAN_PROBES);
+        assert_eq!(hosts.len(), 252);
+        assert!(!hosts.contains(&Ipv4Addr::new(192, 168, 1, 50)));
+        assert!(!hosts.contains(&Ipv4Addr::new(192, 168, 1, 77)));
+        assert!(hosts.contains(&Ipv4Addr::new(192, 168, 1, 1)));
+        assert!(hosts.contains(&Ipv4Addr::new(192, 168, 1, 254)));
+
+        // Cap is honored.
+        assert_eq!(candidate_hosts(&same, 10).len(), 10);
+
+        // Two distinct /24s are both swept (254 − 1 own each = 253 + 253).
+        let two = [Ipv4Addr::new(192, 168, 1, 1), Ipv4Addr::new(10, 0, 0, 1)];
+        assert_eq!(candidate_hosts(&two, MAX_LAN_PROBES).len(), 506);
+    }
+
+    #[test]
+    fn label_for_port_maps_known_and_defaults() {
+        assert_eq!(label_for_port(11434), "Ollama");
+        assert_eq!(label_for_port(1234), "LM Studio");
+        assert_eq!(label_for_port(8080), "llama.cpp");
+        assert_eq!(label_for_port(8000), "vLLM");
+        // A dynamic port (e.g. LM Studio's actual bind) is a generic local server.
+        assert_eq!(label_for_port(49152), "Local server");
+    }
+
+    #[test]
+    fn display_name_for_model_collapses_paths_keeps_plain_ids() {
+        // Plain ids pass through untouched.
+        assert_eq!(display_name_for_model("qwen2.5-coder"), "qwen2.5-coder");
+        assert_eq!(display_name_for_model("gemma@q4_k_m"), "gemma@q4_k_m");
+        // Windows `.gguf` path → file stem, extension stripped.
+        assert_eq!(
+            display_name_for_model(r"F:\AI\Models\GGUF\Gemma4-12B-Q4_K_M.gguf"),
+            "Gemma4-12B-Q4_K_M"
+        );
+        // Unix path likewise.
+        assert_eq!(
+            display_name_for_model("/models/llama/Llama-3.1-8B-Instruct.gguf"),
+            "Llama-3.1-8B-Instruct"
+        );
+        // A path without a known weights extension keeps its last component.
+        assert_eq!(display_name_for_model("/srv/models/my-model"), "my-model");
+    }
+
+    #[test]
+    fn is_local_reachable_accepts_loopback_and_unspecified_only() {
+        use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+        // Loopback and all-interfaces binds are reachable via localhost.
+        assert!(is_local_reachable(IpAddr::V4(Ipv4Addr::LOCALHOST)));
+        assert!(is_local_reachable(IpAddr::V4(Ipv4Addr::UNSPECIFIED)));
+        assert!(is_local_reachable(IpAddr::V6(Ipv6Addr::LOCALHOST)));
+        assert!(is_local_reachable(IpAddr::V6(Ipv6Addr::UNSPECIFIED)));
+        // A LAN or public bind is not localhost-reachable.
+        assert!(!is_local_reachable(IpAddr::V4(Ipv4Addr::new(192, 168, 1, 5))));
+        assert!(!is_local_reachable(IpAddr::V4(Ipv4Addr::new(8, 8, 8, 8))));
     }
 }

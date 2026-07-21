@@ -27,6 +27,15 @@ bytes = { workspace = true }
 chrono = { workspace = true }
 indexmap = { workspace = true, features = ["serde"] }
 ignore = { workspace = true }
+# Cross-platform local-interface enumeration for the first-run wizard's LAN
+# sweep (find model servers on the private subnet, not just localhost). Tiny,
+# no network activity — reads OS interface tables only.
+if-addrs = "0.13"
+# Cross-platform listening-socket enumeration for the first-run wizard: model
+# servers (LM Studio, llama.cpp) pick dynamic/non-standard ports, so we probe
+# every locally-listening port, not just a fixed list. Reads OS socket tables
+# only — no network activity of its own.
+netstat2 = "0.11"
 jsonschema = { workspace = true }
 futures = { workspace = true }
 glob = { workspace = true }

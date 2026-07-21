@@ -11,7 +11,8 @@
 use std::io::{IsTerminal, Write};
 
 use xai_grok_shell::local_setup::{
-    LocalModelServer, config_id_for_model, probe_local_model_servers, write_local_model_config,
+    LocalModelServer, config_id_for_model, display_name_for_model, probe_local_model_servers,
+    write_local_model_config,
 };
 
 /// What the first-run wizard decided.
@@ -109,15 +110,16 @@ async fn run_wizard() -> Outcome {
     banner();
     let config_path = xai_grok_shell::util::grok_home::grok_home().join("config.toml");
     loop {
-        print!("  Scanning localhost for a model server… ");
+        print!("  Scanning localhost and your local network for model servers… ");
         let _ = std::io::stdout().flush();
         let servers = probe_local_model_servers().await;
 
         if servers.is_empty() {
             println!("none found.");
             println!();
-            println!("  Start one — e.g. `ollama serve`, LM Studio, llama.cpp, or vLLM —");
-            println!("  then rescan. Options:");
+            println!("  Checked localhost and your local network. Start a server —");
+            println!("  e.g. `ollama serve`, LM Studio, llama.cpp, or vLLM — then");
+            println!("  rescan, or point setup at one directly. Options:");
             println!("    [r] rescan   [m] enter an endpoint manually   [q] quit");
             print!("  > ");
             let _ = std::io::stdout().flush();
@@ -139,9 +141,15 @@ async fn run_wizard() -> Outcome {
         let choices = flatten(&servers);
         println!("done.");
         println!();
-        println!("  Detected local models:");
+        println!("  Detected models:");
         for (i, c) in choices.iter().enumerate() {
-            println!("    [{}] {}  ({})", i + 1, c.model, c.label);
+            println!(
+                "    [{}] {}  ({} · {})",
+                i + 1,
+                display_name_for_model(&c.model),
+                c.label,
+                endpoint_host(&c.base_url)
+            );
         }
         println!("    [r] rescan   [m] manual endpoint   [q] quit");
         print!("  Pick a number > ");
@@ -166,8 +174,10 @@ async fn run_wizard() -> Outcome {
                     && n <= choices.len()
                 {
                     let c = &choices[n - 1];
-                    // Detected servers are all loopback → auto no-auth.
-                    if write_and_report(&config_path, &c.base_url, &c.model, false) {
+                    // Loopback is auto-no-auth; a LAN server needs the explicit
+                    // marker so its keyless endpoint also skips authentication.
+                    let no_auth = !xai_grok_shell::util::is_loopback_url(&c.base_url);
+                    if write_and_report(&config_path, &c.base_url, &c.model, no_auth) {
                         return Outcome::Configured;
                     }
                     // Write failed (error already printed) — back to the menu.
@@ -202,17 +212,29 @@ async fn manual_entry(config_path: &std::path::Path) -> bool {
     write_and_report(config_path, &base_url, &model, no_auth)
 }
 
+/// `host:port` extracted from an OpenAI base URL for display (e.g.
+/// `http://192.168.1.42:11434/v1` → `192.168.1.42:11434`), so LAN servers are
+/// distinguishable from localhost in the picker. Falls back to the raw URL.
+fn endpoint_host(base_url: &str) -> String {
+    let after_scheme = base_url
+        .strip_prefix("http://")
+        .or_else(|| base_url.strip_prefix("https://"))
+        .unwrap_or(base_url);
+    after_scheme.split('/').next().unwrap_or(after_scheme).to_string()
+}
+
 fn write_and_report(
     config_path: &std::path::Path,
     base_url: &str,
     model: &str,
     no_auth: bool,
 ) -> bool {
-    let id = config_id_for_model(model);
+    let display = display_name_for_model(model);
+    let id = config_id_for_model(&display);
     match write_local_model_config(config_path, &id, base_url, model, no_auth) {
         Ok(()) => {
             println!();
-            println!("  ✓ Configured “{model}” at {base_url} (default model).");
+            println!("  ✓ Configured “{display}” at {base_url} (default model).");
             println!("    Starting…");
             println!();
             true
