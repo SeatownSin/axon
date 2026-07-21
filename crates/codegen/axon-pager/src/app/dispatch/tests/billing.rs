@@ -107,14 +107,14 @@ fn credit_limit_retry_preserves_image_submission_state() {
 
 #[test]
 fn is_max_tier_positive_match() {
-    assert!(is_max_tier(Some("supergrok_heavy")));
-    assert!(is_max_tier(Some("SuperGrok Heavy")));
-    assert!(is_max_tier(Some("SUPERGROK_HEAVY")));
+    assert!(is_max_tier(Some("superaxon_heavy")));
+    assert!(is_max_tier(Some("SuperAxon Heavy")));
+    assert!(is_max_tier(Some("SUPERAXON_HEAVY")));
 }
 
 #[test]
 fn is_max_tier_non_max_and_unknown() {
-    assert!(!is_max_tier(Some("supergrok")));
+    assert!(!is_max_tier(Some("superaxon")));
     assert!(!is_max_tier(Some("premium")));
     assert!(!is_max_tier(Some("free")));
     // Unknown defaults to non-max → Q&A shown.
@@ -123,15 +123,15 @@ fn is_max_tier_non_max_and_unknown() {
 
 #[test]
 fn is_max_tier_handles_mixed_case_and_whitespace() {
-    assert!(is_max_tier(Some("SuperGrok_Heavy")));
-    assert!(is_max_tier(Some("supergrok heavy")));
-    assert!(is_max_tier(Some("SUPERGROK HEAVY")));
+    assert!(is_max_tier(Some("SuperAxon_Heavy")));
+    assert!(is_max_tier(Some("superaxon heavy")));
+    assert!(is_max_tier(Some("SUPERAXON HEAVY")));
 }
 
 #[test]
 fn is_max_tier_rejects_partial_matches() {
-    assert!(!is_max_tier(Some("supergrok_heav")));
-    assert!(!is_max_tier(Some("supergrok_heavy_plus")));
+    assert!(!is_max_tier(Some("superaxon_heav")));
+    assert!(!is_max_tier(Some("superaxon_heavy_plus")));
     assert!(!is_max_tier(Some("")));
 }
 
@@ -191,7 +191,7 @@ fn upsell_non_max_qa_heading_is_spending_cap_when_payg_on() {
 }
 
 #[test]
-fn upsell_non_max_upgrade_url_is_supergrok() {
+fn upsell_non_max_upgrade_url_is_superaxon() {
     let mut app = test_app_with_agent();
     open_upsell_qa(
         &mut app,
@@ -201,8 +201,8 @@ fn upsell_non_max_upgrade_url_is_supergrok() {
         .id
         .as_deref()
         .unwrap();
-    assert!(url.contains("supergrok"), "got: {url}");
-    assert!(url.contains("referrer=grok-build"), "got: {url}");
+    assert!(url.contains("superaxon"), "got: {url}");
+    assert!(url.contains("referrer=axon-build"), "got: {url}");
 }
 
 #[test]
@@ -258,7 +258,7 @@ fn upsell_non_max_unified_shows_buy_credits() {
     assert_eq!(q.options[1].label, "Buy more credits");
     assert_eq!(
         q.options[1].description,
-        "Purchase credits to keep using Grok Build"
+        "Purchase credits to keep using Axon Build"
     );
 }
 
@@ -317,7 +317,7 @@ fn is_credit_limit_error_matches_legacy_403_and_pool_402() {
     assert!(is_credit_limit_error(Some(402), "anything"));
     assert!(is_credit_limit_error(
         None,
-        "API error (status 402 Payment Required): Grok Build usage balance exhausted"
+        "API error (status 402 Payment Required): Axon Build usage balance exhausted"
     ));
     assert!(is_credit_limit_error(
         None,
@@ -510,8 +510,8 @@ fn billing_fetched_updates_app_credit_balance() {
 #[test]
 fn billing_fetched_updates_subscription_tier() {
     let mut app = test_app_with_agent();
-    dispatch_billing(&mut app, None, true, Some("supergrok_heavy".into()));
-    assert_eq!(app.subscription_tier.as_deref(), Some("supergrok_heavy"));
+    dispatch_billing(&mut app, None, true, Some("superaxon_heavy".into()));
+    assert_eq!(app.subscription_tier.as_deref(), Some("superaxon_heavy"));
 }
 
 #[test]
@@ -819,7 +819,7 @@ fn free_usage_upsell_shows_two_options_with_exact_labels() {
         qv.local_kind,
         Some(
             crate::views::question_view::LocalQuestionKind::FreeUsageUpsell {
-                source: axon_telemetry::events::SuperGrokUpsell::FreeUsagePaywall,
+                source: axon_telemetry::events::SuperAxonUpsell::FreeUsagePaywall,
             }
         )
     ));
@@ -827,13 +827,13 @@ fn free_usage_upsell_shows_two_options_with_exact_labels() {
     assert_eq!(q.question, "You hit your free usage limit.");
     let expected = [
         (
-            "Upgrade to SuperGrok",
+            "Upgrade to SuperAxon",
             "For everyday coding and productivity tasks",
             Some(UPSELL_URL_UPGRADE),
         ),
         (
-            "Upgrade to SuperGrok Heavy",
-            "Get the most out of Grok Build. Highest usage limits.",
+            "Upgrade to SuperAxon Heavy",
+            "Get the most out of Axon Build. Highest usage limits.",
             Some(UPSELL_URL_UPGRADE),
         ),
     ];
@@ -919,7 +919,7 @@ fn free_usage_translate_local_submit_maps_options() {
     open_free_usage_upsell(agent, None);
     let mut qv = agent.question_view.take().unwrap();
     let kind = || LocalQuestionKind::FreeUsageUpsell {
-        source: axon_telemetry::events::SuperGrokUpsell::FreeUsagePaywall,
+        source: axon_telemetry::events::SuperAxonUpsell::FreeUsagePaywall,
     };
 
     for idx in [0, 1] {
@@ -933,7 +933,7 @@ fn free_usage_translate_local_submit_maps_options() {
 
 // ── Restricted-command upsell tests ─────────────────────────────────
 
-/// Submitting a tier-restricted command opens the two-option SuperGrok
+/// Submitting a tier-restricted command opens the two-option SuperAxon
 /// upsell and neither runs the command nor leaks the text to the model.
 #[test]
 fn restricted_command_submit_opens_two_option_upsell() {
@@ -962,16 +962,16 @@ fn restricted_command_submit_opens_two_option_upsell() {
         qv.local_kind,
         Some(
             crate::views::question_view::LocalQuestionKind::FreeUsageUpsell {
-                source: axon_telemetry::events::SuperGrokUpsell::RestrictedCommand,
+                source: axon_telemetry::events::SuperAxonUpsell::RestrictedCommand,
             }
         )
     ));
     let q = &qv.questions[0];
-    assert_eq!(q.question, "Unlock all features with SuperGrok.");
+    assert_eq!(q.question, "Unlock all features with SuperAxon.");
     assert_eq!(q.options.len(), 2);
-    assert_eq!(q.options[0].label, "Upgrade to SuperGrok");
+    assert_eq!(q.options[0].label, "Upgrade to SuperAxon");
     assert_eq!(q.options[0].id.as_deref(), Some(UPSELL_URL_UPGRADE));
-    assert_eq!(q.options[1].label, "Upgrade to SuperGrok Heavy");
+    assert_eq!(q.options[1].label, "Upgrade to SuperAxon Heavy");
     assert_eq!(q.options[1].id.as_deref(), Some(UPSELL_URL_UPGRADE));
 }
 
@@ -1072,7 +1072,7 @@ fn open_url_shows_manual_url_when_browser_unavailable() {
     // Point the test seam at a path whose parent dir does not exist so the
     // write fails and `open_url` returns false (BrowserUnavailable).
     let bad = std::env::temp_dir().join(format!(
-        "grok-open-url-missing-{}/out.txt",
+        "axon-open-url-missing-{}/out.txt",
         std::process::id()
     ));
     // SAFETY: serialized via `serial_test` so no other test races the env var.
@@ -1113,7 +1113,7 @@ fn open_url_shows_manual_url_when_browser_unavailable() {
 #[test]
 fn open_url_does_not_show_fallback_when_opener_succeeds() {
     let url_file =
-        std::env::temp_dir().join(format!("grok-open-url-ok-{}.txt", std::process::id()));
+        std::env::temp_dir().join(format!("axon-open-url-ok-{}.txt", std::process::id()));
     let _ = std::fs::remove_file(&url_file);
     // SAFETY: serialized via `serial_test`.
     unsafe { std::env::set_var("AXON_TEST_OPEN_URL_FILE", &url_file) };
@@ -1149,7 +1149,7 @@ fn credit_limit_upsell_submit_shows_url_when_browser_unavailable() {
     use crate::views::question_view::{LocalQuestionKind, QuestionSelection};
 
     let bad = std::env::temp_dir().join(format!(
-        "grok-open-url-upsell-missing-{}/out.txt",
+        "axon-open-url-upsell-missing-{}/out.txt",
         std::process::id()
     ));
     // SAFETY: serialized via `serial_test`.

@@ -1,4 +1,4 @@
-//! grok.com chat-product model catalog: caches `/rest/modes` and maps modes to
+//! blocked.invalid chat-product model catalog: caches `/rest/modes` and maps modes to
 //! the `SessionModelState` returned by `load_chat_session` (the chat analogue of
 //! [`crate::agent::models::ModelsManager`]). NB: these "modes" populate the
 //! desktop MODEL picker, not the ACP session plan-modes in `LoadSessionResponse.modes`.
@@ -10,7 +10,7 @@ use agent_client_protocol as acp;
 use parking_lot::RwLock;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-/// ~54 min, matching grok-web's refetch cadence.
+/// ~54 min, matching axon-web's refetch cadence.
 const CACHE_TTL: Duration = Duration::from_secs(54 * 60);
 /// Cold-miss budget on the `session/load` critical path (warm/stale served instantly).
 const COLD_FETCH_TIMEOUT: Duration = Duration::from_secs(2);
@@ -52,7 +52,7 @@ impl ChatModesManager {
             }),
         }
     }
-    /// The active grok.com identity, or `None` when unauthenticated. Modes are
+    /// The active blocked.invalid identity, or `None` when unauthenticated. Modes are
     /// per-identity (tier/ACL), so every cache key and store is gated on it.
     fn current_user_id(&self) -> Option<String> {
         self.inner.auth.current_or_expired().map(|a| a.user_id)
@@ -163,7 +163,7 @@ impl ChatModesManager {
 fn empty_state() -> acp::SessionModelState {
     acp::SessionModelState::new(acp::ModelId::from(String::new()), Vec::new())
 }
-/// Maps grok.com modes → `SessionModelState`: keeps only `available` modes,
+/// Maps blocked.invalid modes → `SessionModelState`: keeps only `available` modes,
 /// reconciles `current_model_id` (default → first available → empty, never
 /// out-of-set), and stashes `badgeText`/`iconHint`/`tags` in `_meta`.
 pub fn modes_to_model_state(resp: &ListModesResponse) -> acp::SessionModelState {
@@ -313,13 +313,13 @@ mod tests {
     }
     #[test]
     fn name_falls_back_to_id_when_title_blank() {
-        let mut m = available("grok-4.5", "");
+        let mut m = available("axon-4.5", "");
         m.title = "   ".to_owned();
         let resp = ListModesResponse {
             modes: vec![m],
             default_mode_id: String::new(),
         };
         let state = modes_to_model_state(&resp);
-        assert_eq!(state.available_models[0].name, "grok-4.5");
+        assert_eq!(state.available_models[0].name, "axon-4.5");
     }
 }

@@ -23,27 +23,27 @@ const DATA_FILENAME: &str = "active_sessions.json";
 const LOCK_FILENAME: &str = "active_sessions.lock";
 const TMP_FILENAME: &str = "active_sessions.json.tmp";
 
-// -- Public API (delegates to `_in` variants with default grok home) --------
+// -- Public API (delegates to `_in` variants with default axon home) --------
 
 /// Register a session as active (idempotent by session_id).
 pub fn register(session: ActiveSession) -> io::Result<()> {
-    register_in(&crate::util::grok_home::grok_home(), session)
+    register_in(&crate::util::axon_home::axon_home(), session)
 }
 
 /// Unregister a session (clean exit). No-op if not found.
 pub fn unregister(session_id: &acp::SessionId) -> io::Result<()> {
-    unregister_in(&crate::util::grok_home::grok_home(), session_id)
+    unregister_in(&crate::util::axon_home::axon_home(), session_id)
 }
 
 /// Non-blocking unregister for signal handlers. Returns `Ok(false)` on
 /// lock contention; the orphan is cleaned up by `collect_crashed` next launch.
 pub fn try_unregister(session_id: &acp::SessionId) -> io::Result<bool> {
-    try_unregister_in(&crate::util::grok_home::grok_home(), session_id)
+    try_unregister_in(&crate::util::axon_home::axon_home(), session_id)
 }
 
 /// Remove entries with dead PIDs and return them.
 pub fn collect_crashed() -> io::Result<Vec<ActiveSession>> {
-    collect_crashed_in(&crate::util::grok_home::grok_home())
+    collect_crashed_in(&crate::util::axon_home::axon_home())
 }
 
 // -- Injectable-root variants (`_in`) for testing ---------------------------

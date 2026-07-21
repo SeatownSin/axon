@@ -1,5 +1,5 @@
 use crate::auth::AuthManager;
-use crate::util::grok_auth_credentials::GrokAuthCredentials;
+use crate::util::axon_auth_credentials::AxonAuthCredentials;
 use reqwest::RequestBuilder;
 use std::sync::Arc;
 use axon_auth::{
@@ -7,7 +7,7 @@ use axon_auth::{
 };
 /// `api_key.id` for the active credential: hash the stable API key, never the
 /// OIDC bearer (which rotates). `None` for non-API-key auth.
-fn api_key_id_for(auth: Option<&crate::auth::GrokAuth>) -> Option<String> {
+fn api_key_id_for(auth: Option<&crate::auth::AxonAuth>) -> Option<String> {
     auth.filter(|a| matches!(a.auth_mode, crate::auth::AuthMode::ApiKey))
         .map(|a| axon_telemetry::config::deployment_id_from_key(&a.key))
 }
@@ -15,7 +15,7 @@ fn api_key_id_for(auth: Option<&crate::auth::GrokAuth>) -> Option<String> {
 /// delegates to `AuthManager::unauthorized_recovery`.
 pub struct ShellAuthCredentialProvider {
     auth_manager: Arc<AuthManager>,
-    static_credentials: GrokAuthCredentials,
+    static_credentials: AxonAuthCredentials,
 }
 impl ShellAuthCredentialProvider {
     pub(crate) fn new(
@@ -23,7 +23,7 @@ impl ShellAuthCredentialProvider {
         deployment_key: Option<String>,
         alpha_test_key: Option<String>,
     ) -> Self {
-        let mut static_credentials = GrokAuthCredentials::new(None);
+        let mut static_credentials = AxonAuthCredentials::new(None);
         static_credentials.deployment_key = deployment_key;
         static_credentials.alpha_test_key = alpha_test_key;
         Self {
@@ -87,8 +87,8 @@ impl AuthCredentialProvider for ShellAuthCredentialProvider {
         self.static_credentials.deployment_key.is_none()
     }
 }
-/// Resolves the embedding credentials for `embed_base_url`, attaching the xAI
-/// session credential only to xAI-operated endpoints over `https`.
+/// Resolves the embedding credentials for `embed_base_url`, attaching the Axon
+/// session credential only to Axon-operated endpoints over `https`.
 pub(crate) fn embedding_session_credentials(
     embed_base_url: &str,
     auth_manager: Option<&Arc<AuthManager>>,
@@ -100,7 +100,7 @@ pub(crate) fn embedding_session_credentials(
     });
     axon_memory::EndpointScopedCredentials::for_endpoint(
         embed_base_url,
-        crate::util::is_xai_api_bearer_url,
+        crate::util::is_axon_api_bearer_url,
         auth_credentials,
         api_key_provider,
     )
@@ -113,14 +113,14 @@ pub(crate) fn embedding_session_credentials(
 /// Every call site **must** pass the correct `client_identifier` so that
 /// the API proxy (and telemetry / metrics backends) can properly attribute requests:
 ///
-/// - `"grok-shell"`   — classic Grok CLI / TUI (axon-shell)
-/// - `"grok-pager"`   — new Grok Pager / TUI (axon-pager)
-/// - `"grok-desktop"` — Grok Desktop app
-/// - `"grok-extension"` — VS Code / browser extension
+/// - `"axon-shell"`   — classic Axon CLI / TUI (axon-shell)
+/// - `"axon-pager"`   — new Axon Pager / TUI (axon-pager)
+/// - `"axon-desktop"` — Axon Desktop app
+/// - `"axon-extension"` — VS Code / browser extension
 ///
 /// The factory forwards both:
-/// - `x-grok-client-version`   (e.g. "0.1.210-alpha.5 (279ffacddb)")
-/// - `x-grok-client-identifier`
+/// - `x-axon-client-version`   (e.g. "0.1.210-alpha.5 (279ffacddb)")
+/// - `x-axon-client-identifier`
 ///
 /// to the underlying `axon-file-utils::StorageClient` via
 /// `.with_client_identity(...)`. This is what powers the improved error
@@ -129,7 +129,7 @@ pub(crate) fn embedding_session_credentials(
 /// - When `auth_manager` is `Some`, uses the live `ShellAuthCredentialProvider`
 ///   (OIDC refresh, proactive refresh, 401 recovery via `unauthorized_recovery`).
 /// - When `auth_manager` is `None`, falls back to a static token:
-///   - `user_token` (normal OIDC users via com scope) → sends Bearer + `X-XAI-Token-Auth`
+///   - `user_token` (normal OIDC users via com scope) → sends Bearer + `X-AXON-Token-Auth`
 ///   - `deployment_key` (enterprise) → sends bare Bearer
 ///   - the optional extra access key is added only for matching hosts when
 ///     the non-production feature is enabled.
@@ -163,7 +163,7 @@ pub fn build_storage_client_for_proxy(
         .with_client_mode(crate::http::process_client_mode())
         .with_attribution(bridge)
     } else {
-        let mut creds = GrokAuthCredentials::new(user_token);
+        let mut creds = AxonAuthCredentials::new(user_token);
         creds.deployment_key = deployment_key;
         creds.alpha_test_key = alpha_test_key;
         let wire_bearer = creds
@@ -275,7 +275,7 @@ impl std::fmt::Debug for OtelAuthCredentialProvider {
 impl HttpAuth for OtelAuthCredentialProvider {
     fn apply(&self, builder: RequestBuilder, base_url: &str) -> RequestBuilder {
         let snapshot = self.snapshot_inner();
-        let mut creds = GrokAuthCredentials::new(None);
+        let mut creds = AxonAuthCredentials::new(None);
         if self.deployment_key.load().is_some() {
             creds.deployment_key = snapshot.token;
         } else {
@@ -387,14 +387,14 @@ pub fn wire_otel_deployment_key(key: String) {
     }
 }
 /// Bootstrap helper: build the full [`OtelLayerConfig`] that both
-/// `axon-pager` and `xai-grok-tui` need at tracing init time.
+/// `axon-pager` and `axon-axon-tui` need at tracing init time.
 ///
 /// The credential provider starts in bootstrap mode (disk-read-only).
 /// Call [`wire_otel_auth_manager`] after agent init to upgrade to the
 /// live `AuthManager` with active refresh.
 pub fn build_default_otel_layer_config() -> axon_telemetry::otel_layer::OtelLayerConfig {
     let endpoints = crate::agent::config::EndpointsConfig::default();
-    let grok_com_config = crate::auth::GrokComConfig::default();
+    let axon_com_config = crate::auth::AxonComConfig::default();
     let exporter = axon_telemetry::otel_layer::OtelExporterConfig {
         traces_url: endpoints.resolve_otlp_traces_endpoint(),
         extra_headers: endpoints.resolve_otlp_headers(),
@@ -403,9 +403,9 @@ pub fn build_default_otel_layer_config() -> axon_telemetry::otel_layer::OtelLaye
         enabled: endpoints.resolve_traces_export_enabled()
             && !crate::agent::config::is_telemetry_explicitly_disabled_sync(),
     };
-    let token_header_value = grok_com_config.token_header.clone();
-    let grok_home = crate::util::grok_home::grok_home();
-    let bootstrap = Arc::new(AuthManager::new(&grok_home, grok_com_config));
+    let token_header_value = axon_com_config.token_header.clone();
+    let axon_home = crate::util::axon_home::axon_home();
+    let bootstrap = Arc::new(AuthManager::new(&axon_home, axon_com_config));
     let provider = Arc::new(OtelAuthCredentialProvider::new(bootstrap));
     let _ = OTEL_PROVIDER.set(provider.clone());
     axon_telemetry::otel_layer::OtelLayerConfig {
@@ -418,8 +418,8 @@ pub fn build_default_otel_layer_config() -> axon_telemetry::otel_layer::OtelLaye
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::auth::GrokAuth;
-    use crate::auth::GrokComConfig;
+    use crate::auth::AxonAuth;
+    use crate::auth::AxonComConfig;
     use crate::auth::manager::AuthManager;
     use chrono::{Duration as ChronoDuration, Utc};
     use std::sync::Mutex;
@@ -458,19 +458,19 @@ mod tests {
             }
         }
     }
-    fn make_auth(key: &str, expires_in: ChronoDuration) -> GrokAuth {
-        GrokAuth {
+    fn make_auth(key: &str, expires_in: ChronoDuration) -> AxonAuth {
+        AxonAuth {
             key: key.to_string(),
             user_id: "test-user".to_string(),
             create_time: Utc::now(),
             expires_at: Some(Utc::now() + expires_in),
-            ..GrokAuth::test_default()
+            ..AxonAuth::test_default()
         }
     }
     /// Build an `AuthManager` rooted at `dir`. Caller keeps `dir` alive for
     /// the duration of the test so the `TempDir` `Drop` actually cleans up.
-    fn make_manager(dir: &tempfile::TempDir, initial: Option<GrokAuth>) -> Arc<AuthManager> {
-        let mgr = AuthManager::new(dir.path(), GrokComConfig::default());
+    fn make_manager(dir: &tempfile::TempDir, initial: Option<AxonAuth>) -> Arc<AuthManager> {
+        let mgr = AuthManager::new(dir.path(), AxonComConfig::default());
         if let Some(auth) = initial {
             mgr.hot_swap(auth);
         }
@@ -540,16 +540,16 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let mgr = Arc::new(AuthManager::new(
             dir.path(),
-            crate::auth::GrokComConfig::default(),
+            crate::auth::AxonComConfig::default(),
         ));
-        mgr.hot_swap(GrokAuth {
+        mgr.hot_swap(AxonAuth {
             key: "stale".into(),
             auth_mode: crate::auth::AuthMode::Oidc,
             create_time: chrono::Utc::now() - ChronoDuration::hours(2),
             user_id: "u".into(),
             refresh_token: Some("rt-stale".into()),
             expires_at: Some(chrono::Utc::now() - ChronoDuration::hours(1)),
-            ..GrokAuth::test_default()
+            ..AxonAuth::test_default()
         });
         struct OkRefresher {
             calls: Arc<std::sync::atomic::AtomicU32>,
@@ -561,14 +561,14 @@ mod tests {
                 _r: crate::auth::manager::RefreshReason,
             ) -> crate::auth::refresh::RefreshOutcome {
                 self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-                crate::auth::refresh::RefreshOutcome::Success(Box::new(GrokAuth {
+                crate::auth::refresh::RefreshOutcome::Success(Box::new(AxonAuth {
                     key: "fresh".into(),
                     auth_mode: crate::auth::AuthMode::Oidc,
                     create_time: chrono::Utc::now(),
                     user_id: "u".into(),
                     refresh_token: Some("rt-new".into()),
                     expires_at: Some(chrono::Utc::now() + ChronoDuration::hours(1)),
-                    ..GrokAuth::test_default()
+                    ..AxonAuth::test_default()
                 }))
             }
         }
@@ -592,11 +592,11 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let mgr = make_manager(
             &dir,
-            Some(make_auth("xai-session-token", ChronoDuration::hours(1))),
+            Some(make_auth("axon-session-token", ChronoDuration::hours(1))),
         );
         let api_key_provider: axon_tools::types::SharedApiKeyProvider =
             Arc::new(crate::auth::manager::SharedAuthKeyProvider(mgr.clone()));
-        for denied in ["https://byok.attacker.example/v1", "http://api.x.ai/v1"] {
+        for denied in ["https://byok.attacker.example/v1", "http://api.blocked.invalid/v1"] {
             let resolved =
                 embedding_session_credentials(denied, Some(&mgr), Some(api_key_provider.clone()));
             assert!(
@@ -605,7 +605,7 @@ mod tests {
             );
         }
         let resolved = embedding_session_credentials(
-            "https://api.x.ai/v1",
+            "https://api.blocked.invalid/v1",
             Some(&mgr),
             Some(api_key_provider),
         );
@@ -628,20 +628,20 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let dep = ShellAuthCredentialProvider::new(
             make_manager(&dir, None),
-            Some("xai-token-EX".into()),
+            Some("axon-token-EX".into()),
             None,
         )
         .snapshot();
         assert_eq!(
             dep.deployment_id.as_deref(),
-            Some(deployment_id_from_key("xai-token-EX").as_str())
+            Some(deployment_id_from_key("axon-token-EX").as_str())
         );
         assert!(dep.api_key_id.is_none());
-        let api_auth = GrokAuth {
+        let api_auth = AxonAuth {
             key: "sk-apikey-xyz".into(),
             auth_mode: crate::auth::AuthMode::ApiKey,
             expires_at: Some(Utc::now() + ChronoDuration::hours(1)),
-            ..GrokAuth::test_default()
+            ..AxonAuth::test_default()
         };
         let api = ShellAuthCredentialProvider::new(make_manager(&dir, Some(api_auth)), None, None)
             .snapshot();
@@ -667,7 +667,7 @@ mod tests {
     fn otel_bootstrap_snapshot_picks_up_disk_writes() {
         let _guard = EarlyInvalidationGuard::pin_to_default();
         let dir = tempfile::tempdir().unwrap();
-        let scope = crate::auth::GrokComConfig::default().auth_scope();
+        let scope = crate::auth::AxonComConfig::default().auth_scope();
         let auth_path = dir.path().join("auth.json");
         let mgr = make_manager(
             &dir,
@@ -729,16 +729,16 @@ mod tests {
         let live_dir = tempfile::tempdir().unwrap();
         let live_mgr = Arc::new(AuthManager::new(
             live_dir.path(),
-            crate::auth::GrokComConfig::default(),
+            crate::auth::AxonComConfig::default(),
         ));
-        live_mgr.hot_swap(GrokAuth {
+        live_mgr.hot_swap(AxonAuth {
             key: "stale".into(),
             auth_mode: crate::auth::AuthMode::Oidc,
             create_time: chrono::Utc::now() - ChronoDuration::hours(2),
             user_id: "u".into(),
             refresh_token: Some("rt-stale".into()),
             expires_at: Some(chrono::Utc::now() - ChronoDuration::hours(1)),
-            ..GrokAuth::test_default()
+            ..AxonAuth::test_default()
         });
         struct OkRefresher;
         #[async_trait::async_trait]
@@ -747,14 +747,14 @@ mod tests {
                 &self,
                 _r: crate::auth::manager::RefreshReason,
             ) -> crate::auth::refresh::RefreshOutcome {
-                crate::auth::refresh::RefreshOutcome::Success(Box::new(GrokAuth {
+                crate::auth::refresh::RefreshOutcome::Success(Box::new(AxonAuth {
                     key: "refreshed".into(),
                     auth_mode: crate::auth::AuthMode::Oidc,
                     create_time: chrono::Utc::now(),
                     user_id: "u".into(),
                     refresh_token: Some("rt-new".into()),
                     expires_at: Some(chrono::Utc::now() + ChronoDuration::hours(1)),
-                    ..GrokAuth::test_default()
+                    ..AxonAuth::test_default()
                 }))
             }
         }
@@ -864,7 +864,7 @@ mod tests {
         );
     }
     /// A configured `deployment_key` always wins over the AuthManager-resolved
-    /// user token, matching the precedence in `GrokAuthCredentials::apply`.
+    /// user token, matching the precedence in `AxonAuthCredentials::apply`.
     /// The snapshot must report the deployment key (not the user token) so
     /// the 401-attribution prefix matches the wire bytes.
     #[test]

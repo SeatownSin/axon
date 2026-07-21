@@ -1,6 +1,6 @@
 //! Registry-churn regression gate: a real in-process `MvpAgent` on duplex
 //! ACP pipes churns sessions through create, prompt, and close, then
-//! asserts via `x.ai/debug/agent` that every registry count returns
+//! asserts via `axon/debug/agent` that every registry count returns
 //! to its pre-churn baseline. Deterministic counts, no memory thresholds.
 //! Counts the echo workload never populates are pinned at their zero
 //! baseline only.
@@ -85,9 +85,9 @@ async fn ext_method(
     serde_json::from_str(resp.0.get()).unwrap_or_else(|e| panic!("{method}: bad response: {e}"))
 }
 async fn read_counts(conn: &acp::ClientSideConnection) -> Counts {
-    let resp = ext_method(conn, "x.ai/debug/agent", json!({})).await;
+    let resp = ext_method(conn, "axon/debug/agent", json!({})).await;
     serde_json::from_value(resp["result"]["registries"].clone())
-        .unwrap_or_else(|e| panic!("x.ai/debug/agent: bad registries payload: {e}\n{resp}"))
+        .unwrap_or_else(|e| panic!("axon/debug/agent: bad registries payload: {e}\n{resp}"))
 }
 async fn new_session(conn: &acp::ClientSideConnection, cwd: &std::path::Path) -> acp::SessionId {
     tokio::time::timeout(
@@ -125,14 +125,14 @@ async fn prompt_turn(conn: &acp::ClientSideConnection, session_id: &acp::Session
 async fn close_session(conn: &acp::ClientSideConnection, session_id: &acp::SessionId) {
     let resp = ext_method(
         conn,
-        "x.ai/session/close",
+        "axon/session/close",
         json!({ "sessionId" : session_id.0.as_ref() }),
     )
     .await;
     assert_eq!(
         resp["result"]["success"],
         json!(true),
-        "x.ai/session/close on {} failed: {resp}",
+        "axon/session/close on {} failed: {resp}",
         session_id.0
     );
 }
@@ -200,8 +200,8 @@ async fn connect_and_auth() -> acp::ClientSideConnection {
     let method = init
         .auth_methods
         .iter()
-        .find(|m| &*m.id().0 == "xai.api_key")
-        .expect("xai.api_key auth method not advertised");
+        .find(|m| &*m.id().0 == "axon.api_key")
+        .expect("axon.api_key auth method not advertised");
     tokio::time::timeout(
         RPC_TIMEOUT,
         client_conn.authenticate(
@@ -228,13 +228,13 @@ fn session_churn_returns_registry_snapshot_to_baseline() {
     let server = mock_rt
         .block_on(MockInferenceServer::start())
         .expect("mock server");
-    let grok_home = TempDir::new().expect("grok home");
+    let axon_home = TempDir::new().expect("axon home");
     let workdir = TempDir::new().expect("workdir");
     unsafe {
-        std::env::set_var("AXON_HOME", grok_home.path());
+        std::env::set_var("AXON_HOME", axon_home.path());
         std::env::set_var("AXON_CLI_CHAT_PROXY_BASE_URL", server.url());
-        std::env::set_var("AXON_XAI_API_BASE_URL", server.url());
-        std::env::set_var("XAI_API_KEY", "test-key-for-ci");
+        std::env::set_var("AXON_AXON_API_BASE_URL", server.url());
+        std::env::set_var("AXON_API_KEY", "test-key-for-ci");
         std::env::set_var("AXON_TELEMETRY_ENABLED", "false");
         std::env::set_var("AXON_FEEDBACK_ENABLED", "false");
         std::env::set_var("AXON_TRACE_UPLOAD", "false");

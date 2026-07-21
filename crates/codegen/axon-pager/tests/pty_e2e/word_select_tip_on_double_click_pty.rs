@@ -209,10 +209,10 @@ async fn word_select_tip_skipped_when_contextual_hint_disabled() {
     let content = ContentController::start().await.expect("start content");
     // flash mode + tip explicitly disabled. AXON_CONTEXTUAL_HINTS is NOT set —
     // that env master would force all tips on and defeat the config opt-out.
-    let grok_home = content.home().join(".axon");
-    std::fs::create_dir_all(&grok_home).expect("create .axon");
+    let axon_home = content.home().join(".axon");
+    std::fs::create_dir_all(&axon_home).expect("create .axon");
     std::fs::write(
-        grok_home.join("config.toml"),
+        axon_home.join("config.toml"),
         "[ui]\n\
          keep_text_selection = \"flash\"\n\
          [ui.contextual_hints]\n\

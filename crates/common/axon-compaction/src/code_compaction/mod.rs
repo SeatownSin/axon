@@ -1,11 +1,11 @@
-//! grok-build's "code agent" compaction subsystem.
+//! axon-build's "code agent" compaction subsystem.
 //!
-//! grok-build does not select a tail to keep; it summarizes the whole
+//! axon-build does not select a tail to keep; it summarizes the whole
 //! conversation and rebuilds a fresh history from scratch (the *full-replace*
 //! strategy). This module groups that subsystem — generic over the engine's
 //! [`CompactionItem`](crate::item::CompactionItem) /
 //! [`CompactionItemFactory`](crate::item::CompactionItemFactory) seams — so it
-//! can be reused as a unit by grok-build, separate from Grok chat's
+//! can be reused as a unit by axon-build, separate from Axon chat's
 //! [`intra_compaction`](crate::intra_compaction) (tail-keep, per-step) and
 //! [`inter_compaction`](crate::inter_compaction) (chunked, between-turn).
 //!

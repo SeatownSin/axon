@@ -270,7 +270,7 @@ impl ToolServerBuilder {
 
     /// Process-wide concurrent running-call ceiling (default 1024). Shared
     /// by every connection via a once-initialized semaphore; the
-    /// `XAI_TOOL_SERVER_GLOBAL_MAX_INFLIGHT` env var overrides this at
+    /// `AXON_TOOL_SERVER_GLOBAL_MAX_INFLIGHT` env var overrides this at
     /// startup. Because the global cell initializes once, the first server
     /// built in the process fixes the process-wide value.
     pub fn global_max_inflight(mut self, max: usize) -> Self {

@@ -80,7 +80,7 @@ fn resolve_config(cfg: &AgentConfig, auth_manager: &AuthManager) -> AgentConfig 
     // thread the result into `cfg.remote_settings` skip this entirely.
     if cfg.remote_settings.is_none()
         && let Some(handle) =
-            crate::agent::models::start_early_prefetch(Some(cfg.grok_com_config.clone()))
+            crate::agent::models::start_early_prefetch(Some(cfg.axon_com_config.clone()))
     {
         match handle.join() {
             Ok(result) => {
@@ -104,11 +104,11 @@ fn resolve_config(cfg: &AgentConfig, auth_manager: &AuthManager) -> AgentConfig 
     {
         cfg.storage_mode = StorageMode::resolve(None, cfg.remote_settings.as_ref());
     }
-    // Writeback talks to the code backend; requires grok.com auth.
+    // Writeback talks to the code backend; requires blocked.invalid auth.
     if cfg.storage_mode == StorageMode::Writeback
-        && !auth_manager.current().is_some_and(|a| a.is_xai_auth())
+        && !auth_manager.current().is_some_and(|a| a.is_axon_auth())
     {
-        tracing::info!("Writeback is disabled: requires auth with grok.com");
+        tracing::info!("Writeback is disabled: requires auth with blocked.invalid");
         cfg.storage_mode = StorageMode::Local;
     }
 
@@ -134,16 +134,16 @@ fn init_process(cfg: &AgentConfig, auth_manager: &AuthManager) {
             crate::managed_config::spawn_sync(tokio_util::sync::CancellationToken::new());
         }
 
-        let grok_home = crate::util::grok_home::grok_home();
-        crate::builtin::extract_bundled_files(&grok_home);
+        let axon_home = crate::util::axon_home::axon_home();
+        crate::builtin::extract_bundled_files(&axon_home);
 
-        crate::extensions::marketplace::purge_default_skills_installs(&grok_home);
+        crate::extensions::marketplace::purge_default_skills_installs(&axon_home);
 
         // Auto-register is gated (default off; env/remote settings enables). Kept out
         // of extract_bundled_files so the gate can read the resolved
         // remote_settings, which resolve_config has populated by now.
         if cfg.resolve_official_marketplace_auto_register().value {
-            crate::extensions::marketplace::ensure_official_marketplace_source(&grok_home);
+            crate::extensions::marketplace::ensure_official_marketplace_source(&axon_home);
         }
 
         let telemetry_mode = cfg.resolve_telemetry_mode();
@@ -176,9 +176,9 @@ fn init_process(cfg: &AgentConfig, auth_manager: &AuthManager) {
 /// Apply current telemetry config + auth identity. Tears down the client
 /// when telemetry is disabled, so it's safe to call repeatedly.
 pub fn update_telemetry_config(config: &AgentConfig, auth_manager: &AuthManager) {
-    let grok_auth = auth_manager.current().filter(|a| a.is_xai_auth());
-    let user_id = grok_auth.as_ref().map(|a| a.user_id.clone());
-    let team_id = grok_auth.as_ref().and_then(|a| a.team_id.clone());
+    let axon_auth = auth_manager.current().filter(|a| a.is_axon_auth());
+    let user_id = axon_auth.as_ref().map(|a| a.user_id.clone());
+    let team_id = axon_auth.as_ref().and_then(|a| a.team_id.clone());
     let subscription_tier = super::mvp_agent::resolve_subscription_tier_for_telemetry(
         config
             .remote_settings

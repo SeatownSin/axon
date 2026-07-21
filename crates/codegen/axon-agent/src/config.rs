@@ -8,8 +8,8 @@ use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
 use strum::{AsRefStr, Display, EnumIter, EnumString, IntoStaticStr};
 use axon_tools::implementations::codex;
-use axon_tools::implementations::grok_build;
-use axon_tools::implementations::grok_build_concise;
+use axon_tools::implementations::axon_build;
+use axon_tools::implementations::axon_build_concise;
 use axon_tools::implementations::memory;
 use axon_tools::implementations::opencode;
 use axon_tools::implementations::search_tool;
@@ -91,7 +91,7 @@ fn registered_public_toolset_preset_names() -> Vec<String> {
         .map(|(name, _)| name.clone())
         .collect()
 }
-/// Orchestrator-specific prompt body appended to the standard GrokBuild
+/// Orchestrator-specific prompt body appended to the standard AxonBuild
 /// system prompt (`prompt.md`). Instructs the GBL model to delegate
 /// coding and exploration work to subagents.
 const ORCHESTRATOR_PROMPT_BODY: &str = "\
@@ -143,67 +143,67 @@ Write prompts the way you would brief a senior engineer:
 /// Bash tool with clearer model-facing names:
 /// `run_terminal_cmd` → `run_terminal_command`, `is_background` → `background`.
 fn bash_tool_config() -> ToolConfig {
-    ToolConfig::from(&grok_build::BashTool)
+    ToolConfig::from(&axon_build::BashTool)
         .with_name("run_terminal_command")
         .with_param_rename("is_background", "background")
 }
 /// Task/subagent tool with clearer model-facing names:
 /// `task` → `spawn_subagent`, `run_in_background` → `background`.
 fn task_tool_config() -> ToolConfig {
-    ToolConfig::from(&grok_build::TaskTool)
+    ToolConfig::from(&axon_build::TaskTool)
         .with_name("spawn_subagent")
         .with_param_rename("run_in_background", "background")
 }
 /// Task output tool renamed for clarity:
 /// `get_task_output` → `get_command_or_subagent_output`.
 fn task_output_tool_config() -> ToolConfig {
-    ToolConfig::from(&grok_build::TaskOutputTool).with_name("get_command_or_subagent_output")
+    ToolConfig::from(&axon_build::TaskOutputTool).with_name("get_command_or_subagent_output")
 }
 /// `wait_tasks` → `wait_commands_or_subagents`.
 fn wait_tasks_tool_config() -> ToolConfig {
-    ToolConfig::from(&grok_build::WaitTasksTool).with_name("wait_commands_or_subagents")
+    ToolConfig::from(&axon_build::WaitTasksTool).with_name("wait_commands_or_subagents")
 }
 /// `kill_task` → `kill_command_or_subagent`.
 fn kill_task_tool_config() -> ToolConfig {
-    ToolConfig::from(&grok_build::KillTaskTool).with_name("kill_command_or_subagent")
+    ToolConfig::from(&axon_build::KillTaskTool).with_name("kill_command_or_subagent")
 }
 /// Complete workspace-executable toolset for hub registration.
 ///
-/// Extends `default_grok_build_toolset()` with tools that are dynamically
+/// Extends `default_axon_build_toolset()` with tools that are dynamically
 /// injected by `AgentBuilder::build()` or only available in specific modes.
 /// In proxy mode, the workspace server executes ALL tools — the shell has
 /// zero local dispatch.
-pub fn workspace_grok_build_toolset() -> ToolServerConfig {
-    let mut tools = default_grok_build_toolset().tools;
+pub fn workspace_axon_build_toolset() -> ToolServerConfig {
+    let mut tools = default_axon_build_toolset().tools;
     tools.push((&opencode::OpenCodeWriteTool).into());
-    tools.push((&grok_build::EnterPlanModeTool).into());
-    tools.push((&grok_build::ExitPlanModeTool).into());
-    tools.push((&grok_build::AskUserQuestionTool).into());
-    tools.push((&grok_build::WebSearchTool).into());
-    tools.push((&grok_build::ImageGenTool).into());
-    tools.push((&grok_build::ImageToVideoTool).into());
-    tools.push((&grok_build::ReferenceToVideoTool).into());
-    tools.push((&grok_build::WebFetchTool).into());
+    tools.push((&axon_build::EnterPlanModeTool).into());
+    tools.push((&axon_build::ExitPlanModeTool).into());
+    tools.push((&axon_build::AskUserQuestionTool).into());
+    tools.push((&axon_build::WebSearchTool).into());
+    tools.push((&axon_build::ImageGenTool).into());
+    tools.push((&axon_build::ImageToVideoTool).into());
+    tools.push((&axon_build::ReferenceToVideoTool).into());
+    tools.push((&axon_build::WebFetchTool).into());
     tools.push((&memory::search_tool::MemorySearchImpl).into());
     tools.push((&memory::get_tool::MemoryGetImpl).into());
-    tools.push((&grok_build::LspTool).into());
+    tools.push((&axon_build::LspTool).into());
     ToolServerConfig {
         tools,
         behavior_preset: None,
     }
 }
-/// Toolset for the `grok-computer` (workspace/sandbox) preset.
-fn grok_computer_toolset() -> ToolServerConfig {
+/// Toolset for the `axon-computer` (workspace/sandbox) preset.
+fn axon_computer_toolset() -> ToolServerConfig {
     #[allow(unused_mut)]
     let mut tools = vec![
         bash_tool_config(),
-        (&grok_build::ReadFileTool).into(),
-        (&grok_build::SearchReplaceTool).into(),
+        (&axon_build::ReadFileTool).into(),
+        (&axon_build::SearchReplaceTool).into(),
         (&opencode::OpenCodeWriteTool).into(),
-        (&grok_build::ListDirTool).into(),
-        (&grok_build::GrepTool).into(),
-        (&grok_build::KillTerminalCommandTool).into(),
-        (&grok_build::GetTerminalCommandOutputTool).into(),
+        (&axon_build::ListDirTool).into(),
+        (&axon_build::GrepTool).into(),
+        (&axon_build::KillTerminalCommandTool).into(),
+        (&axon_build::GetTerminalCommandOutputTool).into(),
     ];
     ToolServerConfig {
         tools,
@@ -218,13 +218,13 @@ fn grok_computer_toolset() -> ToolServerConfig {
 /// Native (in-crate) toolset presets.
 fn native_toolset_presets() -> Vec<(&'static str, ToolServerConfig)> {
     vec![
-        ("grok-build", workspace_grok_build_toolset()),
-        ("grok-build-concise", grok_build_concise_toolset()),
-        ("grok-build-plan", grok_build_plan_toolset()),
+        ("axon-build", workspace_axon_build_toolset()),
+        ("axon-build-concise", axon_build_concise_toolset()),
+        ("axon-build-plan", axon_build_plan_toolset()),
         ("codex", codex_toolset()),
         ("explore", explore_toolset()),
         ("plan", plan_toolset()),
-        ("grok-computer", grok_computer_toolset()),
+        ("axon-computer", axon_computer_toolset()),
     ]
 }
 /// Every named **public** toolset preset (native + externally registered public
@@ -260,46 +260,46 @@ pub fn toolset_for_preset(preset: &str) -> Option<ToolServerConfig> {
         .map(|(_, toolset)| toolset)
         .or_else(|| registered_toolset_preset(&normalized))
 }
-fn default_grok_build_toolset() -> ToolServerConfig {
+fn default_axon_build_toolset() -> ToolServerConfig {
     ToolServerConfig {
         tools: vec![
             bash_tool_config(),
-            (&grok_build::ReadFileTool).into(),
-            (&grok_build::SearchReplaceTool).into(),
-            (&grok_build::ListDirTool).into(),
-            (&grok_build::GrepTool).into(),
+            (&axon_build::ReadFileTool).into(),
+            (&axon_build::SearchReplaceTool).into(),
+            (&axon_build::ListDirTool).into(),
+            (&axon_build::GrepTool).into(),
             kill_task_tool_config(),
-            (&grok_build::TodoWriteTool).into(),
+            (&axon_build::TodoWriteTool).into(),
             task_output_tool_config(),
             wait_tasks_tool_config(),
             task_tool_config(),
-            (&grok_build::SchedulerCreateTool).into(),
-            (&grok_build::SchedulerDeleteTool).into(),
-            (&grok_build::SchedulerListTool).into(),
-            (&grok_build::MonitorTool).into(),
+            (&axon_build::SchedulerCreateTool).into(),
+            (&axon_build::SchedulerDeleteTool).into(),
+            (&axon_build::SchedulerListTool).into(),
+            (&axon_build::MonitorTool).into(),
             (&search_tool::SearchTool).into(),
             (&use_tool::UseTool).into(),
-            (&grok_build::UpdateGoalTool).into(),
+            (&axon_build::UpdateGoalTool).into(),
         ],
         behavior_preset: None,
     }
 }
-fn grok_build_concise_toolset() -> ToolServerConfig {
+fn axon_build_concise_toolset() -> ToolServerConfig {
     ToolServerConfig {
         tools: vec![
-            (&grok_build_concise::BashConciseTool).into(),
-            (&grok_build_concise::ReadFileConciseTool).into(),
-            (&grok_build_concise::SearchReplaceConciseTool).into(),
-            (&grok_build::ListDirTool).into(),
-            (&grok_build::GrepTool).into(),
+            (&axon_build_concise::BashConciseTool).into(),
+            (&axon_build_concise::ReadFileConciseTool).into(),
+            (&axon_build_concise::SearchReplaceConciseTool).into(),
+            (&axon_build::ListDirTool).into(),
+            (&axon_build::GrepTool).into(),
             kill_task_tool_config(),
-            (&grok_build::TodoWriteTool).into(),
+            (&axon_build::TodoWriteTool).into(),
             task_output_tool_config(),
-            (&grok_build::SchedulerCreateTool).into(),
-            (&grok_build::SchedulerDeleteTool).into(),
-            (&grok_build::SchedulerListTool).into(),
-            (&grok_build::MonitorTool).into(),
-            (&grok_build::UpdateGoalTool).into(),
+            (&axon_build::SchedulerCreateTool).into(),
+            (&axon_build::SchedulerDeleteTool).into(),
+            (&axon_build::SchedulerListTool).into(),
+            (&axon_build::MonitorTool).into(),
+            (&axon_build::UpdateGoalTool).into(),
         ],
         behavior_preset: None,
     }
@@ -309,26 +309,26 @@ fn grok_build_concise_toolset() -> ToolServerConfig {
 /// `hashline_tools` should be the 3 hashline `ToolConfig` entries produced by
 /// `FileToolset::Hashline.tool_configs(&hashline_config)` — they carry the
 /// scheme parameters as tool params.
-pub fn grok_build_hashline_toolset(
+pub fn axon_build_hashline_toolset(
     hashline_tools: Vec<axon_tools::registry::types::ToolConfig>,
 ) -> ToolServerConfig {
     let mut tools: Vec<axon_tools::registry::types::ToolConfig> = vec![bash_tool_config()];
     tools.extend(hashline_tools);
     tools.extend([
-        (&grok_build::ListDirTool).into(),
+        (&axon_build::ListDirTool).into(),
         kill_task_tool_config(),
-        (&grok_build::TodoWriteTool).into(),
+        (&axon_build::TodoWriteTool).into(),
         task_output_tool_config(),
         wait_tasks_tool_config(),
         task_tool_config(),
-        (&grok_build::WebSearchTool).into(),
-        (&grok_build::SchedulerCreateTool).into(),
-        (&grok_build::SchedulerDeleteTool).into(),
-        (&grok_build::SchedulerListTool).into(),
-        (&grok_build::MonitorTool).into(),
+        (&axon_build::WebSearchTool).into(),
+        (&axon_build::SchedulerCreateTool).into(),
+        (&axon_build::SchedulerDeleteTool).into(),
+        (&axon_build::SchedulerListTool).into(),
+        (&axon_build::MonitorTool).into(),
         (&search_tool::SearchTool).into(),
         (&use_tool::UseTool).into(),
-        (&grok_build::UpdateGoalTool).into(),
+        (&axon_build::UpdateGoalTool).into(),
     ]);
     ToolServerConfig {
         tools,
@@ -344,7 +344,7 @@ fn codex_toolset() -> ToolServerConfig {
             (&codex::CodexListDirTool).into(),
             (&codex::CodexGrepFilesTool).into(),
             kill_task_tool_config(),
-            (&grok_build::TodoWriteTool).into(),
+            (&axon_build::TodoWriteTool).into(),
             task_output_tool_config(),
             (&search_tool::SearchTool).into(),
             (&use_tool::UseTool).into(),
@@ -362,9 +362,9 @@ fn codex_toolset() -> ToolServerConfig {
 fn explore_toolset() -> ToolServerConfig {
     ToolServerConfig {
         tools: vec![
-            (&grok_build::ReadFileTool).into(),
-            (&grok_build::ListDirTool).into(),
-            (&grok_build::GrepTool).into(),
+            (&axon_build::ReadFileTool).into(),
+            (&axon_build::ListDirTool).into(),
+            (&axon_build::GrepTool).into(),
         ],
         behavior_preset: None,
     }
@@ -377,42 +377,42 @@ fn explore_toolset() -> ToolServerConfig {
 fn plan_toolset() -> ToolServerConfig {
     ToolServerConfig {
         tools: vec![
-            (&grok_build::ReadFileTool).into(),
-            (&grok_build::ListDirTool).into(),
-            (&grok_build::GrepTool).into(),
-            (&grok_build::TodoWriteTool).into(),
+            (&axon_build::ReadFileTool).into(),
+            (&axon_build::ListDirTool).into(),
+            (&axon_build::GrepTool).into(),
+            (&axon_build::TodoWriteTool).into(),
         ],
         behavior_preset: None,
     }
 }
-/// Grok Build + plan mode toolset.
+/// Axon Build + plan mode toolset.
 ///
-/// Extends the default `grok-build` toolset with plan mode tools:
+/// Extends the default `axon-build` toolset with plan mode tools:
 /// `enter_plan_mode`, `exit_plan_mode`, and `ask_user_question`.
 /// This allows the agent to enter a structured planning phase before
 /// writing code, with user-approved plans.
-fn grok_build_plan_toolset() -> ToolServerConfig {
+fn axon_build_plan_toolset() -> ToolServerConfig {
     ToolServerConfig {
         tools: vec![
             bash_tool_config(),
-            (&grok_build::ReadFileTool).into(),
-            (&grok_build::SearchReplaceTool).into(),
-            (&grok_build::ListDirTool).into(),
-            (&grok_build::GrepTool).into(),
+            (&axon_build::ReadFileTool).into(),
+            (&axon_build::SearchReplaceTool).into(),
+            (&axon_build::ListDirTool).into(),
+            (&axon_build::GrepTool).into(),
             kill_task_tool_config(),
-            (&grok_build::TodoWriteTool).into(),
+            (&axon_build::TodoWriteTool).into(),
             task_output_tool_config(),
             task_tool_config(),
-            (&grok_build::SchedulerCreateTool).into(),
-            (&grok_build::SchedulerDeleteTool).into(),
-            (&grok_build::SchedulerListTool).into(),
-            (&grok_build::MonitorTool).into(),
+            (&axon_build::SchedulerCreateTool).into(),
+            (&axon_build::SchedulerDeleteTool).into(),
+            (&axon_build::SchedulerListTool).into(),
+            (&axon_build::MonitorTool).into(),
             (&search_tool::SearchTool).into(),
             (&use_tool::UseTool).into(),
-            (&grok_build::UpdateGoalTool).into(),
-            (&grok_build::EnterPlanModeTool).into(),
-            (&grok_build::ExitPlanModeTool).into(),
-            (&grok_build::AskUserQuestionTool).into(),
+            (&axon_build::UpdateGoalTool).into(),
+            (&axon_build::EnterPlanModeTool).into(),
+            (&axon_build::ExitPlanModeTool).into(),
+            (&axon_build::AskUserQuestionTool).into(),
         ],
         behavior_preset: None,
     }
@@ -427,90 +427,90 @@ fn orchestrator_toolset() -> ToolServerConfig {
     ToolServerConfig {
         tools: vec![
             bash_tool_config(),
-            (&grok_build::ReadFileTool).into(),
-            (&grok_build::ListDirTool).into(),
-            (&grok_build::GrepTool).into(),
+            (&axon_build::ReadFileTool).into(),
+            (&axon_build::ListDirTool).into(),
+            (&axon_build::GrepTool).into(),
             task_tool_config(),
             task_output_tool_config(),
             wait_tasks_tool_config(),
             kill_task_tool_config(),
             (&search_tool::SearchTool).into(),
             (&use_tool::UseTool).into(),
-            (&grok_build::TodoWriteTool).into(),
-            (&grok_build::EnterPlanModeTool).into(),
-            (&grok_build::ExitPlanModeTool).into(),
-            (&grok_build::AskUserQuestionTool).into(),
-            (&grok_build::UpdateGoalTool).into(),
-            (&grok_build::SchedulerCreateTool).into(),
-            (&grok_build::SchedulerDeleteTool).into(),
-            (&grok_build::SchedulerListTool).into(),
-            (&grok_build::MonitorTool).into(),
-            (&grok_build::WebSearchTool).into(),
-            (&grok_build::WebFetchTool).into(),
-            (&grok_build::ImageGenTool).into(),
-            (&grok_build::ImageToVideoTool).into(),
-            (&grok_build::ReferenceToVideoTool).into(),
+            (&axon_build::TodoWriteTool).into(),
+            (&axon_build::EnterPlanModeTool).into(),
+            (&axon_build::ExitPlanModeTool).into(),
+            (&axon_build::AskUserQuestionTool).into(),
+            (&axon_build::UpdateGoalTool).into(),
+            (&axon_build::SchedulerCreateTool).into(),
+            (&axon_build::SchedulerDeleteTool).into(),
+            (&axon_build::SchedulerListTool).into(),
+            (&axon_build::MonitorTool).into(),
+            (&axon_build::WebSearchTool).into(),
+            (&axon_build::WebFetchTool).into(),
+            (&axon_build::ImageGenTool).into(),
+            (&axon_build::ImageToVideoTool).into(),
+            (&axon_build::ReferenceToVideoTool).into(),
             (&memory::MemorySearchImpl).into(),
             (&memory::MemoryGetImpl).into(),
         ],
         behavior_preset: None,
     }
 }
-/// Grok Build + plan mode toolset WITHOUT subagent tools.
+/// Axon Build + plan mode toolset WITHOUT subagent tools.
 ///
-/// Same as `grok_build_plan_toolset` but excludes `TaskTool`,
+/// Same as `axon_build_plan_toolset` but excludes `TaskTool`,
 /// `TaskOutputTool`, and `KillTaskTool`. Use this when the shell
 /// does not have subagent infrastructure wired up.
-fn grok_build_plan_no_subagents_toolset() -> ToolServerConfig {
+fn axon_build_plan_no_subagents_toolset() -> ToolServerConfig {
     ToolServerConfig {
         tools: vec![
             bash_tool_config(),
-            (&grok_build::ReadFileTool).into(),
-            (&grok_build::SearchReplaceTool).into(),
-            (&grok_build::ListDirTool).into(),
-            (&grok_build::GrepTool).into(),
+            (&axon_build::ReadFileTool).into(),
+            (&axon_build::SearchReplaceTool).into(),
+            (&axon_build::ListDirTool).into(),
+            (&axon_build::GrepTool).into(),
             kill_task_tool_config(),
-            (&grok_build::TodoWriteTool).into(),
+            (&axon_build::TodoWriteTool).into(),
             task_output_tool_config(),
-            (&grok_build::SchedulerCreateTool).into(),
-            (&grok_build::SchedulerDeleteTool).into(),
-            (&grok_build::SchedulerListTool).into(),
-            (&grok_build::MonitorTool).into(),
+            (&axon_build::SchedulerCreateTool).into(),
+            (&axon_build::SchedulerDeleteTool).into(),
+            (&axon_build::SchedulerListTool).into(),
+            (&axon_build::MonitorTool).into(),
             (&search_tool::SearchTool).into(),
             (&use_tool::UseTool).into(),
-            (&grok_build::UpdateGoalTool).into(),
-            (&grok_build::EnterPlanModeTool).into(),
-            (&grok_build::ExitPlanModeTool).into(),
-            (&grok_build::AskUserQuestionTool).into(),
+            (&axon_build::UpdateGoalTool).into(),
+            (&axon_build::EnterPlanModeTool).into(),
+            (&axon_build::ExitPlanModeTool).into(),
+            (&axon_build::AskUserQuestionTool).into(),
         ],
         behavior_preset: None,
     }
 }
-/// Default Grok Build toolset + `ask_user_question`.
+/// Default Axon Build toolset + `ask_user_question`.
 ///
-/// Same as `default_grok_build_toolset` with the `AskUserQuestionTool` added,
+/// Same as `default_axon_build_toolset` with the `AskUserQuestionTool` added,
 /// allowing the agent to ask structured questions without full plan mode.
-fn grok_build_ask_user_toolset() -> ToolServerConfig {
+fn axon_build_ask_user_toolset() -> ToolServerConfig {
     ToolServerConfig {
         tools: vec![
             bash_tool_config(),
-            (&grok_build::ReadFileTool).into(),
-            (&grok_build::SearchReplaceTool).into(),
-            (&grok_build::ListDirTool).into(),
-            (&grok_build::GrepTool).into(),
+            (&axon_build::ReadFileTool).into(),
+            (&axon_build::SearchReplaceTool).into(),
+            (&axon_build::ListDirTool).into(),
+            (&axon_build::GrepTool).into(),
             kill_task_tool_config(),
-            (&grok_build::TodoWriteTool).into(),
+            (&axon_build::TodoWriteTool).into(),
             task_output_tool_config(),
             wait_tasks_tool_config(),
             task_tool_config(),
-            (&grok_build::SchedulerCreateTool).into(),
-            (&grok_build::SchedulerDeleteTool).into(),
-            (&grok_build::SchedulerListTool).into(),
-            (&grok_build::MonitorTool).into(),
+            (&axon_build::SchedulerCreateTool).into(),
+            (&axon_build::SchedulerDeleteTool).into(),
+            (&axon_build::SchedulerListTool).into(),
+            (&axon_build::MonitorTool).into(),
             (&search_tool::SearchTool).into(),
             (&use_tool::UseTool).into(),
-            (&grok_build::UpdateGoalTool).into(),
-            (&grok_build::AskUserQuestionTool).into(),
+            (&axon_build::UpdateGoalTool).into(),
+            (&axon_build::AskUserQuestionTool).into(),
         ],
         behavior_preset: None,
     }
@@ -541,7 +541,7 @@ fn opencode_toolset() -> ToolServerConfig {
 ///
 /// In YAML frontmatter / JSON:
 /// - `model: inherit` or omitted → `Inherit`
-/// - `model: grok-3-fast` → `Override("grok-3-fast")`
+/// - `model: axon-3-fast` → `Override("axon-3-fast")`
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum ModelOverride {
     /// Use the parent session's model.
@@ -655,19 +655,19 @@ where
 )]
 #[strum(serialize_all = "kebab-case")]
 pub enum BuiltinAgentName {
-    GrokBuild,
-    GrokBuildConcise,
-    GrokBuildPlan,
-    GrokBuildPlanNoSubagents,
-    GrokBuildAskUser,
+    AxonBuild,
+    AxonBuildConcise,
+    AxonBuildPlan,
+    AxonBuildPlanNoSubagents,
+    AxonBuildAskUser,
     Codex,
     Opencode,
     GeneralPurpose,
     Explore,
     Plan,
     BrowserUse,
-    #[strum(serialize = "grok-build-orchestrator")]
-    GrokBuildOrchestrator,
+    #[strum(serialize = "axon-build-orchestrator")]
+    AxonBuildOrchestrator,
 }
 /// Strict-harness predicate by name. Resolves via `BuiltinAgentName` and
 /// delegates to [`AgentDefinition::is_strict_harness`]; unknown names
@@ -684,18 +684,18 @@ impl BuiltinAgentName {
     /// Build the `AgentDefinition` for this built-in agent.
     pub fn definition(self) -> AgentDefinition {
         match self {
-            Self::GrokBuild => AgentDefinition::default_grok_build(),
-            Self::GrokBuildConcise => AgentDefinition::grok_build_concise(),
-            Self::GrokBuildPlan => AgentDefinition::grok_build_plan(),
-            Self::GrokBuildPlanNoSubagents => AgentDefinition::grok_build_plan_no_subagents(),
-            Self::GrokBuildAskUser => AgentDefinition::grok_build_ask_user(),
+            Self::AxonBuild => AgentDefinition::default_axon_build(),
+            Self::AxonBuildConcise => AgentDefinition::axon_build_concise(),
+            Self::AxonBuildPlan => AgentDefinition::axon_build_plan(),
+            Self::AxonBuildPlanNoSubagents => AgentDefinition::axon_build_plan_no_subagents(),
+            Self::AxonBuildAskUser => AgentDefinition::axon_build_ask_user(),
             Self::Codex => AgentDefinition::codex(),
             Self::Opencode => AgentDefinition::opencode(),
             Self::GeneralPurpose => AgentDefinition::general_purpose(),
             Self::Explore => AgentDefinition::explore(),
             Self::Plan => AgentDefinition::plan(),
             Self::BrowserUse => AgentDefinition::browser_use(),
-            Self::GrokBuildOrchestrator => AgentDefinition::grok_build_orchestrator(),
+            Self::AxonBuildOrchestrator => AgentDefinition::axon_build_orchestrator(),
         }
     }
     /// Built-in agents available as subagents via the Task tool.
@@ -719,7 +719,7 @@ pub struct AgentDefinition {
     pub plugin_name: Option<String>,
     #[serde(default = "default_prompt_mode")]
     pub prompt_mode: PromptMode,
-    #[serde(default = "default_grok_build_toolset")]
+    #[serde(default = "default_axon_build_toolset")]
     pub tool_config: ToolServerConfig,
     /// Runtime capability mode that constrains which tool kinds the agent
     /// can use. Applied during subagent spawn in `handle_subagent_request`
@@ -874,7 +874,7 @@ pub enum AgentScope {
     User,
     /// ~/.axon/bundled/agents/ (lowest-priority bundled cache)
     Bundled,
-    /// Built-in agent (e.g., default_grok_build(), browser_use()).
+    /// Built-in agent (e.g., default_axon_build(), browser_use()).
     #[default]
     BuiltIn,
 }
@@ -1089,7 +1089,7 @@ impl MemoryScope {
     pub fn resolve_dir(self, agent_name: &str, project_cwd: &std::path::Path) -> ResolvedMemoryDir {
         match self {
             Self::User => ResolvedMemoryDir {
-                path: axon_config::grok_home()
+                path: axon_config::axon_home()
                     .join("agent-memory")
                     .join(agent_name),
                 is_project_scoped: false,
@@ -1309,9 +1309,9 @@ impl AgentDefinition {
     /// Determine the scope of a definition file based on its path.
     fn scope_from_path(path: &Path) -> AgentScope {
         let path_str = path.to_string_lossy();
-        let grok = axon_config::user_grok_home();
+        let axon = axon_config::user_axon_home();
         let home = dirs::home_dir();
-        for (dir, scope) in crate::discovery::user_agent_dirs(home.as_deref(), grok.as_deref()) {
+        for (dir, scope) in crate::discovery::user_agent_dirs(home.as_deref(), axon.as_deref()) {
             if path.starts_with(&dir) {
                 return scope;
             }
@@ -1377,7 +1377,7 @@ impl AgentDefinition {
     /// stock harness, so a client-supplied `_meta.agentProfile` must NOT
     /// override it. Strict iff any of: bespoke `system_prompt` template,
     /// bespoke `user_message_template`, or curated toolset
-    /// (`!inject_default_tools`). Stock `grok-build*` agents leave all
+    /// (`!inject_default_tools`). Stock `axon-build*` agents leave all
     /// three at defaults and are non-strict.
     pub fn is_strict_harness(&self) -> bool {
         use crate::prompt::context::TemplateOverride;
@@ -1396,12 +1396,12 @@ impl AgentDefinition {
         file_tools: Vec<axon_tools::registry::types::ToolConfig>,
     ) {
         const FILE_TOOL_SLOTS: &[[&str; 2]] = &[
-            ["GrokBuild:read_file", "GrokBuildHashline:hashline_read"],
+            ["AxonBuild:read_file", "AxonBuildHashline:hashline_read"],
             [
-                "GrokBuild:search_replace",
-                "GrokBuildHashline:hashline_edit",
+                "AxonBuild:search_replace",
+                "AxonBuildHashline:hashline_edit",
             ],
-            ["GrokBuild:grep", "GrokBuildHashline:hashline_grep"],
+            ["AxonBuild:grep", "AxonBuildHashline:hashline_grep"],
         ];
         for tool in self.tool_config.tools.iter_mut() {
             let Some(slot) = FILE_TOOL_SLOTS
@@ -1426,7 +1426,7 @@ impl AgentDefinition {
             description: description.to_string(),
             plugin_name: None,
             prompt_mode: PromptMode::Extend,
-            tool_config: default_grok_build_toolset(),
+            tool_config: default_axon_build_toolset(),
             capability_mode: None,
             permission_mode: PermissionMode::Default,
             skills: vec![],
@@ -1458,50 +1458,50 @@ impl AgentDefinition {
             scope: AgentScope::BuiltIn,
         }
     }
-    pub fn default_grok_build() -> Self {
+    pub fn default_axon_build() -> Self {
         Self::base(
-            BuiltinAgentName::GrokBuild,
-            "Grok Build agent for software engineering tasks.",
+            BuiltinAgentName::AxonBuild,
+            "Axon Build agent for software engineering tasks.",
         )
     }
-    /// Grok Build Concise agent definition — concise output format for SFT/RL.
-    pub fn grok_build_concise() -> Self {
+    /// Axon Build Concise agent definition — concise output format for SFT/RL.
+    pub fn axon_build_concise() -> Self {
         Self {
-            tool_config: grok_build_concise_toolset(),
+            tool_config: axon_build_concise_toolset(),
             agents_md: false,
             ..Self::base(
-                BuiltinAgentName::GrokBuildConcise,
-                "Grok Build agent with concise output format.",
+                BuiltinAgentName::AxonBuildConcise,
+                "Axon Build agent with concise output format.",
             )
         }
     }
-    /// Grok Build agent with plan mode tools.
-    pub fn grok_build_plan() -> Self {
+    /// Axon Build agent with plan mode tools.
+    pub fn axon_build_plan() -> Self {
         Self {
-            tool_config: grok_build_plan_toolset(),
+            tool_config: axon_build_plan_toolset(),
             ..Self::base(
-                BuiltinAgentName::GrokBuildPlan,
-                "Grok Build agent with plan mode support.",
+                BuiltinAgentName::AxonBuildPlan,
+                "Axon Build agent with plan mode support.",
             )
         }
     }
-    /// Grok Build + plan mode WITHOUT subagent tools.
-    pub fn grok_build_plan_no_subagents() -> Self {
+    /// Axon Build + plan mode WITHOUT subagent tools.
+    pub fn axon_build_plan_no_subagents() -> Self {
         Self {
-            tool_config: grok_build_plan_no_subagents_toolset(),
+            tool_config: axon_build_plan_no_subagents_toolset(),
             ..Self::base(
-                BuiltinAgentName::GrokBuildPlanNoSubagents,
-                "Grok Build agent with plan mode (no subagents).",
+                BuiltinAgentName::AxonBuildPlanNoSubagents,
+                "Axon Build agent with plan mode (no subagents).",
             )
         }
     }
-    /// Default Grok Build agent with the `ask_user_question` tool.
-    pub fn grok_build_ask_user() -> Self {
+    /// Default Axon Build agent with the `ask_user_question` tool.
+    pub fn axon_build_ask_user() -> Self {
         Self {
-            tool_config: grok_build_ask_user_toolset(),
+            tool_config: axon_build_ask_user_toolset(),
             ..Self::base(
-                BuiltinAgentName::GrokBuildAskUser,
-                "Grok Build agent with ask-user-question tool.",
+                BuiltinAgentName::AxonBuildAskUser,
+                "Axon Build agent with ask-user-question tool.",
             )
         }
     }
@@ -1573,21 +1573,21 @@ impl AgentDefinition {
             )
         }
     }
-    /// Grok Build Orchestrator — GBL model with full GrokBuild tools
+    /// Axon Build Orchestrator — GBL model with full AxonBuild tools
     /// (skills, MCPs, plan mode) that delegates coding/exploration to
     /// subagents.
     ///
     /// Subagent overrides are applied in `handle_subagent_request`:
     /// general-purpose children get `implementer_toolset()` and explore
     /// children get `explorer_toolset()`, both with the subagent model.
-    pub fn grok_build_orchestrator() -> Self {
+    pub fn axon_build_orchestrator() -> Self {
         Self {
             tool_config: orchestrator_toolset(),
             inject_default_tools: false,
             prompt_body: Some(ORCHESTRATOR_PROMPT_BODY.to_string()),
             ..Self::base(
-                BuiltinAgentName::GrokBuildOrchestrator,
-                "GrokBuild orchestrator that delegates coding to specialized subagents",
+                BuiltinAgentName::AxonBuildOrchestrator,
+                "AxonBuild orchestrator that delegates coding to specialized subagents",
             )
         }
     }
@@ -1616,7 +1616,7 @@ impl AgentDefinition {
             }
         }
         if !value.get("toolConfig").is_some_and(|v| v.is_object()) {
-            def.tool_config = default_grok_build_toolset();
+            def.tool_config = default_axon_build_toolset();
         }
         def.scope = AgentScope::BuiltIn;
         Ok(def)
@@ -1638,15 +1638,15 @@ mod tests {
     #[test]
     fn toolset_for_preset_resolves_known_names() {
         for name in [
-            "grok-build",
-            "grok_build",
-            "grok-build-concise",
-            "grok-build-plan",
+            "axon-build",
+            "axon_build",
+            "axon-build-concise",
+            "axon-build-plan",
             "codex",
             "explore",
             "plan",
-            "grok-computer",
-            "grok_computer",
+            "axon-computer",
+            "axon_computer",
         ] {
             assert!(
                 toolset_for_preset(name).is_some(),
@@ -1657,27 +1657,27 @@ mod tests {
     }
     #[test]
     fn presets_select_distinct_toolsets_by_size() {
-        let gb = toolset_for_preset("grok-build").unwrap();
+        let gb = toolset_for_preset("axon-build").unwrap();
         let plan = toolset_for_preset("plan").unwrap();
         let explore = toolset_for_preset("explore").unwrap();
         assert!(explore.tools.len() < plan.tools.len());
         assert!(plan.tools.len() < gb.tools.len());
     }
-    fn grok_computer_exclusive_ids() -> Vec<String> {
+    fn axon_computer_exclusive_ids() -> Vec<String> {
         #[allow(unused_mut)]
         let mut ids: Vec<String> = vec![
-            ToolConfig::from(&grok_build::GetTerminalCommandOutputTool).id,
-            ToolConfig::from(&grok_build::KillTerminalCommandTool).id,
+            ToolConfig::from(&axon_build::GetTerminalCommandOutputTool).id,
+            ToolConfig::from(&axon_build::KillTerminalCommandTool).id,
         ];
         ids
     }
     #[test]
-    fn grok_computer_preset_is_curated_grok_build_subset() {
-        let gc = toolset_for_preset("grok-computer").unwrap();
-        let gb = toolset_for_preset("grok-build").unwrap();
+    fn axon_computer_preset_is_curated_axon_build_subset() {
+        let gc = toolset_for_preset("axon-computer").unwrap();
+        let gb = toolset_for_preset("axon-build").unwrap();
         let gb_ids: std::collections::HashSet<&str> =
             gb.tools.iter().map(|t| t.id.as_str()).collect();
-        let exclusive_ids = grok_computer_exclusive_ids();
+        let exclusive_ids = axon_computer_exclusive_ids();
         assert!(!gc.tools.is_empty());
         for t in &gc.tools {
             if exclusive_ids.contains(&t.id) {
@@ -1685,84 +1685,84 @@ mod tests {
             }
             assert!(
                 gb_ids.contains(t.id.as_str()),
-                "grok-computer tool `{}` must also ship in the grok-build preset",
+                "axon-computer tool `{}` must also ship in the axon-build preset",
                 t.id
             );
         }
         assert!(
             gc.tools.len() < gb.tools.len(),
-            "grok-computer should be a curated subset of grok-build"
+            "axon-computer should be a curated subset of axon-build"
         );
     }
     #[test]
-    fn grok_computer_uses_subagent_free_background_task_tools() {
-        let gc = toolset_for_preset("grok-computer").unwrap();
+    fn axon_computer_uses_subagent_free_background_task_tools() {
+        let gc = toolset_for_preset("axon-computer").unwrap();
         let ids: std::collections::HashSet<&str> = gc.tools.iter().map(|t| t.id.as_str()).collect();
         assert!(
             ids.contains(
-                ToolConfig::from(&grok_build::GetTerminalCommandOutputTool)
+                ToolConfig::from(&axon_build::GetTerminalCommandOutputTool)
                     .id
                     .as_str()
             )
         );
         assert!(
             ids.contains(
-                ToolConfig::from(&grok_build::KillTerminalCommandTool)
+                ToolConfig::from(&axon_build::KillTerminalCommandTool)
                     .id
                     .as_str()
             )
         );
-        assert!(!ids.contains(ToolConfig::from(&grok_build::TaskOutputTool).id.as_str()));
-        assert!(!ids.contains(ToolConfig::from(&grok_build::KillTaskTool).id.as_str()));
-        assert!(!ids.contains(ToolConfig::from(&grok_build::TaskTool).id.as_str()));
+        assert!(!ids.contains(ToolConfig::from(&axon_build::TaskOutputTool).id.as_str()));
+        assert!(!ids.contains(ToolConfig::from(&axon_build::KillTaskTool).id.as_str()));
+        assert!(!ids.contains(ToolConfig::from(&axon_build::TaskTool).id.as_str()));
         for t in &gc.tools {
-            if t.id == ToolConfig::from(&grok_build::GetTerminalCommandOutputTool).id
-                || t.id == ToolConfig::from(&grok_build::KillTerminalCommandTool).id
+            if t.id == ToolConfig::from(&axon_build::GetTerminalCommandOutputTool).id
+                || t.id == ToolConfig::from(&axon_build::KillTerminalCommandTool).id
             {
                 assert!(t.name_override.is_none(), "tool `{}` must not rename", t.id);
             }
         }
     }
-    /// The grok-computer preset must ship a full-file write tool (legacy
-    /// `write_file` parity) — the same OpenCode `write` tool the grok-build
+    /// The axon-computer preset must ship a full-file write tool (legacy
+    /// `write_file` parity) — the same OpenCode `write` tool the axon-build
     /// preset uses. Guards against `search_replace` being the only
     /// file-mutation path, which has no single-tool full-rewrite when the
     /// empty-old_string overwrite guard is enabled.
     #[test]
-    fn grok_computer_preset_includes_write_tool() {
-        let gc = toolset_for_preset("grok-computer").unwrap();
+    fn axon_computer_preset_includes_write_tool() {
+        let gc = toolset_for_preset("axon-computer").unwrap();
         let write_id = ToolConfig::from(&opencode::OpenCodeWriteTool).id;
         assert!(
             gc.tools.iter().any(|t| t.id == write_id),
-            "grok-computer preset must include the `{write_id}` tool"
+            "axon-computer preset must include the `{write_id}` tool"
         );
     }
     #[test]
-    fn grok_computer_preset_excludes_plan_and_lsp() {
-        let gc = toolset_for_preset("grok-computer").unwrap();
+    fn axon_computer_preset_excludes_plan_and_lsp() {
+        let gc = toolset_for_preset("axon-computer").unwrap();
         let gc_ids: std::collections::HashSet<&str> =
             gc.tools.iter().map(|t| t.id.as_str()).collect();
         for excluded in [
-            ToolConfig::from(&grok_build::LspTool).id,
-            ToolConfig::from(&grok_build::EnterPlanModeTool).id,
-            ToolConfig::from(&grok_build::ExitPlanModeTool).id,
+            ToolConfig::from(&axon_build::LspTool).id,
+            ToolConfig::from(&axon_build::EnterPlanModeTool).id,
+            ToolConfig::from(&axon_build::ExitPlanModeTool).id,
         ] {
             assert!(
                 !gc_ids.contains(excluded.as_str()),
-                "grok-computer preset must not advertise `{excluded}`"
+                "axon-computer preset must not advertise `{excluded}`"
             );
         }
-        let full = workspace_grok_build_toolset();
+        let full = workspace_axon_build_toolset();
         let full_ids: std::collections::HashSet<&str> =
             full.tools.iter().map(|t| t.id.as_str()).collect();
         for present in [
-            ToolConfig::from(&grok_build::LspTool).id,
-            ToolConfig::from(&grok_build::EnterPlanModeTool).id,
-            ToolConfig::from(&grok_build::ExitPlanModeTool).id,
+            ToolConfig::from(&axon_build::LspTool).id,
+            ToolConfig::from(&axon_build::EnterPlanModeTool).id,
+            ToolConfig::from(&axon_build::ExitPlanModeTool).id,
         ] {
             assert!(
                 full_ids.contains(present.as_str()),
-                "workspace_grok_build_toolset must ship `{present}`"
+                "workspace_axon_build_toolset must ship `{present}`"
             );
         }
     }
@@ -1770,12 +1770,12 @@ mod tests {
     /// until classified.
     fn expected_strict_harness(name: BuiltinAgentName) -> bool {
         match name {
-            BuiltinAgentName::Codex | BuiltinAgentName::GrokBuildOrchestrator => true,
-            BuiltinAgentName::GrokBuild
-            | BuiltinAgentName::GrokBuildConcise
-            | BuiltinAgentName::GrokBuildPlan
-            | BuiltinAgentName::GrokBuildPlanNoSubagents
-            | BuiltinAgentName::GrokBuildAskUser
+            BuiltinAgentName::Codex | BuiltinAgentName::AxonBuildOrchestrator => true,
+            BuiltinAgentName::AxonBuild
+            | BuiltinAgentName::AxonBuildConcise
+            | BuiltinAgentName::AxonBuildPlan
+            | BuiltinAgentName::AxonBuildPlanNoSubagents
+            | BuiltinAgentName::AxonBuildAskUser
             | BuiltinAgentName::GeneralPurpose
             | BuiltinAgentName::Explore
             | BuiltinAgentName::Plan
@@ -1801,22 +1801,22 @@ mod tests {
     }
     #[test]
     fn is_strict_harness_agent_type_classifies_by_name() {
-        for strict in ["codex", "grok-build-orchestrator"] {
+        for strict in ["codex", "axon-build-orchestrator"] {
             assert!(
                 is_strict_harness_agent_type(strict),
                 "{strict} should be strict"
             );
         }
         for non_strict in [
-            "grok-build",
-            "grok-build-plan",
-            "grok-build-concise",
-            "grok-build-ask-user",
+            "axon-build",
+            "axon-build-plan",
+            "axon-build-concise",
+            "axon-build-ask-user",
             "opencode",
             "browser-use",
             "custom-user-agent",
             "",
-            "grok-build-totally-made-up",
+            "axon-build-totally-made-up",
         ] {
             assert!(
                 !is_strict_harness_agent_type(non_strict),
@@ -1971,8 +1971,8 @@ Agent.
     fn test_model_override_display_shows_id() {
         assert_eq!(ModelOverride::Inherit.to_string(), "inherit");
         assert_eq!(
-            ModelOverride::Override("grok-3-fast".to_string()).to_string(),
-            "grok-3-fast"
+            ModelOverride::Override("axon-3-fast".to_string()).to_string(),
+            "axon-3-fast"
         );
     }
     #[test]
@@ -1986,7 +1986,7 @@ isolation: worktree
 background: true
 color: blue
 initialPrompt: "hello world"
-model: grok-3
+model: axon-3
 ---
 
 Agent body.
@@ -1998,7 +1998,7 @@ Agent body.
         assert_eq!(def.background, Some(true));
         assert_eq!(def.color, Some(AgentColor::Blue));
         assert_eq!(def.initial_prompt.as_deref(), Some("hello world"));
-        assert_eq!(def.model, ModelOverride::Override("grok-3".to_string()));
+        assert_eq!(def.model, ModelOverride::Override("axon-3".to_string()));
     }
     #[test]
     fn test_parse_minimal_definition() {
@@ -2183,7 +2183,7 @@ completionRequirement:
         assert_eq!(rec.max_delay_ms, 10000);
     }
     #[test]
-    fn test_default_tool_config_has_grok_build_tools() {
+    fn test_default_tool_config_has_axon_build_tools() {
         let content = r#"---
 name: default-tools
 description: Test default tool config
@@ -2192,7 +2192,7 @@ description: Test default tool config
         let def = AgentDefinition::parse(content).unwrap();
         assert!(
             !def.tool_config.tools.is_empty(),
-            "default tool_config should have grok_build tools"
+            "default tool_config should have axon_build tools"
         );
     }
     #[test]
@@ -2262,12 +2262,12 @@ description: Test default tool config
     #[test]
     fn test_from_json_has_default_toolset_with_task_tool() {
         let json = serde_json::json!(
-            { "name" : "grok-build", "description" : "Multi-surface coding agent.",
+            { "name" : "axon-build", "description" : "Multi-surface coding agent.",
             "promptMode" : "extend", "permissionMode" : "dontAsk", "agentsMd" : true,
             "promptBody" : "You are a coding assistant." }
         );
         let def = AgentDefinition::from_json(&json).unwrap();
-        let task_tool_id = "GrokBuild:task";
+        let task_tool_id = "AxonBuild:task";
         assert!(
             def.tool_config.tools.iter().any(|tc| tc.id == task_tool_id),
             "from_json() without toolConfig should include TaskTool in default toolset, \
@@ -2364,9 +2364,9 @@ description: Test default tool config
     }
     #[test]
     fn test_model_override_serde_explicit_model_id() {
-        let yaml = "\"grok-3-fast\"";
+        let yaml = "\"axon-3-fast\"";
         let m: ModelOverride = serde_yaml::from_str(yaml).unwrap();
-        assert_eq!(m, ModelOverride::Override("grok-3-fast".to_string()));
+        assert_eq!(m, ModelOverride::Override("axon-3-fast".to_string()));
     }
     #[test]
     fn test_model_override_serialize_inherit() {
@@ -2376,17 +2376,17 @@ description: Test default tool config
     }
     #[test]
     fn test_model_override_serialize_override() {
-        let m = ModelOverride::Override("grok-3-fast".to_string());
+        let m = ModelOverride::Override("axon-3-fast".to_string());
         let s = serde_json::to_string(&m).unwrap();
-        assert_eq!(s, "\"grok-3-fast\"");
+        assert_eq!(s, "\"axon-3-fast\"");
     }
     #[test]
     fn test_model_override_in_frontmatter() {
-        let content = "---\nname: test\ndescription: Test\nmodel: grok-3-fast\n---\n";
+        let content = "---\nname: test\ndescription: Test\nmodel: axon-3-fast\n---\n";
         let def = AgentDefinition::parse(content).unwrap();
         assert_eq!(
             def.model,
-            ModelOverride::Override("grok-3-fast".to_string())
+            ModelOverride::Override("axon-3-fast".to_string())
         );
     }
     #[test]
@@ -2404,21 +2404,21 @@ description: Test default tool config
     #[test]
     fn test_model_override_in_json() {
         let json = serde_json::json!(
-            { "name" : "test", "description" : "Test", "model" : "grok-code-fast-1" }
+            { "name" : "test", "description" : "Test", "model" : "axon-code-fast-1" }
         );
         let def = AgentDefinition::from_json(&json).unwrap();
         assert_eq!(
             def.model,
-            ModelOverride::Override("grok-code-fast-1".to_string())
+            ModelOverride::Override("axon-code-fast-1".to_string())
         );
     }
     #[test]
     fn test_builtin_agent_name_strum_round_trip() {
         use std::str::FromStr;
         for (s, expected) in [
-            ("grok-build", BuiltinAgentName::GrokBuild),
-            ("grok-build-concise", BuiltinAgentName::GrokBuildConcise),
-            ("grok-build-ask-user", BuiltinAgentName::GrokBuildAskUser),
+            ("axon-build", BuiltinAgentName::AxonBuild),
+            ("axon-build-concise", BuiltinAgentName::AxonBuildConcise),
+            ("axon-build-ask-user", BuiltinAgentName::AxonBuildAskUser),
             ("codex", BuiltinAgentName::Codex),
             ("opencode", BuiltinAgentName::Opencode),
             ("general-purpose", BuiltinAgentName::GeneralPurpose),
@@ -2525,7 +2525,7 @@ description: Test default tool config
         assert_eq!(recovered.mcp_inheritance, def.mcp_inheritance);
     }
     fn def_with_template(tpl: crate::prompt::context::TemplateOverride) -> AgentDefinition {
-        let mut def = AgentDefinition::default_grok_build();
+        let mut def = AgentDefinition::default_axon_build();
         def.system_prompt = tpl;
         def
     }

@@ -317,7 +317,7 @@ struct ErrorBody {
     kind: Option<String>,
 }
 
-/// Flat error from the Grok proxy/gateway: `{"code": "...", "error": "..."}`.
+/// Flat error from the Axon proxy/gateway: `{"code": "...", "error": "..."}`.
 #[derive(Debug, Deserialize)]
 struct FlatErrorResponse {
     error: String,
@@ -354,12 +354,12 @@ pub const MAX_USER_ERROR_BODY_CHARS: usize = 280;
 pub fn status_user_message(status: StatusCode) -> String {
     match status.as_u16() {
         code @ 502..=504 => {
-            format!("Grok is temporarily unavailable. Please try again in a moment. (HTTP {code}).")
+            format!("Axon is temporarily unavailable. Please try again in a moment. (HTTP {code}).")
         }
         // Cloudflare edge codes (origin down / connect fail / timeout / …).
         code @ 520..=524 => {
             format!(
-                "Connection to Grok timed out or was interrupted. Please try again. (HTTP {code})."
+                "Connection to Axon timed out or was interrupted. Please try again. (HTTP {code})."
             )
         }
         code if status.is_server_error() => {
@@ -589,7 +589,7 @@ mod tests {
     fn parse_error_bytes_rejects_non_json_body() {
         let html = br#"<!DOCTYPE html>
 <html lang="en-US">
-<head><title>grok.com | 524: A timeout occurred</title></head>
+<head><title>blocked.invalid | 524: A timeout occurred</title></head>
 <body><h1>A timeout occurred Error code 524</h1></body>
 </html>"#;
         let msg = parse_error_bytes(html);

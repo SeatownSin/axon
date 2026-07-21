@@ -146,7 +146,7 @@ pub struct ClientCapabilities {
     #[serde(default)]
     pub client_version: Option<String>,
 
-    /// Whether this client has advertised `x.ai/codeNavigation.enabled`.
+    /// Whether this client has advertised `axon/codeNavigation.enabled`.
     /// When true, the leader injects `codeNavEnabled: true` into `session/new`
     /// and `session/load` requests so the agent can gate code-nav startup on a
     /// per-client basis rather than reading from shared last-initialized state.
@@ -655,7 +655,7 @@ mod tests {
             cwd: Some("/home/u/proj".into()),
             uptime_ms: 4200,
             active_tool_calls: 2,
-            sessions: vec!["grok-a".into(), "grok-b".into()],
+            sessions: vec!["axon-a".into(), "axon-b".into()],
             pid: 4242,
         };
         let json = serde_json::to_string(&payload).unwrap();

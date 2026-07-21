@@ -22,7 +22,7 @@ use crate::rmcp::transport::auth::{AuthorizationManager, OAuthClientConfig};
 /// Client name advertised to MCP servers during Dynamic Client Registration
 /// (RFC 7591). Surfaces as the application name on third-party OAuth consent
 /// screens (e.g. Linear, GitHub), so keep this human-recognizable.
-const MCP_OAUTH_CLIENT_NAME: &str = "Grok";
+const MCP_OAUTH_CLIENT_NAME: &str = "Axon";
 
 /// How often the interactive OAuth flow polls the credential store to detect
 /// a login completed in another window or process.
@@ -31,7 +31,7 @@ const CREDENTIAL_POLL_INTERVAL: std::time::Duration = std::time::Duration::from_
 // ---------------------------------------------------------------------------
 // Two-layer dedup: prevents duplicate browser tabs both within one process
 // (multiple async tasks / sessions) and across separate processes (leader
-// mode disabled, multiple `grok` invocations).
+// mode disabled, multiple `axon` invocations).
 //
 // Layer 1 (cross-process): filesystem lock at $AXON_HOME/mcp_auth_{safe_name}.lock
 // Layer 2 (in-process):    watch channel so only one task runs the flow
@@ -244,7 +244,7 @@ fn auth_lock_path(server_name: &str) -> std::path::PathBuf {
             }
         })
         .collect();
-    axon_config::grok_home().join(format!("mcp_auth_{safe}.lock"))
+    axon_config::axon_home().join(format!("mcp_auth_{safe}.lock"))
 }
 
 /// Run the interactive browser-based OAuth flow.
@@ -618,7 +618,7 @@ mod tests {
             .unwrap();
         mgr.set_metadata(require_iss_metadata(token_endpoint));
         mgr.configure_client(
-            OAuthClientConfig::new("grok-test-client", "http://127.0.0.1:0/callback")
+            OAuthClientConfig::new("axon-test-client", "http://127.0.0.1:0/callback")
                 .with_application_type("native"),
         )
         .unwrap();

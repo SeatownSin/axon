@@ -60,28 +60,28 @@ pub(super) fn map_tool_outcome(
 /// events — not on every tool call or session tick.
 #[allow(clippy::type_complexity)]
 pub(super) fn notification_hook_for_update(
-    update: &XaiSessionUpdate,
+    update: &AxonSessionUpdate,
 ) -> Option<(String, Option<String>, Option<String>, Option<String>)> {
     match update {
-        XaiSessionUpdate::DiffReview { .. } => Some((
+        AxonSessionUpdate::DiffReview { .. } => Some((
             "permission_prompt".into(),
             Some("Diff review requested".into()),
             None,
             Some("info".into()),
         )),
-        XaiSessionUpdate::AutoRecoveryExhausted { error, .. } => Some((
+        AxonSessionUpdate::AutoRecoveryExhausted { error, .. } => Some((
             "agent_error".into(),
             Some(error.clone()),
             None,
             Some("error".into()),
         )),
-        XaiSessionUpdate::RetryState(RetryState::Exhausted { reason, .. }) => Some((
+        AxonSessionUpdate::RetryState(RetryState::Exhausted { reason, .. }) => Some((
             "agent_error".into(),
             Some(reason.clone()),
             None,
             Some("error".into()),
         )),
-        XaiSessionUpdate::RetryState(RetryState::Failed { message, .. }) => Some((
+        AxonSessionUpdate::RetryState(RetryState::Failed { message, .. }) => Some((
             "agent_error".into(),
             Some(message.clone()),
             None,
@@ -104,7 +104,7 @@ impl SessionActor {
     /// Rendered inline with the preceding tool call block rather than as
     /// a separate agent message.
     pub(super) async fn send_hook_annotation(&self, message: &str) {
-        self.send_xai_notification(XaiSessionUpdate::HookAnnotation {
+        self.send_axon_notification(AxonSessionUpdate::HookAnnotation {
             message: message.to_string(),
         })
         .await;
@@ -167,7 +167,7 @@ impl SessionActor {
             })
             .collect();
 
-        self.send_xai_notification(XaiSessionUpdate::HookExecution {
+        self.send_axon_notification(AxonSessionUpdate::HookExecution {
             event_name: event_name.to_string(),
             tool_name: tool_name.map(|s| s.to_string()),
             prompt_id: prompt_id.map(|s| s.to_string()),
@@ -281,7 +281,7 @@ mod notification_hook_filter_tests {
 
     #[test]
     fn hook_execution_does_not_fire_notification_hook() {
-        let update = XaiSessionUpdate::HookExecution {
+        let update = AxonSessionUpdate::HookExecution {
             event_name: "pre_tool_use".into(),
             tool_name: Some("read_file".into()),
             prompt_id: None,
@@ -296,7 +296,7 @@ mod notification_hook_filter_tests {
 
     #[test]
     fn hook_annotation_does_not_fire_notification_hook() {
-        let update = XaiSessionUpdate::HookAnnotation {
+        let update = AxonSessionUpdate::HookAnnotation {
             message: "running hooks".into(),
         };
         assert!(notification_hook_for_update(&update).is_none());
@@ -304,7 +304,7 @@ mod notification_hook_filter_tests {
 
     #[test]
     fn retry_in_progress_does_not_fire_notification_hook() {
-        let update = XaiSessionUpdate::RetryState(RetryState::Retrying {
+        let update = AxonSessionUpdate::RetryState(RetryState::Retrying {
             attempt: 1,
             max_retries: 3,
             reason: "timeout".into(),
@@ -314,7 +314,7 @@ mod notification_hook_filter_tests {
 
     #[test]
     fn feedback_request_does_not_fire_notification_hook() {
-        let update = XaiSessionUpdate::FeedbackRequest(FeedbackRequestNotification {
+        let update = AxonSessionUpdate::FeedbackRequest(FeedbackRequestNotification {
             request_id: "req-1".into(),
             tier: "tier1".into(),
             prompt: "How was this session?".into(),
@@ -331,7 +331,7 @@ mod notification_hook_filter_tests {
 
     #[test]
     fn diff_review_fires_permission_prompt() {
-        let update = XaiSessionUpdate::DiffReview { content: vec![] };
+        let update = AxonSessionUpdate::DiffReview { content: vec![] };
         let (ty, message, _, level) = notification_hook_for_update(&update).expect("should fire");
         assert_eq!(ty, "permission_prompt");
         assert_eq!(message.as_deref(), Some("Diff review requested"));
@@ -340,7 +340,7 @@ mod notification_hook_filter_tests {
 
     #[test]
     fn task_completed_does_not_fire_via_filter() {
-        let update = XaiSessionUpdate::TaskCompleted {
+        let update = AxonSessionUpdate::TaskCompleted {
             task_snapshot: axon_tools::types::TaskSnapshot {
                 task_id: "task-1".into(),
                 command: "echo hi".into(),

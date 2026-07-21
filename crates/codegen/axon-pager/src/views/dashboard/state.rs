@@ -4665,7 +4665,7 @@ pub fn load_persisted_from_path(path: &std::path::Path) -> Option<PersistedDashb
 /// + rename, so concurrent readers never observe a half-truncated file.
 pub fn write_persisted(p: &PersistedDashboard) -> std::io::Result<()> {
     let path = config_path()
-        .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::NotFound, "no grok home"))?;
+        .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::NotFound, "no axon home"))?;
     write_persisted_to_path(&path, p)
 }
 
@@ -4760,7 +4760,7 @@ fn atomic_write(path: &std::path::Path, bytes: &[u8]) -> std::io::Result<()> {
 }
 
 fn config_path() -> Option<PathBuf> {
-    let home = axon_shell::util::grok_home::grok_home();
+    let home = axon_shell::util::axon_home::axon_home();
     Some(home.join("config.toml"))
 }
 
@@ -5008,8 +5008,8 @@ mod tests {
 
     #[test]
     fn compact_cwd_strips_home() {
-        let p = Path::new("/Users/alice/projects/grok");
-        assert_eq!(compact_cwd(p, Some("/Users/alice")), "~/projects/grok");
+        let p = Path::new("/Users/alice/projects/axon");
+        assert_eq!(compact_cwd(p, Some("/Users/alice")), "~/projects/axon");
     }
 
     #[test]
@@ -8687,7 +8687,7 @@ mod tests {
         let completion = state.complete_clipboard_attachment_paste(
             completion_ctx(None, false),
             crate::app::actions::ProbedAttachment::NoRaster,
-            Some("file:///definitely/missing/xai-primary-paste.png".to_owned()),
+            Some("file:///definitely/missing/axon-primary-paste.png".to_owned()),
         );
 
         assert_eq!(

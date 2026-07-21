@@ -1,4 +1,4 @@
-use crate::auth::{AuthMode, GrokAuth};
+use crate::auth::{AuthMode, AxonAuth};
 
 #[derive(serde::Deserialize)]
 pub(crate) struct ExternalAuthOutput {
@@ -7,14 +7,14 @@ pub(crate) struct ExternalAuthOutput {
     pub refresh_token: Option<String>,
     #[serde(default)]
     pub expires_in: Option<u64>,
-    /// Token issuer. An xAI issuer marks the credential as first-party;
-    /// see [`GrokAuth::is_xai_auth`].
+    /// Token issuer. An Axon issuer marks the credential as first-party;
+    /// see [`AxonAuth::is_axon_auth`].
     #[serde(default)]
     pub issuer: Option<String>,
 }
 
-/// Parse process output (stdout) into a `GrokAuth`. Accepts bare token or JSON.
-pub(crate) fn parse_output(output: &std::process::Output) -> anyhow::Result<GrokAuth> {
+/// Parse process output (stdout) into a `AxonAuth`. Accepts bare token or JSON.
+pub(crate) fn parse_output(output: &std::process::Output) -> anyhow::Result<AxonAuth> {
     if !output.status.success() {
         anyhow::bail!("exited with {}", output.status);
     }
@@ -53,7 +53,7 @@ pub(crate) fn parse_output(output: &std::process::Output) -> anyhow::Result<Grok
             (stdout, None, None, None)
         };
 
-    Ok(GrokAuth {
+    Ok(AxonAuth {
         key: token,
         auth_mode: AuthMode::External,
         create_time: chrono::Utc::now(),
@@ -73,7 +73,7 @@ pub(crate) fn parse_output(output: &std::process::Output) -> anyhow::Result<Grok
         user_blocked_reason: None,
         team_blocked_reasons: vec![],
         coding_data_retention_opt_out: crate::auth::default_coding_data_retention_opt_out(),
-        has_grok_code_access: None,
+        has_axon_code_access: None,
         refresh_token,
         expires_at,
         oidc_issuer: issuer,
@@ -82,7 +82,7 @@ pub(crate) fn parse_output(output: &std::process::Output) -> anyhow::Result<Grok
 }
 
 /// Sync version for mid-session refresh. 5s timeout for refresh, 60s for initial.
-pub(crate) fn run_external_auth_sync(command: &str, is_refresh: bool) -> Option<GrokAuth> {
+pub(crate) fn run_external_auth_sync(command: &str, is_refresh: bool) -> Option<AxonAuth> {
     use std::process::{Command, Stdio};
 
     let timeout_secs = if is_refresh { 5 } else { 60 };
@@ -153,7 +153,7 @@ pub(crate) fn run_external_auth_sync(command: &str, is_refresh: bool) -> Option<
 }
 
 /// Run external auth provider, carrying forward `/user`-derived fields from previous auth.
-pub(crate) fn refresh_with_command(command: &str, prev_auth: &GrokAuth) -> Option<GrokAuth> {
+pub(crate) fn refresh_with_command(command: &str, prev_auth: &AxonAuth) -> Option<AxonAuth> {
     let mut auth = run_external_auth_sync(command, true)?;
     auth.carry_user_profile_from(prev_auth);
     Some(auth)
@@ -184,22 +184,22 @@ mod tests {
     }
 
     #[test]
-    fn parse_output_issuer_claim_enables_xai_auth() {
+    fn parse_output_issuer_claim_enables_axon_auth() {
         let ok = |stdout: &str| std::process::Output {
             status: std::process::Command::new("true").status().unwrap(),
             stdout: stdout.as_bytes().to_vec(),
             stderr: vec![],
         };
 
-        // x.ai issuer claim → first-party session (relay-eligible).
+        // blocked.invalid issuer claim → first-party session (relay-eligible).
         let auth = parse_output(&ok(
-            r#"{"access_token":"t","expires_in":900,"issuer":"https://auth.x.ai"}"#,
+            r#"{"access_token":"t","expires_in":900,"issuer":"https://auth.blocked.invalid"}"#,
         ))
         .unwrap();
-        assert_eq!(auth.oidc_issuer.as_deref(), Some("https://auth.x.ai"));
-        assert!(auth.is_xai_auth());
+        assert_eq!(auth.oidc_issuer.as_deref(), Some("https://auth.blocked.invalid"));
+        assert!(auth.is_axon_auth());
 
-        // Non-x.ai issuer is stored but stays third-party.
+        // Non-blocked.invalid issuer is stored but stays third-party.
         let auth = parse_output(&ok(
             r#"{"access_token":"t","issuer":"https://idp.acme.example"}"#,
         ))
@@ -208,19 +208,19 @@ mod tests {
             auth.oidc_issuer.as_deref(),
             Some("https://idp.acme.example")
         );
-        assert!(!auth.is_xai_auth());
+        assert!(!auth.is_axon_auth());
 
         // Missing / empty / whitespace issuer → None.
         let auth = parse_output(&ok(r#"{"access_token":"t"}"#)).unwrap();
         assert_eq!(auth.oidc_issuer, None);
-        assert!(!auth.is_xai_auth());
+        assert!(!auth.is_axon_auth());
         let auth = parse_output(&ok(r#"{"access_token":"t","issuer":"  "}"#)).unwrap();
         assert_eq!(auth.oidc_issuer, None);
 
         // Bare-token output never carries an issuer.
         let auth = parse_output(&ok("bare-token")).unwrap();
         assert_eq!(auth.oidc_issuer, None);
-        assert!(!auth.is_xai_auth());
+        assert!(!auth.is_axon_auth());
     }
 
     #[test]
@@ -240,19 +240,19 @@ mod tests {
     }
 
     #[test]
-    fn sync_sets_grok_auth_expired_env_on_refresh() {
+    fn sync_sets_axon_auth_expired_env_on_refresh() {
         let auth = run_external_auth_sync("echo $AXON_AUTH_EXPIRED", true).unwrap();
         assert_eq!(auth.key, "1");
     }
 
     #[test]
     fn refresh_carries_zdr_flags_forward() {
-        let prev = GrokAuth {
+        let prev = AxonAuth {
             user_blocked_reason: Some("BLOCKED_REASON_OTHER".into()),
             team_blocked_reasons: vec!["BLOCKED_REASON_NO_LOGS".into()],
             coding_data_retention_opt_out: true,
             organization_id: Some("org-1".into()),
-            ..GrokAuth::test_default()
+            ..AxonAuth::test_default()
         };
         let auth = refresh_with_command("echo fresh-token", &prev).unwrap();
         assert_eq!(auth.key, "fresh-token");

@@ -1,4 +1,4 @@
-//! xAI Computer Hub — wire-protocol types.
+//! Axon Computer Hub — wire-protocol types.
 //!
 //! Identifier newtypes, registration payloads, capabilities, hook events,
 //! handshake messages, the JSON-RPC 2.0 envelope and method catalog, the

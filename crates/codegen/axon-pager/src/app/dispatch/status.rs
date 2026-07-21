@@ -42,7 +42,7 @@ pub(super) fn dispatch_share_session(app: &mut AppView) -> Vec<Effect> {
     }]
 }
 
-/// Show session info: fetch via x.ai/session/info and display in scrollback.
+/// Show session info: fetch via blocked.invalid/session/info and display in scrollback.
 ///
 /// Produces Effect::ShowSessionInfo which spawns an async ACP ext request.
 /// On completion, TaskResult::SessionInfoComplete shows the formatted info.
@@ -90,7 +90,7 @@ pub(super) fn dispatch_show_privacy_info(app: &mut AppView) -> Vec<Effect> {
     } else {
         // Coding data sharing opted in -- matches desktop's "Share data" state.
         lines.push("  Privacy: share data");
-        lines.push("  Usage and code data may be used by SpaceXAI to improve the product.");
+        lines.push("  Usage and code data may be used by SpaceAXON to improve the product.");
         lines.push("");
         lines.push("  Use /privacy opt-out to enable privacy mode.");
     }
@@ -102,7 +102,7 @@ pub(super) fn dispatch_show_privacy_info(app: &mut AppView) -> Vec<Effect> {
     lines.push("  - [telemetry] trace_upload / AXON_TELEMETRY_TRACE_UPLOAD");
     lines.push("  - AXON_EXTERNAL_OTEL / OTEL_*");
     lines.push("");
-    lines.push("  Learn more: https://x.ai/legal");
+    lines.push("  Learn more: https://blocked.invalid/legal");
     let text = lines.join("\n");
     push_system_to_any_agent(app, &text);
     vec![]
@@ -232,7 +232,7 @@ fn push_system_to_any_agent(app: &mut AppView, msg: &str) {
     }
 }
 
-/// Show context info: fetch via x.ai/session/info and display rich breakdown.
+/// Show context info: fetch via blocked.invalid/session/info and display rich breakdown.
 ///
 /// Produces Effect::ShowContextInfo which spawns an async ACP ext request.
 /// On completion, TaskResult::ContextInfoComplete shows the formatted info.
@@ -255,7 +255,7 @@ pub(super) fn dispatch_show_context_info(app: &mut AppView) -> Vec<Effect> {
 
 /// Show credit usage: fetch billing data and display inline.
 ///
-/// When the remote settings `grok_build_usage_redirect_url` flag is set (delivered via
+/// When the remote settings `axon_build_usage_redirect_url` flag is set (delivered via
 /// RemoteSettings, targeted at personal-team users), skip the backend fetch and
 /// just point the user at that URL instead. This is a kill switch for the
 /// personal-team billing path while it is unreliable.
@@ -367,7 +367,7 @@ pub(super) fn notify_session_ready(
 ) {
     notification_service.notify(NotificationEvent {
         kind: NotificationEventKind::SessionReady,
-        title: "Grok".into(),
+        title: "Axon".into(),
         body: NotificationEventKind::SessionReady.as_str().into(),
         session_id: agent.session.session_id.as_ref().map(|s| s.0.to_string()),
     });

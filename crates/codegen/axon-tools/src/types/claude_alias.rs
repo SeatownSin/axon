@@ -1,44 +1,44 @@
-//! Canonical external-settings tool name ↔ Grok tool correspondence: one table
+//! Canonical external-settings tool name ↔ Axon tool correspondence: one table
 //! replacing two that drifted apart.
 //!
 //! Two consumers read it independently. The hook matcher (`axon-hooks`) needs the
-//! Grok tool **names** an external settings term maps to (and the reverse, for regex
+//! Axon tool **names** an external settings term maps to (and the reverse, for regex
 //! matchers); the agent builder (`axon-agent`) needs the [`ToolKind`] a `tools:`
 //! allowlist entry resolves to. A row may carry a kind without names (`PowerShell`
 //! shares `Execute`, with no distinct tool) or names without a kind (e.g.
 //! `Agent`/`ExitPlanMode`/`Cron*` are matchable but not allowlist-resolvable).
 //!
-//! The `grok` names are test-checked against the live registry.
+//! The `axon` names are test-checked against the live registry.
 
 use super::tool::ToolKind;
 use ToolKind::*;
 
-/// One Claude tool's correspondence to Grok, read via the accessor functions below.
+/// One Claude tool's correspondence to Axon, read via the accessor functions below.
 struct ClaudeTool {
     claude: &'static str,
-    /// Grok [`ToolKind`] for allowlist resolution; `None` for names that are matchable
+    /// Axon [`ToolKind`] for allowlist resolution; `None` for names that are matchable
     /// (spawn/plan-mode directives) but must not resolve an allowlist.
     kind: Option<ToolKind>,
-    /// Grok tool names this Claude tool maps to (empty when there is no direct
-    /// Grok tool — the entry then only contributes a `kind`).
-    grok: &'static [&'static str],
+    /// Axon tool names this Claude tool maps to (empty when there is no direct
+    /// Axon tool — the entry then only contributes a `kind`).
+    axon: &'static [&'static str],
 }
 
 /// Row that resolves an allowlist (carries a [`ToolKind`]) — the common case.
-const fn k(claude: &'static str, kind: ToolKind, grok: &'static [&'static str]) -> ClaudeTool {
+const fn k(claude: &'static str, kind: ToolKind, axon: &'static [&'static str]) -> ClaudeTool {
     ClaudeTool {
         claude,
         kind: Some(kind),
-        grok,
+        axon,
     }
 }
 
 /// Row that is matchable but not allowlist-resolvable (`kind: None`).
-const fn match_only(claude: &'static str, grok: &'static [&'static str]) -> ClaudeTool {
+const fn match_only(claude: &'static str, axon: &'static [&'static str]) -> ClaudeTool {
     ClaudeTool {
         claude,
         kind: None,
-        grok,
+        axon,
     }
 }
 
@@ -67,7 +67,7 @@ const CLAUDE_TOOLS: &[ClaudeTool] = &[
     k("TaskStop",        KillTaskAction,       &["kill_command_or_subagent", "kill_terminal_command"]),
     k("KillShell",       KillTaskAction,       &["kill_command_or_subagent", "kill_terminal_command"]),
     k("KillBash",        KillTaskAction,       &["kill_command_or_subagent", "kill_terminal_command"]),
-    k("Skill",           Read,                 &["skill"]),                           // matcher: opencode's `skill` tool; allowlist Read (grok-build reads SKILL.md)
+    k("Skill",           Read,                 &["skill"]),                           // matcher: opencode's `skill` tool; allowlist Read (axon-build reads SKILL.md)
     k("ToolSearch",      SearchTool,           &["search_tool"]),
     match_only("Agent",         &["spawn_subagent"]),                                 // canonical; Task is the legacy alias
     match_only("Task",          &["spawn_subagent"]),
@@ -79,7 +79,7 @@ const CLAUDE_TOOLS: &[ClaudeTool] = &[
     match_only("ListMcpResourcesTool", &["ListMcpResources"]),                        // cursor preset
 ];
 
-/// The Grok [`ToolKind`] a Claude allowlist entry resolves to, if any.
+/// The Axon [`ToolKind`] a Claude allowlist entry resolves to, if any.
 pub fn kind_for(claude: &str) -> Option<ToolKind> {
     CLAUDE_TOOLS
         .iter()
@@ -87,32 +87,32 @@ pub fn kind_for(claude: &str) -> Option<ToolKind> {
         .and_then(|t| t.kind)
 }
 
-/// The Grok tool names a Claude matcher term fires on.
-pub fn grok_names_for(claude: &str) -> impl Iterator<Item = &'static str> {
+/// The Axon tool names a Claude matcher term fires on.
+pub fn axon_names_for(claude: &str) -> impl Iterator<Item = &'static str> {
     CLAUDE_TOOLS
         .iter()
         .find(|t| t.claude == claude)
-        .map(|t| t.grok)
+        .map(|t| t.axon)
         .unwrap_or(&[])
         .iter()
         .copied()
 }
 
-/// The Claude names that map to `grok_name` (reverse lookup, for regex matchers).
-pub fn claude_names_for(grok_name: &str) -> impl Iterator<Item = &'static str> + '_ {
+/// The Claude names that map to `axon_name` (reverse lookup, for regex matchers).
+pub fn claude_names_for(axon_name: &str) -> impl Iterator<Item = &'static str> + '_ {
     CLAUDE_TOOLS
         .iter()
-        .filter(move |t| t.grok.contains(&grok_name))
+        .filter(move |t| t.axon.contains(&axon_name))
         .map(|t| t.claude)
 }
 
-/// Every distinct Grok name the table references, for the `axon-agent` drift-check
+/// Every distinct Axon name the table references, for the `axon-agent` drift-check
 /// test that asserts each is a real client tool name.
-pub fn grok_names() -> impl Iterator<Item = &'static str> {
+pub fn axon_names() -> impl Iterator<Item = &'static str> {
     let mut seen = std::collections::HashSet::new();
     CLAUDE_TOOLS
         .iter()
-        .flat_map(|t| t.grok.iter().copied())
+        .flat_map(|t| t.axon.iter().copied())
         .filter(move |name| seen.insert(*name))
 }
 
@@ -131,10 +131,10 @@ mod tests {
 
     #[test]
     fn every_row_contributes() {
-        // A row with neither a kind nor a Grok name is dead weight (and signals a typo).
+        // A row with neither a kind nor a Axon name is dead weight (and signals a typo).
         for t in CLAUDE_TOOLS {
             assert!(
-                t.kind.is_some() || !t.grok.is_empty(),
+                t.kind.is_some() || !t.axon.is_empty(),
                 "dead row: {}",
                 t.claude
             );

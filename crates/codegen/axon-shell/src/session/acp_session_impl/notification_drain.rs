@@ -206,7 +206,7 @@ impl SessionActor {
             .borrow()
             .tool_bridge()
             .update_resource(
-                axon_tools::implementations::grok_build::task::types::CurrentPromptIdResource(
+                axon_tools::implementations::axon_build::task::types::CurrentPromptIdResource(
                     prompt_id.clone(),
                 ),
             )
@@ -364,7 +364,7 @@ impl SessionActor {
         let Some(buffer) = &self.tool_context.monitor_event_buffer else {
             return;
         };
-        for event in axon_tools::implementations::grok_build::task::types::drain_owned(
+        for event in axon_tools::implementations::axon_build::task::types::drain_owned(
             buffer,
             Some(self.session_info.id.0.as_ref()),
         ) {
@@ -416,7 +416,7 @@ impl SessionActor {
         notifications: &[PendingNotification],
         task_output_tool_name: &str,
     ) -> Vec<acp::ContentBlock> {
-        use axon_tools::implementations::grok_build::task::types::MonitorEventNotification;
+        use axon_tools::implementations::axon_build::task::types::MonitorEventNotification;
 
         let completion_task_ids: std::collections::HashSet<&str> = notifications
             .iter()

@@ -11,8 +11,8 @@ pub const SIGNED_PAYLOAD_VERSION: u32 = 1;
 
 /// Domain-separation tags inside the signed bytes: both message types share one
 /// signing key, so each verifier requires its own tag (no cross-substitution).
-pub const MANAGED_POLICY_TYP: &str = "grok.managed_policy.v1";
-pub const MANAGED_IDENTITY_TYP: &str = "grok.managed_identity.v1";
+pub const MANAGED_POLICY_TYP: &str = "axon.managed_policy.v1";
+pub const MANAGED_IDENTITY_TYP: &str = "axon.managed_identity.v1";
 
 /// The exact bytes the server signs: the served policy, the principal it is
 /// bound to, and an expiry. Serialized once on the server and shipped verbatim
@@ -178,7 +178,7 @@ mod tests {
         );
 
         let partial: ManagedIdentityClaim = serde_json::from_str(
-            r#"{"typ":"grok.managed_identity.v1","principal":"team-007","expires_at":1,"key_id":"v1"}"#,
+            r#"{"typ":"axon.managed_identity.v1","principal":"team-007","expires_at":1,"key_id":"v1"}"#,
         )
         .unwrap();
         assert!(!partial.fail_closed, "a partial claim parses permissive");

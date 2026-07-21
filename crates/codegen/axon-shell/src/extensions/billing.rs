@@ -1,6 +1,6 @@
-//! `x.ai/billing` extension handler.
+//! `axon/billing` extension handler.
 //!
-//! Fetches the authenticated user's Grok Build billing configuration
+//! Fetches the authenticated user's Axon Build billing configuration
 //! (credit limit, usage, on-demand cap, billing period, history) from
 //! the backend. Used by the pager/desktop to display credits and usage.
 
@@ -57,14 +57,14 @@ pub struct BillingPeriodUsage {
     pub total_used: Option<Cent>,
 }
 
-/// Current billing configuration for Grok Build coding credits.
+/// Current billing configuration for Axon Build coding credits.
 ///
 /// Carries both the newer credits-config fields (`credit_usage_percent`,
-/// `current_period`) and the deprecated `GrokBuildBillingConfig` fields
+/// `current_period`) and the deprecated `AxonBuildBillingConfig` fields
 /// (`monthly_limit`, `used`, `billing_period_*`). Consumers should prefer the
 /// new fields and fall back to the deprecated ones, so the same struct works
-/// against both the new `GetGrokCreditsConfig` and the legacy
-/// `GetGrokBuildBillingConfig` backend responses.
+/// against both the new `GetAxonCreditsConfig` and the legacy
+/// `GetAxonBuildBillingConfig` backend responses.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BillingConfig {
@@ -88,14 +88,14 @@ pub struct BillingConfig {
     pub on_demand_used: Option<Cent>,
     /// Remaining prepaid (purchased) credit balance, positive — the "bought
     /// credits" the user has topped up. Populated from the credits config
-    /// (`GetGrokCreditsConfig.prepaid_balance`); absent in the legacy billing
+    /// (`GetAxonCreditsConfig.prepaid_balance`); absent in the legacy billing
     /// shape.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub prepaid_balance: Option<Cent>,
     /// Whether this user is on unified usage billing (shared weekly/monthly
-    /// pool). From `GrokCreditsConfig.is_unified_billing_user`, which billing
+    /// pool). From `AxonCreditsConfig.is_unified_billing_user`, which billing
     /// sets from remote settings `unified_consumer_billing_enabled`. `None` when
-    /// absent (legacy `GetGrokBuildBillingConfig` shape or older servers).
+    /// absent (legacy `GetAxonBuildBillingConfig` shape or older servers).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub is_unified_billing_user: Option<bool>,
     /// Deprecated: use `current_period.start`.
@@ -108,7 +108,7 @@ pub struct BillingConfig {
     pub history: Vec<BillingPeriodUsage>,
 }
 
-/// Top-level response (primarily from `GET /rest/grok/credits` + auto-topup-rule).
+/// Top-level response (primarily from `GET /rest/axon/credits` + auto-topup-rule).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BillingConfigResponse {
     pub config: Option<BillingConfig>,
@@ -116,7 +116,7 @@ pub struct BillingConfigResponse {
     /// should hide on-demand controls. Populated from `RemoteSettings`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub on_demand_enabled: Option<bool>,
-    /// User-friendly subscription tier name (e.g. "SuperGrok Heavy").
+    /// User-friendly subscription tier name (e.g. "SuperAxon Heavy").
     /// Populated from `RemoteSettings` so the pager can update its cached
     /// tier on every billing fetch without an extra request.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -148,11 +148,11 @@ pub struct GetAutoTopupRuleResponse {
 #[tracing::instrument(skip_all, fields(method = %args.method))]
 pub async fn handle(agent: &MvpAgent, args: &acp::ExtRequest) -> ExtResult {
     match args.method.as_ref() {
-        "x.ai/billing" => {
+        "axon/billing" => {
             tracing::info!("handling billing config request");
             handle_get_billing(agent).await
         }
-        "x.ai/auto-topup-rule" => {
+        "axon/auto-topup-rule" => {
             tracing::info!("handling auto top-up rule request");
             handle_get_auto_topup_rule(agent).await
         }
@@ -198,27 +198,27 @@ fn billing_unified_log_ctx(billing: &BillingConfigResponse) -> serde_json::Value
 }
 
 async fn handle_get_billing(agent: &MvpAgent) -> ExtResult {
-    let auth = super::auth_gate::require_xai_auth(
+    let auth = super::auth_gate::require_axon_auth(
         &agent.auth_manager,
         "Authentication required to fetch billing data",
-        "Billing data requires auth with grok.com. Run `axon login` to authenticate.",
+        "Billing data requires auth with blocked.invalid. Run `axon login` to authenticate.",
     )?;
 
     let proxy_base = agent.cli_chat_proxy_base_url();
     let base = proxy_base.trim_end_matches('/');
 
     // Credits balance / usage (new billing system) via the CLI proxy, which
-    // forwards to the backend `GetGrokCreditsConfig`.
+    // forwards to the backend `GetAxonCreditsConfig`.
     let credits_url = format!("{}/billing?format=credits", base);
     let credits_resp = crate::http::shared_client()
         .get(&credits_url)
         .header("Authorization", format!("Bearer {}", &auth.key))
         .header(
-            "X-XAI-Token-Auth",
-            crate::auth::GrokComConfig::default().token_header,
+            "X-AXON-Token-Auth",
+            crate::auth::AxonComConfig::default().token_header,
         )
         .header("x-userid", &auth.user_id)
-        .header("x-grok-client-version", axon_version::VERSION)
+        .header("x-axon-client-version", axon_version::VERSION)
         .header(
             crate::http::CLIENT_MODE_HEADER,
             crate::http::process_client_mode(),
@@ -277,7 +277,7 @@ async fn handle_get_billing(agent: &MvpAgent) -> ExtResult {
             .or_else(|| rs.subscription_tier.clone())
     });
 
-    // Every prompt / /usage / poll path hits `x.ai/billing`; log the fetched
+    // Every prompt / /usage / poll path hits `axon/billing`; log the fetched
     // credits snapshot so support can correlate limit UX with real balances.
     axon_telemetry::unified_log::info(
         "billing: fetched credits config",
@@ -289,10 +289,10 @@ async fn handle_get_billing(agent: &MvpAgent) -> ExtResult {
 }
 
 async fn handle_get_auto_topup_rule(agent: &MvpAgent) -> ExtResult {
-    let auth = super::auth_gate::require_xai_auth(
+    let auth = super::auth_gate::require_axon_auth(
         &agent.auth_manager,
         "Authentication required to fetch auto top-up rule",
-        "Auto top-up data requires auth with grok.com. Run `axon login` to authenticate.",
+        "Auto top-up data requires auth with blocked.invalid. Run `axon login` to authenticate.",
     )?;
 
     let proxy_base = agent.cli_chat_proxy_base_url();
@@ -305,11 +305,11 @@ async fn handle_get_auto_topup_rule(agent: &MvpAgent) -> ExtResult {
         .get(&url)
         .header("Authorization", format!("Bearer {}", &auth.key))
         .header(
-            "X-XAI-Token-Auth",
-            crate::auth::GrokComConfig::default().token_header,
+            "X-AXON-Token-Auth",
+            crate::auth::AxonComConfig::default().token_header,
         )
         .header("x-userid", &auth.user_id)
-        .header("x-grok-client-version", axon_version::VERSION)
+        .header("x-axon-client-version", axon_version::VERSION)
         .header(
             crate::http::CLIENT_MODE_HEADER,
             crate::http::process_client_mode(),
@@ -442,11 +442,11 @@ mod tests {
                 ],
             }),
             on_demand_enabled: Some(true),
-            subscription_tier: Some("SuperGrok".into()),
+            subscription_tier: Some("SuperAxon".into()),
         };
         let ctx = billing_unified_log_ctx(&resp);
         assert_eq!(ctx["onDemandEnabled"], true);
-        assert_eq!(ctx["subscriptionTier"], "SuperGrok");
+        assert_eq!(ctx["subscriptionTier"], "SuperAxon");
         let config = ctx["config"].as_object().expect("config object");
         assert!(
             config.get("history").is_none(),
@@ -550,7 +550,7 @@ mod tests {
 
     #[test]
     fn billing_config_deserializes_credits_config_shape() {
-        // Newer `GetGrokCreditsConfig` response: percentage-based usage,
+        // Newer `GetAxonCreditsConfig` response: percentage-based usage,
         // a typed current period, and history keyed by `period`.
         let json = serde_json::json!({
             "config": {
@@ -565,7 +565,7 @@ mod tests {
                 "prepaidBalance": {"val": 1250},
                 "isUnifiedBillingUser": true,
                 "productUsage": [
-                    {"product": "PRODUCT_GROK_BUILD", "usagePercent": 61.2}
+                    {"product": "PRODUCT_AXON_BUILD", "usagePercent": 61.2}
                 ],
                 "history": [
                     {

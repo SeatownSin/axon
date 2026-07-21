@@ -51,7 +51,7 @@ fn skips_synthetic_reminder_at_index_one() {
 /// Drives the real `handle_rebuild_agent_for_definition` path.
 #[tokio::test(flavor = "current_thread")]
 async fn rebuild_reinjects_goal_update_handle() {
-    use axon_tools::implementations::grok_build::update_goal::{
+    use axon_tools::implementations::axon_build::update_goal::{
         GoalUpdateHandle, UpdateGoalInput, envelope_for_test,
     };
     let local = tokio::task::LocalSet::new();
@@ -62,7 +62,7 @@ async fn rebuild_reinjects_goal_update_handle() {
             let actor = create_test_actor(0, 256_000, 85, gw_tx, persist_tx).await;
             actor
                 .handle_rebuild_agent_for_definition(
-                    axon_agent::AgentDefinition::default_grok_build(),
+                    axon_agent::AgentDefinition::default_axon_build(),
                 )
                 .await
                 .expect("zero-turn rebuild should succeed");
@@ -123,7 +123,7 @@ async fn rebuild_reinjects_task_completion_resource_identity() {
             session_gate.set(true);
             actor
                 .handle_rebuild_agent_for_definition(
-                    axon_agent::AgentDefinition::default_grok_build(),
+                    axon_agent::AgentDefinition::default_axon_build(),
                 )
                 .await
                 .expect("zero-turn rebuild should succeed");
@@ -150,7 +150,7 @@ async fn rebuild_reinjects_task_completion_resource_identity() {
         .await;
 }
 /// The seeded skill used by the rebuild skill-reminder tests. A non-plugin
-/// Local skill is always listable, so it renders into the grok markdown skill
+/// Local skill is always listable, so it renders into the axon markdown skill
 /// catalog when the pending baseline is drained for a different agent.
 fn regression_skill() -> axon_tools::implementations::skills::types::SkillInfo {
     axon_tools::implementations::skills::types::SkillInfo {
@@ -200,7 +200,7 @@ fn stale_source_reminder() -> ConversationItem {
          - stale-source-skill: from the source session.\n</system-reminder>",
     )
 }
-/// Regression: a zero-turn agent rebuild INTO a grok/Default agent
+/// Regression: a zero-turn agent rebuild INTO a axon/Default agent
 /// must re-inject the baseline skill `<system-reminder>`. `initialize()`
 /// is otherwise the only place skills are surfaced for the axon agent, so
 /// before the fix a switch into such an agent — whose rebuilt bridge holds
@@ -238,7 +238,7 @@ async fn rebuild_reinjects_baseline_skill_reminder_for_non_cursor() {
             let text = reminder.text_content();
             assert!(
                 text.contains("The following skills are available for use:"),
-                "reminder must carry the grok skill catalog header:\n{text}",
+                "reminder must carry the axon skill catalog header:\n{text}",
             );
             assert!(
                 text.contains("regression-baseline-skill"),

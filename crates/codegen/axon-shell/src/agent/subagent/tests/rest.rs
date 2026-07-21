@@ -343,7 +343,7 @@ fn resumable_source_returns_info_for_completed_subagent() {
                 child_cwd: "/workspace".into(),
                 worktree_path: Some(PathBuf::from("/tmp/worktree-1")),
                 snapshot_ref: None,
-                effective_model_id: "grok-3".into(),
+                effective_model_id: "axon-3".into(),
                 block_waited: false,
                 explicitly_killed: false,
                 persisted_output_dir: None,
@@ -496,16 +496,16 @@ fn snapshot_ref_field_in_meta_roundtrips() {
         persona: None,
         resumed_from: None,
         child_cwd: None,
-        worktree_path: Some("/tmp/grok-wt/sa-snap".into()),
-        snapshot_ref: Some("refs/grok/subagent-snapshots/sa-snap".into()),
+        worktree_path: Some("/tmp/axon-wt/sa-snap".into()),
+        snapshot_ref: Some("refs/axon/subagent-snapshots/sa-snap".into()),
         effective_model_id: None,
     };
     let json = serde_json::to_string(&meta).unwrap();
     assert!(json.contains("snapshot_ref"));
-    assert!(json.contains("refs/grok/subagent-snapshots/sa-snap"));
+    assert!(json.contains("refs/axon/subagent-snapshots/sa-snap"));
     let parsed: SubagentMeta = serde_json::from_str(&json).unwrap();
     assert_eq!(
-        parsed.snapshot_ref.as_deref(), Some("refs/grok/subagent-snapshots/sa-snap")
+        parsed.snapshot_ref.as_deref(), Some("refs/axon/subagent-snapshots/sa-snap")
     );
 }
 #[test]
@@ -545,7 +545,7 @@ fn snapshot_test_meta(id: &str) -> SubagentMeta {
         persona: None,
         resumed_from: None,
         child_cwd: None,
-        worktree_path: Some("/tmp/grok-wt/subagent-x".into()),
+        worktree_path: Some("/tmp/axon-wt/subagent-x".into()),
         snapshot_ref: None,
         effective_model_id: None,
     }
@@ -557,14 +557,14 @@ fn update_subagent_meta_snapshot_ref_persists_to_disk() {
     let dir = tempfile::TempDir::new().unwrap();
     assert!(write_subagent_meta(dir.path(), & snapshot_test_meta("sa-write")));
     assert!(
-        update_subagent_meta_snapshot_ref(dir.path(), "refs/grok/subagents/sa-write",
+        update_subagent_meta_snapshot_ref(dir.path(), "refs/axon/subagents/sa-write",
         "completed"), "persisting the ref into an existing meta.json must report success"
     );
     let data = std::fs::read_to_string(dir.path().join("meta.json")).unwrap();
     let reread: SubagentMeta = serde_json::from_str(&data).unwrap();
-    assert_eq!(reread.snapshot_ref.as_deref(), Some("refs/grok/subagents/sa-write"));
+    assert_eq!(reread.snapshot_ref.as_deref(), Some("refs/axon/subagents/sa-write"));
     assert_eq!(reread.status, "completed");
-    assert_eq!(reread.worktree_path.as_deref(), Some("/tmp/grok-wt/subagent-x"));
+    assert_eq!(reread.worktree_path.as_deref(), Some("/tmp/axon-wt/subagent-x"));
 }
 /// Missing meta.json → the writer reports failure (it `warn!`s), so the
 /// completion path keeps the worktree instead of removing it ref-less.
@@ -572,7 +572,7 @@ fn update_subagent_meta_snapshot_ref_persists_to_disk() {
 fn update_subagent_meta_snapshot_ref_reports_failure_when_meta_missing() {
     let dir = tempfile::TempDir::new().unwrap();
     assert!(
-        ! update_subagent_meta_snapshot_ref(dir.path(), "refs/grok/subagents/sa-missing",
+        ! update_subagent_meta_snapshot_ref(dir.path(), "refs/axon/subagents/sa-missing",
         "completed")
     );
 }
@@ -586,12 +586,12 @@ fn snapshot_ref_write_promotes_nonterminal_status_to_terminal() {
     meta.status = "running".into();
     assert!(write_subagent_meta(dir.path(), & meta));
     assert!(
-        update_subagent_meta_snapshot_ref(dir.path(), "refs/grok/subagents/x",
+        update_subagent_meta_snapshot_ref(dir.path(), "refs/axon/subagents/x",
         "completed")
     );
     let data = std::fs::read_to_string(dir.path().join("meta.json")).unwrap();
     let reread: SubagentMeta = serde_json::from_str(&data).unwrap();
-    assert_eq!(Some("refs/grok/subagents/x"), reread.snapshot_ref.as_deref());
+    assert_eq!(Some("refs/axon/subagents/x"), reread.snapshot_ref.as_deref());
     assert_eq!("completed", reread.status);
 }
 /// The coordinator setter stamps the snapshot ref onto the in-memory
@@ -618,17 +618,17 @@ async fn set_completed_snapshot_ref_updates_in_memory_entry() {
         .unwrap();
     assert!(before.snapshot_ref.is_none());
     coordinator
-        .set_completed_snapshot_ref("sa-mem", "refs/grok/subagents/sa-mem".into());
+        .set_completed_snapshot_ref("sa-mem", "refs/axon/subagents/sa-mem".into());
     let after = coordinator
         .resumable_source_for("sa-mem", "session-A", Path::new("/tmp"))
         .unwrap();
-    assert_eq!(after.snapshot_ref.as_deref(), Some("refs/grok/subagents/sa-mem"));
+    assert_eq!(after.snapshot_ref.as_deref(), Some("refs/axon/subagents/sa-mem"));
 }
 /// Unknown id is a no-op (entry already cap-evicted; meta.json still holds it).
 #[test]
 fn set_completed_snapshot_ref_unknown_id_is_noop() {
     let mut coordinator = SubagentCoordinator::new();
-    coordinator.set_completed_snapshot_ref("ghost", "refs/grok/subagents/ghost".into());
+    coordinator.set_completed_snapshot_ref("ghost", "refs/axon/subagents/ghost".into());
     assert!(
         coordinator.resumable_source_for("ghost", "session-A", Path::new("/tmp"))
         .is_none()
@@ -738,7 +738,7 @@ async fn completion_snapshot_sequence_persists_ref_then_removes_worktree() {
     let meta_dir = temp.path().join("meta");
     write_subagent_meta(&meta_dir, &snapshot_test_meta("glue-1"));
     let mut coordinator = coordinator_with_completed("glue-1");
-    let ref_name = "refs/grok/subagents/glue-1";
+    let ref_name = "refs/axon/subagents/glue-1";
     let snapshot_ref = crate::session::worktree::snapshot_subagent_worktree(
             &wt,
             &repo,
@@ -763,7 +763,7 @@ async fn completion_snapshot_sequence_persists_ref_then_removes_worktree() {
 /// the tracker-retained direct `worktree_path` plus the snapshot_ref.
 #[tokio::test]
 async fn gate_on_completion_clears_model_facing_worktree_path_but_resume_retains_it() {
-    let wt = PathBuf::from("/tmp/grok-wt/subagent-disp-1");
+    let wt = PathBuf::from("/tmp/axon-wt/subagent-disp-1");
     let mut coordinator = SubagentCoordinator::new();
     let mut tracker = dummy_tracker("disp-1", "session-A", "explore", "task");
     tracker.worktree_path = Some(wt.clone());
@@ -782,21 +782,21 @@ async fn gate_on_completion_clears_model_facing_worktree_path_but_resume_retains
     coordinator
         .move_to_completed("disp-1", "task".into(), "explore".into(), result, None);
     coordinator
-        .set_completed_snapshot_ref("disp-1", "refs/grok/subagents/disp-1".into());
+        .set_completed_snapshot_ref("disp-1", "refs/axon/subagents/disp-1".into());
     let listed = coordinator.completed.get("disp-1").expect("completed entry");
     assert_eq!(None, listed.result.worktree_path);
     let src = coordinator
         .resumable_source_for("disp-1", "session-A", Path::new("/tmp"))
         .unwrap();
     assert_eq!(Some(wt), src.worktree_path);
-    assert_eq!(Some("refs/grok/subagents/disp-1"), src.snapshot_ref.as_deref());
+    assert_eq!(Some("refs/axon/subagents/disp-1"), src.snapshot_ref.as_deref());
 }
 /// Gate on but the worktree was NOT removed (snapshot/persist/remove failed):
 /// the model-facing `result.worktree_path` is RETAINED so the parent can still
 /// locate the preserved dir.
 #[tokio::test]
 async fn gate_on_completion_retains_worktree_path_when_not_removed() {
-    let wt = PathBuf::from("/tmp/grok-wt/subagent-keep-1");
+    let wt = PathBuf::from("/tmp/axon-wt/subagent-keep-1");
     let mut coordinator = SubagentCoordinator::new();
     coordinator.insert(dummy_tracker("keep-1", "session-A", "explore", "task"));
     let mut result = SubagentResult {
@@ -838,7 +838,7 @@ async fn disposal_completes_before_subagent_is_observable() {
     write_subagent_meta(&meta_dir, &snapshot_test_meta("order-1"));
     let mut coordinator = SubagentCoordinator::new();
     coordinator.insert(dummy_tracker("order-1", "session-A", "explore", "task"));
-    let ref_name = "refs/grok/subagents/order-1";
+    let ref_name = "refs/axon/subagents/order-1";
     let snapshot_ref = crate::session::worktree::snapshot_subagent_worktree(
             &wt,
             &repo,
@@ -913,7 +913,7 @@ fn subagent_session_metadata_roundtrip() {
     };
     let session_meta = SubagentSessionMetadata::from_meta(
         &meta,
-        Some("grok-4.5"),
+        Some("axon-4.5"),
         Some("/workspace"),
         Some("/tmp/worktree"),
         Some("worktree"),
@@ -928,7 +928,7 @@ fn subagent_session_metadata_roundtrip() {
     assert_eq!(session_meta.subagent_id, "sa-1");
     assert_eq!(session_meta.parent_session_id, "parent-1");
     assert_eq!(session_meta.description, "test task");
-    assert_eq!(session_meta.model_id.as_deref(), Some("grok-4.5"));
+    assert_eq!(session_meta.model_id.as_deref(), Some("axon-4.5"));
     assert_eq!(session_meta.role.as_deref(), Some("rust-dev"));
     assert_eq!(session_meta.persona.as_deref(), Some("reviewer"));
     assert!(! session_meta.context_normalized);
@@ -1037,7 +1037,7 @@ fn upload_lifecycle_spawn_then_completion_preserves_fields() {
     };
     let spawn_gcs = SubagentSessionMetadata::from_meta(
         &spawn_meta,
-        Some("grok-4.5"),
+        Some("axon-4.5"),
         Some("/workspace"),
         None,
         Some("worktree"),
@@ -1050,7 +1050,7 @@ fn upload_lifecycle_spawn_then_completion_preserves_fields() {
     assert_eq!(spawn_gcs.status, "running");
     assert!(spawn_gcs.completed_at.is_none());
     assert!(spawn_gcs.duration_ms.is_none());
-    assert_eq!(spawn_gcs.model_id.as_deref(), Some("grok-4.5"));
+    assert_eq!(spawn_gcs.model_id.as_deref(), Some("axon-4.5"));
     assert_eq!(spawn_gcs.cwd.as_deref(), Some("/workspace"));
     assert_eq!(spawn_gcs.role.as_deref(), Some("rust-dev"));
     assert_eq!(spawn_gcs.parent_prompt_id.as_deref(), Some("prompt-42"));
@@ -1063,7 +1063,7 @@ fn upload_lifecycle_spawn_then_completion_preserves_fields() {
     completed_meta.turns = Some(3);
     let completion_gcs = SubagentSessionMetadata::from_meta(
         &completed_meta,
-        Some("grok-4.5"),
+        Some("axon-4.5"),
         Some("/workspace"),
         Some("/tmp/worktree-1"),
         Some("worktree"),
@@ -1078,7 +1078,7 @@ fn upload_lifecycle_spawn_then_completion_preserves_fields() {
     assert_eq!(completion_gcs.duration_ms, Some(5000));
     assert_eq!(completion_gcs.tool_calls, Some(12));
     assert_eq!(completion_gcs.turns, Some(3));
-    assert_eq!(completion_gcs.model_id.as_deref(), Some("grok-4.5"));
+    assert_eq!(completion_gcs.model_id.as_deref(), Some("axon-4.5"));
     assert_eq!(completion_gcs.cwd.as_deref(), Some("/workspace"));
     assert_eq!(completion_gcs.role.as_deref(), Some("rust-dev"));
     assert_eq!(completion_gcs.parent_prompt_id.as_deref(), Some("prompt-42"));
@@ -1298,7 +1298,7 @@ fn resume_inherited_cwd_requires_existing_non_worktree_dir() {
     };
     assert_eq!(resume_inherited_cwd(Some(& present)), Some(existing.as_str()));
     let missing = ResumeSourceData {
-        child_cwd: "/no/such/dir/grok-missing".into(),
+        child_cwd: "/no/such/dir/axon-missing".into(),
         ..present.clone()
     };
     assert_eq!(resume_inherited_cwd(Some(& missing)), None);
@@ -1430,7 +1430,7 @@ fn token_estimation_accounts_for_images() {
 #[test]
 fn durable_fallback_roundtrips_child_cwd_and_worktree() {
     let dir = std::env::temp_dir()
-        .join("grok-test-durable-resume")
+        .join("axon-test-durable-resume")
         .join(uuid::Uuid::now_v7().to_string());
     let _ = std::fs::create_dir_all(&dir);
     let meta = SubagentMeta {
@@ -1453,22 +1453,22 @@ fn durable_fallback_roundtrips_child_cwd_and_worktree() {
         persona: Some("implementer".into()),
         resumed_from: None,
         child_cwd: Some("/workspace/project".into()),
-        worktree_path: Some("/tmp/grok-wt/sa-dur".into()),
+        worktree_path: Some("/tmp/axon-wt/sa-dur".into()),
         snapshot_ref: None,
-        effective_model_id: Some("grok-3".into()),
+        effective_model_id: Some("axon-3".into()),
     };
     write_subagent_meta(&dir, &meta);
     let data = std::fs::read_to_string(dir.join("meta.json")).unwrap();
     let loaded: SubagentMeta = serde_json::from_str(&data).unwrap();
     assert_eq!(loaded.child_cwd.as_deref(), Some("/workspace/project"));
-    assert_eq!(loaded.worktree_path.as_deref(), Some("/tmp/grok-wt/sa-dur"));
+    assert_eq!(loaded.worktree_path.as_deref(), Some("/tmp/axon-wt/sa-dur"));
     assert_eq!(loaded.status, "completed");
     let _ = std::fs::remove_dir_all(&dir);
 }
 #[test]
 fn durable_fallback_rejects_running_status() {
     let dir = std::env::temp_dir()
-        .join("grok-test-durable-status")
+        .join("axon-test-durable-status")
         .join(uuid::Uuid::now_v7().to_string());
     let parent_dir = dir.join("subagents").join("sa-running");
     let _ = std::fs::create_dir_all(&parent_dir);
@@ -1513,7 +1513,7 @@ fn drain_cancelled_finish_cmds(
 ) -> usize {
     let mut count = 0;
     while let Ok(cmd) = cmd_rx.try_recv() {
-        if let SessionCommand::XaiSessionNotification { notification } = cmd
+        if let SessionCommand::AxonSessionNotification { notification } = cmd
             && let SessionUpdate::SubagentFinished { subagent_id, status, error, .. } = &notification
                 .update && subagent_id == id
         {
@@ -1537,7 +1537,7 @@ fn drain_cancelled_finish_broadcasts(
         let axon_acp_lib::AcpClientMessage::ExtNotification(args) = msg else {
             continue;
         };
-        assert_eq!(args.request.method.as_ref(), "x.ai/session_notification");
+        assert_eq!(args.request.method.as_ref(), "axon/session_notification");
         let notification: SessionNotification = serde_json::from_str(
                 args.request.params.get(),
             )
@@ -1778,7 +1778,7 @@ fn reconcile_replayed_orphan_uses_real_terminal_status_from_meta() {
     );
     let mut found = None;
     while let Ok(cmd) = cmd_rx.try_recv() {
-        if let SessionCommand::XaiSessionNotification { notification } = cmd
+        if let SessionCommand::AxonSessionNotification { notification } = cmd
             && let SessionUpdate::SubagentFinished {
                 subagent_id,
                 status,
@@ -1825,7 +1825,7 @@ async fn reconcile_reemits_rewound_finish_even_when_id_still_in_completed_regist
     );
     let mut found = None;
     while let Ok(cmd) = cmd_rx.try_recv() {
-        if let SessionCommand::XaiSessionNotification { notification } = cmd
+        if let SessionCommand::AxonSessionNotification { notification } = cmd
             && let SessionUpdate::SubagentFinished { subagent_id, status, .. } = &notification
                 .update && subagent_id == id
         {
@@ -1868,7 +1868,7 @@ async fn reconcile_reemits_real_outcome_for_completed_with_running_meta() {
     );
     let mut found = None;
     while let Ok(cmd) = cmd_rx.try_recv() {
-        if let SessionCommand::XaiSessionNotification { notification } = cmd
+        if let SessionCommand::AxonSessionNotification { notification } = cmd
             && let SessionUpdate::SubagentFinished { subagent_id, status, .. } = &notification
                 .update && subagent_id == id
         {
@@ -1978,11 +1978,11 @@ fn resume_allows_matching_identity() {
         snapshot_ref: None,
         subagent_type: "general-purpose".into(),
         persona: Some("implementer".into()),
-        model_id: Some("grok-3".into()),
+        model_id: Some("axon-3".into()),
     };
     assert_eq!("general-purpose", source.subagent_type);
     assert_eq!(Some("implementer"), source.persona.as_deref());
-    assert_eq!(Some("grok-3"), source.model_id.as_deref());
+    assert_eq!(Some("axon-3"), source.model_id.as_deref());
 }
 #[test]
 fn resume_identity_does_not_gate_on_model() {
@@ -1994,21 +1994,21 @@ fn resume_identity_does_not_gate_on_model() {
         snapshot_ref: None,
         subagent_type: "general-purpose".into(),
         persona: None,
-        model_id: Some("grok-3".into()),
+        model_id: Some("axon-3".into()),
     };
     assert!(
         axon_subagent_resolution::validate_resume_identity("general-purpose", None, &
         source,).is_ok()
     );
     assert_eq!(
-        source.model_id.as_deref(), Some("grok-3"),
+        source.model_id.as_deref(), Some("axon-3"),
         "source model remains available for pinning"
     );
 }
 #[test]
 fn durable_meta_roundtrips_effective_model_id() {
     let dir = std::env::temp_dir()
-        .join("grok-test-model-roundtrip")
+        .join("axon-test-model-roundtrip")
         .join(uuid::Uuid::now_v7().to_string());
     let _ = std::fs::create_dir_all(&dir);
     let meta = SubagentMeta {
@@ -2033,24 +2033,24 @@ fn durable_meta_roundtrips_effective_model_id() {
         child_cwd: Some("/workspace".into()),
         worktree_path: None,
         snapshot_ref: None,
-        effective_model_id: Some("grok-3".into()),
+        effective_model_id: Some("axon-3".into()),
     };
     write_subagent_meta(&dir, &meta);
     let data = std::fs::read_to_string(dir.join("meta.json")).unwrap();
     let loaded: SubagentMeta = serde_json::from_str(&data).unwrap();
     assert_eq!(
-        loaded.effective_model_id.as_deref(), Some("grok-3"),
+        loaded.effective_model_id.as_deref(), Some("axon-3"),
         "model ID should round-trip through meta.json"
     );
     let _ = std::fs::remove_dir_all(&dir);
 }
 #[test]
 fn resume_model_pinning_overrides_default_resolution() {
-    let source_model = Some("grok-3".to_string());
-    let resolved_model = "grok-light";
+    let source_model = Some("axon-3".to_string());
+    let resolved_model = "axon-light";
     let needs_pin = source_model.as_deref() != Some(resolved_model);
     assert!(needs_pin, "resolved model differs from source — pinning should trigger");
-    let resolved_same = "grok-3";
+    let resolved_same = "axon-3";
     let no_pin = source_model.as_deref() == Some(resolved_same);
     assert!(no_pin, "same model — no pinning needed");
 }
@@ -2173,7 +2173,7 @@ fn completed_subagent_propagates_resumed_from() {
                 child_cwd: "/workspace".into(),
                 worktree_path: None,
                 snapshot_ref: None,
-                effective_model_id: "grok-3".into(),
+                effective_model_id: "axon-3".into(),
                 block_waited: false,
                 explicitly_killed: false,
                 persisted_output_dir: None,
@@ -2490,19 +2490,19 @@ fn ctx_with_parent_chat_state(
 #[tokio::test]
 async fn read_parent_sampling_config_keeps_auto_catalog_id_with_routing_slug() {
     let mut models = indexmap::IndexMap::new();
-    models.insert("auto".to_string(), test_model_entry("grok-4.5"));
-    let ctx = ctx_with_parent_chat_state("auto", "grok-4.5", "composer-2-fast", models);
+    models.insert("auto".to_string(), test_model_entry("axon-4.5"));
+    let ctx = ctx_with_parent_chat_state("auto", "axon-4.5", "composer-2-fast", models);
     let (config, model_id) = read_parent_sampling_config(&ctx).await;
-    assert_eq!(config.model, "grok-4.5");
+    assert_eq!(config.model, "axon-4.5");
     assert_eq!(model_id.0.as_ref(), "auto");
 }
 #[tokio::test]
 async fn read_parent_sampling_config_keeps_auto_when_catalog_has_slug_key_only() {
     let mut models = indexmap::IndexMap::new();
-    models.insert("grok-4.5".to_string(), test_model_entry("grok-4.5"));
-    let ctx = ctx_with_parent_chat_state("auto", "grok-4.5", "auto", models);
+    models.insert("axon-4.5".to_string(), test_model_entry("axon-4.5"));
+    let ctx = ctx_with_parent_chat_state("auto", "axon-4.5", "auto", models);
     let (config, model_id) = read_parent_sampling_config(&ctx).await;
-    assert_eq!(config.model, "grok-4.5");
+    assert_eq!(config.model, "axon-4.5");
     assert_eq!(model_id.0.as_ref(), "auto");
 }
 #[tokio::test]
@@ -2543,11 +2543,11 @@ async fn read_parent_sampling_config_ignores_global_default() {
 }
 #[tokio::test]
 async fn read_parent_sampling_config_resolves_backend_search_from_catalog() {
-    let mut entry = test_model_entry("grok-4.5");
+    let mut entry = test_model_entry("axon-4.5");
     entry.info.supports_backend_search = true;
     let mut models = indexmap::IndexMap::new();
     models.insert("auto".to_string(), entry);
-    let mut ctx = ctx_with_parent_chat_state("auto", "grok-4.5", "auto", models);
+    let mut ctx = ctx_with_parent_chat_state("auto", "axon-4.5", "auto", models);
     ctx.sampling_config.supports_backend_search = false;
     let (config, _model_id) = read_parent_sampling_config(&ctx).await;
     assert!(
@@ -2583,11 +2583,11 @@ async fn read_parent_sampling_config_fallback_resolves_backend_search_from_catal
 #[tokio::test]
 async fn read_parent_sampling_config_resolves_compactions_remaining_from_catalog() {
     use axon_sampling_types::CompactionsRemaining;
-    let mut entry = test_model_entry("grok-4.5");
+    let mut entry = test_model_entry("axon-4.5");
     entry.info.compactions_remaining = Some(CompactionsRemaining::Dynamic(true));
     let mut models = indexmap::IndexMap::new();
     models.insert("auto".to_string(), entry);
-    let mut ctx = ctx_with_parent_chat_state("auto", "grok-4.5", "auto", models);
+    let mut ctx = ctx_with_parent_chat_state("auto", "axon-4.5", "auto", models);
     ctx.sampling_config.compactions_remaining = None;
     let (config, _model_id) = read_parent_sampling_config(&ctx).await;
     assert_eq!(
@@ -2742,7 +2742,7 @@ async fn fork_context_pins_parent_model_over_overrides() {
 #[tokio::test]
 async fn resolve_subagent_inherits_parent_model_without_pins() {
     use axon_agent::config::ModelOverride;
-    for parent_model in ["grok-4.5", "composer-2-fast", "my-custom-byok-model"] {
+    for parent_model in ["axon-4.5", "composer-2-fast", "my-custom-byok-model"] {
         let mut ctx = ctx_with_toggle(HashMap::new());
         ctx.sampling_config.model = parent_model.to_string();
         ctx.model_id = acp::ModelId::new(parent_model);
@@ -2761,12 +2761,12 @@ async fn resolve_subagent_inherits_parent_model_without_pins() {
 }
 /// An explicit `[subagents.models]` pin routes the subagent to that
 /// model regardless of the parent model — both a light parent
-/// (`grok-4.5`) and a custom parent (`composer-2-fast`)
+/// (`axon-4.5`) and a custom parent (`composer-2-fast`)
 /// honor the pin identically now that the heavy-model gate is gone.
 #[tokio::test]
 async fn resolve_subagent_config_override_pin_applies_for_any_parent() {
     use axon_agent::config::ModelOverride;
-    for parent_model in ["grok-4.5", "composer-2-fast"] {
+    for parent_model in ["axon-4.5", "composer-2-fast"] {
         let mut ctx = ctx_with_toggle(HashMap::new());
         ctx.sampling_config.model = parent_model.to_string();
         ctx.model_id = acp::ModelId::new(parent_model);
@@ -2793,8 +2793,8 @@ async fn resolve_subagent_config_override_pin_applies_for_any_parent() {
 async fn resolve_subagent_agent_definition_pin_applies_for_light_parent() {
     use axon_agent::config::ModelOverride;
     let mut ctx = ctx_with_toggle(HashMap::new());
-    ctx.sampling_config.model = "grok-4.5".to_string();
-    ctx.model_id = acp::ModelId::new("grok-4.5");
+    ctx.sampling_config.model = "axon-4.5".to_string();
+    ctx.model_id = acp::ModelId::new("axon-4.5");
     ctx.available_models
         .insert("pinned-model".to_string(), test_model_entry("pinned-model"));
     let agent_model = ModelOverride::Override("pinned-model".to_string());
@@ -2813,8 +2813,8 @@ async fn resolve_subagent_agent_definition_pin_applies_for_light_parent() {
 async fn resolve_subagent_config_override_wins_over_agent_definition() {
     use axon_agent::config::ModelOverride;
     let mut ctx = ctx_with_toggle(HashMap::new());
-    ctx.sampling_config.model = "grok-4.5".to_string();
-    ctx.model_id = acp::ModelId::new("grok-4.5");
+    ctx.sampling_config.model = "axon-4.5".to_string();
+    ctx.model_id = acp::ModelId::new("axon-4.5");
     ctx.available_models
         .insert("config-pin".to_string(), test_model_entry("config-pin"));
     ctx.available_models
@@ -2836,8 +2836,8 @@ async fn resolve_subagent_config_override_wins_over_agent_definition() {
 async fn resolve_subagent_config_override_unknown_model_falls_through_to_inherit() {
     use axon_agent::config::ModelOverride;
     let mut ctx = ctx_with_toggle(HashMap::new());
-    ctx.sampling_config.model = "grok-4.5".to_string();
-    ctx.model_id = acp::ModelId::new("grok-4.5");
+    ctx.sampling_config.model = "axon-4.5".to_string();
+    ctx.model_id = acp::ModelId::new("axon-4.5");
     ctx.subagent_model_overrides
         .insert("explore".to_string(), "does-not-exist".to_string());
     let (config, model_id) = resolve_subagent_sampling_config(
@@ -2846,8 +2846,8 @@ async fn resolve_subagent_config_override_unknown_model_falls_through_to_inherit
             &ctx,
         )
         .await;
-    assert_eq!(config.model, "grok-4.5");
-    assert_eq!(model_id.0.as_ref(), "grok-4.5");
+    assert_eq!(config.model, "axon-4.5");
+    assert_eq!(model_id.0.as_ref(), "axon-4.5");
 }
 /// An unresolvable `AgentDefinition.model` pin (model absent from
 /// `available_models`) falls through to inherit the parent model.
@@ -2855,8 +2855,8 @@ async fn resolve_subagent_config_override_unknown_model_falls_through_to_inherit
 async fn resolve_subagent_agent_definition_unknown_model_falls_through_to_inherit() {
     use axon_agent::config::ModelOverride;
     let mut ctx = ctx_with_toggle(HashMap::new());
-    ctx.sampling_config.model = "grok-4.5".to_string();
-    ctx.model_id = acp::ModelId::new("grok-4.5");
+    ctx.sampling_config.model = "axon-4.5".to_string();
+    ctx.model_id = acp::ModelId::new("axon-4.5");
     let agent_model = ModelOverride::Override("does-not-exist".to_string());
     let (config, model_id) = resolve_subagent_sampling_config(
             "explore",
@@ -2864,8 +2864,8 @@ async fn resolve_subagent_agent_definition_unknown_model_falls_through_to_inheri
             &ctx,
         )
         .await;
-    assert_eq!(config.model, "grok-4.5");
-    assert_eq!(model_id.0.as_ref(), "grok-4.5");
+    assert_eq!(config.model, "axon-4.5");
+    assert_eq!(model_id.0.as_ref(), "axon-4.5");
 }
 #[test]
 fn key_prefix_truncates_to_8_chars() {
@@ -3289,8 +3289,8 @@ async fn progress_publisher_delivers_ticks_to_parent_cmd_channel() {
                 .expect("a tick must arrive within the publish interval")
                 .expect("channel open");
             cancel.cancel();
-            let SessionCommand::XaiSessionNotification { notification } = cmd else {
-                panic!("expected XaiSessionNotification");
+            let SessionCommand::AxonSessionNotification { notification } = cmd else {
+                panic!("expected AxonSessionNotification");
             };
             let SessionUpdate::SubagentProgress {
                 subagent_id,

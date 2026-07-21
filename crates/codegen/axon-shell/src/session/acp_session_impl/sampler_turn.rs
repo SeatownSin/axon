@@ -33,7 +33,7 @@ struct SessionTokenAuthGate {
     is_session_based: bool,
     model_byok: crate::agent::auth_method::ModelByok,
     /// Whether the request targets a first-party host. Lets an `Unknown`
-    /// BYOK status still refresh against cli-chat-proxy / `*.x.ai` without
+    /// BYOK status still refresh against cli-chat-proxy / `*.blocked.invalid` without
     /// risking a session-token leak to a third-party BYOK endpoint.
     endpoint_is_first_party: bool,
 }
@@ -49,7 +49,7 @@ impl SessionTokenAuthGate {
             is_session_based: auth_method_id
                 .is_some_and(crate::agent::auth_method::is_session_based_method),
             model_byok,
-            endpoint_is_first_party: crate::util::is_xai_api_url(base_url),
+            endpoint_is_first_party: crate::util::is_axon_api_url(base_url),
         }
     }
     fn active(self) -> bool {
@@ -182,7 +182,7 @@ impl SessionActor {
     /// Gate inputs for `model_id` routed to `base_url`. See
     /// [`crate::agent::auth_method::session_token_auth_gate`] for the rationale
     /// (`base_url` keeps an `Unknown` BYOK status refreshable only
-    /// against first-party xAI hosts).
+    /// against first-party Axon hosts).
     fn auth_gate(&self, model_id: &str, base_url: &str) -> SessionTokenAuthGate {
         let byok = self.model_auth_facts(model_id).byok;
         let auth_method = self.auth_method_id.load();
@@ -332,7 +332,7 @@ impl SessionActor {
                 .auth_manager
                 .as_ref()
                 .and_then(|am| am.current_or_expired())
-                .filter(|a| a.is_xai_auth())
+                .filter(|a| a.is_axon_auth())
                 .map(|a| a.user_id),
             origin_client: self.origin_client.clone(),
             attribution_callback: self.attribution_callback.clone(),
@@ -434,10 +434,10 @@ impl SessionActor {
                             axon_workspace::permission::classifier_output_json_schema(),
                         ),
                         reasoning_effort: classifier_reasoning_effort,
-                        x_grok_conv_id: Some(session_id.clone()),
-                        x_grok_req_id: Some(format!("xai-perm-auto-{}", uuid::Uuid::new_v4())),
-                        x_grok_session_id: Some(session_id),
-                        x_grok_agent_id: Some(axon_telemetry::id::agent_id()),
+                        x_axon_conv_id: Some(session_id.clone()),
+                        x_axon_req_id: Some(format!("axon-perm-auto-{}", uuid::Uuid::new_v4())),
+                        x_axon_session_id: Some(session_id),
+                        x_axon_agent_id: Some(axon_telemetry::id::agent_id()),
                         ..ConversationRequest::default()
                     };
                     let fut = sampling_client.conversation_collect(request);
@@ -465,8 +465,8 @@ impl SessionActor {
         );
     }
     /// Resolve a standalone aux-model `SamplerConfig` for `slug` via the shared
-    /// catalog routing (Tier-1 catalog creds / Tier-2 xAI-proxy via session token
-    /// / `XAI_API_KEY` / deployment key), gathering the session-local auth context
+    /// catalog routing (Tier-1 catalog creds / Tier-2 Axon-proxy via session token
+    /// / `AXON_API_KEY` / deployment key), gathering the session-local auth context
     /// once. Shared by image-describe and the classifier so the gather can't
     /// drift. `None` ⇒ caller falls back to the session model.
     pub(super) async fn resolve_aux_sampler_config(
@@ -483,7 +483,7 @@ impl SessionActor {
         let disable_api_key_auth = self
             .auth_manager
             .as_ref()
-            .map(|am| am.grok_com_config().api_key_auth_disabled())
+            .map(|am| am.axon_com_config().api_key_auth_disabled())
             .unwrap_or(false);
         crate::agent::config::resolve_aux_model_sampling_config(
             slug,
@@ -616,7 +616,7 @@ impl SessionActor {
                             with the current model. Please start a new session."
                 .to_string();
             self.log_terminal_failure("encrypted_content_mismatch", error.status_code, &friendly);
-            self.send_xai_notification(XaiSessionUpdate::RetryState(
+            self.send_axon_notification(AxonSessionUpdate::RetryState(
                 crate::extensions::notification::RetryState::Failed {
                     error_type: "encrypted_content_mismatch".to_string(),
                     message: friendly.clone(),
@@ -627,7 +627,7 @@ impl SessionActor {
         }
         if matches!(error.kind, SamplingErrorKind::RateLimited) {
             self.log_terminal_failure("rate_limited", error.status_code, &detailed_message);
-            self.send_xai_notification(XaiSessionUpdate::RetryState(
+            self.send_axon_notification(AxonSessionUpdate::RetryState(
                 crate::extensions::notification::RetryState::Exhausted {
                     attempts: 0,
                     reason: detailed_message.clone(),
@@ -778,7 +778,7 @@ impl SessionActor {
                  Version: {client_version}"
             );
             self.log_terminal_failure("legacy_auth", error.status_code, &msg);
-            self.send_xai_notification(XaiSessionUpdate::RetryState(
+            self.send_axon_notification(AxonSessionUpdate::RetryState(
                 crate::extensions::notification::RetryState::Failed {
                     error_type: "legacy_auth".to_string(),
                     message: msg.clone(),
@@ -830,7 +830,7 @@ impl SessionActor {
             error.kind.as_str()
         };
         self.log_terminal_failure(error_type, error.status_code, &detailed_message);
-        self.send_xai_notification(XaiSessionUpdate::RetryState(
+        self.send_axon_notification(AxonSessionUpdate::RetryState(
             crate::extensions::notification::RetryState::Failed {
                 error_type: error_type.to_string(),
                 message: detailed_message.clone(),
@@ -856,7 +856,7 @@ impl SessionActor {
     /// * `Ok(SamplerTurnOutcome::RefreshAuthAndResubmit)` - auth 401
     ///    recovery succeeded, credentials refreshed, retry once.
     /// * `Err(acp::Error)` - terminal failure already reported via
-    ///    `send_xai_notification(RetryState::Failed)`.
+    ///    `send_axon_notification(RetryState::Failed)`.
     pub(crate) async fn run_turn_via_sampler(
         self: &Arc<Self>,
         request: ConversationRequest,

@@ -14,7 +14,7 @@ fn cta_mcps_loaded_needs_auth_opens_modal_and_seeds() {
         name: "figma".into(),
     };
     let servers = vec![
-        cta_mcp_server("grok_com_managed", None, McpServerDisplayStatus::Ready),
+        cta_mcp_server("axon_com_managed", None, McpServerDisplayStatus::Ready),
         cta_mcp_server("local-srv", None, McpServerDisplayStatus::Ready),
         cta_mcp_server("other-srv", Some("slack"), McpServerDisplayStatus::Ready),
         cta_mcp_server(
@@ -408,7 +408,7 @@ fn cancel_login_strips_reauth_prompt_from_scrollback() {
 }
 
 /// Empty `auth_methods` (preferred_method pin unavailable) must not invent
-/// `grok.com` or start an OIDC flow the agent did not advertise.
+/// `blocked.invalid` or start an OIDC flow the agent did not advertise.
 #[test]
 fn login_with_empty_auth_methods_fails_closed() {
     let mut app = test_app_with_agent();

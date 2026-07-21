@@ -301,7 +301,7 @@ impl BlockContent for MemorySearchToolCallBlock {
 }
 
 fn shorten_path(path: &str) -> &str {
-    let memory_root = axon_config::grok_home().join("memory");
+    let memory_root = axon_config::axon_home().join("memory");
     let memory_prefix = memory_root.display().to_string();
     if let Some(rest) = path.strip_prefix(&memory_prefix) {
         let rest = rest.strip_prefix('/').unwrap_or(rest);
@@ -448,8 +448,8 @@ session content
     #[test]
     fn shorten_memory_path() {
         // Paths under the configured axon memory root keep one trailing segment group.
-        let memory_root = axon_config::grok_home().join("memory");
-        let session = memory_root.join("xai-50aa78f0/sessions/2026-05-01.md");
+        let memory_root = axon_config::axon_home().join("memory");
+        let session = memory_root.join("axon-50aa78f0/sessions/2026-05-01.md");
         let top = memory_root.join("MEMORY.md");
         assert_eq!(
             shorten_path(session.to_str().expect("utf8 path")),

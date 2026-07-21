@@ -1,5 +1,5 @@
-//! ACP stdio clients for testing grok sessions end-to-end: the typed
-//! [`GrokStdioClient`] (`agent-client-protocol::ClientSideConnection` —
+//! ACP stdio clients for testing axon sessions end-to-end: the typed
+//! [`AxonStdioClient`] (`agent-client-protocol::ClientSideConnection` —
 //! authentication, session lifecycle, permissions, notification streaming) and
 //! the raw-wire [`RawStdioClient`] (verbatim JSON-RPC lines for shapes the
 //! typed client can't produce), plus the shared subprocess spawn/stderr-capture
@@ -15,14 +15,14 @@ use tempfile::TempDir;
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 use axon_acp_lib::LineBufferedRead;
 
-use crate::env::{grok_binary, test_env_cmd_tokio};
+use crate::env::{axon_binary, test_env_cmd_tokio};
 use crate::headless::stderr_tail;
 use crate::mock_server::MockInferenceServer;
 use crate::process::spawn_piped_with_stderr_capture;
 
 /// Spawn `axon agent stdio` with the canonical hermetic test env: the sandbox
 /// from [`test_env_cmd_tokio`] plus the debug-logging kill-list, so the
-/// hermeticity setup exists exactly once for the typed ([`GrokStdioClient`])
+/// hermeticity setup exists exactly once for the typed ([`AxonStdioClient`])
 /// and raw ([`RawStdioClient`]) harnesses. `leading_args` go before the
 /// `agent stdio` subcommand (global flags); `extra_env` is applied after the
 /// kill-list so a test can still set e.g. `AXON_DEBUG_LOG=1` explicitly.
@@ -33,7 +33,7 @@ fn spawn_agent_process(
     extra_env: &[(&str, &str)],
     leading_args: &[&str],
 ) -> (tokio::process::Child, Arc<std::sync::Mutex<Vec<u8>>>) {
-    let binary = grok_binary();
+    let binary = axon_binary();
 
     let mut cmd = tokio::process::Command::new(&binary);
     cmd.args(leading_args)
@@ -111,7 +111,7 @@ impl acp::Client for TestAcpClient {
 ///
 /// Handles the full lifecycle: spawn → initialize → authenticate → session → prompt.
 /// Child process is killed on drop.
-pub struct GrokStdioClient {
+pub struct AxonStdioClient {
     conn: acp::ClientSideConnection,
     _child: tokio::process::Child,
     home: Option<TempDir>,
@@ -119,7 +119,7 @@ pub struct GrokStdioClient {
     stderr: Arc<std::sync::Mutex<Vec<u8>>>,
 }
 
-impl GrokStdioClient {
+impl AxonStdioClient {
     pub async fn spawn(server: &MockInferenceServer, cwd: &Path) -> Self {
         let home = TempDir::new().expect("create temp home");
         Self::spawn_with_home(server, cwd, home).await
@@ -208,11 +208,11 @@ impl GrokStdioClient {
         let api_key_method = init_resp
             .auth_methods
             .iter()
-            .find(|m| &*m.id().0 == "xai.api_key")
+            .find(|m| &*m.id().0 == "axon.api_key")
             .unwrap_or_else(|| {
                 let ids: Vec<_> = init_resp.auth_methods.iter().map(|m| &m.id().0).collect();
                 panic!(
-                    "expected auth method 'xai.api_key' but got: {ids:?}\n\
+                    "expected auth method 'axon.api_key' but got: {ids:?}\n\
                      If the method ID changed, update this test."
                 )
             });
@@ -398,7 +398,7 @@ impl GrokStdioClient {
 
 /// Drives `axon agent stdio` with verbatim newline-delimited JSON-RPC lines.
 ///
-/// Exists for wire shapes the typed [`GrokStdioClient`] (`ClientSideConnection`,
+/// Exists for wire shapes the typed [`AxonStdioClient`] (`ClientSideConnection`,
 /// integer ids) can never produce — e.g. Xcode's Swift/Foundation `JSONEncoder`
 /// output: escaped-slash methods (`"session\/prompt"`) and string UUID request
 /// ids. Child process is killed on drop.

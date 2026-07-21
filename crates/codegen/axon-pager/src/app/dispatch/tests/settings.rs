@@ -266,7 +266,7 @@ fn set_default_model_allowed_when_agent_chat_kind() {
 fn slash_model_valid_dispatches_set_default_model_with_switch_and_persist() {
     let mut app = test_app_with_agent();
     let id = AgentId(0);
-    let model_id = acp::ModelId::new(std::sync::Arc::from("grok-4.5"));
+    let model_id = acp::ModelId::new(std::sync::Arc::from("axon-4.5"));
     app.agents
         .get_mut(&id)
         .unwrap()
@@ -275,9 +275,9 @@ fn slash_model_valid_dispatches_set_default_model_with_switch_and_persist() {
         .available
         .insert(
             model_id.clone(),
-            acp::ModelInfo::new(model_id.clone(), "Grok 4.5".to_string()),
+            acp::ModelInfo::new(model_id.clone(), "Axon 4.5".to_string()),
         );
-    let effects = dispatch(Action::SendPrompt("/model Grok 4.5".into()), &mut app);
+    let effects = dispatch(Action::SendPrompt("/model Axon 4.5".into()), &mut app);
     assert_eq!(
         effects.len(),
         2,
@@ -969,8 +969,8 @@ fn clear_default_model_persists_but_keeps_live_current() {
     use agent_client_protocol as acp;
     use std::sync::Arc;
     let mut app = test_app_with_agent();
-    let id = acp::ModelId::new(Arc::from("grok-test"));
-    let info = acp::ModelInfo::new(id.clone(), "Grok Test".to_string());
+    let id = acp::ModelId::new(Arc::from("axon-test"));
+    let info = acp::ModelInfo::new(id.clone(), "Axon Test".to_string());
     let agent_id = AgentId(0);
     app.agents
         .get_mut(&agent_id)
@@ -1014,8 +1014,8 @@ fn set_default_model_resolves_known_name() {
     use agent_client_protocol as acp;
     use std::sync::Arc;
     let mut app = test_app_with_agent();
-    let id = acp::ModelId::new(Arc::from("grok-4.5"));
-    let info = acp::ModelInfo::new(id.clone(), "Grok 4.5".to_string());
+    let id = acp::ModelId::new(Arc::from("axon-4.5"));
+    let info = acp::ModelInfo::new(id.clone(), "Axon 4.5".to_string());
     let agent_id = AgentId(0);
     app.agents
         .get_mut(&agent_id)
@@ -1028,7 +1028,7 @@ fn set_default_model_resolves_known_name() {
     assert_eq!(effects.len(), 2);
     assert!(
         matches!(& effects[0], Effect::PersistSetting { key : "default_model", value :
-        crate ::settings::SettingValue::String(s), .. } if s == "grok-4.5")
+        crate ::settings::SettingValue::String(s), .. } if s == "axon-4.5")
     );
     assert!(matches!(& effects[1], Effect::SwitchModel { model_id : mid, .. } if mid == & id));
     assert_eq!(app.agents[&agent_id].session.models.current, Some(id));
@@ -1041,8 +1041,8 @@ fn set_default_model_idempotent_when_already_current() {
     use agent_client_protocol as acp;
     use std::sync::Arc;
     let mut app = test_app_with_agent();
-    let id = acp::ModelId::new(Arc::from("grok-already"));
-    let info = acp::ModelInfo::new(id.clone(), "Grok Already".to_string());
+    let id = acp::ModelId::new(Arc::from("axon-already"));
+    let info = acp::ModelInfo::new(id.clone(), "Axon Already".to_string());
     let agent_id = AgentId(0);
     app.agents
         .get_mut(&agent_id)
@@ -2754,11 +2754,11 @@ fn dispatch_cycle_mode_refreshes_open_modal_snapshot() {
 /// `app.current_ui.theme`, fires a toast, and toggles AUTO_MODE
 /// off (kind is concrete).
 ///
-/// Note: we persist `grokday` (a non-truecolor theme) here
+/// Note: we persist `axonday` (a non-truecolor theme) here
 /// because `Effect::PersistSetting`'s payload is `&'static str`
 /// from the registry's canonical table — the persisted CANONICAL
 /// is what we're asserting, NOT the live theme cache (which
-/// `clamp_to_terminal` might fold to GrokNight in non-truecolor
+/// `clamp_to_terminal` might fold to AxonNight in non-truecolor
 /// test environments). Persist + canonical contract is the test
 /// invariant; the cache contract is exercised separately by the
 /// `*_applies_when_*` tests.
@@ -2768,7 +2768,7 @@ fn set_theme_emits_persist_setting_with_correct_payload() {
     with_theme_test_env(|| {
         let mut app = test_app_with_agent();
         assert_eq!(app.current_ui.theme, None);
-        crate::theme::cache::set(crate::theme::ThemeKind::GrokNight);
+        crate::theme::cache::set(crate::theme::ThemeKind::AxonNight);
         let effects = dispatch(Action::SetTheme("axonday".into()), &mut app);
         assert_eq!(effects.len(), 1);
         match &effects[0] {
@@ -2791,7 +2791,7 @@ fn set_theme_emits_persist_setting_with_correct_payload() {
     });
 }
 /// Same payload contract as `set_theme_emits_persist_setting_with_correct_payload`
-/// for the auto-dark sibling. Uses `grokday` to avoid the
+/// for the auto-dark sibling. Uses `axonday` to avoid the
 /// `clamp_to_terminal` ambiguity in non-truecolor test envs;
 /// `apply_kind` doesn't fire here anyway (parent theme is not
 /// auto by default) but using a non-truecolor canonical keeps
@@ -2895,8 +2895,8 @@ fn preview_auto_light_theme_emits_no_persist_and_no_current_ui_mutation() {
 /// Scenario: `theme="axonnight"` (concrete) + system=Dark. User
 /// commits `auto_dark_theme="axonday"`. The setting is dormant
 /// (parent theme is concrete, not auto), so the live display
-/// must stay on GrokNight even though we're committing a
-/// different theme. Uses `grokday` to avoid `clamp_to_terminal`
+/// must stay on AxonNight even though we're committing a
+/// different theme. Uses `axonday` to avoid `clamp_to_terminal`
 /// ambiguity in non-truecolor envs.
 #[test]
 fn set_auto_dark_theme_does_not_apply_when_theme_is_not_auto() {
@@ -2908,12 +2908,12 @@ fn set_auto_dark_theme_does_not_apply_when_theme_is_not_auto() {
         let _ = dispatch(Action::SetTheme("axonnight".into()), &mut app);
         assert_eq!(
             crate::theme::cache::current_kind(),
-            crate::theme::ThemeKind::GrokNight,
+            crate::theme::ThemeKind::AxonNight,
         );
         let _ = dispatch(Action::SetAutoDarkTheme("axonday".into()), &mut app);
         assert_eq!(
             crate::theme::cache::current_kind(),
-            crate::theme::ThemeKind::GrokNight,
+            crate::theme::ThemeKind::AxonNight,
             "auto_dark_theme commit must NOT change live display when theme is not auto",
         );
         assert_eq!(app.current_ui.auto_dark_theme.as_deref(), Some("axonday"));
@@ -2922,11 +2922,11 @@ fn set_auto_dark_theme_does_not_apply_when_theme_is_not_auto() {
 /// Auto-theme commit DOES apply the live theme when both
 /// (a) parent theme = auto AND (b) system matches.
 ///
-/// Uses `GrokDay` (non-truecolor-requiring) for the dark-mode
+/// Uses `AxonDay` (non-truecolor-requiring) for the dark-mode
 /// fixture: the test environment's color detection may not report
 /// truecolor support, and `Theme::apply_kind` clamps
 /// truecolor-only themes (TokyoNight, RosePineMoon) down to
-/// GrokNight. Using a non-truecolor theme avoids the clamp
+/// AxonNight. Using a non-truecolor theme avoids the clamp
 /// uncertainty. The "live apply" contract is what we're testing
 /// — the specific theme picked is incidental.
 #[test]
@@ -2940,21 +2940,21 @@ fn set_auto_dark_theme_applies_when_theme_is_auto_and_system_is_dark() {
         assert!(crate::theme::cache::is_auto_mode());
         assert_eq!(
             crate::theme::cache::current_kind(),
-            crate::theme::ThemeKind::GrokNight,
+            crate::theme::ThemeKind::AxonNight,
         );
         let _ = dispatch(Action::SetAutoDarkTheme("axonday".into()), &mut app);
         assert_eq!(
             crate::theme::cache::current_kind(),
-            crate::theme::ThemeKind::GrokDay,
+            crate::theme::ThemeKind::AxonDay,
             "auto_dark_theme commit must update live display when theme=auto + system=Dark",
         );
     });
 }
 /// Auto-theme commit does NOT apply when system is in the
 /// non-matching mode (auto_dark_theme + system=Light).
-/// Uses `groknight` for the auto_dark_theme
+/// Uses `axonnight` for the auto_dark_theme
 /// value to avoid `clamp_to_terminal` ambiguity (we want a
-/// concrete kind that's clearly different from GrokDay, the
+/// concrete kind that's clearly different from AxonDay, the
 /// active resolved theme).
 #[test]
 fn set_auto_dark_theme_does_not_apply_when_system_is_light() {
@@ -2966,12 +2966,12 @@ fn set_auto_dark_theme_does_not_apply_when_system_is_light() {
         let _ = dispatch(Action::SetTheme("auto".into()), &mut app);
         assert_eq!(
             crate::theme::cache::current_kind(),
-            crate::theme::ThemeKind::GrokDay,
+            crate::theme::ThemeKind::AxonDay,
         );
         let _ = dispatch(Action::SetAutoDarkTheme("axonnight".into()), &mut app);
         assert_eq!(
             crate::theme::cache::current_kind(),
-            crate::theme::ThemeKind::GrokDay,
+            crate::theme::ThemeKind::AxonDay,
             "auto_dark_theme commit must NOT change live display when system=Light",
         );
         assert_eq!(app.current_ui.auto_dark_theme.as_deref(), Some("axonnight"),);
@@ -2979,7 +2979,7 @@ fn set_auto_dark_theme_does_not_apply_when_system_is_light() {
 }
 /// Symmetric to the dark test: `set_auto_light_theme` applies only
 /// when theme=auto + system=Light. Uses a non-truecolor theme
-/// (`groknight`) for the same clamp reason as the dark variant.
+/// (`axonnight`) for the same clamp reason as the dark variant.
 #[test]
 fn set_auto_light_theme_applies_when_theme_is_auto_and_system_is_light() {
     with_theme_test_env(|| {
@@ -2990,12 +2990,12 @@ fn set_auto_light_theme_applies_when_theme_is_auto_and_system_is_light() {
         let _ = dispatch(Action::SetTheme("auto".into()), &mut app);
         assert_eq!(
             crate::theme::cache::current_kind(),
-            crate::theme::ThemeKind::GrokDay,
+            crate::theme::ThemeKind::AxonDay,
         );
         let _ = dispatch(Action::SetAutoLightTheme("axonnight".into()), &mut app);
         assert_eq!(
             crate::theme::cache::current_kind(),
-            crate::theme::ThemeKind::GrokNight,
+            crate::theme::ThemeKind::AxonNight,
             "auto_light_theme must update display when theme=auto + system=Light",
         );
     });
@@ -3077,7 +3077,7 @@ fn set_theme_toast_format_uses_display_name() {
         );
         assert!(
             toast.contains("Axon Day"),
-            "toast must use display name `Axon Day`, not canonical `grokday`, got: {toast:?}",
+            "toast must use display name `Axon Day`, not canonical `axonday`, got: {toast:?}",
         );
         assert!(toast.contains('\u{2713}'), "toast must contain the ✓ glyph");
     });
@@ -3107,7 +3107,7 @@ fn set_auto_light_theme_toast_format_uses_display_name() {
 /// reverts `app.current_ui.theme` AND the live cache (mirror of
 /// `rollback_known_key_reverts_cache_and_no_effect`).
 ///
-/// Uses non-truecolor themes (`grokday` ↔ `groknight`) to avoid
+/// Uses non-truecolor themes (`axonday` ↔ `axonnight`) to avoid
 /// the `clamp_to_terminal` interaction in test environments that
 /// don't report truecolor support.
 #[test]
@@ -3119,7 +3119,7 @@ fn rollback_theme_reverts_current_ui_and_cache() {
         assert_eq!(app.current_ui.theme.as_deref(), Some("axonday"));
         assert_eq!(
             crate::theme::cache::current_kind(),
-            crate::theme::ThemeKind::GrokDay,
+            crate::theme::ThemeKind::AxonDay,
         );
         let _ = dispatch(
             Action::TaskComplete(TaskResult::SettingPersistFailed {
@@ -3136,7 +3136,7 @@ fn rollback_theme_reverts_current_ui_and_cache() {
         );
         assert_eq!(
             crate::theme::cache::current_kind(),
-            crate::theme::ThemeKind::GrokNight,
+            crate::theme::ThemeKind::AxonNight,
             "rollback must update the live theme cache too",
         );
     });

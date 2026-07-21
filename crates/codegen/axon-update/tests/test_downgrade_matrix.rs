@@ -78,7 +78,7 @@ async fn mount_gcs_with_channels(
     }
 
     Mock::given(method("GET"))
-        .and(path(format!("/grok-{binary_version}-{platform}")))
+        .and(path(format!("/axon-{binary_version}-{platform}")))
         .respond_with(ResponseTemplate::new(200).set_body_bytes(b"#!/bin/sh\nexit 0\n".to_vec()))
         .mount(&server)
         .await;
@@ -111,10 +111,10 @@ async fn internal_install_stable_rollback_0_2_7_to_0_2_5() {
     let home = test_home();
     let downloaded = home
         .join("downloads")
-        .join(format!("grok-0.2.5-{platform}"));
+        .join(format!("axon-0.2.5-{platform}"));
     assert!(downloaded.exists(), "rolled-back binary must be downloaded");
 
-    let symlink = home.join("bin").join("grok");
+    let symlink = home.join("bin").join("axon");
     let target = std::fs::read_link(&symlink).unwrap();
     assert!(
         target.to_string_lossy().contains("0.2.5"),
@@ -136,7 +136,7 @@ async fn internal_install_stable_upgrade_0_2_5_to_0_2_7() {
         .await
         .unwrap();
 
-    let symlink = test_home().join("bin").join("grok");
+    let symlink = test_home().join("bin").join("axon");
     let target = std::fs::read_link(&symlink).unwrap();
     assert!(target.to_string_lossy().contains("0.2.7"));
 }
@@ -163,7 +163,7 @@ async fn internal_install_rollback_then_upgrade_sequence() {
             .unwrap();
     }
 
-    let target = std::fs::read_link(test_home().join("bin").join("grok")).unwrap();
+    let target = std::fs::read_link(test_home().join("bin").join("axon")).unwrap();
     assert!(
         target.to_string_lossy().contains("0.2.8"),
         "final symlink must point to 0.2.8: {target:?}"
@@ -172,15 +172,15 @@ async fn internal_install_rollback_then_upgrade_sequence() {
     // Cleanup retains current + highest-semver non-current (N-1 by version, not install order).
     let downloads = test_home().join("downloads");
     assert!(
-        downloads.join(format!("grok-0.2.8-{platform}")).exists(),
+        downloads.join(format!("axon-0.2.8-{platform}")).exists(),
         "current"
     );
     assert!(
-        downloads.join(format!("grok-0.2.7-{platform}")).exists(),
+        downloads.join(format!("axon-0.2.7-{platform}")).exists(),
         "N-1 by semver"
     );
     assert!(
-        !downloads.join(format!("grok-0.2.5-{platform}")).exists(),
+        !downloads.join(format!("axon-0.2.5-{platform}")).exists(),
         "lowest cleaned up"
     );
 }
@@ -208,7 +208,7 @@ async fn internal_install_alpha_rollback_pointer_resolves_correctly() {
     // The resolved version is max(0.2.7, 0.2.8-alpha.1) = 0.2.8-alpha.1.
     // Note: semver considers 0.2.8-alpha.1 < 0.2.8 but > 0.2.7.
     Mock::given(method("GET"))
-        .and(path(format!("/grok-0.2.8-alpha.1-{platform}")))
+        .and(path(format!("/axon-0.2.8-alpha.1-{platform}")))
         .respond_with(ResponseTemplate::new(200).set_body_bytes(b"#!/bin/sh\nexit 0\n".to_vec()))
         .mount(&server)
         .await;
@@ -220,7 +220,7 @@ async fn internal_install_alpha_rollback_pointer_resolves_correctly() {
 
     let downloaded = test_home()
         .join("downloads")
-        .join(format!("grok-0.2.8-alpha.1-{platform}"));
+        .join(format!("axon-0.2.8-alpha.1-{platform}"));
     assert!(
         downloaded.exists(),
         "alpha rollback target must be installed"
@@ -248,7 +248,7 @@ async fn internal_install_alpha_user_gets_newer_stable_after_stable_passes_alpha
         .mount(&server)
         .await;
     Mock::given(method("GET"))
-        .and(path(format!("/grok-0.2.7-{platform}")))
+        .and(path(format!("/axon-0.2.7-{platform}")))
         .respond_with(ResponseTemplate::new(200).set_body_bytes(b"#!/bin/sh\nexit 0\n".to_vec()))
         .mount(&server)
         .await;
@@ -261,7 +261,7 @@ async fn internal_install_alpha_user_gets_newer_stable_after_stable_passes_alpha
     assert!(
         test_home()
             .join("downloads")
-            .join(format!("grok-0.2.7-{platform}"))
+            .join(format!("axon-0.2.7-{platform}"))
             .exists(),
         "alpha user should get the newer stable"
     );
@@ -452,7 +452,7 @@ async fn auto_update_target_npm_rollback_returns_none() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Lay down a managed-install layout in the test AXON_HOME:
-/// `bin/grok -> ../downloads/grok-<version>-<platform>` (what
+/// `bin/axon -> ../downloads/axon-<version>-<platform>` (what
 /// `install_internal_from_base` produces).
 fn fake_managed_install(version: &str) {
     let home = test_home();
@@ -460,11 +460,11 @@ fn fake_managed_install(version: &str) {
     let bin = home.join("bin");
     std::fs::create_dir_all(&downloads).unwrap();
     std::fs::create_dir_all(&bin).unwrap();
-    let name = format!("grok-{version}-{}", host_platform());
+    let name = format!("axon-{version}-{}", host_platform());
     std::fs::write(downloads.join(&name), b"#!/bin/sh\nexit 0\n").unwrap();
     std::os::unix::fs::symlink(
         std::path::Path::new("../downloads").join(&name),
-        bin.join("grok"),
+        bin.join("axon"),
     )
     .unwrap();
 }
@@ -529,7 +529,7 @@ async fn ensure_latest_relaunches_onto_rolled_back_disk() {
 // ─────────────────────────────────────────────────────────────────────────────
 // Pointer-flip timing scenarios
 //
-// These test the race between a user opening grok (which caches the version)
+// These test the race between a user opening axon (which caches the version)
 // and a pointer flip happening. The 30-min TTL means the user won't see the
 // new pointer until the cache expires, but once it does, the correct behavior
 // must kick in.
@@ -602,7 +602,7 @@ async fn internal_install_double_rollback() {
             .await
             .unwrap();
 
-        let target = std::fs::read_link(test_home().join("bin").join("grok")).unwrap();
+        let target = std::fs::read_link(test_home().join("bin").join("axon")).unwrap();
         assert!(
             target.to_string_lossy().contains(version),
             "symlink must point to {version} after install: {target:?}"

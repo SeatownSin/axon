@@ -100,7 +100,7 @@ use tokio_util::sync::CancellationToken;
 use axon_paths::AbsPathBuf;
 use axon_workspace::session::git::GitDiscoveryResult;
 use axon_hunk_tracker::HunkTrackerActor;
-/// Hard-error message for legacy Direct hub-bind sessions (`x.ai/cloud_server_id`).
+/// Hard-error message for legacy Direct hub-bind sessions (`axon/cloud_server_id`).
 pub(crate) const DIRECT_HUB_CLOUD_REMOVED_MSG: &str = "Direct hub cloud removed; use Gateway (envId or existing-workspace attach)";
 /// Reject session `_meta` that still requests Direct hub bind (D8).
 ///
@@ -108,13 +108,13 @@ pub(crate) const DIRECT_HUB_CLOUD_REMOVED_MSG: &str = "Direct hub cloud removed;
 pub(crate) fn reject_direct_hub_cloud_meta(
     session_meta: Option<&acp::Meta>,
 ) -> Result<(), acp::Error> {
-    if session_meta.and_then(|m| m.get("x.ai/cloud_server_id")).is_some() {
+    if session_meta.and_then(|m| m.get("axon/cloud_server_id")).is_some() {
         return Err(acp::Error::invalid_params().data(DIRECT_HUB_CLOUD_REMOVED_MSG));
     }
     Ok(())
 }
 /// Marks a notification's meta field with `isReplay: true` for replayed session updates.
-/// If `persist_data` is provided, it will be included in the meta under `x.ai/persist`.
+/// If `persist_data` is provided, it will be included in the meta under `axon/persist`.
 /// Extract the numeric `tier` claim from a JWT access token (no signature
 /// verification). Maps the `prod_auth.SubscriptionTier` proto enum values
 /// to display-style strings that `normalize_tier` in the telemetry crate
@@ -129,12 +129,12 @@ pub(crate) fn jwt_tier_claim(jwt: &str) -> Option<String> {
     let tier = claims.get("tier")?.as_u64()?;
     Some(
         match tier {
-            1 => "supergrok",
+            1 => "superaxon",
             2 => "x_basic",
             3 => "x_premium",
             4 => "x_premium_plus",
-            5 => "supergrok_heavy",
-            6 => "supergrok_lite",
+            5 => "superaxon_heavy",
+            6 => "superaxon_lite",
             0 => "free",
             _ => return Some(tier.to_string()),
         }
@@ -149,7 +149,7 @@ pub(crate) fn jwt_tier_claim(jwt: &str) -> Option<String> {
 /// 3. JWT `tier` claim via [`jwt_tier_claim`] (OAuth free → `"free"`)
 pub(crate) fn resolve_subscription_tier_for_telemetry(
     display: Option<String>,
-    auth: Option<&crate::auth::GrokAuth>,
+    auth: Option<&crate::auth::AxonAuth>,
 ) -> Option<String> {
     if let Some(t) = display.filter(|s| !s.trim().is_empty()) {
         return Some(t);
@@ -165,7 +165,7 @@ pub(crate) fn resolve_subscription_tier_for_telemetry(
 ///
 /// Post-unblock catalog refresh must not treat *any* present claim as enough:
 /// an older paid claim (e.g. `x_basic`) can remain on the access token while
-/// `/user` already reports a newly qualifying tier (e.g. `SuperGrokPro`). In
+/// `/user` already reports a newly qualifying tier (e.g. `SuperAxonPro`). In
 /// that case `/v1/models` would still be targeted at the stale level (the
 /// "stale JWT tier skips retry" bug).
 pub(crate) fn jwt_claim_matches_user_subscription_tier(
@@ -173,12 +173,12 @@ pub(crate) fn jwt_claim_matches_user_subscription_tier(
     user_subscription_tier: &str,
 ) -> bool {
     match user_subscription_tier {
-        "GrokPro" => jwt_claim == "supergrok",
+        "AxonPro" => jwt_claim == "superaxon",
         "XBasic" => jwt_claim == "x_basic",
         "XPremium" => jwt_claim == "x_premium",
         "XPremiumPlus" => jwt_claim == "x_premium_plus",
-        "SuperGrokPro" => jwt_claim == "supergrok_heavy",
-        "SuperGrokLite" => jwt_claim == "supergrok_lite",
+        "SuperAxonPro" => jwt_claim == "superaxon_heavy",
+        "SuperAxonLite" => jwt_claim == "superaxon_lite",
         _ => false,
     }
 }
@@ -232,13 +232,13 @@ impl BridgeAttach {
         !matches!(self, Self::NotAttached)
     }
 }
-/// `_meta["x.ai/session"].kind` → [`SessionKind`]; absent/unknown/malformed → `Build`.
+/// `_meta["axon/session"].kind` → [`SessionKind`]; absent/unknown/malformed → `Build`.
 fn parse_session_kind(
     meta: Option<&acp::Meta>,
 ) -> crate::session::unified_list::SessionKind {
     use crate::session::unified_list::SessionKind;
     use serde::Deserialize;
-    meta.and_then(|m| m.get("x.ai/session"))
+    meta.and_then(|m| m.get("axon/session"))
         .and_then(|s| s.get("kind"))
         .and_then(|k| SessionKind::deserialize(k).ok())
         .unwrap_or(SessionKind::Build)
@@ -276,7 +276,7 @@ fn chat_new_session_model_state(
 /// `session/new` / `session/load` `_meta` key carrying per-session plugin roots.
 pub(crate) const SESSION_PLUGIN_DIRS_META_KEY: &str = "pluginDirs";
 /// `initialize` response `_meta` key advertising [`SESSION_PLUGIN_DIRS_META_KEY`] support.
-pub(crate) const SESSION_PLUGIN_DIRS_CAPABILITY_KEY: &str = "x.ai/pluginDirs";
+pub(crate) const SESSION_PLUGIN_DIRS_CAPABILITY_KEY: &str = "axon/pluginDirs";
 /// Per-session plugin roots from `session/new` / `session/load` `_meta.pluginDirs`,
 /// loaded at CliOverride scope (always trusted) into this session's registry only.
 /// Paths must be absolute (the SDKs resolve before sending); anything else is
@@ -357,7 +357,7 @@ fn parse_no_replay(meta: Option<&acp::Meta>) -> bool {
     meta.and_then(|m| m.get("noReplay")).and_then(|v| v.as_bool()).unwrap_or(false)
 }
 /// Insert `key`/`value` into a notification's `_meta`, creating the map if absent.
-/// Used to stamp `x.ai/leaderClientId` onto replay notifications so the leader can
+/// Used to stamp `axon/leaderClientId` onto replay notifications so the leader can
 /// unicast them to the loading client only (see `forward_raw_replay_line`).
 fn stamp_meta_value(meta: &mut Option<acp::Meta>, key: &str, value: &serde_json::Value) {
     meta.get_or_insert_with(acp::Meta::new).insert(key.to_string(), value.clone());
@@ -370,7 +370,7 @@ fn mark_as_replay(
     let obj = meta.get_or_insert_with(acp::Meta::new);
     obj.insert("isReplay".to_string(), is_replay);
     if let Some(persist) = persist_data {
-        obj.insert("x.ai/persist".to_string(), persist.clone());
+        obj.insert("axon/persist".to_string(), persist.clone());
     }
 }
 /// Resolve a session's REQUESTED auto flag from `_meta`: an explicit `autoMode`
@@ -479,7 +479,7 @@ pub(crate) fn build_prompt_response_meta(
     };
     serde_json::to_value(meta).expect("PromptResponseMeta is always serializable")
 }
-/// Typed payload for the `x.ai/settings/update` notification sent to pager
+/// Typed payload for the `axon/settings/update` notification sent to pager
 /// clients after remote settings settings are refreshed on `/new`.
 ///
 /// Keeping this as a `#[derive(Serialize)]` struct gives compile-time
@@ -563,13 +563,13 @@ fn announcements_refresh_interval() -> std::time::Duration {
 /// Reason why a client is not eligible to use codebase indexing.
 ///
 /// Returned by [`MvpAgent::code_nav_eligibility`] when one of the policy
-/// gates fails.  Used in `x.ai/code/status` responses and to generate
+/// gates fails.  Used in `axon/code/status` responses and to generate
 /// clear error messages on code-nav requests from ineligible clients.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CodeNavEligibility {
     /// Client type is not web (web-only for initial rollout).
     ClientNotWeb,
-    /// Client did not advertise `x.ai/codeNavigation.enabled`.
+    /// Client did not advertise `axon/codeNavigation.enabled`.
     CapabilityNotAdvertised,
     /// `codebase_indexing` feature is disabled in config (or excluded by glob).
     DisabledByConfig,
@@ -646,12 +646,12 @@ pub struct MvpAgent {
     pub(crate) sampling_config: RefCell<SamplingConfig>,
     pub(crate) auth_manager: Arc<AuthManager>,
     pub(crate) models_manager: crate::agent::models::ModelsManager,
-    /// grok.com chat-product catalog (`/rest/modes`) for chat sessions; distinct
+    /// blocked.invalid chat-product catalog (`/rest/modes`) for chat sessions; distinct
     /// from `models_manager` (the build `/v1/models` catalog).
     pub(crate) chat_modes: crate::agent::chat_modes::ChatModesManager,
     /// Single-flight guard for interactive login (device poll / loopback
     /// wait). Owns the active attempt's cancel token and its code/url
-    /// channels; a new `authenticate` or `x.ai/auth/cancel` cancels the
+    /// channels; a new `authenticate` or `axon/auth/cancel` cancels the
     /// prior attempt.
     pub(crate) interactive_auth: crate::auth::single_flight::AuthSingleFlight,
     /// Client type. LEADER-SAFE(init-once): set once during `initialize` from
@@ -668,12 +668,12 @@ pub struct MvpAgent {
     /// attribution would require threading `clientIdentifier` from `_meta` through
     /// every session handler, which is deferred to future work.
     client_type: RefCell<ClientType>,
-    /// Whether the current client advertised `x.ai/codeNavigation.enabled`.
+    /// Whether the current client advertised `axon/codeNavigation.enabled`.
     /// Updated on every `initialize()` call — same last-client-wins semantics
     /// as `client_type`.  Using `Cell<bool>` (not `RefCell`) so `.get()` is a
     /// plain copy with no borrow that could be held across an await point.
     code_nav_enabled: std::cell::Cell<bool>,
-    /// Whether the current client advertised `x.ai/folderTrust.interactive` (it
+    /// Whether the current client advertised `axon/folderTrust.interactive` (it
     /// can render the interactive folder-trust prompt). Set on every
     /// `initialize()` (last-client-wins, like `code_nav_enabled`); gates the
     /// DORMANT agent→client trust round-trip in `new_session`/`load_session`.
@@ -687,7 +687,7 @@ pub struct MvpAgent {
     /// (`execute_hooks_action`) so a later re-open can re-prompt.
     interactive_trust_prompted: Rc<RefCell<std::collections::HashSet<PathBuf>>>,
     /// Whether the user's subscription tier is in the remote settings `allowed_tiers`
-    /// list. Set by `enforce_grok_code_access`; defaults to `true` (API-key and
+    /// list. Set by `enforce_axon_code_access`; defaults to `true` (API-key and
     /// external-auth users bypass the check). When `false`, the pager shows a
     /// gate CTA instead of the prompt.
     tier_allowed: std::cell::Cell<bool>,
@@ -775,14 +775,14 @@ pub struct MvpAgent {
     /// Unified sender for all subagent coordinator events.
     /// LEADER-SAFE(shared): channel is multi-producer, coordinator drains.
     subagent_event_tx: tokio::sync::mpsc::UnboundedSender<
-        axon_tools::implementations::grok_build::task::types::SubagentEvent,
+        axon_tools::implementations::axon_build::task::types::SubagentEvent,
     >,
     /// Receiver for subagent events. Taken once by `start_subagent_coordinator()`.
     /// `None` after the coordinator drain task has been spawned.
     subagent_event_rx: RefCell<
         Option<
             tokio::sync::mpsc::UnboundedReceiver<
-                axon_tools::implementations::grok_build::task::types::SubagentEvent,
+                axon_tools::implementations::axon_build::task::types::SubagentEvent,
             >,
         >,
     >,
@@ -793,7 +793,7 @@ pub struct MvpAgent {
     /// Pushed by the `InjectNotification` handler when a turn is active and the
     /// notification has `Next` priority. Drained by the session turn loop
     /// (`inject_pending_monitor_events`) into a hidden synthetic user message.
-    monitor_event_buffer: axon_tools::implementations::grok_build::task::types::MonitorEventBuffer,
+    monitor_event_buffer: axon_tools::implementations::axon_build::task::types::MonitorEventBuffer,
     /// The process launch directory, captured once at construction so the
     /// deferred launch-dir init paths share one source of truth instead of each
     /// re-calling `std::env::current_dir()` (which could drift if the process
@@ -808,7 +808,7 @@ pub struct MvpAgent {
     /// `plugin_registry_handle`.
     ///
     /// Boot-time plugin discovery is deferred past ACP `initialize` (it walks
-    /// cwd→git root plus user/marketplace dirs and stalled grok-desktop's first
+    /// cwd→git root plus user/marketplace dirs and stalled axon-desktop's first
     /// `initialize`), so the shared snapshot starts empty. It is built once on
     /// the first session-creating call via [`Self::ensure_plugin_registry`];
     /// this flag keeps that to a single discovery walk.
@@ -861,7 +861,7 @@ pub struct MvpAgent {
     /// LocalSet, so a plain `Cell` suffices). LEADER-SAFE(shared): one
     /// agent-wide push stream.
     announcements_gen: std::cell::Cell<u64>,
-    /// Announcements list last actually emitted via `x.ai/announcements/update`
+    /// Announcements list last actually emitted via `axon/announcements/update`
     /// (expiry-filtered), the diff baseline for `emit_announcements`.
     /// Owned by the emit gate — full-settings refreshes move `remote_settings`
     /// without touching this, so their changes still get pushed on the next
@@ -952,8 +952,8 @@ pub(crate) fn inherited_harness_template(
 ///
 /// When a zero-turn switch rebuilds the harness (`did_rebuild`), the handle
 /// must adopt the rebuilt harness's agent type. Otherwise the name is left
-/// unchanged — compatible stock switches (e.g. `grok-build` →
-/// `grok-build-plan`) intentionally preserve the session's original ACP
+/// unchanged — compatible stock switches (e.g. `axon-build` →
+/// `axon-build-plan`) intentionally preserve the session's original ACP
 /// `agentProfile`.
 pub(crate) fn agent_name_after_model_switch(
     did_rebuild: bool,
@@ -969,8 +969,8 @@ pub(crate) fn agent_name_after_model_switch(
 /// Harness compatibility for zero-turn / mid-turn model switching.
 ///
 /// Two stock (non-strict) agents are interchangeable — they share the
-/// default wire format and toolset, so switching e.g. `grok-build` →
-/// `grok-build-plan` doesn't require rebuilding the harness and would
+/// default wire format and toolset, so switching e.g. `axon-build` →
+/// `axon-build-plan` doesn't require rebuilding the harness and would
 /// destroy a client-supplied `_meta.agentProfile` if it did.
 ///
 /// Strict harnesses (`codex`, …) are only compatible with
@@ -1108,7 +1108,7 @@ struct AuthRequestMeta {
     /// user abandons the browser flow, the current session continues.
     #[serde(default)]
     force_interactive: bool,
-    /// Pager auth `request_seq` for this attempt. Scopes `x.ai/auth/cancel`
+    /// Pager auth `request_seq` for this attempt. Scopes `axon/auth/cancel`
     /// so a delayed cancel cannot tear down a successor login.
     #[serde(default)]
     request_seq: Option<u64>,
@@ -1138,10 +1138,10 @@ impl AuthRequestMeta {
 /// of remembering which headers the proxy expects.
 ///
 /// Headers injected:
-///  - `x-grok-client-version` -- required by the proxy's version-gate check.
+///  - `x-axon-client-version` -- required by the proxy's version-gate check.
 ///    Uses `client_version` when provided, otherwise falls back to cli-chat-proxy
 ///    compile-time `CARGO_PKG_VERSION`.
-///  - `X-XAI-Token-Auth` / `x-authenticateresponse` -- required by the
+///  - `X-AXON-Token-Auth` / `x-authenticateresponse` -- required by the
 ///    cli-chat-proxy auth middleware when the `base_url` is a known proxy URL.
 ///  - optional extra access header -- only set when the corresponding key is
 ///    `Some` *and* the `base_url` points at a matching non-production host
@@ -1155,19 +1155,19 @@ fn inject_proxy_headers(
     base_url: &str,
 ) {
     headers
-        .entry("x-grok-client-version".to_string())
+        .entry("x-axon-client-version".to_string())
         .or_insert_with(|| {
             client_version
                 .map(String::from)
                 .unwrap_or_else(|| axon_version::VERSION.to_string())
         });
     headers
-        .entry("x-grok-client-identifier".to_string())
+        .entry("x-axon-client-identifier".to_string())
         .or_insert_with(crate::http::process_client_identifier);
     if crate::util::is_cli_chat_proxy_url(base_url) {
         headers
-            .entry("X-XAI-Token-Auth".to_string())
-            .or_insert_with(|| "xai-grok-cli".to_string());
+            .entry("X-AXON-Token-Auth".to_string())
+            .or_insert_with(|| "axon-axon-cli".to_string());
         headers
             .entry("x-authenticateresponse".to_string())
             .or_insert_with(|| "authenticate-response".to_string());
@@ -1189,7 +1189,7 @@ fn resolve_inference_idle_timeout_secs(
     let remote = remote_settings.and_then(|s| s.inference_idle_timeout_secs);
     per_model.or(remote).unwrap_or(600).max(10)
 }
-/// Parse the client-advertised `x.ai/hunkTracker.mode` string. Case-insensitive
+/// Parse the client-advertised `axon/hunkTracker.mode` string. Case-insensitive
 /// and trimmed. Absent/blank/`off`/`disabled` => `None`; unknown => `AllDirty`.
 fn resolve_hunk_tracking_mode(
     mode_str: Option<&str>,
@@ -1289,7 +1289,7 @@ impl MvpAgent {
     /// Dispatches by on-disk method name:
     /// - ACP updates (`"session/update"`) → typed `SessionNotification` for correct
     ///   TUI dispatch (direct dispatch preserves Rust types, not method strings).
-    /// - xAI updates (`"_x.ai/session/update"`) → `ExtNotification`.
+    /// - Axon updates (`"_axon/session/update"`) → `ExtNotification`.
     ///
     /// When `mark_replay` is true, the notification is tagged with
     /// `_meta.isReplay: true` so the client knows it's historical data.
@@ -1322,8 +1322,8 @@ impl MvpAgent {
             tracing::debug!("replay: skipping JSONL line with no params");
             return;
         };
-        let is_xai = method == "_x.ai/session/update";
-        if is_xai {
+        let is_axon = method == "_axon/session/update";
+        if is_axon {
             if target_client_id.is_none() && !mark_replay {
                 if let Ok(owned) = serde_json::value::RawValue::from_string(
                     raw_params.get().to_owned(),
@@ -1334,7 +1334,7 @@ impl MvpAgent {
                                 .gateway
                                 .forward_with_completion(
                                     acp::ExtNotification::new(
-                                        "x.ai/session/update",
+                                        "axon/session/update",
                                         std::sync::Arc::from(owned),
                                     ),
                                 ),
@@ -1345,7 +1345,7 @@ impl MvpAgent {
                     serde_json::Value,
                 >(raw_params.get()) else {
                     tracing::debug!(
-                        "replay: skipping xAI update with unparseable params"
+                        "replay: skipping Axon update with unparseable params"
                     );
                     return;
                 };
@@ -1358,10 +1358,10 @@ impl MvpAgent {
                             m.insert("isReplay".to_string(), serde_json::json!(true));
                         }
                         if let Some(pd) = persist_data {
-                            m.insert("x.ai/persist".to_string(), pd.clone());
+                            m.insert("axon/persist".to_string(), pd.clone());
                         }
                         if let Some(tid) = target_client_id {
-                            m.insert("x.ai/leaderClientId".to_string(), tid.clone());
+                            m.insert("axon/leaderClientId".to_string(), tid.clone());
                         }
                     }
                 }
@@ -1372,7 +1372,7 @@ impl MvpAgent {
                                 .gateway
                                 .forward_with_completion(
                                     acp::ExtNotification::new(
-                                        "x.ai/session/update",
+                                        "axon/session/update",
                                         std::sync::Arc::from(raw_val),
                                     ),
                                 ),
@@ -1425,7 +1425,7 @@ impl MvpAgent {
                 mark_as_replay(&mut notification.meta, persist_data);
             }
             if let Some(tid) = target_client_id {
-                stamp_meta_value(&mut notification.meta, "x.ai/leaderClientId", tid);
+                stamp_meta_value(&mut notification.meta, "axon/leaderClientId", tid);
             }
             completions.push(self.gateway.forward_with_completion(notification));
         }
@@ -1689,7 +1689,7 @@ impl MvpAgent {
                             .gateway
                             .forward_with_completion(
                                 acp::ExtNotification::new(
-                                    "x.ai/task_completed",
+                                    "axon/task_completed",
                                     params.into(),
                                 ),
                             ),
@@ -1750,11 +1750,11 @@ impl MvpAgent {
     }
     /// Check whether the user has access via remote settings `allow_access`.
     ///
-    /// Non-xAI auth (API keys, enterprise) always passes. For xAI OAuth2
+    /// Non-Axon auth (API keys, enterprise) always passes. For Axon OAuth2
     /// users, reads `allow_access` from remote settings. Defaults to
     /// `false` (blocked) when remote settings are unavailable.
-    pub(super) async fn enforce_grok_code_access(&self, auth: &crate::auth::GrokAuth) {
-        if !auth.is_xai_auth() {
+    pub(super) async fn enforce_axon_code_access(&self, auth: &crate::auth::AxonAuth) {
+        if !auth.is_axon_auth() {
             self.tier_allowed.set(true);
             return;
         }
@@ -1762,13 +1762,13 @@ impl MvpAgent {
         self.tier_allowed.set(allow);
         if !allow {
             tracing::info!(
-                "auth: user blocked by allow_access (remote settings grok_build_access_gate)"
+                "auth: user blocked by allow_access (remote settings axon_build_access_gate)"
             );
             self.retry_subscription_check().await;
         }
     }
     /// Single-shot subscription check called by the pager's "Check
-    /// subscription" button (`x.ai/auth/check_subscription`). The pager
+    /// subscription" button (`axon/auth/check_subscription`). The pager
     /// calls this every 5s while the paywall is shown, acting as the poller.
     ///
     /// Queries `/user?include=subscription` for the live tier from the
@@ -1966,7 +1966,7 @@ impl MvpAgent {
                     Some(crate::auth::GateInfo {
                         message,
                         url: Some(
-                            "https://grok.com/supergrok?referrer=grok-build".to_string(),
+                            "https://blocked.invalid/superaxon?referrer=axon-build".to_string(),
                         ),
                         label: Some("Subscribe".to_string()),
                     })
@@ -2001,7 +2001,7 @@ impl MvpAgent {
         let Some(auth) = self.auth_manager.current() else {
             return;
         };
-        let is_xai_auth = auth.is_xai_auth();
+        let is_axon_auth = auth.is_axon_auth();
         let Some(settings) = self.fetch_remote_settings(auth).await else {
             return;
         };
@@ -2019,7 +2019,7 @@ impl MvpAgent {
                     None,
                     cfg.remote_settings.as_ref(),
                 );
-                if cfg.storage_mode == StorageMode::Writeback && !is_xai_auth {
+                if cfg.storage_mode == StorageMode::Writeback && !is_axon_auth {
                     cfg.storage_mode = StorageMode::Local;
                 }
             }
@@ -2036,7 +2036,7 @@ impl MvpAgent {
         self.emit_announcements(AnnouncementsPushMode::IfChanged);
         self.reconfigure_heap_profile_monitor();
     }
-    /// Fire-and-forget `x.ai/settings/update` from the current remote snapshot.
+    /// Fire-and-forget `axon/settings/update` from the current remote snapshot.
     pub(super) fn emit_settings_update_notification(&self) {
         let payload = {
             let cfg = self.cfg.borrow();
@@ -2066,7 +2066,7 @@ impl MvpAgent {
         if let Ok(params) = serde_json::value::to_raw_value(&payload) {
             self.gateway
                 .forward_fire_and_forget(
-                    acp::ExtNotification::new("x.ai/settings/update", params.into()),
+                    acp::ExtNotification::new("axon/settings/update", params.into()),
                 );
         }
     }
@@ -2136,7 +2136,7 @@ impl MvpAgent {
         }
     }
     /// Spawn a best-effort bundle sync. Re-fires on every call site (init,
-    /// cached_token, grok.com/oidc); the cheap pre-checks below absorb repeats
+    /// cached_token, blocked.invalid/oidc); the cheap pre-checks below absorb repeats
     /// so reconnects are cheap.
     ///
     /// Pre-spawn gating order (cheapest first, all synchronous):
@@ -2244,7 +2244,7 @@ async fn handle_synthetic_turn_trace(
         let auth = this.auth_manager.current();
         let user_id = auth
             .as_ref()
-            .filter(|a| a.is_xai_auth())
+            .filter(|a| a.is_axon_auth())
             .map(|a| a.user_id.clone());
         let user_email = auth.as_ref().and_then(|a| a.email.clone());
         let init_meta = this.initialize_request.get().and_then(|req| req.meta.as_ref());
@@ -2614,9 +2614,9 @@ fn spawn_post_unblock_jwt_and_catalog_retry(
 ///
 /// Returns `true` only when remote settings explicitly set `allow_access: true`.
 /// Defaults to `false` (blocked) when settings are `None` or the field is
-/// absent — matching the `grok_build_access_gate` flag's server-side default.
+/// absent — matching the `axon_build_access_gate` flag's server-side default.
 ///
-/// Used by both `enforce_grok_code_access` (initial login gate) and
+/// Used by both `enforce_axon_code_access` (initial login gate) and
 /// `retry_subscription_check` (poller gate lift) to keep the decision in
 /// one place.
 pub(crate) fn settings_allow_access(

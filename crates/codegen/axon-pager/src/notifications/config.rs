@@ -80,7 +80,7 @@ impl Default for TitleConfig {
                 TitleItem::Spinner,
                 TitleItem::Activity,
                 TitleItem::SessionName,
-                TitleItem::Grok,
+                TitleItem::Axon,
             ],
         }
     }
@@ -95,7 +95,7 @@ pub enum TitleItem {
     Cwd,
     Model,
     TurnTimer,
-    Grok,
+    Axon,
     ActionRequired,
 }
 
@@ -177,8 +177,8 @@ session_recap_threshold_secs = 30
 # Set the terminal/tab title to reflect agent state.
 enabled = true
 # Items shown in the title. Options: action-required, spinner, activity,
-# session-name, cwd, model, turn-timer, grok
-items = [\"action-required\", \"spinner\", \"activity\", \"session-name\", \"grok\"]
+# session-name, cwd, model, turn-timer, axon
+items = [\"action-required\", \"spinner\", \"activity\", \"session-name\", \"axon\"]
 
 # [[ui.notifications.hooks]]
 # command = \"terminal-notifier -title 'Axon' -message '$AXON_MESSAGE'\"
@@ -210,7 +210,7 @@ mod tests {
             session_recap_threshold_secs: 90,
             title: TitleConfig {
                 enabled: false,
-                items: vec![TitleItem::Grok, TitleItem::Cwd],
+                items: vec![TitleItem::Axon, TitleItem::Cwd],
             },
             hooks: vec![NotificationHook {
                 command: "notify-send".into(),

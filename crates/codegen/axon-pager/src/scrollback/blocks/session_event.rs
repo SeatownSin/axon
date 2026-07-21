@@ -101,7 +101,7 @@ pub enum SessionEvent {
         elapsed: Duration,
     },
     /// Hook annotation — displayed inline after a tool call.
-    /// Message comes from agent via XaiSessionUpdate::HookAnnotation.
+    /// Message comes from agent via AxonSessionUpdate::HookAnnotation.
     HookAnnotation {
         /// The hook message
         message: String,
@@ -719,13 +719,13 @@ mod tests {
     #[test]
     fn model_unavailable_with_switch() {
         let event = SessionEvent::ModelUnavailable {
-            previous_model_id: "grok-4.5".into(),
-            new_model_id: "grok-build".into(),
-            reason: "Model \"grok-4.5\" is no longer available.".into(),
+            previous_model_id: "axon-4.5".into(),
+            new_model_id: "axon-build".into(),
+            reason: "Model \"axon-4.5\" is no longer available.".into(),
         };
         assert_eq!(
             event.message(),
-            "Model \"grok-4.5\" is no longer available. Switched to \"grok-build\"."
+            "Model \"axon-4.5\" is no longer available. Switched to \"axon-build\"."
         );
     }
 

@@ -1,10 +1,10 @@
 //! WebSocket relay connection management.
 //!
 //! This module provides a shared `RelayConnection` that handles the WebSocket
-//! connection to the grok.com relay server with automatic reconnection.
+//! connection to the blocked.invalid relay server with automatic reconnection.
 //! It is used by both `run_headless` and `run_leader` modes to avoid code duplication.
 use super::proxy;
-use crate::auth::{GrokAuth, GrokComConfig};
+use crate::auth::{AxonAuth, AxonComConfig};
 use crate::{teprintln, tprintln};
 use futures_util::{SinkExt as _, StreamExt as _};
 use std::sync::Arc;
@@ -45,7 +45,7 @@ const CONNECT_TIMEOUT_SECS: u64 = 30;
 /// JSON-RPC auth error code
 const AUTH_ERROR_CODE: i64 = -32000;
 use crate::auth::AuthManager;
-/// Config for the grok.com WebSocket relay. Fields are private so the only
+/// Config for the blocked.invalid WebSocket relay. Fields are private so the only
 /// constructor is [`RelayConfig::for_session`] — "no relay without a session
 /// bearer" is a compile-time guarantee.
 #[derive(Clone)]
@@ -53,28 +53,28 @@ pub struct RelayConfig {
     ws_url: String,
     ws_origin: String,
     token_header: String,
-    auth: GrokAuth,
+    auth: AxonAuth,
     auth_manager: Option<Arc<AuthManager>>,
 }
 impl RelayConfig {
-    /// Session gate: builds only for a grok.com first-party session
-    /// (`is_xai_auth`: x.ai-issuer OIDC or external credential) with a
-    /// non-empty bearer. BYOK/ApiKey, non-x.ai issuers (enterprise OIDC,
+    /// Session gate: builds only for a blocked.invalid first-party session
+    /// (`is_axon_auth`: blocked.invalid-issuer OIDC or external credential) with a
+    /// non-empty bearer. BYOK/ApiKey, non-blocked.invalid issuers (enterprise OIDC,
     /// third-party external providers), and deprecated WebLogin get `None`
     /// (relay-off; the leader still serves clients over IPC).
     pub(crate) fn for_session(
-        session: &GrokAuth,
-        ctx: &GrokComConfig,
+        session: &AxonAuth,
+        ctx: &AxonComConfig,
         alpha_test_key: Option<String>,
         auth_manager: Option<Arc<AuthManager>>,
     ) -> Option<Self> {
-        if !session.is_xai_auth() || session.key.is_empty() {
+        if !session.is_axon_auth() || session.key.is_empty() {
             return None;
         }
         let _ = alpha_test_key;
         Some(Self {
-            ws_url: ctx.grok_ws_url.clone(),
-            ws_origin: ctx.grok_ws_origin.clone(),
+            ws_url: ctx.axon_ws_url.clone(),
+            ws_origin: ctx.axon_ws_origin.clone(),
             token_header: ctx.token_header.clone(),
             auth: session.clone(),
             auth_manager,
@@ -85,7 +85,7 @@ impl RelayConfig {
 pub type FirstConnectCallback = Box<dyn FnOnce() + Send + 'static>;
 /// Handle to a running relay connection.
 ///
-/// The relay maintains a persistent WebSocket connection to grok.com with
+/// The relay maintains a persistent WebSocket connection to blocked.invalid with
 /// automatic reconnection on disconnection.
 pub struct RelayHandle {
     /// Cancel token to stop the relay connection loop
@@ -319,7 +319,7 @@ async fn run_relay_loop(
                     target : crate ::instrumentation::TARGET, event =
                     "relay_disconnected", ws_url = % config.ws_url,
                 );
-                tprintln!("Disconnected from Grok WebSocket server");
+                tprintln!("Disconnected from Axon WebSocket server");
                 info!("WebSocket disconnected, will reconnect");
             }
             Err(e) => {
@@ -375,7 +375,7 @@ fn build_relay_request(config: &RelayConfig) -> anyhow::Result<axum::http::Reque
         axum::http::header::HeaderValue::from_str(&format!("Bearer {}", config.auth.key))?,
     );
     req.headers_mut().insert(
-        "X-XAI-Token-Auth",
+        "X-AXON-Token-Auth",
         axum::http::header::HeaderValue::from_str(&config.token_header)?,
     );
     req.headers_mut().insert(
@@ -383,7 +383,7 @@ fn build_relay_request(config: &RelayConfig) -> anyhow::Result<axum::http::Reque
         axum::http::header::HeaderValue::from_str(&config.auth.user_id)?,
     );
     req.headers_mut().insert(
-        "x-grok-client-version",
+        "x-axon-client-version",
         axum::http::header::HeaderValue::from_static(axon_version::VERSION),
     );
     req.headers_mut().insert(
@@ -404,16 +404,16 @@ async fn connect_to_relay(
     tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>,
 > {
     let req = build_relay_request(config)?;
-    // This build never contacts xAI infrastructure; the stock relay lives
-    // at `code.grok.com` / `grok.com`. Self-hosted relays still connect.
+    // This build never contacts Axon infrastructure; the stock relay lives
+    // at `code.blocked.invalid` / `blocked.invalid`. Self-hosted relays still connect.
     if let Some(host) = req.uri().host() {
         let host = host.to_ascii_lowercase();
-        if ["x.ai", "grok.com"]
+        if ["blocked.invalid", "blocked.invalid"]
             .iter()
             .any(|b| host == *b || host.ends_with(&format!(".{b}")))
         {
             anyhow::bail!(
-                "relay '{host}' targets xAI infrastructure, which this build never contacts"
+                "relay '{host}' targets Axon infrastructure, which this build never contacts"
             );
         }
     }
@@ -781,62 +781,62 @@ mod tests {
         .expect("session should not error");
         assert_eq!(result, SessionEndReason::Normal);
     }
-    /// Helper to create a test GrokAuth with the given key.
-    fn test_auth(key: &str) -> GrokAuth {
-        GrokAuth {
+    /// Helper to create a test AxonAuth with the given key.
+    fn test_auth(key: &str) -> AxonAuth {
+        AxonAuth {
             key: key.to_string(),
             refresh_token: Some("rt".to_string()),
-            ..GrokAuth::test_default()
+            ..AxonAuth::test_default()
         }
     }
     #[test]
-    fn for_session_builds_only_for_xai_issuer() {
-        use crate::auth::XAI_OAUTH2_ISSUER;
-        let cfg = GrokComConfig::default();
-        let builds = |a: &GrokAuth| RelayConfig::for_session(a, &cfg, None, None).is_some();
-        let xai = GrokAuth {
+    fn for_session_builds_only_for_axon_issuer() {
+        use crate::auth::AXON_OAUTH2_ISSUER;
+        let cfg = AxonComConfig::default();
+        let builds = |a: &AxonAuth| RelayConfig::for_session(a, &cfg, None, None).is_some();
+        let axon = AxonAuth {
             auth_mode: AuthMode::Oidc,
-            oidc_issuer: Some(XAI_OAUTH2_ISSUER.to_string()),
-            ..test_auth("xai-bearer")
+            oidc_issuer: Some(AXON_OAUTH2_ISSUER.to_string()),
+            ..test_auth("axon-bearer")
         };
-        assert!(xai.is_xai_auth(), "precondition: is_xai_auth");
-        assert!(builds(&xai));
-        let external_xai = GrokAuth {
+        assert!(axon.is_axon_auth(), "precondition: is_axon_auth");
+        assert!(builds(&axon));
+        let external_axon = AxonAuth {
             auth_mode: AuthMode::External,
-            oidc_issuer: Some(XAI_OAUTH2_ISSUER.to_string()),
+            oidc_issuer: Some(AXON_OAUTH2_ISSUER.to_string()),
             ..test_auth("ext-bearer")
         };
-        assert!(external_xai.is_xai_auth(), "precondition: is_xai_auth");
-        assert!(builds(&external_xai));
-        assert!(!builds(&GrokAuth {
+        assert!(external_axon.is_axon_auth(), "precondition: is_axon_auth");
+        assert!(builds(&external_axon));
+        assert!(!builds(&AxonAuth {
             key: String::new(),
-            ..xai.clone()
+            ..axon.clone()
         }));
-        assert!(!builds(&GrokAuth {
+        assert!(!builds(&AxonAuth {
             auth_mode: AuthMode::ApiKey,
             ..test_auth("k")
         }));
-        assert!(!builds(&GrokAuth {
+        assert!(!builds(&AxonAuth {
             auth_mode: AuthMode::External,
             ..test_auth("k")
         }));
-        assert!(!builds(&GrokAuth {
+        assert!(!builds(&AxonAuth {
             auth_mode: AuthMode::WebLogin,
             ..test_auth("k")
         }));
-        assert!(!builds(&GrokAuth {
+        assert!(!builds(&AxonAuth {
             auth_mode: AuthMode::Oidc,
             oidc_issuer: Some("https://login.acme-corp.example/oauth2".to_string()),
             ..test_auth("k")
         }));
-        assert!(!builds(&GrokAuth {
+        assert!(!builds(&AxonAuth {
             auth_mode: AuthMode::External,
             oidc_issuer: Some("https://login.acme-corp.example/oauth2".to_string()),
             ..test_auth("k")
         }));
     }
-    /// Helper: write a GrokAuth to disk under the given scope.
-    fn write_test_auth_to_disk(dir: &std::path::Path, scope: &str, auth: &GrokAuth) {
+    /// Helper: write a AxonAuth to disk under the given scope.
+    fn write_test_auth_to_disk(dir: &std::path::Path, scope: &str, auth: &AxonAuth) {
         let path = dir.join("auth.json");
         let mut map = crate::auth::read_auth_json(&path).unwrap_or_default();
         map.insert(scope.to_owned(), auth.clone());
@@ -852,7 +852,7 @@ mod tests {
     /// it can only adopt sibling disk tokens, and there are none.
     #[tokio::test]
     async fn auth_recovery_refreshes_and_heals_missing_auth_json() {
-        use crate::auth::XAI_OAUTH2_ISSUER;
+        use crate::auth::AXON_OAUTH2_ISSUER;
         use crate::auth::refresh::{RefreshOutcome, TokenRefresher};
         use std::sync::atomic::AtomicU32;
         struct CountingRefresher {
@@ -865,25 +865,25 @@ mod tests {
                 _reason: crate::auth::manager::RefreshReason,
             ) -> RefreshOutcome {
                 self.calls.fetch_add(1, Ordering::SeqCst);
-                RefreshOutcome::Success(Box::new(GrokAuth {
+                RefreshOutcome::Success(Box::new(AxonAuth {
                     key: "fresh-from-authority".into(),
                     auth_mode: AuthMode::Oidc,
-                    oidc_issuer: Some(XAI_OAUTH2_ISSUER.to_string()),
+                    oidc_issuer: Some(AXON_OAUTH2_ISSUER.to_string()),
                     refresh_token: Some("rt-rotated".into()),
                     expires_at: Some(chrono::Utc::now() + chrono::Duration::hours(1)),
-                    ..GrokAuth::test_default()
+                    ..AxonAuth::test_default()
                 }))
             }
         }
         let dir = tempfile::tempdir().unwrap();
-        let cfg = crate::auth::GrokComConfig::default();
+        let cfg = crate::auth::AxonComConfig::default();
         let scope = cfg.auth_scope();
         let am = Arc::new(
             AuthManager::new(dir.path(), cfg.clone()).with_proxy_base_url("http://127.0.0.1:1"),
         );
-        let expired_session = GrokAuth {
+        let expired_session = AxonAuth {
             auth_mode: AuthMode::Oidc,
-            oidc_issuer: Some(XAI_OAUTH2_ISSUER.to_string()),
+            oidc_issuer: Some(AXON_OAUTH2_ISSUER.to_string()),
             refresh_token: Some("rt-valid-unconsumed".into()),
             expires_at: Some(chrono::Utc::now() - chrono::Duration::hours(14)),
             ..test_auth("expired-overnight")
@@ -898,7 +898,7 @@ mod tests {
             calls: calls.clone(),
         }));
         let mut config = RelayConfig::for_session(&expired_session, &cfg, None, Some(am.clone()))
-            .expect("x.ai OIDC session is relay-eligible");
+            .expect("blocked.invalid OIDC session is relay-eligible");
         let cancel = CancellationToken::new();
         let recovered = attempt_auth_recovery(&mut config, &cancel, "test 401").await;
         assert!(recovered, "recovery must succeed via the shared refresher");
@@ -916,7 +916,7 @@ mod tests {
     /// tight-looping — without cancelling the relay or touching the IdP.
     #[tokio::test]
     async fn attempt_auth_recovery_same_key_backs_off_without_cancel() {
-        use crate::auth::XAI_OAUTH2_ISSUER;
+        use crate::auth::AXON_OAUTH2_ISSUER;
         use crate::auth::refresh::{RefreshOutcome, TokenRefresher};
         struct PanicRefresher;
         #[async_trait::async_trait]
@@ -929,11 +929,11 @@ mod tests {
             }
         }
         let dir = tempfile::tempdir().unwrap();
-        let cfg = crate::auth::GrokComConfig::default();
+        let cfg = crate::auth::AxonComConfig::default();
         let am = Arc::new(AuthManager::new(dir.path(), cfg.clone()));
-        let fresh_session = GrokAuth {
+        let fresh_session = AxonAuth {
             auth_mode: AuthMode::Oidc,
-            oidc_issuer: Some(XAI_OAUTH2_ISSUER.to_string()),
+            oidc_issuer: Some(AXON_OAUTH2_ISSUER.to_string()),
             refresh_token: Some("rt-valid".into()),
             expires_at: Some(chrono::Utc::now() + chrono::Duration::hours(1)),
             ..test_auth("fresh-key")
@@ -941,7 +941,7 @@ mod tests {
         am.hot_swap(fresh_session.clone());
         am.set_refresher(Arc::new(PanicRefresher));
         let mut config = RelayConfig::for_session(&fresh_session, &cfg, None, Some(am.clone()))
-            .expect("x.ai OIDC session is relay-eligible");
+            .expect("blocked.invalid OIDC session is relay-eligible");
         let cancel = CancellationToken::new();
         let recovered = attempt_auth_recovery(&mut config, &cancel, "test 401").await;
         assert!(!recovered, "same-key recovery must take the backoff path");
@@ -981,7 +981,7 @@ mod tests {
             }
         });
         let dir = tempfile::tempdir().unwrap();
-        let cfg = crate::auth::GrokComConfig::default();
+        let cfg = crate::auth::AxonComConfig::default();
         let scope = cfg.auth_scope();
         let am = Arc::new(AuthManager::new(dir.path(), cfg));
         am.hot_swap(test_auth("old-key"));
@@ -1033,7 +1033,7 @@ mod tests {
             }
         });
         let dir = tempfile::tempdir().unwrap();
-        let cfg = crate::auth::GrokComConfig::default();
+        let cfg = crate::auth::AxonComConfig::default();
         let scope = cfg.auth_scope();
         let am = Arc::new(AuthManager::new(dir.path(), cfg));
         am.hot_swap(test_auth("old-key"));

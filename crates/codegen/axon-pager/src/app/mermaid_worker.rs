@@ -963,11 +963,11 @@ thread_local! {
     /// Per-test override for the session `mermaid/` cache dir. View-side tests
     /// set this to a private tempdir so [`AgentView::mermaid_out_path`] resolves
     /// a hermetic, writable cache dir *without* mutating the process-global
-    /// `AXON_HOME` (whose `grok_home()` value is cached first-write-wins, an
+    /// `AXON_HOME` (whose `axon_home()` value is cached first-write-wins, an
     /// isolation hazard under the full parallel suite — PNGs could land in the
     /// real `~/.axon`). Thread-local, so each parallel test is independent; the
     /// `TempDir` guard lives here so the dir outlives the view. Mirrors the
-    /// `subagent::REPLAY_GROK_HOME` test seam. Production never sets this.
+    /// `subagent::REPLAY_AXON_HOME` test seam. Production never sets this.
     static TEST_MERMAID_DIR: std::cell::RefCell<Option<tempfile::TempDir>> =
         const { std::cell::RefCell::new(None) };
 }
@@ -1235,7 +1235,7 @@ mod tests {
     fn key(source: &str) -> MermaidCacheKey {
         MermaidCacheKey::derive(
             source,
-            ThemeKind::GrokNight,
+            ThemeKind::AxonNight,
             80,
             MermaidRenderQuality::Terminal,
         )
@@ -1770,22 +1770,22 @@ mod tests {
     fn is_render_subcommand_matches_only_argv1() {
         let argv = |v: &[&str]| v.iter().map(std::ffi::OsString::from).collect::<Vec<_>>();
         assert!(is_render_subcommand(&argv(&[
-            "grok",
+            "axon",
             MERMAID_RENDER_SUBCOMMAND
         ])));
         assert!(is_render_subcommand(&argv(&[
-            "grok",
+            "axon",
             MERMAID_RENDER_SUBCOMMAND,
             "--out",
             "/tmp/x.png",
         ])));
         // Normal invocations are not the render child.
-        assert!(!is_render_subcommand(&argv(&["grok"])));
-        assert!(!is_render_subcommand(&argv(&["grok", "chat"])));
+        assert!(!is_render_subcommand(&argv(&["axon"])));
+        assert!(!is_render_subcommand(&argv(&["axon", "chat"])));
         assert!(!is_render_subcommand(&argv(&[])));
         // The subcommand only counts as argv[1], not deeper in the args.
         assert!(!is_render_subcommand(&argv(&[
-            "grok",
+            "axon",
             "chat",
             MERMAID_RENDER_SUBCOMMAND,
         ])));
@@ -2054,12 +2054,12 @@ mod tests {
         let src = "flowchart LR\nA-->B";
         let dark_key = MermaidCacheKey::derive(
             src,
-            ThemeKind::GrokNight,
+            ThemeKind::AxonNight,
             80,
             MermaidRenderQuality::Terminal,
         );
         let light_key =
-            MermaidCacheKey::derive(src, ThemeKind::GrokDay, 80, MermaidRenderQuality::Terminal);
+            MermaidCacheKey::derive(src, ThemeKind::AxonDay, 80, MermaidRenderQuality::Terminal);
         assert_ne!(
             dark_key.cache_filename(),
             light_key.cache_filename(),
@@ -2107,7 +2107,7 @@ mod tests {
     /// hermetic, with no process-global `AXON_HOME` mutation. The `TempDir` lives
     /// in the [`TEST_MERMAID_DIR`] thread-local for the test thread's lifetime
     /// (so the dir outlives the view), and each parallel test gets its own dir,
-    /// so there is no cross-test contamination and no `grok_home()` cache race.
+    /// so there is no cross-test contamination and no `axon_home()` cache race.
     fn use_test_mermaid_dir() {
         let tmp = tempfile::tempdir().expect("tempdir creation");
         TEST_MERMAID_DIR.with(|d| *d.borrow_mut() = Some(tmp));
@@ -2118,7 +2118,7 @@ mod tests {
     /// hence the cache key — is deterministic).
     fn agent_with_session(name: &str) -> AgentView {
         use_test_mermaid_dir();
-        let cwd = PathBuf::from("/grok-mermaid-test").join(name);
+        let cwd = PathBuf::from("/axon-mermaid-test").join(name);
         let mut agent = crate::app::agent_view::test_agent_view(Some(name), cwd);
         agent.last_terminal_size = (100, 40);
         agent
@@ -2305,7 +2305,7 @@ mod tests {
 
         // An on-click render in flight, keyed at the click-time theme + width.
         let click_key =
-            MermaidCacheKey::derive(src, ThemeKind::GrokNight, 80, MermaidRenderQuality::Open);
+            MermaidCacheKey::derive(src, ThemeKind::AxonNight, 80, MermaidRenderQuality::Open);
         let mut rt = MermaidRuntime::new();
         rt.pending.push(PendingMermaidAction {
             key: click_key.clone(),
@@ -2316,7 +2316,7 @@ mod tests {
         // A later (live) theme + width derives a DIFFERENT full key for the same
         // source — full-key matching would no longer find the pending render...
         let live_key =
-            MermaidCacheKey::derive(src, ThemeKind::GrokDay, 240, MermaidRenderQuality::Open);
+            MermaidCacheKey::derive(src, ThemeKind::AxonDay, 240, MermaidRenderQuality::Open);
         assert_ne!(
             click_key, live_key,
             "a theme/width change alters the full cache key",

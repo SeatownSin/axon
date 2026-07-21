@@ -277,8 +277,8 @@ mod nproc_tests {
     use std::sync::Arc;
     use std::sync::atomic::{AtomicBool, Ordering};
 
-    const CHILD_ENV: &str = "XAI_GIX_STATUS_NPROC_CHILD";
-    const REPO_ENV: &str = "XAI_GIX_STATUS_NPROC_REPO";
+    const CHILD_ENV: &str = "AXON_GIX_STATUS_NPROC_CHILD";
+    const REPO_ENV: &str = "AXON_GIX_STATUS_NPROC_REPO";
 
     /// Child exit protocol; 0 means the scan survived and saw the dirty file.
     const EXIT_SKIP: i32 = 2;

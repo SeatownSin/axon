@@ -36,7 +36,7 @@ pub(super) fn pick_user_image_url(image: &agent_client_protocol::ImageContent) -
 }
 fn partition_rules_by_scope(
     files: Vec<axon_agent::prompt::agents_md::AgentConfigFile>,
-    grok_home: &std::path::Path,
+    axon_home: &std::path::Path,
     vendor_homes: &[(std::path::PathBuf, bool)],
     workspace_root: Option<&std::path::Path>,
 ) -> (
@@ -48,7 +48,7 @@ fn partition_rules_by_scope(
     for file in files {
         let is_user_rule = crate::util::is_user_instruction_path(
             std::path::Path::new(&file.file_path),
-            grok_home,
+            axon_home,
             vendor_homes,
             workspace_root,
         );
@@ -81,7 +81,7 @@ mod partition_rules_by_scope_tests {
         entries.iter().map(|entry| entry.content.as_str()).collect()
     }
     #[test]
-    fn partitions_custom_grok_and_vendor_home_rules_as_user_scope() {
+    fn partitions_custom_axon_and_vendor_home_rules_as_user_scope() {
         let files = vec![
             file("/custom/config/rules/a.md"),
             file("/home/user/.cursor/rules/b.md"),
@@ -113,7 +113,7 @@ mod partition_rules_by_scope_tests {
         );
     }
     #[test]
-    fn grok_home_nested_in_workspace_keeps_direct_surfaces_user_scoped() {
+    fn axon_home_nested_in_workspace_keeps_direct_surfaces_user_scoped() {
         let files = vec![
             file("/repo/config/AGENTS.md"),
             file("/repo/config/rules/global.md"),
@@ -149,7 +149,7 @@ mod partition_rules_by_scope_tests {
         let vendor_homes = vec![(Path::new("/repo/.claude").to_path_buf(), true)];
         let (workspace, user) = partition_rules_by_scope(
             files,
-            Path::new("/other/grok"),
+            Path::new("/other/axon"),
             &vendor_homes,
             Some(Path::new("/repo")),
         );
@@ -166,24 +166,24 @@ mod partition_rules_by_scope_tests {
         );
     }
     #[test]
-    fn nested_grok_home_workspace_files_stay_workspace_scoped() {
+    fn nested_axon_home_workspace_files_stay_workspace_scoped() {
         let files = vec![
-            file("/custom/grok/rules/global.md"),
-            file("/custom/grok/worktrees/repo/.cursor/rules/project.md"),
-            file("/custom/grok/worktrees/repo/src/AGENTS.md"),
+            file("/custom/axon/rules/global.md"),
+            file("/custom/axon/worktrees/repo/.cursor/rules/project.md"),
+            file("/custom/axon/worktrees/repo/src/AGENTS.md"),
         ];
         let (workspace, user) = partition_rules_by_scope(
             files,
-            Path::new("/custom/grok"),
+            Path::new("/custom/axon"),
             &[],
-            Some(Path::new("/custom/grok/worktrees/repo")),
+            Some(Path::new("/custom/axon/worktrees/repo")),
         );
-        assert_eq!(paths(&user), vec!["/custom/grok/rules/global.md"]);
+        assert_eq!(paths(&user), vec!["/custom/axon/rules/global.md"]);
         assert_eq!(
             paths(&workspace),
             vec![
-                "/custom/grok/worktrees/repo/.cursor/rules/project.md",
-                "/custom/grok/worktrees/repo/src/AGENTS.md",
+                "/custom/axon/worktrees/repo/.cursor/rules/project.md",
+                "/custom/axon/worktrees/repo/src/AGENTS.md",
             ]
         );
     }
@@ -403,7 +403,7 @@ pub(super) fn build_truncated_prompt_message(
 }
 /// Replace the file-referencing offload `notice` embedded in `message` with the
 /// no-file [`OFFLOAD_FAILED_NOTICE`]. Position-independent (the notice sits at the
-/// end for grok ordering), so a failed offload never
+/// end for axon ordering), so a failed offload never
 /// leaves the model chasing a "read this file" pointer to a file that does not
 /// exist. Returns `message` unchanged if the notice is absent (defensive).
 pub(super) fn strip_offload_notice(message: &str, notice: &str) -> String {
@@ -519,7 +519,7 @@ impl SessionActor {
         let bridge = self.agent.borrow().tool_bridge().clone();
         let (vcs_root, vcs_status) = self.gather_vcs_for_prefix(cwd).await;
         let agents_files = read_agents_config_with_paths(&cwd_str, self.rebuild_spec.compat).await;
-        let grok_home = axon_config::grok_home();
+        let axon_home = axon_config::axon_home();
         let vendor_homes = dirs::home_dir()
             .map(|home_dir| {
                 vec![
@@ -540,7 +540,7 @@ impl SessionActor {
             .unwrap_or_else(|| cwd.to_path_buf());
         let (workspace_rules, user_rules) = partition_rules_by_scope(
             agents_files,
-            &grok_home,
+            &axon_home,
             &vendor_homes,
             Some(&workspace_root),
         );

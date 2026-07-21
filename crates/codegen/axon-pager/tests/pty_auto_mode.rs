@@ -49,10 +49,10 @@ fn dirs_next_home() -> Option<PathBuf> {
 /// auto-permission-mode feature gate pinned explicitly via `gate_on` so each
 /// test is self-contained and deterministic regardless of the runner's shell.
 fn prepare_sandbox(home: &Path, gate_on: bool) -> Vec<(String, String)> {
-    let grok = home.join(".axon");
-    let _ = std::fs::create_dir_all(&grok);
+    let axon = home.join(".axon");
+    let _ = std::fs::create_dir_all(&axon);
     if let Some(src) = auth_json_source() {
-        let dest = grok.join("auth.json");
+        let dest = axon.join("auth.json");
         if let Err(e) = std::fs::copy(&src, &dest) {
             eprintln!("pty_auto_mode: could not copy auth.json ({e}); login may block mode cycle");
         } else {
@@ -69,7 +69,7 @@ fn prepare_sandbox(home: &Path, gate_on: bool) -> Vec<(String, String)> {
     let home_s = home.display().to_string();
     let mut env = vec![
         ("HOME".into(), home_s.clone()),
-        ("AXON_HOME".into(), grok.display().to_string()),
+        ("AXON_HOME".into(), axon.display().to_string()),
         ("XDG_CONFIG_HOME".into(), format!("{home_s}/.config")),
         ("XDG_DATA_HOME".into(), format!("{home_s}/.local/share")),
         ("XDG_CACHE_HOME".into(), format!("{home_s}/.cache")),
@@ -78,7 +78,7 @@ fn prepare_sandbox(home: &Path, gate_on: bool) -> Vec<(String, String)> {
         ("NO_COLOR".into(), "0".into()),
         ("TERM_PROGRAM".into(), "".into()),
         ("TMUX".into(), "".into()),
-        // Do not set XAI_API_KEY — prefer OIDC entry in auth.json (pty_e2e pattern).
+        // Do not set AXON_API_KEY — prefer OIDC entry in auth.json (pty_e2e pattern).
     ];
     // Pin the feature gate explicitly so the cycle is deterministic regardless
     // of the developer's shell. `AXON_AUTO_PERMISSION_MODE` is the highest gate

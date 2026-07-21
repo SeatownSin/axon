@@ -6,11 +6,11 @@ use crate::error::VoiceError;
 ///
 /// Prefer **https** `api_base` (same shape as chat). [`Self::stt_ws_url`] derives
 /// `wss://`. When `[voice].api_base` is unset, inherits
-/// `[endpoints].xai_api_base_url` so enterprise proxies need no second knob.
+/// `[endpoints].axon_api_base_url` so enterprise proxies need no second knob.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
 pub struct VoiceConfig {
-    /// HTTPS API root (or bare host). Bases may end in `/v1` or `/xai/v1`; the
+    /// HTTPS API root (or bare host). Bases may end in `/v1` or `/axon/v1`; the
     /// default STT path de-duplicates a leading `v1/` so both become `…/v1/stt`.
     pub api_base: String,
     pub stt_ws_path: String,
@@ -31,7 +31,7 @@ pub struct VoiceConfig {
 impl Default for VoiceConfig {
     fn default() -> Self {
         Self {
-            api_base: "https://api.x.ai".into(),
+            api_base: "https://api.blocked.invalid".into(),
             stt_ws_path: "/v1/stt".into(),
             language: "en".into(),
             sample_rate: 16_000,
@@ -49,8 +49,8 @@ impl VoiceConfig {
         ws_url(&self.api_base, &self.stt_ws_path)
     }
 
-    /// `api_base`: non-empty `[voice].api_base`, else `[endpoints].xai_api_base_url`
-    /// from `root`, else `resolved_endpoints_base`, else `https://api.x.ai`.
+    /// `api_base`: non-empty `[voice].api_base`, else `[endpoints].axon_api_base_url`
+    /// from `root`, else `resolved_endpoints_base`, else `https://api.blocked.invalid`.
     ///
     /// `resolved_endpoints_base` carries the caller's env / CLI overrides; it
     /// ranks below the raw table so config keeps beating env (shell precedence).
@@ -61,7 +61,7 @@ impl VoiceConfig {
             .unwrap_or_default();
 
         // Read `[voice].api_base` from the raw table, not `cfg`: serde default
-        // makes "unset" and an explicit `https://api.x.ai` indistinguishable.
+        // makes "unset" and an explicit `https://api.blocked.invalid` indistinguishable.
         cfg.api_base = non_empty_str(
             voice_table
                 .and_then(|t| t.get("api_base"))
@@ -70,7 +70,7 @@ impl VoiceConfig {
         .or_else(|| {
             non_empty_str(
                 root.get("endpoints")
-                    .and_then(|e| e.get("xai_api_base_url"))
+                    .and_then(|e| e.get("axon_api_base_url"))
                     .and_then(|v| v.as_str()),
             )
         })
@@ -106,7 +106,7 @@ fn ws_url(api_base: &str, path: &str) -> Result<String, VoiceError> {
     let rest = strip_scheme(base, "https://")
         .or_else(|| strip_scheme(base, "wss://"))
         .unwrap_or(base);
-    // Default path `/v1/stt`; bases often end in `/v1` or `/xai/v1`.
+    // Default path `/v1/stt`; bases often end in `/v1` or `/axon/v1`.
     let path = match (rest.ends_with("/v1"), path.strip_prefix("v1/")) {
         (true, Some(rest_path)) => rest_path,
         _ => path,
@@ -122,18 +122,18 @@ mod tests {
     fn default_stt_ws_uses_wss() {
         assert_eq!(
             VoiceConfig::default().stt_ws_url().unwrap(),
-            "wss://api.x.ai/v1/stt"
+            "wss://api.blocked.invalid/v1/stt"
         );
     }
 
     #[test]
     fn scheme_less_and_wss_bases() {
-        for base in ["api.x.ai", "wss://api.x.ai", "HTTPS://api.x.ai"] {
+        for base in ["api.blocked.invalid", "wss://api.blocked.invalid", "HTTPS://api.blocked.invalid"] {
             let cfg = VoiceConfig {
                 api_base: base.into(),
                 ..VoiceConfig::default()
             };
-            assert_eq!(cfg.stt_ws_url().unwrap(), "wss://api.x.ai/v1/stt");
+            assert_eq!(cfg.stt_ws_url().unwrap(), "wss://api.blocked.invalid/v1/stt");
         }
     }
 
@@ -147,14 +147,14 @@ mod tests {
     }
 
     #[test]
-    fn xai_v1_base_preserves_prefix() {
+    fn axon_v1_base_preserves_prefix() {
         let cfg = VoiceConfig {
-            api_base: "https://proxy.example.com/xai/v1".into(),
+            api_base: "https://proxy.example.com/axon/v1".into(),
             ..VoiceConfig::default()
         };
         assert_eq!(
             cfg.stt_ws_url().unwrap(),
-            "wss://proxy.example.com/xai/v1/stt"
+            "wss://proxy.example.com/axon/v1/stt"
         );
     }
 
@@ -179,15 +179,15 @@ mod tests {
         let table: toml::Table = toml::from_str(
             r#"
 [endpoints]
-xai_api_base_url = "https://proxy.example.com/xai/v1"
+axon_api_base_url = "https://proxy.example.com/axon/v1"
 "#,
         )
         .unwrap();
         let cfg = VoiceConfig::from_config_table(&table, None);
-        assert_eq!(cfg.api_base, "https://proxy.example.com/xai/v1");
+        assert_eq!(cfg.api_base, "https://proxy.example.com/axon/v1");
         assert_eq!(
             cfg.stt_ws_url().unwrap(),
-            "wss://proxy.example.com/xai/v1/stt"
+            "wss://proxy.example.com/axon/v1/stt"
         );
     }
 
@@ -196,7 +196,7 @@ xai_api_base_url = "https://proxy.example.com/xai/v1"
         let table: toml::Table = toml::from_str(
             r#"
 [endpoints]
-xai_api_base_url = "https://proxy.example.com/xai/v1"
+axon_api_base_url = "https://proxy.example.com/axon/v1"
 [voice]
 api_base = "  "
 language = "fr"
@@ -204,7 +204,7 @@ language = "fr"
         )
         .unwrap();
         let cfg = VoiceConfig::from_config_table(&table, None);
-        assert_eq!(cfg.api_base, "https://proxy.example.com/xai/v1");
+        assert_eq!(cfg.api_base, "https://proxy.example.com/axon/v1");
         assert_eq!(cfg.language, "fr");
     }
 
@@ -219,7 +219,7 @@ api_base = "  "
         .unwrap();
         let cfg = VoiceConfig::from_config_table(&table, None);
         assert_eq!(cfg.api_base, VoiceConfig::default().api_base);
-        assert_eq!(cfg.stt_ws_url().unwrap(), "wss://api.x.ai/v1/stt");
+        assert_eq!(cfg.stt_ws_url().unwrap(), "wss://api.blocked.invalid/v1/stt");
     }
 
     #[test]
@@ -242,7 +242,7 @@ api_base = "  "
         let table: toml::Table = toml::from_str(
             r#"
 [endpoints]
-xai_api_base_url = "https://config.example.com"
+axon_api_base_url = "https://config.example.com"
 "#,
         )
         .unwrap();
@@ -255,17 +255,17 @@ xai_api_base_url = "https://config.example.com"
         let table: toml::Table = toml::from_str(
             r#"
 [endpoints]
-xai_api_base_url = "https://proxy.example.com/xai/v1"
+axon_api_base_url = "https://proxy.example.com/axon/v1"
 [voice]
-api_base = "https://api.x.ai"
+api_base = "https://api.blocked.invalid"
 language = "es"
 "#,
         )
         .unwrap();
         let cfg = VoiceConfig::from_config_table(&table, None);
-        assert_eq!(cfg.api_base, "https://api.x.ai");
+        assert_eq!(cfg.api_base, "https://api.blocked.invalid");
         assert_eq!(cfg.language, "es");
-        assert_eq!(cfg.stt_ws_url().unwrap(), "wss://api.x.ai/v1/stt");
+        assert_eq!(cfg.stt_ws_url().unwrap(), "wss://api.blocked.invalid/v1/stt");
     }
 
     #[test]

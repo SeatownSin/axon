@@ -1,4 +1,4 @@
-//! axon-sampler - Actor-based sampling layer for xAI grok.
+//! axon-sampler - Actor-based sampling layer for Axon axon.
 //!
 //! This crate extracts the HTTP streaming + retry logic out of
 //! `axon-shell`'s session actor into a standalone, reusable

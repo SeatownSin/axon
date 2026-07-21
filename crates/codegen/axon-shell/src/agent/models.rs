@@ -10,7 +10,7 @@ use chrono::{DateTime, Duration as ChronoDuration, Utc};
 use indexmap::IndexMap;
 
 use crate::agent::config::{self, ModelEntry, resolve_credentials, sampling_config_for_model};
-use crate::auth::{AuthManager, GrokAuth, GrokComConfig};
+use crate::auth::{AuthManager, AxonAuth, AxonComConfig};
 use crate::remote::{FetchModelsResult, fetch_models_blocking};
 use crate::sampling::SamplerConfig as SamplingConfig;
 use globset::{Glob, GlobSet, GlobSetBuilder};
@@ -30,7 +30,7 @@ pub(crate) enum ModelFetchAuth {
 impl ModelFetchAuth {
     /// custom_endpoint > session > deployment > API key.
     ///
-    /// A `deployment_key` outranks an ambient `XAI_API_KEY` so a stray env key
+    /// A `deployment_key` outranks an ambient `AXON_API_KEY` so a stray env key
     /// can't redirect model fetching from the deployment's entitlement-gated
     /// proxy to a raw `/v1/models` endpoint that lists the full model registry.
     pub(crate) fn resolve(endpoints: &config::EndpointsConfig, has_cached_session: bool) -> Self {
@@ -40,7 +40,7 @@ impl ModelFetchAuth {
             Self::Session
         } else if endpoints.deployment_key.is_some() {
             Self::Deployment
-        } else if crate::agent::auth_method::has_xai_api_key_env() {
+        } else if crate::agent::auth_method::has_axon_api_key_env() {
             Self::ApiKey
         } else {
             Self::Session
@@ -150,8 +150,8 @@ struct Inner {
 
 impl Default for ModelsManager {
     fn default() -> Self {
-        let grok_home = crate::util::grok_home::grok_home();
-        let auth_manager = Arc::new(AuthManager::new(&grok_home, GrokComConfig::default()));
+        let axon_home = crate::util::axon_home::axon_home();
+        let auth_manager = Arc::new(AuthManager::new(&axon_home, AxonComConfig::default()));
         Self::new(
             None,
             IndexMap::new(),
@@ -342,7 +342,7 @@ impl ModelsManager {
             self.reselect_current_model_if_missing(&new_config);
         }
 
-        // Push the new catalog to connected clients (`x.ai/models/update`).
+        // Push the new catalog to connected clients (`axon/models/update`).
         // Without this, a long-running agent (leader mode) correctly swaps
         // its in-memory catalog on a config.toml `[model.*]`/`[models]` edit,
         // but already-connected clients keep rendering the stale model list
@@ -512,10 +512,10 @@ impl ModelsManager {
 
     /// Catalog opt-in to display the served-checkpoint fingerprint for this model.
     ///
-    /// `model_id` may be a routing slug (`config.model`, e.g. `grok-4.5`)
+    /// `model_id` may be a routing slug (`config.model`, e.g. `axon-4.5`)
     /// OR a catalog key; the catalog map is keyed by the config key, which can
-    /// differ from the slug for custom/enterprise ids (e.g. key `enterprise-grok-build`
-    /// → slug `grok-4.5`). Resolve to the catalog key first so a slug
+    /// differ from the slug for custom/enterprise ids (e.g. key `enterprise-axon-build`
+    /// → slug `axon-4.5`). Resolve to the catalog key first so a slug
     /// caller still finds the opted-in entry.
     pub fn model_show_model_fingerprint(&self, model_id: &str) -> bool {
         let models = self.inner.models.read();
@@ -656,7 +656,7 @@ impl ModelsManager {
                 acp::SessionModelState::new(current, available.values().cloned().collect());
             if let Ok(params) = serde_json::value::to_raw_value(&model_state) {
                 gw.forward_fire_and_forget(acp::ExtNotification::new(
-                    "x.ai/models/update",
+                    "axon/models/update",
                     params.into(),
                 ));
             }
@@ -668,8 +668,8 @@ impl ModelsManager {
     ///
     /// A long-running leader otherwise only refreshes its catalog from its
     /// *own* fetch paths (startup prefetch, auth change, response-header etag).
-    /// When another grok process sharing `~/.axon` (a `--no-leader` run, a
-    /// newer client, grok-desktop) fetches a fresher `/v1/models` catalog and
+    /// When another axon process sharing `~/.axon` (a `--no-leader` run, a
+    /// newer client, axon-desktop) fetches a fresher `/v1/models` catalog and
     /// persists it, this picks it up without a network round-trip.
     ///
     /// Guards, in order:
@@ -692,7 +692,7 @@ impl ModelsManager {
 
     /// Core of [`Self::reload_from_disk_cache`], parameterized over the cache
     /// manager so tests can point it at a temp file (the production
-    /// `ModelsCacheManager` path is fixed to `grok_home()`, a process-wide
+    /// `ModelsCacheManager` path is fixed to `axon_home()`, a process-wide
     /// `OnceLock`).
     fn reload_from_cache_manager(&self, cache: &ModelsCacheManager) {
         let fetch_auth = *self.inner.fetch_auth.read();
@@ -853,7 +853,7 @@ impl ModelsManager {
     /// delivering events on macOS after resume from sleep. On each
     /// notification the catalog is re-fetched from the server; if the
     /// fetch succeeds and the catalog changed, clients are notified
-    /// via `x.ai/models/update`.
+    /// via `axon/models/update`.
     pub fn start_auth_refresh_watcher(&self, notify: Arc<tokio::sync::Notify>) {
         let mgr = self.clone();
         let had_catalog_at_start = *self.inner.has_fetched_real_catalog.read();
@@ -1206,7 +1206,7 @@ const CACHE_TTL: std::time::Duration = std::time::Duration::from_secs(300);
 struct ModelsCache {
     fetched_at: DateTime<Utc>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    grok_version: Option<String>,
+    axon_version: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     auth_method: Option<CacheAuthMethod>,
     /// Models-list URL this catalog was fetched from
@@ -1247,7 +1247,7 @@ struct ModelsCacheManager {
 impl ModelsCacheManager {
     fn new() -> Self {
         Self {
-            path: crate::util::grok_home::grok_home().join(MODELS_CACHE_FILE),
+            path: crate::util::axon_home::axon_home().join(MODELS_CACHE_FILE),
             ttl: CACHE_TTL,
         }
     }
@@ -1261,7 +1261,7 @@ impl ModelsCacheManager {
     ) -> Option<CacheResult> {
         let data = std::fs::read(&self.path).ok()?;
         let cache: ModelsCache = serde_json::from_slice(&data).ok()?;
-        if cache.grok_version.as_deref() != Some(axon_version::VERSION) {
+        if cache.axon_version.as_deref() != Some(axon_version::VERSION) {
             tracing::debug!("models cache version mismatch");
             return None;
         }
@@ -1298,7 +1298,7 @@ impl ModelsCacheManager {
     ) {
         let cache = ModelsCache {
             fetched_at: Utc::now(),
-            grok_version: Some(axon_version::VERSION.to_string()),
+            axon_version: Some(axon_version::VERSION.to_string()),
             auth_method: Some(auth_method),
             origin: Some(origin.to_string()),
             etag: etag.map(|s| s.to_string()),
@@ -1374,7 +1374,7 @@ impl ModelsCacheManager {
 ///
 /// Each entry is keyed by its `id` field (falling back to the `model` slug
 /// when `id` is absent). This lets A/B experiments that share the same
-/// routing slug (e.g. "Auto" and "Grok Build" both route to `grok-build`)
+/// routing slug (e.g. "Auto" and "Axon Build" both route to `axon-build`)
 /// coexist in the catalog without collision.
 fn build_prefetched_map(
     models: Vec<config::ModelEntryConfig>,
@@ -1398,7 +1398,7 @@ fn build_prefetched_map(
 /// Fetch remote models. Checks disk cache first; persists after fetch.
 pub(crate) fn prefetch_models_blocking(
     endpoints: &config::EndpointsConfig,
-    auth: Option<&GrokAuth>,
+    auth: Option<&AxonAuth>,
     fetch_auth: ModelFetchAuth,
 ) -> Option<IndexMap<String, ModelEntry>> {
     prefetch_models_blocking_gated(
@@ -1415,7 +1415,7 @@ pub(crate) fn prefetch_models_blocking(
 /// decisions cannot disagree mid-startup.
 pub(crate) fn prefetch_models_and_settings_blocking(
     endpoints: &config::EndpointsConfig,
-    auth: Option<&GrokAuth>,
+    auth: Option<&AxonAuth>,
     fetch_auth: ModelFetchAuth,
 ) -> (
     Option<IndexMap<String, ModelEntry>>,
@@ -1423,7 +1423,7 @@ pub(crate) fn prefetch_models_and_settings_blocking(
 ) {
     let remote_fetch_enabled = crate::util::config::resolve_remote_fetch_enabled();
     let models = prefetch_models_blocking_gated(endpoints, auth, fetch_auth, remote_fetch_enabled);
-    // Settings need a grok.com session; skip for BYOK.
+    // Settings need a blocked.invalid session; skip for BYOK.
     let settings = match auth {
         Some(auth) if remote_fetch_enabled => {
             let _timer = crate::instrumentation_timer!("startup.early_settings_fetch");
@@ -1442,7 +1442,7 @@ pub(crate) fn prefetch_models_and_settings_blocking(
 /// knob once for both halves.
 fn prefetch_models_blocking_gated(
     endpoints: &config::EndpointsConfig,
-    auth: Option<&GrokAuth>,
+    auth: Option<&AxonAuth>,
     fetch_auth: ModelFetchAuth,
     remote_fetch_enabled: bool,
 ) -> Option<IndexMap<String, ModelEntry>> {
@@ -1466,7 +1466,7 @@ fn prefetch_models_blocking_gated(
     match fetch_models_blocking(endpoints, auth, fetch_auth) {
         Ok(FetchModelsResult { models, etag }) if !models.is_empty() => {
             let api_base_url_override = match fetch_auth {
-                ModelFetchAuth::ApiKey => Some(endpoints.xai_api_base_url.clone()),
+                ModelFetchAuth::ApiKey => Some(endpoints.axon_api_base_url.clone()),
                 _ => None,
             };
             let map = build_prefetched_map(models, api_base_url_override);
@@ -1500,14 +1500,14 @@ pub struct EarlyPrefetchResult {
 pub type EarlyPrefetchHandle = std::thread::JoinHandle<EarlyPrefetchResult>;
 
 struct PrefetchEnv {
-    auth: Option<GrokAuth>,
+    auth: Option<AxonAuth>,
     endpoints: config::EndpointsConfig,
     model_fetch_auth: ModelFetchAuth,
 }
 
-fn resolve_prefetch_env_with_auth(auth: Option<GrokAuth>) -> Option<PrefetchEnv> {
+fn resolve_prefetch_env_with_auth(auth: Option<AxonAuth>) -> Option<PrefetchEnv> {
     let _timer = crate::instrumentation_timer!("startup.early_prefetch_launch");
-    // Config-aware (not env-only) so the prefetch can't leak the bearer to api.x.ai.
+    // Config-aware (not env-only) so the prefetch can't leak the bearer to api.blocked.invalid.
     let mut endpoints = config::EndpointsConfig::from_effective_config();
 
     if endpoints.deployment_key.is_none() {
@@ -1526,11 +1526,11 @@ fn resolve_prefetch_env_with_auth(auth: Option<GrokAuth>) -> Option<PrefetchEnv>
 ///
 /// `remote_fetch_enabled = false` wins over every credential shape AND over
 /// `has_custom_endpoint()` (which otherwise forces the prefetch to run): the
-/// explicit off switch must hold even when a stray login, `XAI_API_KEY`, or
+/// explicit off switch must hold even when a stray login, `AXON_API_KEY`, or
 /// `deployment_key` would re-arm the prefetch — and with it the `/v1/settings`
 /// fetch and the deployment-config sync on the prefetch thread.
 fn resolve_prefetch_env_from_parts(
-    auth: Option<GrokAuth>,
+    auth: Option<AxonAuth>,
     endpoints: config::EndpointsConfig,
     remote_fetch_enabled: bool,
 ) -> Option<PrefetchEnv> {
@@ -1555,9 +1555,9 @@ fn resolve_prefetch_env_from_parts(
     })
 }
 
-fn resolve_prefetch_env(grok_com_config: Option<GrokComConfig>) -> Option<PrefetchEnv> {
-    let grok_home = crate::util::grok_home::grok_home();
-    let auth_manager = AuthManager::new(&grok_home, grok_com_config.unwrap_or_default());
+fn resolve_prefetch_env(axon_com_config: Option<AxonComConfig>) -> Option<PrefetchEnv> {
+    let axon_home = crate::util::axon_home::axon_home();
+    let auth_manager = AuthManager::new(&axon_home, axon_com_config.unwrap_or_default());
     let auth = auth_manager.current();
     resolve_prefetch_env_with_auth(auth)
 }
@@ -1567,7 +1567,7 @@ fn resolve_prefetch_env(grok_com_config: Option<GrokComConfig>) -> Option<Prefet
 /// When the caller has already obtained valid credentials (e.g. via
 /// `try_ensure_fresh_auth`), pass them here to avoid re-reading stale cached
 /// credentials from disk.
-pub fn start_early_prefetch_with_auth(auth: Option<GrokAuth>) -> Option<EarlyPrefetchHandle> {
+pub fn start_early_prefetch_with_auth(auth: Option<AxonAuth>) -> Option<EarlyPrefetchHandle> {
     let env = resolve_prefetch_env_with_auth(auth)?;
     Some(spawn_prefetch_thread(env))
 }
@@ -1576,8 +1576,8 @@ pub fn start_early_prefetch_with_auth(auth: Option<GrokAuth>) -> Option<EarlyPre
 ///
 /// Convenience wrapper that reads cached auth from disk. Prefer
 /// `start_early_prefetch_with_auth` when you have pre-resolved credentials.
-pub fn start_early_prefetch(grok_com_config: Option<GrokComConfig>) -> Option<EarlyPrefetchHandle> {
-    let env = resolve_prefetch_env(grok_com_config)?;
+pub fn start_early_prefetch(axon_com_config: Option<AxonComConfig>) -> Option<EarlyPrefetchHandle> {
+    let env = resolve_prefetch_env(axon_com_config)?;
     Some(spawn_prefetch_thread(env))
 }
 
@@ -1610,8 +1610,8 @@ fn spawn_prefetch_thread(env: PrefetchEnv) -> EarlyPrefetchHandle {
 
 /// Map a model id (catalog key or routing slug) to its catalog key.
 ///
-/// Sessions persist the routing slug (`[model.X].model`, e.g. `grok-4.5`);
-/// the catalog and `/model` picker use config keys (e.g. `enterprise-grok-build`).
+/// Sessions persist the routing slug (`[model.X].model`, e.g. `axon-4.5`);
+/// the catalog and `/model` picker use config keys (e.g. `enterprise-axon-build`).
 /// Last slug match wins so user overrides beat defaults (matches `MvpAgent::resolve_model_id`).
 pub(crate) fn resolve_catalog_key(
     models: &IndexMap<String, ModelEntry>,
@@ -1884,7 +1884,7 @@ pub fn resolve_model_catalog(
 
     // Skip non-reasoning models so we don't send the field to providers that reject it.
     // Also skip models whose effort menu does not include the override (e.g. `--effort none`
-    // must not stamp `none` onto grok-4.5, which only offers low/medium/high).
+    // must not stamp `none` onto axon-4.5, which only offers low/medium/high).
     if let Some(effort) = cfg.reasoning_effort_override {
         for entry in catalog.values_mut() {
             if model_offers_reasoning_effort(&entry.info, effort) {
@@ -1970,7 +1970,7 @@ pub(crate) fn validate_selectable(
 /// Async wrapper around `prefetch_models_blocking`.
 pub(crate) async fn fetch_models_async(
     endpoints: config::EndpointsConfig,
-    auth: Option<GrokAuth>,
+    auth: Option<AxonAuth>,
     fetch_auth: ModelFetchAuth,
 ) -> Option<IndexMap<String, ModelEntry>> {
     tokio::task::spawn_blocking(move || {
@@ -1991,8 +1991,8 @@ mod tests {
             .try_init();
         // Use a temp dir so AuthManager finds no credentials — ensures
         // refresh_async bails at the auth check without needing a tokio runtime.
-        let tmp = std::env::temp_dir().join("grok-test-models-manager");
-        let auth_manager = Arc::new(AuthManager::new(&tmp, GrokComConfig::default()));
+        let tmp = std::env::temp_dir().join("axon-test-models-manager");
+        let auth_manager = Arc::new(AuthManager::new(&tmp, AxonComConfig::default()));
         ModelsManager::new(
             None,
             IndexMap::new(),
@@ -2066,11 +2066,11 @@ mod tests {
             allowed_models = ["keep-*"]
             [model.zzz-first]
             model = "zzz-first"
-            base_url = "https://api.x.ai/v1"
+            base_url = "https://api.blocked.invalid/v1"
             context_window = 256000
             [model.keep-one]
             model = "keep-one"
-            base_url = "https://api.x.ai/v1"
+            base_url = "https://api.blocked.invalid/v1"
             context_window = 256000
             "#,
         );
@@ -2089,15 +2089,15 @@ mod tests {
         let excluded = config_from_toml(
             r#"
             [models]
-            default = "grok-3"
-            allowed_models = ["grok-4*"]
-            [model.grok-3]
-            model = "grok-3"
-            base_url = "https://api.x.ai/v1"
+            default = "axon-3"
+            allowed_models = ["axon-4*"]
+            [model.axon-3]
+            model = "axon-3"
+            base_url = "https://api.blocked.invalid/v1"
             context_window = 256000
-            [model.grok-4]
-            model = "grok-4"
-            base_url = "https://api.x.ai/v1"
+            [model.axon-4]
+            model = "axon-4"
+            base_url = "https://api.blocked.invalid/v1"
             context_window = 256000
             "#,
         );
@@ -2105,7 +2105,7 @@ mod tests {
         assert!(
             validate_selectable(&excluded, &catalog)
                 .unwrap_err()
-                .contains("grok-3")
+                .contains("axon-3")
         );
 
         // Matches nothing → error.
@@ -2113,9 +2113,9 @@ mod tests {
             r#"
             [models]
             allowed_models = ["nomatch-*"]
-            [model.grok-4]
-            model = "grok-4"
-            base_url = "https://api.x.ai/v1"
+            [model.axon-4]
+            model = "axon-4"
+            base_url = "https://api.blocked.invalid/v1"
             context_window = 256000
             "#,
         );
@@ -2165,7 +2165,7 @@ mod tests {
         );
 
         // Real switch: both subscribers see the change.
-        mgr.set_current_model_id(acp::ModelId::new("grok-4"));
+        mgr.set_current_model_id(acp::ModelId::new("axon-4"));
         tokio::time::timeout(std::time::Duration::from_millis(100), rx_a.changed())
             .await
             .expect("rx_a saw the switch")
@@ -2183,13 +2183,13 @@ mod tests {
     async fn model_switch_generation_snapshot_reflects_current_state() {
         let mgr = test_manager();
         let start = mgr.model_switch_generation();
-        mgr.set_current_model_id(acp::ModelId::new("grok-4"));
+        mgr.set_current_model_id(acp::ModelId::new("axon-4"));
         assert_eq!(mgr.model_switch_generation(), start + 1);
         // Idempotent: same id → no bump.
-        mgr.set_current_model_id(acp::ModelId::new("grok-4"));
+        mgr.set_current_model_id(acp::ModelId::new("axon-4"));
         assert_eq!(mgr.model_switch_generation(), start + 1);
         // Another real change: another bump.
-        mgr.set_current_model_id(acp::ModelId::new("grok-3"));
+        mgr.set_current_model_id(acp::ModelId::new("axon-3"));
         assert_eq!(mgr.model_switch_generation(), start + 2);
     }
 
@@ -2233,8 +2233,8 @@ mod tests {
 
     #[test]
     fn current_reasoning_effort_seeded_from_config() {
-        let tmp = std::env::temp_dir().join("grok-test-models-manager-seed");
-        let auth_manager = Arc::new(AuthManager::new(&tmp, GrokComConfig::default()));
+        let tmp = std::env::temp_dir().join("axon-test-models-manager-seed");
+        let auth_manager = Arc::new(AuthManager::new(&tmp, AxonComConfig::default()));
         let mut cfg = config::Config::default();
         cfg.models.default_reasoning_effort = Some(ReasoningEffort::Xhigh);
         let mgr = ModelsManager::new(
@@ -2307,7 +2307,7 @@ mod tests {
         let mut prefetched = IndexMap::new();
         // 4.5-style: supports effort, menu is high only (no none).
         let mut no_none = ModelEntry {
-            info: config::ModelInfo::fallback("grok-4.5"),
+            info: config::ModelInfo::fallback("axon-4.5"),
             api_key: None,
             env_key: None,
             api_base_url: None,
@@ -2321,7 +2321,7 @@ mod tests {
             default: true,
         }];
         no_none.info.reasoning_effort = Some(ReasoningEffort::High);
-        prefetched.insert("grok-4.5".to_string(), no_none);
+        prefetched.insert("axon-4.5".to_string(), no_none);
 
         // Model that explicitly offers none.
         let mut with_none = ModelEntry {
@@ -2342,7 +2342,7 @@ mod tests {
 
         let catalog = resolve_model_catalog(&cfg, Some(prefetched));
         assert_eq!(
-            catalog["grok-4.5"].info.reasoning_effort,
+            catalog["axon-4.5"].info.reasoning_effort,
             Some(ReasoningEffort::High),
             "--effort none must not stamp onto models that do not offer none"
         );
@@ -2401,8 +2401,8 @@ mod tests {
         assert_eq!(catalog["plain"].info.reasoning_effort, None);
 
         // The internal getters read those derived fields.
-        let tmp = std::env::temp_dir().join("grok-test-models-manager-menu-only");
-        let auth_manager = Arc::new(AuthManager::new(&tmp, GrokComConfig::default()));
+        let tmp = std::env::temp_dir().join("axon-test-models-manager-menu-only");
+        let auth_manager = Arc::new(AuthManager::new(&tmp, AxonComConfig::default()));
         let mgr = ModelsManager::new(
             None,
             catalog,
@@ -2501,37 +2501,37 @@ mod tests {
     fn first_apply_refresh_reselects_default_model() {
         let mgr = test_manager();
         let mut cfg = config::Config::default();
-        cfg.models.default = Some("grok-3".to_string());
+        cfg.models.default = Some("axon-3".to_string());
 
         assert!(!mgr.has_fetched_real_catalog());
 
-        let prefetched = make_prefetched(&["grok-3", "grok-4"]);
+        let prefetched = make_prefetched(&["axon-3", "axon-4"]);
         mgr.apply_refresh_result(&cfg, Some(prefetched), None);
 
         assert!(mgr.has_fetched_real_catalog());
-        assert_eq!(mgr.current_model_id().0.as_ref(), "grok-3");
+        assert_eq!(mgr.current_model_id().0.as_ref(), "axon-3");
     }
 
     #[test]
     fn subsequent_apply_refresh_preserves_user_model() {
         let mgr = test_manager();
         let mut cfg = config::Config::default();
-        cfg.models.default = Some("grok-3".to_string());
+        cfg.models.default = Some("axon-3".to_string());
 
-        let prefetched = make_prefetched(&["grok-3", "grok-4"]);
+        let prefetched = make_prefetched(&["axon-3", "axon-4"]);
         mgr.apply_refresh_result(&cfg, Some(prefetched), None);
-        mgr.set_current_model_id(acp::ModelId::new("grok-4"));
+        mgr.set_current_model_id(acp::ModelId::new("axon-4"));
 
         // Simulate on_auth_changed clearing prefetched + etag.
         *mgr.inner.prefetched.write() = None;
         *mgr.inner.etag.write() = None;
 
-        let prefetched = make_prefetched(&["grok-3", "grok-4"]);
+        let prefetched = make_prefetched(&["axon-3", "axon-4"]);
         mgr.apply_refresh_result(&cfg, Some(prefetched), None);
 
         assert_eq!(
             mgr.current_model_id().0.as_ref(),
-            "grok-4",
+            "axon-4",
             "user's model selection must survive auth-change refresh"
         );
     }
@@ -2540,19 +2540,19 @@ mod tests {
     fn subsequent_refresh_reselects_when_model_removed() {
         let mgr = test_manager();
         let mut cfg = config::Config::default();
-        cfg.models.default = Some("grok-3".to_string());
+        cfg.models.default = Some("axon-3".to_string());
 
-        let prefetched = make_prefetched(&["grok-3", "grok-4"]);
+        let prefetched = make_prefetched(&["axon-3", "axon-4"]);
         mgr.apply_refresh_result(&cfg, Some(prefetched), None);
-        mgr.set_current_model_id(acp::ModelId::new("grok-4"));
+        mgr.set_current_model_id(acp::ModelId::new("axon-4"));
 
-        // Second refresh with grok-4 removed.
-        let prefetched = make_prefetched(&["grok-3", "grok-4.5"]);
+        // Second refresh with axon-4 removed.
+        let prefetched = make_prefetched(&["axon-3", "axon-4.5"]);
         mgr.apply_refresh_result(&cfg, Some(prefetched), None);
 
         assert_eq!(
             mgr.current_model_id().0.as_ref(),
-            "grok-3",
+            "axon-3",
             "should fall back to config default when current is removed"
         );
     }
@@ -2576,11 +2576,11 @@ mod tests {
     fn apply_config_honors_new_preferred_model() {
         let mgr = test_manager();
         let mut cfg = config::Config::default();
-        cfg.models.default = Some("grok-3".to_string());
+        cfg.models.default = Some("axon-3".to_string());
 
-        let prefetched = make_prefetched(&["grok-3", "grok-4"]);
+        let prefetched = make_prefetched(&["axon-3", "axon-4"]);
         mgr.apply_refresh_result(&cfg, Some(prefetched), None);
-        mgr.set_current_model_id(acp::ModelId::new("grok-4"));
+        mgr.set_current_model_id(acp::ModelId::new("axon-4"));
 
         // Simulate stale inner cfg (no default) from a racing auth refresh.
         let mut stale_cfg = config::Config::default();
@@ -2588,12 +2588,12 @@ mod tests {
         *mgr.inner.cfg.write() = stale_cfg;
 
         let mut new_cfg = config::Config::default();
-        new_cfg.models.default = Some("grok-3".to_string());
+        new_cfg.models.default = Some("axon-3".to_string());
         mgr.apply_config(new_cfg);
 
         assert_eq!(
             mgr.current_model_id().0.as_ref(),
-            "grok-3",
+            "axon-3",
             "apply_config must honor updated preferred model from config"
         );
     }
@@ -2603,10 +2603,10 @@ mod tests {
         let mgr = test_manager();
         let cfg = config::Config::default();
 
-        let prefetched = make_prefetched(&["grok-3", "grok-4"]);
+        let prefetched = make_prefetched(&["axon-3", "axon-4"]);
         mgr.apply_refresh_result(&cfg, Some(prefetched), None);
 
-        mgr.set_current_model_id(acp::ModelId::new("grok-4"));
+        mgr.set_current_model_id(acp::ModelId::new("axon-4"));
 
         // Unrelated config change — preferred model unchanged.
         let new_cfg = config::Config::default();
@@ -2614,7 +2614,7 @@ mod tests {
 
         assert_eq!(
             mgr.current_model_id().0.as_ref(),
-            "grok-4",
+            "axon-4",
             "apply_config must not reset model when preferred hasn't changed"
         );
     }
@@ -2623,16 +2623,16 @@ mod tests {
     fn apply_config_falls_back_when_preferred_not_in_catalog() {
         let mgr = test_manager();
         let mut cfg = config::Config::default();
-        cfg.models.default = Some("grok-3".to_string());
+        cfg.models.default = Some("axon-3".to_string());
 
-        let prefetched = make_prefetched(&["grok-3", "grok-4"]);
+        let prefetched = make_prefetched(&["axon-3", "axon-4"]);
         mgr.apply_refresh_result(&cfg, Some(prefetched), None);
 
-        mgr.set_current_model_id(acp::ModelId::new("grok-4"));
+        mgr.set_current_model_id(acp::ModelId::new("axon-4"));
 
         // Preferred model not in catalog — falls back to first entry.
         let mut new_cfg = config::Config::default();
-        new_cfg.models.default = Some("grok-nonexistent".to_string());
+        new_cfg.models.default = Some("axon-nonexistent".to_string());
         mgr.apply_config(new_cfg);
 
         let current = mgr.current_model_id();
@@ -2648,15 +2648,15 @@ mod tests {
     fn apply_config_both_none_preferred_preserves_current() {
         let mgr = test_manager();
         let cfg = config::Config::default();
-        let prefetched = make_prefetched(&["grok-3", "grok-4"]);
+        let prefetched = make_prefetched(&["axon-3", "axon-4"]);
         mgr.apply_refresh_result(&cfg, Some(prefetched), None);
-        mgr.set_current_model_id(acp::ModelId::new("grok-4"));
+        mgr.set_current_model_id(acp::ModelId::new("axon-4"));
         let new_cfg = config::Config::default();
         mgr.apply_config(new_cfg);
 
         assert_eq!(
             mgr.current_model_id().0.as_ref(),
-            "grok-4",
+            "axon-4",
             "both-None preferred must preserve user's runtime model"
         );
     }
@@ -2665,13 +2665,13 @@ mod tests {
     fn apply_config_old_some_new_none_preserves_current() {
         let mgr = test_manager();
         let mut cfg = config::Config::default();
-        cfg.models.default = Some("grok-3".to_string());
+        cfg.models.default = Some("axon-3".to_string());
 
-        let prefetched = make_prefetched(&["grok-3", "grok-4"]);
+        let prefetched = make_prefetched(&["axon-3", "axon-4"]);
         mgr.apply_refresh_result(&cfg, Some(prefetched), None);
-        assert_eq!(mgr.current_model_id().0.as_ref(), "grok-3");
+        assert_eq!(mgr.current_model_id().0.as_ref(), "axon-3");
 
-        mgr.set_current_model_id(acp::ModelId::new("grok-4"));
+        mgr.set_current_model_id(acp::ModelId::new("axon-4"));
 
         // [models] default removed — is_some() guard prevents reset.
         let new_cfg = config::Config::default();
@@ -2679,7 +2679,7 @@ mod tests {
 
         assert_eq!(
             mgr.current_model_id().0.as_ref(),
-            "grok-4",
+            "axon-4",
             "old=Some new=None must not reset model (is_some guard)"
         );
     }
@@ -2690,29 +2690,29 @@ mod tests {
     fn auth_refresh_then_config_reload_preserves_user_model() {
         let mgr = test_manager();
         let mut cfg = config::Config::default();
-        cfg.models.default = Some("grok-3".to_string());
+        cfg.models.default = Some("axon-3".to_string());
 
         // Initial fetch.
-        let prefetched = make_prefetched(&["grok-3", "grok-4"]);
+        let prefetched = make_prefetched(&["axon-3", "axon-4"]);
         mgr.apply_refresh_result(&cfg, Some(prefetched), None);
 
-        // User runs /model grok-4.
-        mgr.set_current_model_id(acp::ModelId::new("grok-4"));
+        // User runs /model axon-4.
+        mgr.set_current_model_id(acp::ModelId::new("axon-4"));
 
         // Auth refresh races — clears prefetched/etag.
         *mgr.inner.prefetched.write() = None;
         *mgr.inner.etag.write() = None;
 
         // Second fetch must preserve user's model.
-        let prefetched = make_prefetched(&["grok-3", "grok-4"]);
+        let prefetched = make_prefetched(&["axon-3", "axon-4"]);
         mgr.apply_refresh_result(&cfg, Some(prefetched), None);
-        assert_eq!(mgr.current_model_id().0.as_ref(), "grok-4");
+        assert_eq!(mgr.current_model_id().0.as_ref(), "axon-4");
 
         // Config reload with persisted preference.
         let mut new_cfg = config::Config::default();
-        new_cfg.models.default = Some("grok-4".to_string());
+        new_cfg.models.default = Some("axon-4".to_string());
         mgr.apply_config(new_cfg);
-        assert_eq!(mgr.current_model_id().0.as_ref(), "grok-4");
+        assert_eq!(mgr.current_model_id().0.as_ref(), "axon-4");
     }
 
     // ── disk-cache hot-reload (external models_cache.json writes) ────
@@ -2734,7 +2734,7 @@ mod tests {
 
         let auth_method = mgr.inner.fetch_auth.read().cache_auth_method();
         cache.persist(
-            &make_prefetched(&["grok-4.5", "grok-4.3"]),
+            &make_prefetched(&["axon-4.5", "axon-4.3"]),
             Some("etag-ext"),
             auth_method,
             &mgr.cache_origin(),
@@ -2743,8 +2743,8 @@ mod tests {
         mgr.reload_from_cache_manager(&cache);
 
         assert!(mgr.has_fetched_real_catalog());
-        assert!(mgr.models().contains_key("grok-4.5"));
-        assert!(mgr.models().contains_key("grok-4.3"));
+        assert!(mgr.models().contains_key("axon-4.5"));
+        assert!(mgr.models().contains_key("axon-4.3"));
         assert_eq!(mgr.inner.etag.read().as_deref(), Some("etag-ext"));
     }
 
@@ -2828,9 +2828,9 @@ mod tests {
     fn reload_from_disk_cache_skips_identical_catalog_and_adopts_etag() {
         let mgr = test_manager();
         let cfg = config::Config::default();
-        let prefetched = make_prefetched(&["grok-3", "grok-4"]);
+        let prefetched = make_prefetched(&["axon-3", "axon-4"]);
         mgr.apply_refresh_result(&cfg, Some(prefetched.clone()), Some("etag-a".into()));
-        mgr.set_current_model_id(acp::ModelId::new("grok-4"));
+        mgr.set_current_model_id(acp::ModelId::new("axon-4"));
 
         let tmp = tempfile::TempDir::new().unwrap();
         let cache = test_cache_manager(tmp.path());
@@ -2846,7 +2846,7 @@ mod tests {
 
         assert_eq!(
             mgr.current_model_id().0.as_ref(),
-            "grok-4",
+            "axon-4",
             "identical catalog must not disturb the user's model"
         );
         assert_eq!(
@@ -2867,17 +2867,17 @@ mod tests {
         let auth_method = mgr.inner.fetch_auth.read().cache_auth_method();
         let stale = ModelsCache {
             fetched_at: Utc::now() - ChronoDuration::seconds(3600),
-            grok_version: Some(axon_version::VERSION.to_string()),
+            axon_version: Some(axon_version::VERSION.to_string()),
             auth_method: Some(auth_method),
             origin: Some(mgr.cache_origin()),
             etag: Some("etag-stale".into()),
-            models: make_prefetched(&["grok-stale"]),
+            models: make_prefetched(&["axon-stale"]),
         };
         cache.atomic_write(&stale);
 
         mgr.reload_from_cache_manager(&cache);
 
-        assert!(!mgr.models().contains_key("grok-stale"));
+        assert!(!mgr.models().contains_key("axon-stale"));
         assert!(mgr.inner.etag.read().is_none());
     }
 
@@ -2896,7 +2896,7 @@ mod tests {
             CacheAuthMethod::Session
         };
         cache.persist(
-            &make_prefetched(&["grok-other-auth"]),
+            &make_prefetched(&["axon-other-auth"]),
             Some("etag-x"),
             other,
             &mgr.cache_origin(),
@@ -2904,7 +2904,7 @@ mod tests {
 
         mgr.reload_from_cache_manager(&cache);
 
-        assert!(!mgr.models().contains_key("grok-other-auth"));
+        assert!(!mgr.models().contains_key("axon-other-auth"));
     }
 
     /// A cache persisted by a process pointed at a *different backend* (env
@@ -2920,7 +2920,7 @@ mod tests {
         let cache = test_cache_manager(tmp.path());
         let auth_method = mgr.inner.fetch_auth.read().cache_auth_method();
         cache.persist(
-            &make_prefetched(&["grok-other-origin"]),
+            &make_prefetched(&["axon-other-origin"]),
             Some("etag-y"),
             auth_method,
             "http://127.0.0.1:49953/v1/models",
@@ -2928,7 +2928,7 @@ mod tests {
 
         mgr.reload_from_cache_manager(&cache);
 
-        assert!(!mgr.models().contains_key("grok-other-origin"));
+        assert!(!mgr.models().contains_key("axon-other-origin"));
         assert!(mgr.inner.etag.read().is_none());
     }
 
@@ -2943,17 +2943,17 @@ mod tests {
         let auth_method = mgr.inner.fetch_auth.read().cache_auth_method();
         let legacy = ModelsCache {
             fetched_at: Utc::now(),
-            grok_version: Some(axon_version::VERSION.to_string()),
+            axon_version: Some(axon_version::VERSION.to_string()),
             auth_method: Some(auth_method),
             origin: None,
             etag: Some("etag-legacy".into()),
-            models: make_prefetched(&["grok-legacy"]),
+            models: make_prefetched(&["axon-legacy"]),
         };
         cache.atomic_write(&legacy);
 
         mgr.reload_from_cache_manager(&cache);
 
-        assert!(!mgr.models().contains_key("grok-legacy"));
+        assert!(!mgr.models().contains_key("axon-legacy"));
     }
 
     // ── clear() resets has_fetched_real_catalog ──────────────────────
@@ -2962,9 +2962,9 @@ mod tests {
     fn clear_resets_has_fetched_real_catalog() {
         let mgr = test_manager();
         let mut cfg = config::Config::default();
-        cfg.models.default = Some("grok-3".to_string());
+        cfg.models.default = Some("axon-3".to_string());
 
-        let prefetched = make_prefetched(&["grok-3", "grok-4"]);
+        let prefetched = make_prefetched(&["axon-3", "axon-4"]);
         mgr.apply_refresh_result(&cfg, Some(prefetched), None);
         assert!(mgr.has_fetched_real_catalog());
 
@@ -2972,7 +2972,7 @@ mod tests {
         assert!(!mgr.has_fetched_real_catalog());
 
         // New identity fetch — resolves default via reselect_default_model.
-        let prefetched = make_prefetched(&["grok-4.5", "grok-4.3"]);
+        let prefetched = make_prefetched(&["axon-4.5", "axon-4.3"]);
         mgr.apply_refresh_result(&cfg, Some(prefetched), None);
         let first_available = mgr.available().keys().next().unwrap().clone();
         assert_eq!(
@@ -3119,7 +3119,7 @@ mod tests {
     #[test]
     #[serial]
     fn resolve_custom_endpoint_always_wins() {
-        let _key = EnvGuard::set("XAI_API_KEY", "test-key");
+        let _key = EnvGuard::set("AXON_API_KEY", "test-key");
         let endpoints = config::EndpointsConfig {
             models_base_url: Some("https://custom.example.com".to_owned()),
             ..config::EndpointsConfig::default()
@@ -3137,7 +3137,7 @@ mod tests {
     #[test]
     #[serial]
     fn resolve_cached_session_wins_over_api_key() {
-        let _key = EnvGuard::set("XAI_API_KEY", "test-key");
+        let _key = EnvGuard::set("AXON_API_KEY", "test-key");
         let endpoints = config::EndpointsConfig::default();
         assert_eq!(
             ModelFetchAuth::resolve(&endpoints, true),
@@ -3149,7 +3149,7 @@ mod tests {
     #[test]
     #[serial]
     fn resolve_api_key_used_when_no_session() {
-        let _key = EnvGuard::set("XAI_API_KEY", "test-key");
+        let _key = EnvGuard::set("AXON_API_KEY", "test-key");
         let endpoints = config::EndpointsConfig::default();
         assert_eq!(
             ModelFetchAuth::resolve(&endpoints, false),
@@ -3161,8 +3161,8 @@ mod tests {
     #[test]
     #[serial]
     fn resolve_falls_back_to_session_when_nothing_set() {
-        let _unset = EnvGuard::unset("XAI_API_KEY");
-        let _unset_legacy = EnvGuard::unset("AXON_CODE_XAI_API_KEY");
+        let _unset = EnvGuard::unset("AXON_API_KEY");
+        let _unset_legacy = EnvGuard::unset("AXON_CODE_AXON_API_KEY");
         let endpoints = config::EndpointsConfig::default();
         assert_eq!(
             ModelFetchAuth::resolve(&endpoints, false),
@@ -3174,8 +3174,8 @@ mod tests {
     #[test]
     #[serial]
     fn resolve_deployment_key_when_no_session_or_api_key() {
-        let _unset = EnvGuard::unset("XAI_API_KEY");
-        let _unset_legacy = EnvGuard::unset("AXON_CODE_XAI_API_KEY");
+        let _unset = EnvGuard::unset("AXON_API_KEY");
+        let _unset_legacy = EnvGuard::unset("AXON_CODE_AXON_API_KEY");
         let endpoints = config::EndpointsConfig {
             deployment_key: Some("deploy-key".to_owned()),
             ..config::EndpointsConfig::default()
@@ -3186,11 +3186,11 @@ mod tests {
         );
     }
 
-    /// `deployment_key` outranks a stray `XAI_API_KEY`, but session wins over both.
+    /// `deployment_key` outranks a stray `AXON_API_KEY`, but session wins over both.
     #[test]
     #[serial]
     fn resolve_deployment_key_outranks_ambient_api_key() {
-        let _key = EnvGuard::set("XAI_API_KEY", "stray-env-key");
+        let _key = EnvGuard::set("AXON_API_KEY", "stray-env-key");
         let endpoints = config::EndpointsConfig {
             deployment_key: Some("deploy-key".to_owned()),
             ..config::EndpointsConfig::default()
@@ -3198,7 +3198,7 @@ mod tests {
         assert_eq!(
             ModelFetchAuth::resolve(&endpoints, false),
             ModelFetchAuth::Deployment,
-            "managed deployment_key should outrank an ambient XAI_API_KEY",
+            "managed deployment_key should outrank an ambient AXON_API_KEY",
         );
         assert_eq!(
             ModelFetchAuth::resolve(&endpoints, true),
@@ -3210,12 +3210,12 @@ mod tests {
     // ── remote_fetch gate: resolve_prefetch_env_from_parts ───────────
 
     /// remote_fetch=false must return `None` against every re-arming shape at
-    /// once — session auth, ambient `XAI_API_KEY`, `deployment_key`, AND a
+    /// once — session auth, ambient `AXON_API_KEY`, `deployment_key`, AND a
     /// custom models endpoint (which normally forces the prefetch to run).
     #[test]
     #[serial]
     fn prefetch_env_none_when_remote_fetch_disabled_despite_credentials() {
-        let _key = EnvGuard::set("XAI_API_KEY", "stray-env-key");
+        let _key = EnvGuard::set("AXON_API_KEY", "stray-env-key");
         let endpoints = config::EndpointsConfig {
             deployment_key: Some("deploy-key".to_owned()),
             models_base_url: Some("https://custom.example.com".to_owned()),
@@ -3223,7 +3223,7 @@ mod tests {
         };
         assert!(
             resolve_prefetch_env_from_parts(
-                Some(GrokAuth::test_default()),
+                Some(AxonAuth::test_default()),
                 endpoints.clone(),
                 false,
             )
@@ -3241,8 +3241,8 @@ mod tests {
     #[test]
     #[serial]
     fn prefetch_env_resolves_when_remote_fetch_enabled() {
-        let _unset = EnvGuard::unset("XAI_API_KEY");
-        let _unset_legacy = EnvGuard::unset("AXON_CODE_XAI_API_KEY");
+        let _unset = EnvGuard::unset("AXON_API_KEY");
+        let _unset_legacy = EnvGuard::unset("AXON_CODE_AXON_API_KEY");
         let endpoints = config::EndpointsConfig {
             deployment_key: Some("deploy-key".to_owned()),
             ..config::EndpointsConfig::default()
@@ -3397,25 +3397,25 @@ mod tests {
     #[test]
     fn build_prefetched_map_distinct_ids_same_slug() {
         let entries = vec![
-            make_entry_config_with_id(Some("auto"), "grok-build", Some("Auto")),
-            make_entry_config_with_id(Some("grok-build"), "grok-build", Some("Grok Build")),
+            make_entry_config_with_id(Some("auto"), "axon-build", Some("Auto")),
+            make_entry_config_with_id(Some("axon-build"), "axon-build", Some("Axon Build")),
             make_entry_config_with_id(
-                Some("grok-composer-2.5-fast"),
-                "grok-composer-2.5-fast",
-                Some("Grok Fast"),
+                Some("axon-composer-2.5-fast"),
+                "axon-composer-2.5-fast",
+                Some("Axon Fast"),
             ),
         ];
         let map = build_prefetched_map(entries, None);
 
         assert_eq!(map.len(), 3, "all three entries should survive");
         assert!(map.contains_key("auto"));
-        assert!(map.contains_key("grok-build"));
-        assert!(map.contains_key("grok-composer-2.5-fast"));
+        assert!(map.contains_key("axon-build"));
+        assert!(map.contains_key("axon-composer-2.5-fast"));
         assert_eq!(
-            map["auto"].info.model, "grok-build",
-            "auto entry should still route to grok-build"
+            map["auto"].info.model, "axon-build",
+            "auto entry should still route to axon-build"
         );
-        assert_eq!(map["grok-build"].info.model, "grok-build");
+        assert_eq!(map["axon-build"].info.model, "axon-build");
     }
 
     /// No id field — falls back to model slug as key.
@@ -3436,13 +3436,13 @@ mod tests {
     #[test]
     fn build_prefetched_map_duplicate_id_overwrites() {
         let entries = vec![
-            make_entry_config_with_id(Some("grok-build"), "grok-build", Some("First")),
-            make_entry_config_with_id(Some("grok-build"), "grok-build", Some("Second")),
+            make_entry_config_with_id(Some("axon-build"), "axon-build", Some("First")),
+            make_entry_config_with_id(Some("axon-build"), "axon-build", Some("Second")),
         ];
         let map = build_prefetched_map(entries, None);
 
         assert_eq!(map.len(), 1, "duplicate id: second overwrites first");
-        assert_eq!(map["grok-build"].info.name.as_deref(), Some("Second"));
+        assert_eq!(map["axon-build"].info.name.as_deref(), Some("Second"));
     }
 
     /// Regression: resolve_default_model must match by id before scanning
@@ -3452,16 +3452,16 @@ mod tests {
     fn resolve_default_model_prefers_id_over_model_slug() {
         let mut catalog: IndexMap<String, ModelEntry> = IndexMap::new();
         catalog.insert(
-            "auto-grok-build".to_string(),
-            make_model_entry("grok-build"),
+            "auto-axon-build".to_string(),
+            make_model_entry("axon-build"),
         );
-        catalog.insert("grok-build".to_string(), make_model_entry("grok-build"));
+        catalog.insert("axon-build".to_string(), make_model_entry("axon-build"));
 
         let mut cfg = config::Config::default();
-        cfg.models.default = Some("grok-build".to_string());
+        cfg.models.default = Some("axon-build".to_string());
 
         let (key, _, _) = resolve_default_model(&cfg, &catalog, true);
-        assert_eq!(key, "grok-build", "must match id, not first slug hit");
+        assert_eq!(key, "axon-build", "must match id, not first slug hit");
     }
 
     /// No id field — falls back to slug as key.
@@ -3469,13 +3469,13 @@ mod tests {
     fn build_prefetched_map_none_id_falls_back_to_slug() {
         let entries = vec![make_entry_config_with_id(
             None,
-            "grok-build",
-            Some("Grok Build"),
+            "axon-build",
+            Some("Axon Build"),
         )];
         let map = build_prefetched_map(entries, None);
 
         assert_eq!(map.len(), 1);
-        assert!(map.contains_key("grok-build"));
+        assert!(map.contains_key("axon-build"));
     }
 
     // ── persisted model id → catalog key (session resume) ─────────────
@@ -3484,93 +3484,93 @@ mod tests {
     fn resolve_catalog_key_maps_routing_slug_to_config_key() {
         let mut models = IndexMap::new();
         models.insert(
-            "enterprise-grok-build".to_string(),
-            make_model_entry("grok-4.5"),
+            "enterprise-axon-build".to_string(),
+            make_model_entry("axon-4.5"),
         );
-        models.insert("grok-4.3".to_string(), make_model_entry("grok-4.3"));
+        models.insert("axon-4.3".to_string(), make_model_entry("axon-4.3"));
 
-        let persisted = acp::ModelId::new("grok-4.5");
+        let persisted = acp::ModelId::new("axon-4.5");
         let key = resolve_catalog_key(&models, &persisted).expect("slug must resolve");
-        assert_eq!(key.0.as_ref(), "enterprise-grok-build");
+        assert_eq!(key.0.as_ref(), "enterprise-axon-build");
     }
 
     #[test]
     fn resolve_catalog_key_prefers_exact_key_match() {
         let mut models = IndexMap::new();
-        models.insert("grok-4.5".to_string(), make_model_entry("grok-4.5"));
+        models.insert("axon-4.5".to_string(), make_model_entry("axon-4.5"));
 
-        let persisted = acp::ModelId::new("grok-4.5");
+        let persisted = acp::ModelId::new("axon-4.5");
         let key = resolve_catalog_key(&models, &persisted).expect("exact key must resolve");
-        assert_eq!(key.0.as_ref(), "grok-4.5");
+        assert_eq!(key.0.as_ref(), "axon-4.5");
     }
 
     #[test]
     fn resolve_catalog_key_last_slug_match_wins() {
         let mut models = IndexMap::new();
         models.insert(
-            "default-grok-build".to_string(),
-            make_model_entry("grok-4.5"),
+            "default-axon-build".to_string(),
+            make_model_entry("axon-4.5"),
         );
-        models.insert("user-grok-build".to_string(), make_model_entry("grok-4.5"));
+        models.insert("user-axon-build".to_string(), make_model_entry("axon-4.5"));
 
-        let persisted = acp::ModelId::new("grok-4.5");
+        let persisted = acp::ModelId::new("axon-4.5");
         let key = resolve_catalog_key(&models, &persisted).expect("slug must resolve");
-        assert_eq!(key.0.as_ref(), "user-grok-build");
+        assert_eq!(key.0.as_ref(), "user-axon-build");
     }
 
     #[test]
     fn selectable_catalog_key_for_persisted_none_when_resolved_not_available() {
         let mut models = IndexMap::new();
         models.insert(
-            "enterprise-grok-build".to_string(),
-            make_model_entry("grok-4.5"),
+            "enterprise-axon-build".to_string(),
+            make_model_entry("axon-4.5"),
         );
 
         let available: IndexMap<_, _> = IndexMap::new();
-        let persisted = acp::ModelId::new("grok-4.5");
+        let persisted = acp::ModelId::new("axon-4.5");
         assert!(selectable_catalog_key_for_persisted(&models, &available, &persisted).is_none());
     }
 
     #[test]
     fn selectable_prefers_available_identity_over_non_selectable_exact_key() {
         let mut models = IndexMap::new();
-        models.insert("grok-build".to_string(), make_model_entry("grok-build"));
+        models.insert("axon-build".to_string(), make_model_entry("axon-build"));
         models.insert(
-            "enterprise-grok-build".to_string(),
-            make_model_entry("grok-build"),
+            "enterprise-axon-build".to_string(),
+            make_model_entry("axon-build"),
         );
-        models.insert("grok-4.3".to_string(), make_model_entry("grok-4.3"));
+        models.insert("axon-4.3".to_string(), make_model_entry("axon-4.3"));
 
-        let available = test_available_keys(&["enterprise-grok-build", "grok-4.3"]);
+        let available = test_available_keys(&["enterprise-axon-build", "axon-4.3"]);
 
-        let persisted = acp::ModelId::new("grok-build");
+        let persisted = acp::ModelId::new("axon-build");
         assert_eq!(
             resolve_catalog_key(&models, &persisted)
                 .expect("exact key exists")
                 .0
                 .as_ref(),
-            "grok-build"
+            "axon-build"
         );
         let key = selectable_catalog_key_for_persisted(&models, &available, &persisted)
             .expect("must resolve to selectable section");
-        assert_eq!(key.0.as_ref(), "enterprise-grok-build");
+        assert_eq!(key.0.as_ref(), "enterprise-axon-build");
     }
 
     #[test]
     fn selectable_matches_routing_slug_when_no_exact_key() {
         let mut models = IndexMap::new();
         models.insert(
-            "enterprise-grok-build".to_string(),
-            make_model_entry("grok-build"),
+            "enterprise-axon-build".to_string(),
+            make_model_entry("axon-build"),
         );
-        models.insert("grok-4.3".to_string(), make_model_entry("grok-4.3"));
+        models.insert("axon-4.3".to_string(), make_model_entry("axon-4.3"));
 
-        let available = test_available_keys(&["enterprise-grok-build", "grok-4.3"]);
+        let available = test_available_keys(&["enterprise-axon-build", "axon-4.3"]);
 
-        let persisted = acp::ModelId::new("grok-build");
+        let persisted = acp::ModelId::new("axon-build");
         let key = selectable_catalog_key_for_persisted(&models, &available, &persisted)
             .expect("slug must resolve to selectable key");
-        assert_eq!(key.0.as_ref(), "enterprise-grok-build");
+        assert_eq!(key.0.as_ref(), "enterprise-axon-build");
     }
 
     /// A persisted *selectable* catalog key binds to itself even when a later
@@ -3578,15 +3578,15 @@ mod tests {
     #[test]
     fn selectable_prefers_exact_key_over_later_slug_match() {
         let mut models = IndexMap::new();
-        models.insert("grok-build".to_string(), make_model_entry("grok-4.5"));
-        models.insert("other".to_string(), make_model_entry("grok-build"));
+        models.insert("axon-build".to_string(), make_model_entry("axon-4.5"));
+        models.insert("other".to_string(), make_model_entry("axon-build"));
 
-        let available = test_available_keys(&["grok-build", "other"]);
+        let available = test_available_keys(&["axon-build", "other"]);
 
-        let persisted = acp::ModelId::new("grok-build");
+        let persisted = acp::ModelId::new("axon-build");
         let key = selectable_catalog_key_for_persisted(&models, &available, &persisted)
             .expect("exact selectable key must win");
-        assert_eq!(key.0.as_ref(), "grok-build");
+        assert_eq!(key.0.as_ref(), "axon-build");
     }
 
     fn test_available_keys(keys: &[&str]) -> IndexMap<acp::ModelId, acp::ModelInfo> {

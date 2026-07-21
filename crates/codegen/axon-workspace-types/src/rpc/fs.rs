@@ -1,6 +1,6 @@
 //! File I/O methods: service-level `workspace.put_files` /
 //! `workspace.get_files` and the `workspace.fs_*` extension ops backing
-//! the shell's `x.ai/fs/*` ACP methods.
+//! the shell's `axon/fs/*` ACP methods.
 
 use std::path::PathBuf;
 
@@ -312,11 +312,11 @@ impl WorkspaceRpc for FsDeleteFileReq {
 // epoch milliseconds (not RFC 3339 strings), `client_fs_list` paginates
 // with a post-sort `offset`, and reads are binary-safe (base64 chunks).
 // camelCase wire format with fixed-width integers only, so both the
-// workspace server (`axon-workspace`) and the grok.com backend
+// workspace server (`axon-workspace`) and the blocked.invalid backend
 // compile against the same structs — a field rename breaks both sides.
 //
 // The method names use a `client_fs` segment (not `fs`) because the
-// `workspace.fs_*` ops above already serve the shell's `x.ai/fs/*`
+// `workspace.fs_*` ops above already serve the shell's `axon/fs/*`
 // methods with incompatible schemas.
 
 /// Wire method name for [`ClientFsListReq`].
@@ -326,7 +326,7 @@ pub const CLIENT_FS_STAT_METHOD: &str = "workspace.client_fs_stat";
 /// Wire method name for [`ClientFsReadFileReq`].
 pub const CLIENT_FS_READ_FILE_METHOD: &str = "workspace.client_fs_read_file";
 
-/// Filesystem node kind. Wire values match the shell's `x.ai/fs/list`
+/// Filesystem node kind. Wire values match the shell's `axon/fs/list`
 /// node `type` strings.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -370,7 +370,7 @@ fn default_max_bytes() -> u64 {
 }
 
 /// ACP-compatible list request (camelCase wire format, mirrors
-/// `x.ai/fs/list` plus `offset` pagination).
+/// `axon/fs/list` plus `offset` pagination).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ClientFsListReq {

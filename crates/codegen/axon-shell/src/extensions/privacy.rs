@@ -1,4 +1,4 @@
-//! `x.ai/privacy/setCodingDataRetention` extension handler.
+//! `axon/privacy/setCodingDataRetention` extension handler.
 //!
 //! PUTs the new opt-out flag to cli-chat-proxy and updates local auth state
 //! to match. The local update is fire-and-forget (best-effort cache refresh).
@@ -12,7 +12,7 @@ use crate::agent::MvpAgent;
 #[tracing::instrument(skip_all, fields(method = %args.method))]
 pub async fn handle(agent: &MvpAgent, args: &acp::ExtRequest) -> ExtResult {
     match args.method.as_ref() {
-        "x.ai/privacy/setCodingDataRetention" => handle_set(agent, args).await,
+        "axon/privacy/setCodingDataRetention" => handle_set(agent, args).await,
         _ => Err(acp::Error::method_not_found()),
     }
 }
@@ -34,7 +34,7 @@ async fn handle_set(agent: &MvpAgent, args: &acp::ExtRequest) -> ExtResult {
 
     let proxy_url = agent.cfg.borrow().endpoints.proxy_url();
     let url = format!("{proxy_url}/privacy/coding-data-retention");
-    let token_header = agent.auth_manager.grok_com_config().token_header.clone();
+    let token_header = agent.auth_manager.axon_com_config().token_header.clone();
 
     let body = serde_json::json!({
         "codingDataRetentionOptOut": params.coding_data_retention_opt_out,
@@ -51,8 +51,8 @@ async fn handle_set(agent: &MvpAgent, args: &acp::ExtRequest) -> ExtResult {
 
     let resp = client
         .put(&url)
-        .header("X-XAI-Token-Auth", &token_header)
-        .header("x-grok-client-version", axon_version::VERSION)
+        .header("X-AXON-Token-Auth", &token_header)
+        .header("x-axon-client-version", axon_version::VERSION)
         .header(
             crate::http::CLIENT_MODE_HEADER,
             crate::http::process_client_mode(),

@@ -43,7 +43,7 @@ impl MvpAgent {
         let (disable_api_key_auth, alpha_test_key, client_version) = {
             let cfg = self.cfg.borrow();
             (
-                cfg.grok_com_config.api_key_auth_disabled(),
+                cfg.axon_com_config.api_key_auth_disabled(),
                 cfg.endpoints.alpha_test_key.clone(),
                 cfg.client_version.clone(),
             )
@@ -76,7 +76,7 @@ impl MvpAgent {
     }
     fn has_proxy_credentials(&self) -> bool {
         self.cfg.borrow().endpoints.deployment_key.is_some()
-            || self.auth_manager.current_or_expired().is_some_and(|a| a.is_xai_auth())
+            || self.auth_manager.current_or_expired().is_some_and(|a| a.is_axon_auth())
     }
     /// `true` for session-based ACP auth methods.
     fn is_session_based_auth(&self) -> bool {
@@ -93,7 +93,7 @@ impl MvpAgent {
     /// Publish model-owned credentials for voice/tools static fallthrough.
     /// Only [`ModelEntry::own_credential`] — not `sampling_config.api_key` (may be a session JWT).
     pub(crate) fn sync_process_static_api_key(&self, preferred_model_id: Option<&str>) {
-        if self.cfg.borrow().grok_com_config.api_key_auth_disabled() {
+        if self.cfg.borrow().axon_com_config.api_key_auth_disabled() {
             self.auth_manager.set_process_static_api_key(None);
             return;
         }
@@ -105,7 +105,7 @@ impl MvpAgent {
             );
     }
     /// Return auth for sync config construction.
-    pub(super) fn current_or_buffered_auth(&self) -> Option<crate::auth::GrokAuth> {
+    pub(super) fn current_or_buffered_auth(&self) -> Option<crate::auth::AxonAuth> {
         self.auth_manager
             .current()
             .or_else(|| {
@@ -129,7 +129,7 @@ impl MvpAgent {
             .current_or_expired()
             .is_some_and(|a| a.is_managed_mcp_eligible())
     }
-    /// Requires feature flag AND xAI authentication (OIDC or legacy WebLogin).
+    /// Requires feature flag AND Axon authentication (OIDC or legacy WebLogin).
     pub(super) fn can_fetch_managed_mcps(&self) -> bool {
         let cfg = self.cfg.borrow();
         cfg.managed_mcps_enabled && !cfg.managed_mcp_gateway_tools_enabled
@@ -265,7 +265,7 @@ impl MvpAgent {
     }
     /// Resolve folder trust and load launch-dir MCP configs after `initialize`
     /// returns. The walks are synchronous and expensive in large monorepos; they
-    /// must not block the ACP response (grok-desktop sends `initialize` immediately).
+    /// must not block the ACP response (axon-desktop sends `initialize` immediately).
     pub(super) fn spawn_initialize_launch_mcp_setup(&self, fetch_managed_mcps: bool) {
         let cwd = self.launch_cwd.clone();
         let compat = self.cfg.borrow().compat_resolved;
@@ -329,7 +329,7 @@ impl MvpAgent {
     /// Build the launch-dir plugin registry snapshot on first use.
     ///
     /// Boot-time discovery was deferred past ACP `initialize` (the cwd→git-root
-    /// plus user/marketplace walks stalled grok-desktop's first `initialize`),
+    /// plus user/marketplace walks stalled axon-desktop's first `initialize`),
     /// leaving `plugin_registry_handle` empty. That shared snapshot still backs
     /// the launch-dir plugin MCP/LSP merges read in `resolve_mcp_servers` and
     /// the session LSP build, so populate it lazily — off the `initialize`
@@ -427,7 +427,7 @@ impl MvpAgent {
         let user_token = self
             .auth_manager
             .current_or_expired()
-            .filter(|a| a.is_xai_auth())
+            .filter(|a| a.is_axon_auth())
             .map(|a| a.key.clone());
         let cfg = self.cfg.borrow();
         let base_url = cfg.endpoints.resolve_feedback_base_url();
@@ -444,7 +444,7 @@ impl MvpAgent {
                 .auth_manager
                 .current()
                 .filter(|a| {
-                    a.is_xai_auth() || a.auth_mode == crate::auth::AuthMode::ApiKey
+                    a.is_axon_auth() || a.auth_mode == crate::auth::AuthMode::ApiKey
                 }) else {
                 return;
             };
@@ -455,7 +455,7 @@ impl MvpAgent {
                     .and_then(|rs| rs.subscription_tier_display.clone()),
                 Some(&auth),
             );
-            let (user_id, team_id) = if auth.is_xai_auth() {
+            let (user_id, team_id) = if auth.is_axon_auth() {
                 (Some(auth.user_id), auth.team_id)
             } else {
                 (None, auth.team_id)
@@ -492,7 +492,7 @@ impl MvpAgent {
             return None;
         }
         let auth = self.auth_manager.current_or_expired()?;
-        if !auth.is_xai_auth() {
+        if !auth.is_axon_auth() {
             return None;
         }
         let key = auth.key.clone();
@@ -533,7 +533,7 @@ impl MvpAgent {
     }
     /// Pre-session command availability snapshot.
     ///
-    /// Used by the `x.ai/commands/list` ext method and the
+    /// Used by the `axon/commands/list` ext method and the
     /// `InitializeResponse._meta` path (`builtin_commands()`), both of
     /// which fire before any session exists. The eventual agent's toolset
     /// is unknown (depends on the model the user picks), so we fail-closed
@@ -587,8 +587,8 @@ impl MvpAgent {
     pub(crate) fn session_turn_number(&self, sid: &acp::SessionId) -> Option<u64> {
         self.session_turn_numbers.borrow().get(sid).copied()
     }
-    /// Return the current GrokAuth credentials, if authenticated and not expired.
-    pub(crate) fn current_auth(&self) -> Option<crate::auth::GrokAuth> {
+    /// Return the current AxonAuth credentials, if authenticated and not expired.
+    pub(crate) fn current_auth(&self) -> Option<crate::auth::AxonAuth> {
         self.auth_manager.current()
     }
     /// Shared plugin registry handle used by extensions for snapshot/reload.
@@ -613,7 +613,7 @@ impl MvpAgent {
     ///
     /// Deferred past ACP wiring so `initialize` can respond before folder-trust
     /// scans and `WorkspaceHandle::new_minimal` run (same boot stall as plugin
-    /// discovery on grok-desktop Windows).
+    /// discovery on axon-desktop Windows).
     fn ensure_local_workspace_ops(
         &self,
     ) -> Result<axon_workspace::WorkspaceOps, acp::Error> {
@@ -688,10 +688,10 @@ impl MvpAgent {
     /// Returns `SessionToken` when EITHER:
     ///   - `auth_manager` currently has a live (non-expired) credential, OR
     ///   - the active auth method is session-based (`cached_token`,
-    ///     `grok.com`, `oidc`) -- even if the in-memory token is currently
+    ///     `blocked.invalid`, `oidc`) -- even if the in-memory token is currently
     ///     expired or missing.
     ///
-    /// Returns `ApiKey` only when the auth method is BYOK (`xai.api_key`) or
+    /// Returns `ApiKey` only when the auth method is BYOK (`axon.api_key`) or
     ///   no auth method has been selected yet AND no live credential exists.
     ///
     /// The session-based clause is load-bearing: without it, chat_state can get
@@ -703,16 +703,16 @@ impl MvpAgent {
             axon_chat_state::AuthType::ApiKey
         }
     }
-    /// When `cached_token` cannot proceed, prefer non-interactive `xai.api_key`
-    /// iff `should_advertise_xai_api_key`; otherwise `grok.com`. Returns `None`
+    /// When `cached_token` cannot proceed, prefer non-interactive `axon.api_key`
+    /// iff `should_advertise_axon_api_key`; otherwise `blocked.invalid`. Returns `None`
     /// when `preferred_method` is pinned (fail-closed — no cross-method fallthrough).
     pub(super) fn cached_token_fallthrough_method_id(
         &self,
     ) -> Option<acp::AuthMethodId> {
-        let preferred = self.cfg.borrow().grok_com_config.preferred_method;
+        let preferred = self.cfg.borrow().axon_com_config.preferred_method;
         let id = auth_method::method_id_after_cached_token_unavailable(
-            auth_method::should_advertise_xai_api_key(
-                self.cfg.borrow().grok_com_config.api_key_auth_disabled(),
+            auth_method::should_advertise_axon_api_key(
+                self.cfg.borrow().axon_com_config.api_key_auth_disabled(),
                 self.models_manager.models().values(),
             ),
             preferred,
@@ -720,14 +720,14 @@ impl MvpAgent {
         Some(acp::AuthMethodId::new(id))
     }
     /// Shared exit for missing/expired/legacy `cached_token`: fall through with
-    /// `use_oauth` only when the target is interactive `grok.com`. When
+    /// `use_oauth` only when the target is interactive `blocked.invalid`. When
     /// `preferred_method` is pinned, fail instead of falling through.
     pub(super) async fn authenticate_after_cached_token_unavailable(
         &self,
         arguments: acp::AuthenticateRequest,
     ) -> Result<AuthenticateResponse, acp::Error> {
         let Some(method_id) = self.cached_token_fallthrough_method_id() else {
-            let preferred = self.cfg.borrow().grok_com_config.preferred_method;
+            let preferred = self.cfg.borrow().axon_com_config.preferred_method;
             let msg = match preferred {
                 Some(crate::auth::PreferredAuthMethod::ApiKey) => {
                     auth_method::PREFERRED_API_KEY_UNAVAILABLE
@@ -784,12 +784,12 @@ impl MvpAgent {
     /// Agent-level fields materialised at startup (`worktree_type`,
     /// `restore_code`) are NOT re-resolved here; that requires a
     /// broader refactor of the init path.
-    pub(super) async fn refresh_remote_settings(&self, auth: &crate::auth::GrokAuth) {
+    pub(super) async fn refresh_remote_settings(&self, auth: &crate::auth::AxonAuth) {
         if !crate::util::config::resolve_remote_fetch_enabled() {
             tracing::debug!("post-auth settings refresh skipped: remote_fetch disabled");
             return;
         }
-        let is_xai = auth.is_xai_auth();
+        let is_axon = auth.is_axon_auth();
         let user_id = auth.user_id.clone();
         let team_id = auth.team_id.clone();
         let Some(settings) = self.fetch_remote_settings(auth.clone()).await else {
@@ -800,8 +800,8 @@ impl MvpAgent {
         let (
             telemetry_config,
             telemetry_mode,
-            grok_user_id,
-            grok_team_id,
+            axon_user_id,
+            axon_team_id,
             deployment_key,
             subscription_tier,
         ) = {
@@ -817,8 +817,8 @@ impl MvpAgent {
                 telemetry = % telemetry_mode, trace_upload = % trace_upload,
                 "post-auth data capture config re-resolved",
             );
-            let grok_user_id = is_xai.then(|| user_id.clone());
-            let grok_team_id = is_xai.then(|| team_id.clone()).flatten();
+            let axon_user_id = is_axon.then(|| user_id.clone());
+            let axon_team_id = is_axon.then(|| team_id.clone()).flatten();
             let telemetry_config = cfg.telemetry.clone();
             let deployment_key = cfg.endpoints.deployment_key.clone();
             let subscription_tier_display = cfg
@@ -828,8 +828,8 @@ impl MvpAgent {
             (
                 telemetry_config,
                 telemetry_mode.value,
-                grok_user_id,
-                grok_team_id,
+                axon_user_id,
+                axon_team_id,
                 deployment_key,
                 subscription_tier_display,
             )
@@ -842,8 +842,8 @@ impl MvpAgent {
         axon_telemetry::client::init(
             telemetry_config,
             telemetry_mode,
-            grok_user_id,
-            grok_team_id,
+            axon_user_id,
+            axon_team_id,
             deployment_key,
             self.origin_client_info_from_meta(None),
             axon_version::VERSION.to_owned(),
@@ -864,7 +864,7 @@ impl MvpAgent {
     /// In-flight sessions are unaffected — they snapshot config at creation.
     pub(super) async fn refresh_settings_and_reapply(
         &self,
-        auth: &crate::auth::GrokAuth,
+        auth: &crate::auth::AxonAuth,
     ) {
         self.refresh_remote_settings(auth).await;
         {
@@ -966,7 +966,7 @@ impl MvpAgent {
         stored.announcements = fresh.announcements;
     }
     /// The single announcements push gate — every `remote_settings` writer
-    /// funnels through here. Emits `x.ai/announcements/update` and advances
+    /// funnels through here. Emits `axon/announcements/update` and advances
     /// the last-emitted baseline per [`announcements_push_payload`] (`mode`
     /// decides when an unchanged list still pushes), but only once the
     /// gateway accepts the send — a failed enqueue leaves the baseline
@@ -997,7 +997,7 @@ impl MvpAgent {
         let accepted = self
             .gateway
             .forward_fire_and_forget(
-                acp::ExtNotification::new("x.ai/announcements/update", params.into()),
+                acp::ExtNotification::new("axon/announcements/update", params.into()),
             );
         if !accepted {
             return;
@@ -1008,7 +1008,7 @@ impl MvpAgent {
             "pushing announcements update to clients"
         );
     }
-    /// Next generation for an `x.ai/announcements/update` push. Strictly
+    /// Next generation for an `axon/announcements/update` push. Strictly
     /// increasing within the process, and seeded from unix-epoch seconds so a
     /// restarted leader's pushes still clear pager watermarks that survived
     /// re-election (`AppView.announcements_last_gen` outlives the agent).
@@ -1028,7 +1028,7 @@ impl MvpAgent {
     /// separate (full reapply vs announcements-only).
     pub(super) async fn fetch_remote_settings(
         &self,
-        auth: crate::auth::GrokAuth,
+        auth: crate::auth::AxonAuth,
     ) -> Option<crate::util::config::RemoteSettings> {
         if !crate::util::config::resolve_remote_fetch_enabled() {
             tracing::debug!("settings fetch skipped: remote_fetch disabled");
@@ -1072,7 +1072,7 @@ impl MvpAgent {
             let _ = self
                 .gateway
                 .ext_notification(
-                    acp::ExtNotification::new("x.ai/session_notification", params.into()),
+                    acp::ExtNotification::new("axon/session_notification", params.into()),
                 )
                 .await;
         }
@@ -1110,7 +1110,7 @@ impl MvpAgent {
         model: &ModelEntry,
         origin_client: Option<crate::http::OriginClientInfo>,
     ) -> SamplingConfig {
-        let preferred = self.cfg.borrow().grok_com_config.preferred_method;
+        let preferred = self.cfg.borrow().axon_com_config.preferred_method;
         let session = match preferred {
             Some(crate::auth::PreferredAuthMethod::ApiKey) => None,
             _ if self.is_session_based_auth() => self.auth_manager.current_or_expired(),
@@ -1130,7 +1130,7 @@ impl MvpAgent {
         }
         crate::agent::config::enforce_disable_api_key_auth(
             &mut credentials,
-            self.cfg.borrow().grok_com_config.api_key_auth_disabled(),
+            self.cfg.borrow().axon_com_config.api_key_auth_disabled(),
             session.as_ref().map(|a| a.key.as_str()),
         );
         if !has_session_key && credentials.auth_type == axon_chat_state::AuthType::ApiKey
@@ -1175,7 +1175,7 @@ impl MvpAgent {
         let user_id = self
             .auth_manager
             .current_or_expired()
-            .filter(|a| a.is_xai_auth())
+            .filter(|a| a.is_axon_auth())
             .map(|a| a.user_id);
         let mut config = crate::agent::config::sampling_config_for_model(
             model,
@@ -1227,10 +1227,10 @@ impl MvpAgent {
         );
         (id.clone(), new_config)
     }
-    /// Whether the current session is a personal grok.com account on a gated
+    /// Whether the current session is a personal blocked.invalid account on a gated
     /// tier (free / X Basic). The Imagine tools stay advertised to the model but
     /// are flagged tier-restricted so they short-circuit at call time with the
-    /// SuperGrok upsell prose (see `ImageGenConfig`/`VideoGenConfig`'s
+    /// SuperAxon upsell prose (see `ImageGenConfig`/`VideoGenConfig`'s
     /// `tier_restricted`).
     ///
     /// Fails **open** (returns `false`) whenever we can't positively confirm a
@@ -1248,7 +1248,7 @@ impl MvpAgent {
         let Some(auth) = self.auth_manager.current() else {
             return false;
         };
-        if !auth.is_xai_auth() || auth.team_id.is_some() {
+        if !auth.is_axon_auth() || auth.team_id.is_some() {
             return false;
         }
         let tier = self
@@ -1262,28 +1262,28 @@ impl MvpAgent {
     }
     /// Build image generation config.
     ///
-    /// Both BYOK and session (OAuth) users go direct to `xai_api_base_url`.
+    /// Both BYOK and session (OAuth) users go direct to `axon_api_base_url`.
     /// `sampling_config.api_key` carries the OAuth bearer for session users (the
     /// `api_key_provider` refreshes it per request), so IC authenticates and
     /// meters Imagine usage per-user.
     pub(super) fn prepare_image_gen_config(
         &self,
-    ) -> axon_tools::implementations::grok_build::image_gen::ImageGenConfig {
-        use axon_tools::implementations::grok_build::image_gen::ImageGenConfig;
+    ) -> axon_tools::implementations::axon_build::image_gen::ImageGenConfig {
+        use axon_tools::implementations::axon_build::image_gen::ImageGenConfig;
         let sampling_config = self.sampling_config.borrow();
         let Some(ref api_key) = sampling_config.api_key else {
             return ImageGenConfig::Disabled;
         };
         let tier_restricted = self.is_tier_restricted_capability();
         let cfg = self.cfg.borrow();
-        let base_url = cfg.endpoints.xai_api_base_url.clone();
+        let base_url = cfg.endpoints.axon_api_base_url.clone();
         let version = cfg
             .client_version
             .clone()
             .unwrap_or_else(|| axon_version::VERSION.to_string());
         let alpha_test_key = cfg.endpoints.alpha_test_key.clone();
         let mut headers = indexmap::IndexMap::new();
-        headers.insert("user-agent".to_string(), format!("xai-grok-build/{version}"));
+        headers.insert("user-agent".to_string(), format!("axon-axon-build/{version}"));
         inject_proxy_headers(
             &mut headers,
             cfg.client_version.as_deref(),
@@ -1303,15 +1303,15 @@ impl MvpAgent {
     /// Build deploy-service config. The tool talks directly to the deployer service.
     pub(super) fn prepare_app_builder_deployer_config(
         &self,
-    ) -> axon_tools::implementations::grok_build::deploy_app::AppBuilderDeployerConfig {
-        use axon_tools::implementations::grok_build::deploy_app::AppBuilderDeployerConfig;
+    ) -> axon_tools::implementations::axon_build::deploy_app::AppBuilderDeployerConfig {
+        use axon_tools::implementations::axon_build::deploy_app::AppBuilderDeployerConfig;
         AppBuilderDeployerConfig::Disabled
     }
-    /// Build video generation config. Video tools call the xAI API directly.
+    /// Build video generation config. Video tools call the Axon API directly.
     pub(super) fn prepare_video_gen_config(
         &self,
-    ) -> axon_tools::implementations::grok_build::video_gen::VideoGenConfig {
-        use axon_tools::implementations::grok_build::video_gen::VideoGenConfig;
+    ) -> axon_tools::implementations::axon_build::video_gen::VideoGenConfig {
+        use axon_tools::implementations::axon_build::video_gen::VideoGenConfig;
         let Some(api_key) = self.sampling_config.borrow().api_key.clone() else {
             return VideoGenConfig::Disabled;
         };
@@ -1326,14 +1326,14 @@ impl MvpAgent {
             tracing::info!("video_gen disabled by tools.disable_zdr_incompatible_tools");
             return VideoGenConfig::Disabled;
         }
-        let base_url = cfg.endpoints.xai_api_base_url.clone();
+        let base_url = cfg.endpoints.axon_api_base_url.clone();
         let version = cfg
             .client_version
             .clone()
             .unwrap_or_else(|| axon_version::VERSION.to_string());
         let alpha_test_key = cfg.endpoints.alpha_test_key.clone();
         let mut headers = indexmap::IndexMap::new();
-        headers.insert("user-agent".to_string(), format!("xai-grok-build/{version}"));
+        headers.insert("user-agent".to_string(), format!("axon-axon-build/{version}"));
         inject_proxy_headers(
             &mut headers,
             cfg.client_version.as_deref(),
@@ -1358,7 +1358,7 @@ impl MvpAgent {
             &model_id,
             &models,
             session.as_ref().map(|a| a.key.as_str()),
-            self.cfg.borrow().grok_com_config.api_key_auth_disabled(),
+            self.cfg.borrow().axon_com_config.api_key_auth_disabled(),
             alpha_test_key.clone(),
             client_version,
             &self.cfg.borrow().endpoints,
@@ -1397,8 +1397,8 @@ impl MvpAgent {
     /// - `allow_local`: `[toolset.web_fetch] allow_local` > `AXON_WEB_FETCH_ALLOW_LOCAL` > false
     pub(super) fn prepare_web_fetch_config(
         &self,
-    ) -> axon_tools::implementations::grok_build::web_fetch::WebFetchConfig {
-        use axon_tools::implementations::grok_build::web_fetch::WebFetchConfig;
+    ) -> axon_tools::implementations::axon_build::web_fetch::WebFetchConfig {
+        use axon_tools::implementations::axon_build::web_fetch::WebFetchConfig;
         let cfg = self.cfg.borrow();
         if cfg.disable_web_search {
             return WebFetchConfig::Disabled;
@@ -1434,7 +1434,7 @@ impl MvpAgent {
     ) -> Self {
         models_manager.set_gateway(gateway.clone());
         let sampling_config = models_manager.sampling_config();
-        if !cfg.grok_com_config.api_key_auth_disabled() {
+        if !cfg.axon_com_config.api_key_auth_disabled() {
             let models = models_manager.models();
             let current = models_manager.current_model_id();
             auth_manager
@@ -1448,10 +1448,10 @@ impl MvpAgent {
         let default_auto_mode = cfg.default_auto_mode;
         let tui_mode = cfg.mode == crate::agent::config::AgentMode::Tui;
         let relay_config_enabled = crate::util::config::load_relay_sync_enabled_sync();
-        let has_xai_auth = auth_manager
+        let has_axon_auth = auth_manager
             .current_or_expired()
-            .is_some_and(|a| a.is_xai_auth());
-        let relay_sync_enabled = tui_mode && relay_config_enabled && has_xai_auth;
+            .is_some_and(|a| a.is_axon_auth());
+        let relay_sync_enabled = tui_mode && relay_config_enabled && has_axon_auth;
         let config_root = crate::config::load_effective_config().ok();
         let empty_config = toml::Value::Table(toml::map::Map::new());
         let raw = config_root.as_ref().unwrap_or(&empty_config);
@@ -1471,10 +1471,10 @@ impl MvpAgent {
             "WORKTREE_CONFIG_SHELL: resolved worktree type at agent startup"
         );
         if relay_sync_enabled {
-            tracing::info!("[grok] Relay sync: ENABLED");
-        } else if tui_mode && relay_config_enabled && !has_xai_auth {
+            tracing::info!("[axon] Relay sync: ENABLED");
+        } else if tui_mode && relay_config_enabled && !has_axon_auth {
             tracing::info!(
-                "[grok] Relay sync: DISABLED (no auth - run 'axon login' first)"
+                "[axon] Relay sync: DISABLED (no auth - run 'axon login' first)"
             );
         } else if tui_mode && !relay_config_enabled {
             tracing::debug!(
@@ -1561,7 +1561,7 @@ impl MvpAgent {
             subagent_event_tx,
             subagent_event_rx: RefCell::new(Some(subagent_event_rx)),
             subagent_coordinator: RefCell::new(subagent_coordinator),
-            monitor_event_buffer: axon_tools::implementations::grok_build::task::types::MonitorEventBuffer::default(),
+            monitor_event_buffer: axon_tools::implementations::axon_build::task::types::MonitorEventBuffer::default(),
             bundle_sync_in_flight: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             post_unblock_jwt_retry_in_flight: Arc::new(
                 std::sync::atomic::AtomicBool::new(false),
@@ -1589,7 +1589,7 @@ impl MvpAgent {
         instance
             .auth_manager
             .configure_refresher(
-                instance.cfg.borrow().grok_com_config.auth_provider_command.clone(),
+                instance.cfg.borrow().axon_com_config.auth_provider_command.clone(),
                 instance.diagnostic_upload_config(),
             );
         crate::auth::credential_provider::wire_otel_auth_manager(
@@ -1600,7 +1600,7 @@ impl MvpAgent {
         }
         instance
     }
-    /// Handle `x.ai/internal/evict_sessions` — the leader server tells us a
+    /// Handle `axon/internal/evict_sessions` — the leader server tells us a
     /// client disconnected and these sessions lost their IPC owner.
     ///
     /// **This is the no-evict keystone.** A disconnect must
@@ -1849,12 +1849,12 @@ impl MvpAgent {
         }
     }
     /// Cancel a subagent by id, returning a typed outcome that backs the pager's
-    /// `x.ai/subagent/cancel`. Active/pending → cancelled (a finish follows);
+    /// `axon/subagent/cancel`. Active/pending → cancelled (a finish follows);
     /// already-finished → its terminal status; unknown id → `NotFound`.
     pub fn cancel_subagent(
         &self,
         subagent_id: &str,
-    ) -> axon_tools::implementations::grok_build::task::types::SubagentCancelOutcome {
+    ) -> axon_tools::implementations::axon_build::task::types::SubagentCancelOutcome {
         self.subagent_coordinator.borrow_mut().cancel_with_outcome(subagent_id)
     }
     /// List running subagent seeds for a given parent session.
@@ -1959,7 +1959,7 @@ impl MvpAgent {
         let cfg = self.cfg.borrow();
         let relay_config = crate::agent::relay::RelayConfig::for_session(
             &auth,
-            &cfg.grok_com_config,
+            &cfg.axon_com_config,
             cfg.endpoints.alpha_test_key.clone(),
             None,
         )?;
@@ -2014,7 +2014,7 @@ impl MvpAgent {
                 };
                 if let Ok(params) = serde_json::value::to_raw_value(&notification) {
                     let ext_notification = acp::ExtNotification::new(
-                        "x.ai/session_notification",
+                        "axon/session_notification",
                         params.into(),
                     );
                     let _ = gateway.ext_notification(ext_notification).await;
@@ -2037,7 +2037,7 @@ impl MvpAgent {
         let sessions = self.sessions.borrow();
         sessions.get(session_id).cloned()
     }
-    /// Get hooks list for a session (for `x.ai/hooks/list` extension).
+    /// Get hooks list for a session (for `axon/hooks/list` extension).
     pub async fn list_hooks(
         &self,
         session_id: &acp::SessionId,
@@ -2045,7 +2045,7 @@ impl MvpAgent {
         let handle = self.get_session_handle(session_id)?;
         handle.get_hooks_list().await
     }
-    /// Execute a hooks management action (for `x.ai/hooks/action`).
+    /// Execute a hooks management action (for `axon/hooks/action`).
     pub async fn execute_hooks_action(
         &self,
         session_id: &acp::SessionId,
@@ -2061,7 +2061,7 @@ impl MvpAgent {
         let handle = self.get_session_handle(session_id)?;
         handle.execute_hooks_action(action).await
     }
-    /// Execute a plugins management action (for `x.ai/plugins/action`).
+    /// Execute a plugins management action (for `axon/plugins/action`).
     pub async fn execute_plugins_action(
         &self,
         session_id: &acp::SessionId,
@@ -2079,7 +2079,7 @@ impl MvpAgent {
         }
         outcome
     }
-    /// Get a snapshot of the shared plugin registry (for `x.ai/plugins/list`).
+    /// Get a snapshot of the shared plugin registry (for `axon/plugins/list`).
     pub fn plugin_registry_snapshot(
         &self,
     ) -> Option<std::sync::Arc<axon_agent::plugins::PluginRegistry>> {
@@ -2106,7 +2106,7 @@ impl MvpAgent {
         let auth_token = if cfg.endpoints.deployment_key.is_none() {
             self.auth_manager
                 .current_or_expired()
-                .filter(|auth| auth.is_xai_auth())
+                .filter(|auth| auth.is_axon_auth())
                 .map(|auth| auth.key)
         } else {
             None
@@ -2175,7 +2175,7 @@ impl MvpAgent {
         use crate::upload::turn::TraceUploadReason;
         if self.is_data_collection_disabled() {
             crate::upload::trace::spawn_startup_spill_reconcile(
-                crate::util::grok_home::grok_home(),
+                crate::util::axon_home::axon_home(),
                 None,
             );
             return (None, TraceUploadReason::ZdrTeam);
@@ -2207,7 +2207,7 @@ impl MvpAgent {
                         .auth()
                         .await
                         .ok()
-                        .filter(|auth| auth.is_xai_auth())
+                        .filter(|auth| auth.is_axon_auth())
                         .map(|auth| auth.key)
             };
             if auth_token.is_some() || has_deployment_key {
@@ -2344,7 +2344,7 @@ impl MvpAgent {
             current_effort,
         )
     }
-    /// Build the `x.ai/sessionConfig` and `x.ai/sessionDetail` `_meta` values
+    /// Build the `axon/sessionConfig` and `axon/sessionDetail` `_meta` values
     /// shared by `new_session` and `load_session`, returned as
     /// `(sessionConfig, sessionDetail)`. Keeping both response paths on this one
     /// builder stops them drifting.
@@ -2356,7 +2356,7 @@ impl MvpAgent {
         model_state: &acp::SessionModelState,
     ) -> (serde_json::Value, serde_json::Value) {
         let config_options = self.session_config_options(Some(session_id), model_state);
-        let detail = session_config::GrokSessionDetail::build(
+        let detail = session_config::AxonSessionDetail::build(
             session_id.0.to_string(),
             cwd,
             model_state.current_model_id.0.to_string(),
@@ -2682,15 +2682,15 @@ impl MvpAgent {
         let queue = session_handle
             .upload_queue
             .get_or_init(|| {
-                let grok_home = crate::util::grok_home::grok_home();
+                let axon_home = crate::util::axon_home::axon_home();
                 let queue = crate::upload::trace::spawn_upload_queue(
-                    &grok_home,
+                    &axon_home,
                     &gcs_config,
                     Some(axon_version::VERSION),
                     self.auth_manager.clone(),
                 );
                 crate::upload::trace::spawn_startup_spill_reconcile(
-                    grok_home,
+                    axon_home,
                     Some(queue.clone()),
                 );
                 session_handle
@@ -2735,13 +2735,13 @@ impl MvpAgent {
         model_agent_type: Option<&str>,
     ) -> axon_agent::AgentDefinition {
         use axon_agent::AgentDefinition;
-        let grok_agent_env_set = std::env::var("AXON_AGENT")
+        let axon_agent_env_set = std::env::var("AXON_AGENT")
             .ok()
             .is_some_and(|s| !s.trim().is_empty());
         let config_agent_explicitly_set = agent_config.name.is_some();
         let model_requires_strict_harness = model_agent_type
             .is_some_and(axon_agent::config::is_strict_harness_agent_type);
-        if !grok_agent_env_set && !config_agent_explicitly_set
+        if !axon_agent_env_set && !config_agent_explicitly_set
             && model_requires_strict_harness && let Some(required) = model_agent_type
             && let Some(def) = axon_agent::discovery::by_name_in_cwd(required, cwd)
         {
@@ -2807,8 +2807,8 @@ impl MvpAgent {
         let agent_name = std::env::var("AXON_AGENT").ok();
         let resolved = match agent_name.as_deref() {
             Some("browser-use") | Some("browser_use") => AgentDefinition::browser_use(),
-            Some("grok-build-concise") | Some("grok_build_concise") => {
-                AgentDefinition::grok_build_concise()
+            Some("axon-build-concise") | Some("axon_build_concise") => {
+                AgentDefinition::axon_build_concise()
             }
             Some(path) if std::path::Path::new(path).is_absolute() => {
                 match AgentDefinition::from_file(path) {
@@ -2818,17 +2818,17 @@ impl MvpAgent {
                             path = path, error = % e,
                             "Failed to load agent definition from file, falling back to default"
                         );
-                        AgentDefinition::grok_build_plan()
+                        AgentDefinition::axon_build_plan()
                     }
                 }
             }
             Some(name) => {
                 axon_agent::discovery::by_name_in_cwd(name, cwd)
-                    .unwrap_or_else(AgentDefinition::grok_build_plan)
+                    .unwrap_or_else(AgentDefinition::axon_build_plan)
             }
-            None => AgentDefinition::grok_build_plan(),
+            None => AgentDefinition::axon_build_plan(),
         };
-        if !grok_agent_env_set && !config_agent_explicitly_set
+        if !axon_agent_env_set && !config_agent_explicitly_set
             && model_requires_strict_harness && let Some(required) = model_agent_type
             && resolved.name != required
         {
@@ -2919,7 +2919,7 @@ impl MvpAgent {
             .client_capabilities
             .meta
             .as_ref()
-            .and_then(|m| m.get("x.ai/fs_notify"))
+            .and_then(|m| m.get("axon/fs_notify"))
             .and_then(|v| {
                 use crate::session::{ClientFsConfig, ClientFsMode};
                 use axon_fsnotify::FsConfig;
@@ -2993,7 +2993,7 @@ impl MvpAgent {
                 .client_capabilities
                 .meta
                 .as_ref()
-                .and_then(|m| m.get("x.ai/hunkTracker"))
+                .and_then(|m| m.get("axon/hunkTracker"))
                 .and_then(|v| v.get("mode"))
                 .and_then(|v| v.as_str()),
         );
@@ -3001,14 +3001,14 @@ impl MvpAgent {
             .client_capabilities
             .meta
             .as_ref()
-            .and_then(|m| m.get("x.ai/incrementalBashOutput"))
+            .and_then(|m| m.get("axon/incrementalBashOutput"))
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
         let no_color = init
             .client_capabilities
             .meta
             .as_ref()
-            .and_then(|m| m.get("x.ai/bashOutputNoColor"))
+            .and_then(|m| m.get("axon/bashOutputNoColor"))
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
         let hunk_tracking_enabled = hunk_plan.enabled();
@@ -3027,8 +3027,8 @@ impl MvpAgent {
             }
             None => (axon_hunk_tracker::HunkTrackerHandle::noop(), None),
         };
-        let has_xai_auth = self.auth_manager.current().is_some_and(|a| a.is_xai_auth());
-        let loc_tracking_enabled = hunk_tracking_enabled && has_xai_auth
+        let has_axon_auth = self.auth_manager.current().is_some_and(|a| a.is_axon_auth());
+        let loc_tracking_enabled = hunk_tracking_enabled && has_axon_auth
             && (self
                 .cfg
                 .borrow()
@@ -3308,7 +3308,7 @@ impl MvpAgent {
             );
             tool_ctx.lsp_server_names = servers.keys().cloned().collect();
             if servers.is_empty() {
-                let user_path = axon_tools::util::grok_home::grok_home()
+                let user_path = axon_tools::util::axon_home::axon_home()
                     .join("lsp.json");
                 let project_path = tool_ctx.cwd.as_path().join(".axon").join("lsp.json");
                 tracing::warn!(
@@ -3511,7 +3511,7 @@ impl MvpAgent {
                 .client_capabilities
                 .meta
                 .as_ref()
-                .and_then(|m| m.get("x.ai/gitHeadChanged"))
+                .and_then(|m| m.get("axon/gitHeadChanged"))
                 .and_then(|v| v.as_bool());
             let session_cwd = std::path::Path::new(&session_info.cwd);
             let fs_watch_caps = crate::session::fs_watch::FsWatchCapabilities::resolve(crate::session::fs_watch::CapabilityInputs {

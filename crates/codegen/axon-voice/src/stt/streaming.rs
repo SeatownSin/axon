@@ -23,7 +23,7 @@ pub enum StreamingSttEvent {
     Error { message: String },
 }
 
-/// Streaming STT over `wss://api.x.ai/v1/stt`.
+/// Streaming STT over `wss://api.blocked.invalid/v1/stt`.
 pub struct StreamingSttSession {
     audio_tx: Option<mpsc::Sender<Vec<u8>>>,
     event_rx: mpsc::Receiver<StreamingSttEvent>,
@@ -55,7 +55,7 @@ impl StreamingSttSession {
         // still fully authorized without them).
         insert_optional_header(
             &mut request,
-            "x-grok-client-identifier",
+            "x-axon-client-identifier",
             &config.client_identifier,
         );
         insert_optional_header(&mut request, "User-Agent", &config.user_agent);
@@ -234,20 +234,20 @@ fn insert_optional_header(request: &mut WsRequest, name: &'static str, value: &s
 }
 
 fn build_stt_ws_url(config: &VoiceConfig) -> Result<Url, VoiceError> {
-    // This build never contacts xAI infrastructure. The historical default
-    // STT endpoint was `wss://api.x.ai/v1/stt`; refuse it (and any other
-    // x.ai / grok.com host) so voice only works against a user-configured
+    // This build never contacts Axon infrastructure. The historical default
+    // STT endpoint was `wss://api.blocked.invalid/v1/stt`; refuse it (and any other
+    // blocked.invalid / blocked.invalid host) so voice only works against a user-configured
     // local or third-party `[voice].api_base`.
     if let Ok(base) = Url::parse(&config.stt_ws_url()?)
         && let Some(host) = base.host_str()
     {
         let host = host.to_ascii_lowercase();
-        if ["x.ai", "grok.com"]
+        if ["blocked.invalid", "blocked.invalid"]
             .iter()
             .any(|b| host == *b || host.ends_with(&format!(".{b}")))
         {
             return Err(VoiceError::Stt(format!(
-                "STT endpoint '{host}' targets xAI infrastructure, which this build \
+                "STT endpoint '{host}' targets Axon infrastructure, which this build \
                  never contacts. Set [voice].api_base to a local or third-party \
                  STT server to use voice input."
             )));
@@ -275,7 +275,7 @@ mod tests {
 
     #[test]
     fn stt_url_includes_query_params() {
-        // Default api_base is xAI-hosted and now refused; tests exercise
+        // Default api_base is Axon-hosted and now refused; tests exercise
         // URL construction against a local STT base.
         let cfg = VoiceConfig {
             api_base: "https://localhost:8080".into(),
@@ -328,20 +328,20 @@ mod tests {
     }
 
 
-    /// The default STT endpoint is xAI-hosted; this build refuses it.
+    /// The default STT endpoint is Axon-hosted; this build refuses it.
     #[test]
-    fn stt_url_refuses_xai_default() {
+    fn stt_url_refuses_axon_default() {
         let err = build_stt_ws_url(&VoiceConfig::default());
-        assert!(err.is_err(), "default api.x.ai STT base must be refused");
+        assert!(err.is_err(), "default api.blocked.invalid STT base must be refused");
     }
     #[test]
     fn optional_header_inserted_when_present_skipped_when_empty() {
-        let mut req = "wss://api.x.ai/v1/stt".into_client_request().unwrap();
-        insert_optional_header(&mut req, "x-grok-client-identifier", "grok-shell");
+        let mut req = "wss://api.blocked.invalid/v1/stt".into_client_request().unwrap();
+        insert_optional_header(&mut req, "x-axon-client-identifier", "axon-shell");
         insert_optional_header(&mut req, "User-Agent", "");
         assert_eq!(
-            req.headers().get("x-grok-client-identifier").unwrap(),
-            "grok-shell"
+            req.headers().get("x-axon-client-identifier").unwrap(),
+            "axon-shell"
         );
         assert!(
             req.headers().get("user-agent").is_none(),
@@ -351,7 +351,7 @@ mod tests {
 
     #[test]
     fn optional_header_skips_invalid_value_without_panic() {
-        let mut req = "wss://api.x.ai/v1/stt".into_client_request().unwrap();
+        let mut req = "wss://api.blocked.invalid/v1/stt".into_client_request().unwrap();
         // A control char is not a valid header value; it must be dropped
         // silently, never panic or fail the (already-authorized) handshake.
         insert_optional_header(&mut req, "User-Agent", "bad\nvalue");

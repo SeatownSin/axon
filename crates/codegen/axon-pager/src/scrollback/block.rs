@@ -1521,7 +1521,7 @@ mod searchable_text_tests {
             b.subagent_type = "explore".into();
             b.persona = Some("scout".into());
             b.role = Some("researcher".into());
-            b.model = Some("grok-test".into());
+            b.model = Some("axon-test".into());
             b.activity_label = Some("Running: cargo build".into());
         }
         let text = block.searchable_text().expect("subagent text");
@@ -1529,7 +1529,7 @@ mod searchable_text_tests {
         assert!(text.contains("explore"), "got: {text:?}");
         assert!(text.contains("scout"), "got: {text:?}");
         assert!(text.contains("researcher"), "got: {text:?}");
-        assert!(text.contains("grok-test"), "got: {text:?}");
+        assert!(text.contains("axon-test"), "got: {text:?}");
         assert!(text.contains("Running: cargo build"), "got: {text:?}");
         assert!(text.contains("panicked at assert"), "got: {text:?}");
     }
@@ -1564,9 +1564,9 @@ mod searchable_text_tests {
             auto_compact_threshold_percent: 85,
             usage_categories: vec![],
         };
-        let block = RenderBlock::context_info(snapshot, "grok-4.5");
+        let block = RenderBlock::context_info(snapshot, "axon-4.5");
         // Only the model name is source text; the rest is a numeric breakdown.
-        assert_eq!(block.searchable_text().as_deref(), Some("grok-4.5"));
+        assert_eq!(block.searchable_text().as_deref(), Some("axon-4.5"));
     }
 
     #[test]
@@ -1574,11 +1574,11 @@ mod searchable_text_tests {
         let block = RenderBlock::credit_limit_card(
             "credit limit reached",
             crate::scrollback::blocks::CreditLimitCardAction::EnablePayg,
-            "https://grok.com?_s=usage",
+            "https://blocked.invalid?_s=usage",
         );
         let text = block.searchable_text().expect("credit limit text");
         assert!(text.contains("credit limit reached"), "got: {text:?}");
-        assert!(text.contains("https://grok.com?_s=usage"), "got: {text:?}");
+        assert!(text.contains("https://blocked.invalid?_s=usage"), "got: {text:?}");
     }
 
     #[test]

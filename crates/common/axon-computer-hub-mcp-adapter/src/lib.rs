@@ -1,4 +1,4 @@
-//! Unified MCP adapter for the xAI Computer Hub.
+//! Unified MCP adapter for the Axon Computer Hub.
 //!
 //! This crate bridges MCP (Model Context Protocol) servers into the
 //! computer hub's tool routing infrastructure. An [`McpBridge`] connects

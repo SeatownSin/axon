@@ -164,7 +164,7 @@ fn link_finder() -> &'static LinkFinder {
 }
 
 /// One path segment without spaces (`main.rs`, `.axon`, `@scope`). Leading `.`
-/// matches dot-directories and `%` matches percent-encoded segments — grok
+/// matches dot-directories and `%` matches percent-encoded segments — axon
 /// session media lives under `~/.axon/sessions/%2F…/images/1.jpg`.
 const PATH_SEGMENT: &str = r"[a-zA-Z0-9_@.%][a-zA-Z0-9._+@%\-]*";
 
@@ -697,7 +697,7 @@ mod tests {
         std::fs::write(dir.path().join("images/1.jpg"), b"x").unwrap();
         let media = vec![dir.path().join("images/1.jpg")];
 
-        assert!(local_link_to_file_target("https://x.ai", &media).is_none());
+        assert!(local_link_to_file_target("https://blocked.invalid", &media).is_none());
         assert!(local_link_to_file_target("mailto:a@b.c", &media).is_none());
         assert!(local_link_to_file_target("#section", &media).is_none());
         // Relative path that isn't a known generated media file.
@@ -1175,7 +1175,7 @@ mod tests {
 
     #[test]
     fn scan_content_x_offset_applied() {
-        let line = make_line("https://x.ai");
+        let line = make_line("https://blocked.invalid");
         let mut overlay = LinkOverlay::new();
         scan_unjoined(std::iter::once((0, &line)), 10, &[], &mut overlay);
 
@@ -1252,7 +1252,7 @@ mod tests {
     }
 
     #[test]
-    fn scan_detects_grok_session_media_path() {
+    fn scan_detects_axon_session_media_path() {
         // Dot-directory (`.axon`), percent-encoded session segment, and a
         // trailing sentence period — the shape of `image_gen` output prose.
         let line = make_line("Saved to /Users/alice/.axon/sessions/%2Fabc/00000000/images/1.jpg.");
@@ -1277,7 +1277,7 @@ mod tests {
         // fragment on the first row matched and became clickable.
         let row0 =
             make_line("Image generated and saved to /Users/alice/.axon/sessions/%2FUsers%2Fali");
-        let row1 = make_line("ce%2Fcode%2Fxai/00000000-0000-0000-0000-000000000001/images/1.jpg");
+        let row1 = make_line("ce%2Fcode%2Faxon/00000000-0000-0000-0000-000000000001/images/1.jpg");
         let rows: Vec<(u16, &Line<'static>, Option<&str>)> =
             vec![(3, &row0, None), (4, &row1, Some(""))];
         let mut overlay = LinkOverlay::new();
@@ -1285,7 +1285,7 @@ mod tests {
 
         assert_eq!(overlay.links().len(), 2, "one overlay region per row");
         let expected_url = "file:///Users/alice/.axon/sessions/%252FUsers%252Fali\
-                            ce%252Fcode%252Fxai/00000000-0000-0000-0000-000000000001/images/1.jpg";
+                            ce%252Fcode%252Faxon/00000000-0000-0000-0000-000000000001/images/1.jpg";
         for link in overlay.links() {
             assert_eq!(
                 &*resolve_link_target(&link.target)
@@ -1312,7 +1312,7 @@ mod tests {
         assert_eq!(
             l1.col_end,
             2 + UnicodeWidthStr::width(
-                "ce%2Fcode%2Fxai/00000000-0000-0000-0000-000000000001/images/1.jpg"
+                "ce%2Fcode%2Faxon/00000000-0000-0000-0000-000000000001/images/1.jpg"
             ) as u16
         );
     }
@@ -1537,7 +1537,7 @@ mod tests {
 
     #[test]
     fn scan_file_path_with_dots_and_hyphens() {
-        let line = make_line("Reading /tmp/grok-impl-summary.md now.");
+        let line = make_line("Reading /tmp/axon-impl-summary.md now.");
         let mut overlay = LinkOverlay::new();
         scan_unjoined(std::iter::once((0, &line)), 0, &[], &mut overlay);
 
@@ -1546,7 +1546,7 @@ mod tests {
             &*resolve_link_target(&overlay.links()[0].target)
                 .and_then(|resolved| resolved.osc8_url)
                 .expect("url"),
-            "file:///tmp/grok-impl-summary.md"
+            "file:///tmp/axon-impl-summary.md"
         );
     }
 
@@ -1645,7 +1645,7 @@ mod tests {
     #[test]
     fn scan_detects_tilde_file_path() {
         // The user's example: a `~/Desktop/…md` path in agent output.
-        let raw = "~/Desktop/grok-pager-retention-findings-2026-06-06.md";
+        let raw = "~/Desktop/axon-pager-retention-findings-2026-06-06.md";
         // Skip when no home directory is resolvable (e.g. minimal sandbox):
         // the tilde stays unexpanded and cannot form an absolute file URL.
         let Ok(expected) = url::Url::from_file_path(shellexpand::tilde(raw).as_ref()) else {

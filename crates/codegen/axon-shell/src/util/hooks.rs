@@ -49,20 +49,20 @@ pub fn discover_hook_source_paths(
     let skip_cursor = !compat.cursor.hooks;
 
     let home = dirs::home_dir();
-    // user_grok_home() is None when no home resolves, so inspect lists the same
-    // sources a live session loads, instead of a cwd-relative .grok.
-    let grok = axon_config::user_grok_home();
+    // user_axon_home() is None when no home resolves, so inspect lists the same
+    // sources a live session loads, instead of a cwd-relative .axon.
+    let axon = axon_config::user_axon_home();
     let mut global = Vec::new();
 
     if !skip_claude && let Some(ref h) = home {
         global.push(h.join(".claude").join("settings.json"));
         global.push(h.join(".claude").join("settings.local.json"));
     }
-    if let Some(ref grok) = grok {
-        global.push(grok.join("hooks"));
+    if let Some(ref axon) = axon {
+        global.push(axon.join("hooks"));
     }
 
-    let custom_paths: Vec<PathBuf> = grok
+    let custom_paths: Vec<PathBuf> = axon
         .as_ref()
         .and_then(|g| std::fs::read_to_string(g.join("hooks-paths")).ok())
         .map(|content| {

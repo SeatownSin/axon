@@ -1,14 +1,14 @@
 //! API-agnostic conversation representation.
 //!
 //! The canonical types now live in `axon_sampling_types::conversation`.
-//! This module re-exports them and adds grok-shell-specific types
+//! This module re-exports them and adds axon-shell-specific types
 //! (`ConversationRequestTrace`) that depend on internal crate types.
 
 // Re-export everything from the standalone crate.
 pub use axon_sampling_types::conversation::*;
 
 // ============================================================================
-// grok-shell-specific types (depend on internal crate types)
+// axon-shell-specific types (depend on internal crate types)
 // ============================================================================
 
 /// Tracing context for conversation requests.

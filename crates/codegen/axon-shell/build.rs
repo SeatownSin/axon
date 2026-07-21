@@ -1,4 +1,4 @@
-//! Build script for bundling ripgrep for the grok-shell crate.
+//! Build script for bundling ripgrep for the axon-shell crate.
 //!
 //! - If `AXON_SHELL_BUNDLE_RG_PATH` is set, always bundle it
 //! - Otherwise, only bundle in release builds
@@ -25,16 +25,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // In Bazel builds, write into OUT_DIR (which is writable) rather than
-    // XAI_ROOT/target/tmp (which is read-only inside the sandbox). Outside
-    // Bazel, prefer XAI_ROOT's shared cache dir (monorepo behavior) and fall
-    // back to OUT_DIR for standalone checkouts where XAI_ROOT is not a thing.
+    // AXON_ROOT/target/tmp (which is read-only inside the sandbox). Outside
+    // Bazel, prefer AXON_ROOT's shared cache dir (monorepo behavior) and fall
+    // back to OUT_DIR for standalone checkouts where AXON_ROOT is not a thing.
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR")?);
     let in_bazel = is_bazel_build(&manifest_dir);
     let gen_dir = if in_bazel {
         // OUT_DIR is always set by Cargo/Bazel for build scripts.
         PathBuf::from(env::var("OUT_DIR")?)
-    } else if let Ok(xai_root) = env::var("XAI_ROOT") {
-        PathBuf::from(xai_root).join("target/tmp/grok-shell-bundle-rg")
+    } else if let Ok(axon_root) = env::var("AXON_ROOT") {
+        PathBuf::from(axon_root).join("target/tmp/axon-shell-bundle-rg")
     } else {
         PathBuf::from(env::var("OUT_DIR")?)
     };

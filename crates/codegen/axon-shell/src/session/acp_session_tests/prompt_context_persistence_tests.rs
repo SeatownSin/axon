@@ -19,7 +19,7 @@ fn test_json_round_trip() {
 /// Test that PromptContext survives a JSON write-to-disk / read-from-disk
 /// cycle with field-level fidelity. This exercises serde + filesystem I/O
 /// but not the `save_prompt_context`/`load_prompt_context` wrappers (which
-/// depend on `grok_home()` and `SessionInfo` path encoding).
+/// depend on `axon_home()` and `SessionInfo` path encoding).
 #[test]
 fn test_json_round_trip_via_filesystem() {
     let tmp = tempfile::tempdir().unwrap();
@@ -60,7 +60,7 @@ fn test_system_prompt_write_and_read() {
 
 #[test]
 fn test_system_prompt_is_plain_text_not_json() {
-    let prompt = "You are a Grok Build subagent.";
+    let prompt = "You are a Axon Build subagent.";
     // system_prompt.txt is raw text, NOT JSON-encoded.
     assert!(!prompt.starts_with('"'), "must not be JSON-quoted");
     assert!(!prompt.starts_with('{'), "must not be JSON object");
@@ -107,7 +107,7 @@ fn test_system_prompt_matches_chat_history_system_message() {
     let session_dir = tmp.path().join("session-consistency");
     std::fs::create_dir_all(&session_dir).unwrap();
 
-    let system_prompt = "You are a Grok Build subagent.\n\n<tool_calling>\n...";
+    let system_prompt = "You are a Axon Build subagent.\n\n<tool_calling>\n...";
 
     // Write system_prompt.txt (same string used for chat_history).
     std::fs::write(session_dir.join(SYSTEM_PROMPT_FILENAME), system_prompt).unwrap();
@@ -164,7 +164,7 @@ fn test_load_system_prompt_returns_content_when_present() {
     let session_dir = tmp.path().join("session-load-test");
     std::fs::create_dir_all(&session_dir).unwrap();
 
-    let prompt = "You are a Grok Build subagent.";
+    let prompt = "You are a Axon Build subagent.";
     std::fs::write(session_dir.join(SYSTEM_PROMPT_FILENAME), prompt).unwrap();
 
     let loaded = load_system_prompt_from_dir(&session_dir);
@@ -243,7 +243,7 @@ const HEAD_TOKEN: &str = "HEADSTART_TOKEN_aaa";
 const TAIL_TOKEN: &str = "TAILEND_TOKEN_zzz";
 
 fn fake_prompt_path() -> std::path::PathBuf {
-    std::path::PathBuf::from("/tmp/grok-test-home/sessions/cwd/sid/prompts/prompt_0.txt")
+    std::path::PathBuf::from("/tmp/axon-test-home/sessions/cwd/sid/prompts/prompt_0.txt")
 }
 
 /// `truncate_bytes_suffix` keeps a char-boundary-safe suffix (multibyte-safe).
@@ -343,7 +343,7 @@ fn build_truncated_preserves_small_query_truncates_context() {
     assert!(message.contains(&query), "small query preserved intact");
     assert!(
         message.starts_with(&query),
-        "grok ordering: query block first"
+        "axon ordering: query block first"
     );
     assert!(message.contains("CTXHEAD_TOKEN"), "context head preserved");
     assert!(!message.contains(&context), "oversized context truncated");
@@ -381,7 +381,7 @@ fn build_truncated_both_oversized_keeps_bounded_heads() {
     assert!(!message.contains(&context), "full context not inlined");
     assert!(
         message.starts_with("QHEAD_TOKEN"),
-        "grok ordering: query first"
+        "axon ordering: query first"
     );
     assert!(
         message.len() <= TRUNCATED_PROMPT_PREFIX_SIZE,
@@ -508,7 +508,7 @@ fn build_offload_notice_reports_bytes_marker_and_path() {
 
 // ── Method gate + call-site wiring (hermetic) ───────────────────────────
 //
-// `grok_home()` is a process-wide `OnceLock`, so the real async method is
+// `axon_home()` is a process-wide `OnceLock`, so the real async method is
 // only exercised for the no-offload gate; the offload + fallback wiring is
 // covered via the injected-writer seam.
 

@@ -49,11 +49,11 @@ use axon_update::{UpdateConfig, auto_update, enforce_minimum_version_or_exit};
 /// explicitly set. This allows environment defaults to be preserved when
 /// specific args are not provided.
 fn apply_headless_args_to_config(args: &HeadlessArgs, config: &mut AgentConfig) {
-    if let Some(v) = &args.grok_ws_origin {
-        config.grok_com_config.grok_ws_origin = v.clone();
+    if let Some(v) = &args.axon_ws_origin {
+        config.axon_com_config.axon_ws_origin = v.clone();
     }
-    if let Some(v) = &args.grok_ws_url {
-        config.grok_com_config.grok_ws_url = v.clone();
+    if let Some(v) = &args.axon_ws_url {
+        config.axon_com_config.axon_ws_url = v.clone();
     }
 }
 /// Apply global endpoint CLI args to an existing config.
@@ -64,8 +64,8 @@ fn apply_agent_endpoint_args(
     if let Some(v) = &agent_args.cli_chat_proxy_base_url {
         config.endpoints.cli_chat_proxy_base_url = Some(v.clone());
     }
-    if let Some(v) = &agent_args.xai_api_base_url {
-        config.endpoints.xai_api_base_url = v.clone();
+    if let Some(v) = &agent_args.axon_api_base_url {
+        config.endpoints.axon_api_base_url = v.clone();
     }
 }
 /// Resolve --agent-profile path: canonicalize and verify the file exists.
@@ -88,7 +88,7 @@ fn resolve_agent_profile_path(path: &std::path::Path) -> std::path::PathBuf {
 /// Print startup information for the serve command.
 fn print_serve_startup_info(bind_addr: SocketAddr, secret: &str) {
     eprintln!();
-    eprintln!("   Grok agent server starting...");
+    eprintln!("   Axon agent server starting...");
     eprintln!();
     eprintln!("   Address:  {}:{}", bind_addr.ip(), bind_addr.port());
     eprintln!("   Secret:   {}", secret);
@@ -129,7 +129,7 @@ fn init_tracing_simple(app_entrypoint: &'static str) {
         .with(axon_telemetry::hooks_log::layer())
         .with(axon_telemetry::otel_layer::build_otel_layer(
             axon_telemetry::otel_layer::OtelClientInfo {
-                client_name: "grok-pager",
+                client_name: "axon-pager",
                 client_version: axon_version::VERSION,
                 service_version: env!("VERSION_WITH_COMMIT"),
                 app_entrypoint,
@@ -170,7 +170,7 @@ async fn run_setup_command(json: bool) {
         eprintln!("  deployment_key = \"<your-key>\"");
         eprintln!();
         eprintln!(
-            "If you don't have a deployment key, contact your organization's Grok administrator."
+            "If you don't have a deployment key, contact your organization's Axon administrator."
         );
         std::process::exit(1);
     }
@@ -182,7 +182,7 @@ async fn run_setup_command(json: bool) {
                 println!("{out}");
                 if !report.configured {
                     eprintln!(
-                        "Your team doesn't have a managed configuration yet. A team admin can set one up at console.x.ai."
+                        "Your team doesn't have a managed configuration yet. A team admin can set one up at console.blocked.invalid."
                     );
                 }
             }
@@ -197,7 +197,7 @@ async fn run_setup_command(json: bool) {
         SetupOutcome::Installed => eprintln!("Applied managed configuration."),
         SetupOutcome::NothingConfigured => {
             eprintln!(
-                "Your team doesn't have a managed configuration yet. A team admin can set one up at console.x.ai."
+                "Your team doesn't have a managed configuration yet. A team admin can set one up at console.blocked.invalid."
             );
         }
         SetupOutcome::Skipped => {
@@ -269,9 +269,9 @@ async fn kill_leaders() -> Result<()> {
         let Some(pid) = leader_pid(d) else {
             continue;
         };
-        if !axon_shell::util::is_grok_process(pid) {
+        if !axon_shell::util::is_axon_process(pid) {
             if let Some(ref lock) = d.lock_path {
-                eprintln!("  PID {pid} is not a grok process, removing stale lock");
+                eprintln!("  PID {pid} is not a axon process, removing stale lock");
                 let _ = std::fs::remove_file(lock);
                 cleaned += 1;
             }
@@ -299,7 +299,7 @@ async fn kill_leaders() -> Result<()> {
 fn resolve_target(args: &LeaderTargetArgs) -> LeaderTarget {
     match args.pid {
         Some(pid) => LeaderTarget::Pid(pid),
-        None => LeaderTarget::Environment(axon_shell::env::GrokBuildEnvironment::Production),
+        None => LeaderTarget::Environment(axon_shell::env::AxonBuildEnvironment::Production),
     }
 }
 async fn connect_to_leader(
@@ -314,7 +314,7 @@ async fn connect_to_leader(
         .ok_or_else(|| anyhow::anyhow!("resolved leader target did not include a socket path"))?;
     let client = axon_shell::leader::LeaderClient::connect(
         socket_path.to_path_buf(),
-        "grok-pager-leader-cli",
+        "axon-pager-leader-cli",
         ClientMode::Stdio,
         ClientCapabilities::default(),
     )
@@ -401,7 +401,7 @@ fn workspace_command_gate(
         None => WorkspaceGate::Unknown,
     }
 }
-/// Truthy parse for grok on/off env vars: everything enables except the common
+/// Truthy parse for axon on/off env vars: everything enables except the common
 /// falsy spellings (`0`, `false`, `off`, `no`, empty).
 fn env_flag_enabled(value: &str) -> bool {
     !matches!(
@@ -475,11 +475,11 @@ async fn connect_workspace_control(
         let (_descriptor, client) = connect_to_leader(target).await?;
         return Ok(client);
     }
-    let ws_url = &agent_config.grok_com_config.grok_ws_url;
+    let ws_url = &agent_config.axon_com_config.axon_ws_url;
     let socket = socket_path_for_ws_url(ws_url);
     LeaderClient::connect(
         socket,
-        "grok-workspace-cli",
+        "axon-workspace-cli",
         ClientMode::Stdio,
         ClientCapabilities::default(),
     )
@@ -487,7 +487,7 @@ async fn connect_workspace_control(
     .map_err(|e| {
         anyhow::anyhow!(
             "no running leader for this environment ({e}). \
-             Start a grok session, or run `axon workspace start`."
+             Start a axon session, or run `axon workspace start`."
         )
     })
 }
@@ -532,18 +532,18 @@ async fn workspace_start(
         );
     }
     ensure_authenticated(
-        &agent_config.grok_com_config,
+        &agent_config.axon_com_config,
         false,
         Some("No cached credentials found. Run `axon login` first."),
     )
     .await?;
-    let env_urls = LeaderEnvUrls::from(&agent_config.grok_com_config);
+    let env_urls = LeaderEnvUrls::from(&agent_config.axon_com_config);
     let capabilities = ClientCapabilities {
         client_version: Some(PAGER_CLIENT_VERSION.to_string()),
         ..Default::default()
     };
     let conn = connect_or_spawn(
-        "grok-workspace-cli",
+        "axon-workspace-cli",
         ClientMode::Stdio,
         &env_urls,
         capabilities,
@@ -647,7 +647,7 @@ struct StdioReplayState {
     /// old leader and is its to retry).
     pending_new: Option<CachedSession>,
     /// Most recently created/loaded session id — reported in
-    /// `x.ai/leader_reconnected` as the primary restored session.
+    /// `axon/leader_reconnected` as the primary restored session.
     last_session_id: Option<String>,
 }
 impl StdioReplayState {
@@ -715,7 +715,7 @@ fn cache_outgoing_acp_state(msg: &str, state: &std::sync::Mutex<StdioReplayState
                     .and_then(|m| serde_json::to_string(m).ok()),
             });
         }
-        "x.ai/session/close" | "_x.ai/session/close" => {
+        "axon/session/close" | "_axon/session/close" => {
             if let Some(sid) = json
                 .get("params")
                 .and_then(|p| p.get("sessionId").or_else(|| p.get("session_id")))
@@ -747,7 +747,7 @@ fn cache_incoming_session_id(msg: &str, state: &std::sync::Mutex<StdioReplayStat
 /// Synthetic JSON-RPC id for the `session/load` the bridge constructs itself
 /// (when the external client only ever sent `session/new`). A string id can
 /// never collide with a numeric id the external client may have in flight.
-const REPLAY_LOAD_REQUEST_ID: &str = "x.ai/leader-replay/session-load";
+const REPLAY_LOAD_REQUEST_ID: &str = "axon/leader-replay/session-load";
 /// Max silence between two messages from the leader during a replayed request.
 /// A `session/load` streams replay notifications continuously once it starts,
 /// but the pre-replay phase (MCP resolution, session file reads) can be quiet
@@ -880,7 +880,7 @@ fn replay_load_json(sid: &str, cached: &CachedSession) -> Option<String> {
 /// Returns the primary restored session id (the most recently active one,
 /// falling back to any successfully restored session). `None` when there was
 /// nothing to replay or every restore failed — callers emit
-/// `x.ai/leader_reconnected` with empty params in that case, signalling the
+/// `axon/leader_reconnected` with empty params in that case, signalling the
 /// external client to re-establish state itself.
 async fn replay_acp_state_after_reconnect(
     tx: &tokio::sync::mpsc::UnboundedSender<String>,
@@ -987,7 +987,7 @@ async fn forward_stdio_line_to_leader(
 }
 /// Emitted by both leader guards (server mode and leader-connect) so the two sites
 /// can't drift.
-const PLUGIN_DIR_LEADER_WARNING: &str = "grok: --plugin-dir is ignored in leader mode; run with --no-leader to \
+const PLUGIN_DIR_LEADER_WARNING: &str = "axon: --plugin-dir is ignored in leader mode; run with --no-leader to \
      load per-process plugins";
 /// Run the `agent` subcommand, dispatching to the appropriate mode.
 async fn run_agent_command(
@@ -1035,7 +1035,7 @@ async fn run_agent_command(
     let is_leader = matches!(agent_args.mode, Some(AgentCmd::Leader(_)));
     if !is_stdio && !is_leader {
         eprintln!(
-            "Grok Build (pager) - v{}",
+            "Axon Build (pager) - v{}",
             axon_version::display_version_with_commit(
                 env!("VERSION_WITH_COMMIT"),
                 axon_update::channel_label(),
@@ -1068,7 +1068,7 @@ async fn run_agent_command(
         None,
     );
     if let Some(warning) = launch_yolo.blocked_warning {
-        eprintln!("grok: {warning}");
+        eprintln!("axon: {warning}");
     }
     agent_config.default_yolo_mode = launch_yolo.yolo;
     agent_config.default_auto_mode = axon_shell::util::config::effective_auto_for_launch(
@@ -1117,7 +1117,7 @@ async fn run_agent_command(
     tracing::info!(use_leader, ?policy_disable_reason, "leader mode resolved");
     let managed_install = is_managed_install(
         std::env::current_exe().ok(),
-        &axon_shell::util::grok_home::grok_home(),
+        &axon_shell::util::axon_home::axon_home(),
     );
     if stdio_auto_update_enabled(
         is_stdio,
@@ -1153,7 +1153,7 @@ async fn run_agent_command(
             Some(AgentCmd::Headless(_)) | None => ClientMode::Headless,
             _ => ClientMode::Stdio,
         };
-        let env_urls = axon_shell::leader::LeaderEnvUrls::from(&agent_config.grok_com_config);
+        let env_urls = axon_shell::leader::LeaderEnvUrls::from(&agent_config.axon_com_config);
         let default_model = agent_config
             .default_model_override
             .clone()
@@ -1250,7 +1250,7 @@ async fn run_agent_command(
                                             None => "{}".to_string(),
                                         };
                                         let notification = format!(
-                                            r#"{{"jsonrpc":"2.0","method":"x.ai/leader_reconnected","params":{params}}}"#
+                                            r#"{{"jsonrpc":"2.0","method":"axon/leader_reconnected","params":{params}}}"#
                                         );
                                         let _ = stdout.write_all(notification.as_bytes()).await;
                                         let _ = stdout.write_all(b"\n").await;
@@ -1619,30 +1619,30 @@ fn main() {
         std::process::exit(code);
     }
     axon_pager::memory_trace::start(
-        axon_shell::util::grok_home::grok_home().join("memtrace"),
+        axon_shell::util::axon_home::axon_home().join("memtrace"),
     );
     raise_fd_limit();
     if let Err(e) = axon_config::validate_requirements() {
-        eprintln!("Couldn't start Grok: {e}");
+        eprintln!("Couldn't start Axon: {e}");
         eprintln!();
         eprintln!(
-            "Update Grok to a version the policy allows, or ask your administrator \
+            "Update Axon to a version the policy allows, or ask your administrator \
              to fix the managed requirements."
         );
         std::process::exit(2);
     }
     let _sentry_guard = axon_telemetry::sentry::init(axon_telemetry::sentry::Config {
-        client: "grok-pager",
+        client: "axon-pager",
         client_version: PAGER_CLIENT_VERSION,
         release: env!("VERSION_WITH_COMMIT"),
         disabled: axon_shell::agent::config::is_error_reporting_disabled_sync(),
     });
-    axon_pager::docs::extract_user_guide_docs(&axon_shell::util::grok_home::grok_home());
+    axon_pager::docs::extract_user_guide_docs(&axon_shell::util::axon_home::axon_home());
     axon_crash_handler::install_terminal_restore_only();
     if axon_shell::util::config::load_crash_handler_enabled_sync() {
-        let crash_dir = axon_shell::util::grok_home::grok_home().join("crash");
+        let crash_dir = axon_shell::util::axon_home::axon_home().join("crash");
         if let Some(report) = axon_crash_handler::check_previous_crash(&crash_dir) {
-            eprintln!("Grok crashed during your last session.");
+            eprintln!("Axon crashed during your last session.");
             eprintln!("  Signal:  {}", report.signal_name);
             eprintln!("  Version: {}", report.app_version);
             eprintln!("  Report:  {}", report.report_path.display());
@@ -1678,10 +1678,10 @@ fn main() {
     // avoids surprising desktop integrations that expect it.
     #[cfg(windows)]
     let result = std::thread::Builder::new()
-        .name("grok-main".to_string())
+        .name("axon-main".to_string())
         .stack_size(64 * 1024 * 1024)
         .spawn(move || run_and_shutdown(runtime, async_main(), RUNTIME_SHUTDOWN_GRACE))
-        .expect("failed to spawn grok-main runtime thread")
+        .expect("failed to spawn axon-main runtime thread")
         .join()
         .unwrap_or_else(|e| std::panic::resume_unwind(e));
     #[cfg(not(windows))]
@@ -1756,7 +1756,7 @@ async fn async_main() -> Result<()> {
         && args.prompt_json.is_none()
         && args.prompt_file.is_none();
     axon_shell::http::set_client_name(if is_interactive {
-        axon_workspace::permission::ClientType::GrokPager
+        axon_workspace::permission::ClientType::AxonPager
     } else {
         axon_workspace::permission::ClientType::Generic
     });
@@ -1772,7 +1772,7 @@ async fn async_main() -> Result<()> {
                     println!("{}", serde_json::to_string(&payload)?);
                 } else {
                     println!(
-                        "grok {}",
+                        "axon {}",
                         axon_version::display_version_with_commit(
                             env!("VERSION_WITH_COMMIT"),
                             axon_update::channel_label(),
@@ -1790,7 +1790,7 @@ async fn async_main() -> Result<()> {
                     };
                     anyhow::bail!(
                         "top-level {flag} applies to the pager TUI, not the agent subcommand. \
-                         Use `grok-pager agent {flag}` instead."
+                         Use `axon-pager agent {flag}` instead."
                     );
                 }
                 enforce_minimum_version_or_exit(&update_config).await;
@@ -1961,7 +1961,7 @@ async fn async_main() -> Result<()> {
             None,
         );
         if let Some(warning) = launch_yolo.blocked_warning {
-            eprintln!("grok: {warning}");
+            eprintln!("axon: {warning}");
         }
         let json_schema = args
             .json_schema
@@ -2044,7 +2044,7 @@ async fn async_main() -> Result<()> {
         Ok(true) => {
             let adopted = bg_update_wait.lock().await.take();
             if finish_update_on_exit(adopted, &update_config).await {
-                eprintln!("Update installed. Run `grok` to start.");
+                eprintln!("Update installed. Run `axon` to start.");
             } else {
                 eprintln!("Update did not complete. Run `axon update` to retry.");
             }
@@ -2109,7 +2109,7 @@ async fn finish_update_on_exit(
 }
 /// Build an [`UpdateConfig`] from the current environment and config files.
 fn build_update_config() -> UpdateConfig {
-    let environment = axon_shell::env::GrokBuildEnvironment::from_flags(false, false);
+    let environment = axon_shell::env::AxonBuildEnvironment::from_flags(false, false);
     let mut config = UpdateConfig::from_environment(&environment);
     cryptify::flow_stmt!({
         {
@@ -2130,7 +2130,7 @@ fn build_update_config() -> UpdateConfig {
 /// Central gate for auto-update checks; add new suppression rules here,
 /// not at call sites.
 fn should_check_for_updates(no_auto_update_flag: bool) -> bool {
-    // Automatic update checks removed: they polled x.ai on every launch
+    // Automatic update checks removed: they polled blocked.invalid on every launch
     // (and hourly in leader mode). Updates remain available via the
     // explicit `axon update` subcommand.
     let _ = no_auto_update_flag;
@@ -2146,18 +2146,18 @@ fn stdio_auto_update_enabled(
 ) -> bool {
     is_stdio && !use_leader && updates_enabled && managed_install
 }
-/// True when `exe` is the binary `<grok_home>/bin/grok` resolves to, the
+/// True when `exe` is the binary `<axon_home>/bin/axon` resolves to, the
 /// install that adopts a staged update on respawn. Both sides are
 /// canonicalized; any failure reports unmanaged and skips the update. The
 /// npm shim hardcodes `~/.axon`, so a custom `AXON_HOME` skips here too.
-fn is_managed_install(exe: Option<std::path::PathBuf>, grok_home: &std::path::Path) -> bool {
-    if grok_home.as_os_str().is_empty() {
+fn is_managed_install(exe: Option<std::path::PathBuf>, axon_home: &std::path::Path) -> bool {
+    if axon_home.as_os_str().is_empty() {
         return false;
     }
     let Some(exe) = exe else {
         return false;
     };
-    let managed = axon_config::grok_application_in(grok_home);
+    let managed = axon_config::axon_application_in(axon_home);
     match (dunce::canonicalize(&exe), dunce::canonicalize(&managed)) {
         (Ok(exe), Ok(managed)) => exe == managed,
         _ => false,
@@ -2176,7 +2176,7 @@ fn get_channel_switch(alpha: bool, stable: bool, enterprise: bool) -> Option<&'s
         None
     }
 }
-/// Handle `grok-pager update [--check] [--json] [--force-reinstall] [--version X] [--alpha|--stable|--enterprise]`.
+/// Handle `axon-pager update [--check] [--json] [--force-reinstall] [--version X] [--alpha|--stable|--enterprise]`.
 async fn run_update_command(
     check: bool,
     json: bool,
@@ -2240,7 +2240,7 @@ async fn signal_leaders_to_relaunch(installed_version: &str) {
         }
         let client = match axon_shell::leader::LeaderClient::connect(
             socket_path,
-            "grok-pager-update",
+            "axon-pager-update",
             ClientMode::Stdio,
             ClientCapabilities::default(),
         )
@@ -2297,7 +2297,7 @@ mod tests {
     impl TempHeapDump {
         fn new(label: &str) -> Self {
             let path = std::env::temp_dir().join(format!(
-                "grok-jemalloc-{label}-{}-{}.heap",
+                "axon-jemalloc-{label}-{}-{}.heap",
                 std::process::id(),
                 std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
@@ -2402,7 +2402,7 @@ mod tests {
         if !require_opt_prof() {
             return;
         }
-        let path = Path::new(OsStr::from_bytes(b"/tmp/grok-jemalloc-\0.heap"));
+        let path = Path::new(OsStr::from_bytes(b"/tmp/axon-jemalloc-\0.heap"));
         let err = jemalloc_dump_to_path(path).expect_err("interior NUL must fail");
         assert!(
             err.to_ascii_lowercase().contains("nul"),
@@ -2438,30 +2438,30 @@ mod tests {
     }
     #[cfg(unix)]
     #[test]
-    fn is_managed_install_matches_only_the_bin_grok_target() {
+    fn is_managed_install_matches_only_the_bin_axon_target() {
         let home =
-            std::env::temp_dir().join(format!("grok-pager-managed-install-{}", std::process::id()));
+            std::env::temp_dir().join(format!("axon-pager-managed-install-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&home);
         std::fs::create_dir_all(home.join("bin")).unwrap();
         std::fs::create_dir_all(home.join("downloads")).unwrap();
         assert!(!is_managed_install(
-            Some(home.join("bin").join("grok")),
+            Some(home.join("bin").join("axon")),
             &home
         ));
         assert!(!is_managed_install(None, &home));
         assert!(!is_managed_install(
-            Some(home.join("bin").join("grok")),
+            Some(home.join("bin").join("axon")),
             std::path::Path::new("")
         ));
-        let target = home.join("downloads").join("grok-1.2.3");
+        let target = home.join("downloads").join("axon-1.2.3");
         std::fs::write(&target, b"binary").unwrap();
-        std::os::unix::fs::symlink(&target, home.join("bin").join("grok")).unwrap();
+        std::os::unix::fs::symlink(&target, home.join("bin").join("axon")).unwrap();
         assert!(is_managed_install(
-            Some(home.join("bin").join("grok")),
+            Some(home.join("bin").join("axon")),
             &home
         ));
         assert!(is_managed_install(Some(target.clone()), &home));
-        let pinned = home.join("bin").join("grok-9.9.9");
+        let pinned = home.join("bin").join("axon-9.9.9");
         std::fs::write(&pinned, b"binary").unwrap();
         assert!(!is_managed_install(Some(pinned), &home));
         let _ = std::fs::remove_dir_all(&home);
@@ -2494,7 +2494,7 @@ mod tests {
     #[serial_test::serial(AXON_AGENT_DASHBOARD)]
     #[test]
     fn dashboard_subcommand_flags_startup_without_forcing_leader() {
-        let mut args = PagerArgs::try_parse_from(["grok", "dashboard"]).unwrap();
+        let mut args = PagerArgs::try_parse_from(["axon", "dashboard"]).unwrap();
         assert!(!args.leader, "fixture: no explicit --leader");
         flag_dashboard_at_startup_if_requested(&mut args).unwrap();
         assert!(!args.leader, "dashboard must NOT force leader mode");
@@ -2515,7 +2515,7 @@ mod tests {
     #[serial_test::serial(AXON_AGENT_DASHBOARD)]
     #[test]
     fn dashboard_subcommand_allows_no_leader() {
-        let mut args = PagerArgs::try_parse_from(["grok", "--no-leader", "dashboard"]).unwrap();
+        let mut args = PagerArgs::try_parse_from(["axon", "--no-leader", "dashboard"]).unwrap();
         flag_dashboard_at_startup_if_requested(&mut args)
             .expect("--no-leader + dashboard must be allowed");
         assert!(args.no_leader, "--no-leader must be preserved");
@@ -2537,7 +2537,7 @@ mod tests {
     #[test]
     fn dashboard_subcommand_errors_when_disabled() {
         unsafe { std::env::set_var("AXON_AGENT_DASHBOARD", "0") };
-        let mut args = PagerArgs::try_parse_from(["grok", "dashboard"]).unwrap();
+        let mut args = PagerArgs::try_parse_from(["axon", "dashboard"]).unwrap();
         let result = flag_dashboard_at_startup_if_requested(&mut args);
         unsafe { std::env::remove_var("AXON_AGENT_DASHBOARD") };
         let err = result.expect_err("disabled dashboard must error");
@@ -2652,7 +2652,7 @@ mod tests {
             &state,
         );
         cache_outgoing_acp_state(
-            r#"{"jsonrpc":"2.0","id":3,"method":"_x.ai/session/close","params":{"sessionId":"s1"}}"#,
+            r#"{"jsonrpc":"2.0","id":3,"method":"_axon/session/close","params":{"sessionId":"s1"}}"#,
             &state,
         );
         let s = state.lock().unwrap();
@@ -2910,7 +2910,7 @@ mod tests {
             let _init = leader_rx.recv().await.unwrap();
             response_tx
                 .send(
-                    r#"{"jsonrpc":"2.0","method":"x.ai/leader/version_mismatch","params":{}}"#
+                    r#"{"jsonrpc":"2.0","method":"axon/leader/version_mismatch","params":{}}"#
                         .to_string(),
                 )
                 .unwrap();
@@ -2956,7 +2956,7 @@ mod tests {
     }
     /// A `session/load` rejected by the new leader (error response) must
     /// surface as a failed replay (`None`) so the bridge emits
-    /// `x.ai/leader_reconnected` with empty params and the external client
+    /// `axon/leader_reconnected` with empty params and the external client
     /// knows to re-establish state itself.
     #[tokio::test]
     async fn replay_returns_none_when_load_is_rejected() {

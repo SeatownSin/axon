@@ -16,7 +16,7 @@ impl MvpAgent {
         };
         let agent_ref = LocalRef::new(self);
         use crate::agent::subagent::{BlockWaitSlot, is_running, resolve_snapshot};
-        use axon_tools::implementations::grok_build::task::types::{
+        use axon_tools::implementations::axon_build::task::types::{
             SubagentCancelOutcome, SubagentCancelTarget, SubagentEvent,
         };
         tokio::task::spawn_local({
@@ -205,7 +205,7 @@ impl MvpAgent {
                         SubagentEvent::DescribeType(request) => {
                             let agent_ref = agent_ref.clone();
                             tokio::task::spawn_local(async move {
-                                use axon_tools::implementations::grok_build::task::types::SubagentDescribeOutcome;
+                                use axon_tools::implementations::axon_build::task::types::SubagentDescribeOutcome;
                                 let this = agent_ref.get();
                                 let outcome = match this
                                     .try_build_subagent_spawn_context(&request.parent_session_id)

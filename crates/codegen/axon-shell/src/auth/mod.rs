@@ -18,8 +18,8 @@ mod storage;
 pub(crate) mod token_type;
 pub(crate) use config::LEGACY_AUTH_SCOPE;
 pub use config::{
-    ForceLoginTeam, GrokComConfig, OAuth2ProviderConfig, OidcAuthConfig, PreferredAuthMethod,
-    XAI_OAUTH2_ISSUER, is_xai_oauth2_issuer, xai_oauth2_issuer,
+    ForceLoginTeam, AxonComConfig, OAuth2ProviderConfig, OidcAuthConfig, PreferredAuthMethod,
+    AXON_OAUTH2_ISSUER, is_axon_oauth2_issuer, axon_oauth2_issuer,
 };
 pub(crate) use external_auth::{parse_output, refresh_with_command};
 pub(crate) use flow::{
@@ -36,7 +36,7 @@ mod meta;
 pub use error::{AuthError, RefreshTokenError, RefreshTokenFailedReason};
 pub use manager::{AuthManager, shared_api_key_provider};
 pub use meta::{AuthMeta, GateInfo};
-pub use model::{AuthMode, GrokAuth, lookup_auth};
+pub use model::{AuthMode, AxonAuth, lookup_auth};
 pub(crate) use model::{
     TOKEN_TTL, UserInfo, default_coding_data_retention_opt_out, is_expired, token_suffix,
 };

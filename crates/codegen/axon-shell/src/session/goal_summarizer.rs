@@ -82,7 +82,7 @@ pub(crate) trait GoalSummarizerSpawner: Send + Sync {
 
 pub(crate) struct ChannelSpawner {
     pub(crate) event_tx: tokio::sync::mpsc::UnboundedSender<
-        axon_tools::implementations::grok_build::task::types::SubagentEvent,
+        axon_tools::implementations::axon_build::task::types::SubagentEvent,
     >,
     pub(crate) parent_session_id: String,
     pub(crate) parent_prompt_id: Option<String>,
@@ -155,7 +155,7 @@ impl ChannelSpawner {
         model: Option<String>,
         harness_agent_type: Option<String>,
     ) -> Result<String, SpawnError> {
-        use axon_tools::implementations::grok_build::task::types::{
+        use axon_tools::implementations::axon_build::task::types::{
             SubagentEvent, SubagentRequest, SubagentRuntimeOverrides,
         };
         use axon_tool_types::SubagentCapabilityMode;
@@ -369,7 +369,7 @@ mod tests {
             .replace("{DETAILS_FILE}", &details_str)
             .replace("{SESSION_TRACES_DIR}", &traces_dir_str);
         let rendered = RoleToolNames::inherit_defaults().apply(&with_paths);
-        // §7 tool placeholders resolve to the default grok-build names.
+        // §7 tool placeholders resolve to the default axon-build names.
         assert!(rendered.contains("read_file"));
         assert!(rendered.contains("grep"));
         assert!(rendered.contains("list_dir"));
@@ -449,7 +449,7 @@ mod tests {
             details_file: None,
             session_traces_dir: plan.parent().unwrap(),
             attempt: 2,
-            model_id: "grok-test",
+            model_id: "axon-test",
             tool_names,
         }
     }
@@ -630,7 +630,7 @@ mod tests {
 
     #[tokio::test]
     async fn channel_spawner_request_is_harness_internal_and_read_only() {
-        use axon_tools::implementations::grok_build::task::types::{
+        use axon_tools::implementations::axon_build::task::types::{
             SubagentEvent, SubagentResult,
         };
         use axon_tool_types::SubagentCapabilityMode;

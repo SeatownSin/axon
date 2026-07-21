@@ -20,7 +20,7 @@ use std::sync::{Arc, Mutex};
 use agent_client_protocol as acp;
 use axon_acp_lib::AcpAgentGatewaySender as GatewaySender;
 
-use crate::extensions::notification::{SessionNotification, SessionUpdate as XaiSessionUpdate};
+use crate::extensions::notification::{SessionNotification, SessionUpdate as AxonSessionUpdate};
 
 /// Shared per-session map of open reverse-requests, keyed by `tool_call_id`.
 ///
@@ -36,15 +36,15 @@ pub type PendingInteractions = Arc<Mutex<HashMap<String, PendingKind>>>;
 pub enum PendingKind {
     /// `request_permission` for a tool action.
     Permission,
-    /// `x.ai/ask_user_question`.
+    /// `axon/ask_user_question`.
     Question,
-    /// `x.ai/exit_plan_mode` plan approval.
+    /// `axon/exit_plan_mode` plan approval.
     PlanApproval,
 }
 
 /// Whether a blocking plan-approval reverse-request is parked in `pending`.
 ///
-/// The resume re-park issues `x.ai/exit_plan_mode` from a detached task
+/// The resume re-park issues `axon/exit_plan_mode` from a detached task
 /// with no running turn, making it the one parked interaction that also carries a
 /// persisted gate (`awaiting_plan_approval`). `session_has_live_work` consults
 /// this to keep such a session resident until the decision is answered or a real
@@ -62,7 +62,7 @@ pub(crate) fn has_parked_plan_approval(pending: &PendingInteractions) -> bool {
 
 /// Fire-and-forget broadcast of a session notification carrying a `sessionId`
 /// (so the routing layer fans it out to every subscriber). Never persisted.
-fn broadcast(gateway: &GatewaySender, session_id: &acp::SessionId, update: XaiSessionUpdate) {
+fn broadcast(gateway: &GatewaySender, session_id: &acp::SessionId, update: AxonSessionUpdate) {
     let notification = SessionNotification {
         session_id: session_id.clone(),
         update,
@@ -70,7 +70,7 @@ fn broadcast(gateway: &GatewaySender, session_id: &acp::SessionId, update: XaiSe
     };
     if let Ok(params) = serde_json::value::to_raw_value(&notification) {
         gateway.forward_fire_and_forget(acp::ExtNotification::new(
-            "x.ai/session_notification",
+            "axon/session_notification",
             params.into(),
         ));
     }
@@ -108,7 +108,7 @@ impl PendingInteractionGuard {
         broadcast(
             &gateway,
             &session_id,
-            XaiSessionUpdate::PendingInteraction {
+            AxonSessionUpdate::PendingInteraction {
                 tool_call_id: tool_call_id.clone(),
                 kind,
             },
@@ -134,7 +134,7 @@ impl Drop for PendingInteractionGuard {
             broadcast(
                 &self.gateway,
                 &self.session_id,
-                XaiSessionUpdate::InteractionResolved {
+                AxonSessionUpdate::InteractionResolved {
                     tool_call_id: self.tool_call_id.clone(),
                 },
             );

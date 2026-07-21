@@ -1,14 +1,14 @@
 use regex::Regex;
-use axon_tools::types::{claude_names_for, grok_names_for};
+use axon_tools::types::{claude_names_for, axon_names_for};
 
 /// A compiled hook matcher for tool names. The pattern semantics are chosen so that
 /// `matcher` entries in hooks migrated from other agent CLIs keep firing unchanged:
 ///
 /// - an empty pattern or `"*"` matches every tool;
 /// - a "simple" pattern (only `[A-Za-z0-9_|]`, i.e. a plain name or `|`-list) is an
-///   **exact** match against each name (after external→Grok alias expansion), NOT a regex;
+///   **exact** match against each name (after external→Axon alias expansion), NOT a regex;
 /// - anything else is an **unanchored** regex (also tested against the tool's external
-///   alias names, so e.g. `^Bash$` matches the Grok tool `run_terminal_command`).
+///   alias names, so e.g. `^Bash$` matches the Axon tool `run_terminal_command`).
 ///
 /// The simple-vs-regex split is deliberate: it avoids anchoring a `|`-alternation (a
 /// naive `^a|b|c$` anchors only the first/last term and silently over-matches). Whitespace
@@ -73,8 +73,8 @@ fn is_simple_form(pattern: &str) -> bool {
 }
 
 /// Expand a simple-form pattern into the exact set of names it matches: each `|`-term
-/// plus any Grok tool names that term aliases (so `"Bash"` also matches
-/// `run_terminal_command`), per the shared external-name to Grok registry in
+/// plus any Axon tool names that term aliases (so `"Bash"` also matches
+/// `run_terminal_command`), per the shared external-name to Axon registry in
 /// `axon-tools`. Empty terms and duplicates are dropped.
 fn exact_names(pattern: &str) -> Vec<String> {
     let mut names: Vec<String> = Vec::new();
@@ -85,8 +85,8 @@ fn exact_names(pattern: &str) -> Vec<String> {
     };
     for term in pattern.split('|') {
         push(term);
-        for grok_name in grok_names_for(term) {
-            push(grok_name);
+        for axon_name in axon_names_for(term) {
+            push(axon_name);
         }
     }
     names
@@ -176,22 +176,22 @@ mod tests {
     // ── External tool-name aliases ────────────────────────────────
 
     #[test]
-    fn claude_bash_matches_grok_tool() {
+    fn claude_bash_matches_axon_tool() {
         let m = HookMatcher::new("Bash").unwrap();
         assert!(m.is_match("Bash")); // external alias name
-        assert!(m.is_match("run_terminal_command")); // Grok name
+        assert!(m.is_match("run_terminal_command")); // Axon name
         assert!(!m.is_match("read_file"));
         // Bug-fix regression: exact, not prefix.
         assert!(!m.is_match("run_terminal_command_v2"));
     }
 
     #[test]
-    fn claude_edit_write_matches_grok_tool_exactly() {
+    fn claude_edit_write_matches_axon_tool_exactly() {
         let m = HookMatcher::new("Edit|Write").unwrap();
         assert!(m.is_match("Edit"));
         assert!(m.is_match("Write"));
-        assert!(m.is_match("search_replace")); // Grok equivalent
-        assert!(m.is_match("hashline_edit")); // second Grok alias
+        assert!(m.is_match("search_replace")); // Axon equivalent
+        assert!(m.is_match("hashline_edit")); // second Axon alias
         assert!(!m.is_match("read_file"));
         // The old anchoring bug matched these; the exact-list mode must not.
         assert!(!m.is_match("Editorial"));
@@ -199,7 +199,7 @@ mod tests {
     }
 
     #[test]
-    fn claude_read_matches_grok_tool() {
+    fn claude_read_matches_axon_tool() {
         let m = HookMatcher::new("Read").unwrap();
         assert!(m.is_match("Read"));
         assert!(m.is_match("read_file"));
@@ -207,8 +207,8 @@ mod tests {
     }
 
     #[test]
-    fn regex_against_claude_alias_matches_grok_tool() {
-        // A regex written against an external alias still matches the Grok tool
+    fn regex_against_claude_alias_matches_axon_tool() {
+        // A regex written against an external alias still matches the Axon tool
         // (legacy alias-name expansion).
         let m = HookMatcher::new("^Bash$").unwrap();
         assert!(m.is_match("run_terminal_command"));

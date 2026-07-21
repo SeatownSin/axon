@@ -200,7 +200,7 @@ impl McpInitProgress {
     /// Whether the progress indicator should be visible in the UI.
     ///
     /// - `total > 0` (real servers): always visible until
-    ///   `x.ai/mcp_initialized` clears the progress.
+    ///   `axon/mcp_initialized` clears the progress.
     /// - `total == 0` (seed / 0-server): visible for at most
     ///   [`SEED_EXPIRE`] seconds, then auto-expires as
     ///   defense-in-depth against the shell failing to send
@@ -568,10 +568,10 @@ pub(crate) struct SessionReload {
     /// Reconnect cursor as of window open, restored with the stash so a
     /// later reload doesn't skip events the restored transcript never got.
     last_seen_event_id: Option<String>,
-    /// Live dedup highwaters (ACP + xAI) as of window open (same restore
+    /// Live dedup highwaters (ACP + Axon) as of window open (same restore
     /// rationale).
     last_applied_event_seq: Option<u64>,
-    last_applied_xai_event_seq: Option<u64>,
+    last_applied_axon_event_seq: Option<u64>,
     /// Whether any `isReplay` update applied during this window. False means
     /// the agent resolved the cursor and sent only a live post-cursor tail.
     saw_replay: bool,
@@ -649,7 +649,7 @@ pub struct PluginCtaState {
     pub dismissed: std::collections::HashSet<String>,
 }
 /// Follow-up suggestion chips for the latest assistant response
-/// (`x.ai/follow_ups`). Streaming-only: never persisted, does not survive a
+/// (`axon/follow_ups`). Streaming-only: never persisted, does not survive a
 /// session reload. Keyed by the assistant `response_id` (the newest-wins key).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct FollowUps {
@@ -750,18 +750,18 @@ pub struct AgentView {
     /// are dropped so each event renders exactly once. `None` until the first
     /// `eventId`-bearing update.
     ///
-    /// ACP stream only — the xAI stream keeps its own highwater
-    /// ([`Self::last_applied_xai_event_seq`]) because the two streams are not
+    /// ACP stream only — the Axon stream keeps its own highwater
+    /// ([`Self::last_applied_axon_event_seq`]) because the two streams are not
     /// delivered in one id order: ACP lines ride the agent's FIFO event
-    /// pipeline while xAI lines are emitted direct-to-gateway, so a fresh xAI
+    /// pipeline while Axon lines are emitted direct-to-gateway, so a fresh Axon
     /// id arriving ahead of queued lower-id ACP chunks must not make the
     /// chunks look stale (silent live-text loss).
     pub last_applied_event_seq: Option<u64>,
-    /// xAI-stream sibling of [`Self::last_applied_event_seq`] (see there for
+    /// Axon-stream sibling of [`Self::last_applied_event_seq`] (see there for
     /// why the highwaters are split). Same drop rule, replay-exempt.
-    pub last_applied_xai_event_seq: Option<u64>,
+    pub last_applied_axon_event_seq: Option<u64>,
     /// Raw `eventId` of the most recent update APPLIED to this root session —
-    /// replay or live, on both the ACP and xAI paths; dropped updates (dedup,
+    /// replay or live, on both the ACP and Axon paths; dropped updates (dedup,
     /// promptId gate, unexpected replay) don't move it. Sent as `_meta.cursor`
     /// on a reconnect `session/load` so the agent replays only the post-cursor
     /// tail. Why the full string: see
@@ -875,7 +875,7 @@ pub struct AgentView {
     /// answering questions via `AskUserQuestion`). Reset when the turn ends.
     pub turn_paused_duration: std::time::Duration,
     /// IDs of interjections this client sent and already rendered locally
-    /// (optimistic echo). The shell broadcasts `x.ai/session/interjection` to
+    /// (optimistic echo). The shell broadcasts `axon/session/interjection` to
     /// every attached pane; when our own broadcast echoes back carrying an id
     /// in this set, `handle_interjection` drops it (we already showed it) and
     /// removes the id. Other panes (which lack the id) render it. This is the
@@ -1232,7 +1232,7 @@ pub struct AgentView {
     /// (`When::DashboardOverlay`) are lit in the overlay and dimmed elsewhere.
     pub(crate) in_dashboard_overlay: bool,
     /// MCP server init progress. Set when the shell starts connecting
-    /// MCP servers, cleared when `x.ai/mcp_initialized` arrives.
+    /// MCP servers, cleared when `axon/mcp_initialized` arrives.
     /// Shown in the turn status line while the agent is idle.
     pub(crate) mcp_init_progress: Option<McpInitProgress>,
     /// Last synced ACP command generation. When this differs from
@@ -1305,7 +1305,7 @@ pub struct AgentView {
     /// lands on a tick; borrowed during render so streaming redraws don't
     /// rescan/allocate the prompt every frame.
     pub(crate) timeline_hover_preview: Option<(usize, String)>,
-    /// Running agent definition for this session (`x.ai/session/info` `agentName`).
+    /// Running agent definition for this session (`axon/session/info` `agentName`).
     pub session_agent_name: Option<String>,
     /// Map of child session IDs to subagent metadata. Populated on
     /// `SubagentSpawned` notifications, used for permission routing
@@ -1387,7 +1387,7 @@ pub struct AgentView {
     /// complete. Kind-only: the payload is re-derived from the widget on
     /// reissue so the freshly attached image chip travels with it.
     pub(crate) deferred_send: Option<AgentDeferredSend>,
-    /// Armed when an `x.ai/session/prompt_complete` broadcast arrives for the
+    /// Armed when an `axon/session/prompt_complete` broadcast arrives for the
     /// turn THIS client drives while it is still awaiting that turn's
     /// `session/prompt` RPC response. The RPC normally lands milliseconds
     /// later and disarms this; if it never does (lost in leader response
@@ -1418,17 +1418,17 @@ pub struct AgentView {
     pub(crate) follow_without_jump_prompt_id: Option<String>,
     /// Ids of THIS client's server-queue rows that are still optimistic
     /// echoes — the `session/prompt` RPC is in flight and no
-    /// `x.ai/queue/changed` broadcast has confirmed the row yet. Inserted by
+    /// `axon/queue/changed` broadcast has confirmed the row yet. Inserted by
     /// the echo push, drained when a broadcast lists the id (queued or
     /// running) or the RPC resolves without the row landing.
     pub(crate) optimistic_queue_ids: std::collections::HashSet<String>,
     /// A queue-row send-now the user fired while the row was still an
-    /// optimistic echo. Firing `x.ai/queue/interject` then would race the
+    /// optimistic echo. Firing `axon/queue/interject` then would race the
     /// row's own in-flight `session/prompt` and silently no-op shell-side
     /// (a rapid double-Enter on a queued bash command could "disappear" — the
     /// interject overtook the row, the no-op dropped the send-now, and the
     /// armed cancel expectation hid the still-queued row).
-    /// Parked here and fired from the confirming `x.ai/queue/changed`
+    /// Parked here and fired from the confirming `axon/queue/changed`
     /// broadcast with the row's authoritative version.
     pub(crate) send_now_awaiting_confirm: Option<String>,
     /// User blocks painted at send-now dispatch, keyed by prompt id; the
@@ -1441,7 +1441,7 @@ pub struct AgentView {
     /// session start independently of the Extensions modal.
     pub plugin_cta: PluginCtaState,
     /// Follow-up suggestion chips for the latest assistant response
-    /// (`x.ai/follow_ups`). `None` when no chips are shown. Set by
+    /// (`axon/follow_ups`). `None` when no chips are shown. Set by
     /// [`AgentView::apply_follow_ups`]; cleared at each turn start.
     pub(crate) follow_ups: Option<FollowUps>,
     /// `promptId` (turn identity) of the currently-shown `follow_ups`, when the
@@ -1475,7 +1475,7 @@ pub struct AgentView {
     /// The ordering key for newest-wins: a fresh id takes the next value (the
     /// new high-water), so every previously-seen id is strictly lower.
     pub(crate) follow_up_next_gen: u64,
-    /// Stamped `x.ai/follow_ups` that arrived for a turn that is NOT yet the
+    /// Stamped `axon/follow_ups` that arrived for a turn that is NOT yet the
     /// currently-adopted one, keyed by `promptId`. Ext notifications and
     /// `session/update` travel on separate channels, so a turn's follow_ups can
     /// land BEFORE the `session/update` that adopts it. Rather than drop such a
@@ -1631,7 +1631,7 @@ fn translate_local_submit(
                 .and_then(|o| o.id.as_deref())
                 .unwrap_or(super::dispatch::UPSELL_URL_UPGRADE);
             axon_telemetry::session_ctx::log_event(
-                axon_telemetry::events::SuperGrokUpsellClicked {
+                axon_telemetry::events::SuperAxonUpsellClicked {
                     source,
                     auth_method: None,
                 },
@@ -1943,7 +1943,7 @@ fn is_hash_key(key: &KeyEvent) -> bool {
 }
 /// Check `[features] remember_mode` in config.toml. Defaults to `false`.
 fn remember_mode_enabled() -> bool {
-    let path = axon_tools::util::grok_home::grok_home().join("config.toml");
+    let path = axon_tools::util::axon_home::axon_home().join("config.toml");
     let Some(doc) = crate::config_toml_edit::read_config_document_for_edit(&path) else {
         return false;
     };
@@ -2049,7 +2049,7 @@ fn resolve_action(action_id: Option<ActionId>) -> Option<InputOutcome> {
 fn question_visible_h(
     scroll_region: Option<(u16, u16)>,
     prompt_height: u16,
-    question: &axon_tools::implementations::grok_build::ask_user_question::Question,
+    question: &axon_tools::implementations::axon_build::ask_user_question::Question,
     content_w: usize,
     preview: Option<&str>,
     fullscreen: bool,
@@ -2789,7 +2789,7 @@ pub(super) mod test_fixtures {
         );
         assert_eq!(agent.follow_ups.as_ref().unwrap().suggestions, vec!["a"]);
     }
-    /// FIX 4 (b): after adopting a NEW turn, a buffer-replayed `x.ai/follow_ups`
+    /// FIX 4 (b): after adopting a NEW turn, a buffer-replayed `axon/follow_ups`
     /// for a PRIOR turn's response_id must NOT revive stale chips — its
     /// `promptId` is not the active turn and it is already in the seen ring.
     #[test]
@@ -2810,7 +2810,7 @@ pub(super) mod test_fixtures {
         assert!(agent.apply_follow_ups_with_prompt("resp-2".into(), Some("p2"), vec!["b".into()]));
         assert_eq!(agent.follow_ups.as_ref().unwrap().response_id, "resp-2");
     }
-    /// FINDING B (stamped path): a LATE FIRST-TIME (never-seen) `x.ai/follow_ups`
+    /// FINDING B (stamped path): a LATE FIRST-TIME (never-seen) `axon/follow_ups`
     /// for a PRIOR turn — arriving while a newer turn is active — must NOT
     /// render. Before the fix it slipped through the "strictly newer" branch
     /// (never recorded in `follow_up_seen`, so the seen-reject didn't catch it).
@@ -2866,7 +2866,7 @@ pub(super) mod test_fixtures {
     /// distinguished from the new turn's first follow_ups, so it follows the
     /// legacy newest-wins (renders). This path is not reachable for current
     /// shells (which always stamp `promptId`) or for buffer-replays (suppressed
-    /// upstream by the `_meta["x.ai/replayed"]` gate); it is pinned here so the
+    /// upstream by the `_meta["axon/replayed"]` gate); it is pinned here so the
     /// stamped-path fix above is understood to be the deterministic guard.
     #[test]
     fn apply_follow_ups_none_prompt_first_time_follows_legacy_newest_wins() {
@@ -2878,7 +2878,7 @@ pub(super) mod test_fixtures {
         );
         assert_eq!(agent.follow_ups.as_ref().unwrap().response_id, "resp-x");
     }
-    /// FIX (buffer-before-adoption): a stamped `x.ai/follow_ups` for a turn that
+    /// FIX (buffer-before-adoption): a stamped `axon/follow_ups` for a turn that
     /// is NOT yet current (its `session/update` adoption raced behind the ext
     /// channel) must be BUFFERED, not dropped — and then RENDER when that turn
     /// becomes current and is flushed.

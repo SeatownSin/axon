@@ -1,7 +1,7 @@
 //! Standalone voice debug harness: mic → streaming STT → transcript.
 //!
 //! ```bash
-//! export XAI_API_KEY=...
+//! export AXON_API_KEY=...
 //! cargo run -p axon-voice --bin voice-probe -- --seconds 5
 //! ```
 
@@ -27,11 +27,11 @@ async fn main() -> anyhow::Result<()> {
 
     let args = parse_args(std::env::args().skip(1).collect());
 
-    let auth = std::env::var("XAI_API_KEY")
+    let auth = std::env::var("AXON_API_KEY")
         .ok()
         .and_then(StaticVoiceAuth::shared)
         .ok_or_else(|| {
-            anyhow::anyhow!("set XAI_API_KEY (standalone probe has no login session)")
+            anyhow::anyhow!("set AXON_API_KEY (standalone probe has no login session)")
         })?;
 
     let config = load_config(args.config_path.as_deref());
@@ -118,7 +118,7 @@ fn parse_args(argv: Vec<String>) -> Args {
 fn load_config(path: Option<&std::path::Path>) -> VoiceConfig {
     // The probe has no shell config stack; env is the resolved fallback
     // (config table still beats it, matching the pager's precedence).
-    let env_base = std::env::var("AXON_XAI_API_BASE_URL").ok();
+    let env_base = std::env::var("AXON_AXON_API_BASE_URL").ok();
     if let Some(path) = path
         && let Ok(raw) = std::fs::read_to_string(path)
         && let Ok(table) = toml::from_str::<toml::Table>(&raw)
@@ -151,7 +151,7 @@ Usage:
   voice-probe [--seconds 5] [--mic-only]
 
 Environment:
-  XAI_API_KEY     required
+  AXON_API_KEY     required
   RUST_LOG        optional (default info,axon_voice=debug)
 
 Reads [voice] from ~/.axon/config.toml unless --config PATH is set.

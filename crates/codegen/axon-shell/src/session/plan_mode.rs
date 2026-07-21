@@ -644,7 +644,7 @@ mod tests {
     use std::collections::HashMap;
     use axon_tools::types::template_renderer::TemplateRenderer;
     use axon_tools::types::tool::ToolKind;
-    /// Build a test TemplateRenderer with standard Grok Build tool mappings.
+    /// Build a test TemplateRenderer with standard Axon Build tool mappings.
     fn test_renderer() -> TemplateRenderer {
         let tools: HashMap<ToolKind, String> = [
             (ToolKind::Edit, "search_replace".to_owned()),

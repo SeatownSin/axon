@@ -11,12 +11,12 @@
 
 use crate::events;
 
-/// Wire schema version, exported as resource attr `grok_code.schema.version`.
+/// Wire schema version, exported as resource attr `axon_code.schema.version`.
 /// Additive changes (new events/attrs) do not bump it; renames/removals do.
 pub const SCHEMA_VERSION: &str = "v1";
 
 /// Meter/logger instrumentation scope name.
-pub const SCOPE_NAME: &str = "ai.xai.grok_code";
+pub const SCOPE_NAME: &str = "ai.axon.axon_code";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Event names
@@ -50,24 +50,24 @@ impl ExternalEventName {
     /// the monitoring-usage page); renames require a `SCHEMA_VERSION` bump.
     pub fn as_str(self) -> &'static str {
         match self {
-            Self::SessionStart => "grok_code.session_start",
-            Self::SessionEnd => "grok_code.session_end",
-            Self::UserPrompt => "grok_code.user_prompt",
-            Self::TurnCompleted => "grok_code.turn_completed",
-            Self::ApiRequest => "grok_code.api_request",
-            Self::ApiError => "grok_code.api_error",
-            Self::ToolResult => "grok_code.tool_result",
-            Self::ToolDecision => "grok_code.tool_decision",
-            Self::McpServerConnection => "grok_code.mcp_server_connection",
-            Self::PermissionModeChanged => "grok_code.permission_mode_changed",
-            Self::SkillActivated => "grok_code.skill_activated",
-            Self::PluginLoaded => "grok_code.plugin_loaded",
-            Self::Compaction => "grok_code.compaction",
-            Self::Subagent => "grok_code.subagent",
-            Self::Auth => "grok_code.auth",
-            Self::InternalError => "grok_code.internal_error",
-            Self::ModelSwitched => "grok_code.model_switched",
-            Self::ContextualTip => "grok_code.contextual_tip",
+            Self::SessionStart => "axon_code.session_start",
+            Self::SessionEnd => "axon_code.session_end",
+            Self::UserPrompt => "axon_code.user_prompt",
+            Self::TurnCompleted => "axon_code.turn_completed",
+            Self::ApiRequest => "axon_code.api_request",
+            Self::ApiError => "axon_code.api_error",
+            Self::ToolResult => "axon_code.tool_result",
+            Self::ToolDecision => "axon_code.tool_decision",
+            Self::McpServerConnection => "axon_code.mcp_server_connection",
+            Self::PermissionModeChanged => "axon_code.permission_mode_changed",
+            Self::SkillActivated => "axon_code.skill_activated",
+            Self::PluginLoaded => "axon_code.plugin_loaded",
+            Self::Compaction => "axon_code.compaction",
+            Self::Subagent => "axon_code.subagent",
+            Self::Auth => "axon_code.auth",
+            Self::InternalError => "axon_code.internal_error",
+            Self::ModelSwitched => "axon_code.model_switched",
+            Self::ContextualTip => "axon_code.contextual_tip",
         }
     }
 }
@@ -407,32 +407,32 @@ pub struct GatedAttr {
 /// into instrument `add()` calls with identity/cardinality attributes.
 #[derive(Debug, Clone, PartialEq)]
 pub enum MetricIncrement {
-    /// `grok_code.session.count`.
+    /// `axon_code.session.count`.
     SessionCount,
-    /// `grok_code.token.usage` — `token_type` ∈ `input|output|reasoning|cache_read`.
+    /// `axon_code.token.usage` — `token_type` ∈ `input|output|reasoning|cache_read`.
     TokenUsage {
         token_type: &'static str,
         model: String,
         count: u64,
     },
-    /// `grok_code.turn.count`.
+    /// `axon_code.turn.count`.
     TurnCount {
         outcome: &'static str,
         model: String,
     },
-    /// `grok_code.tool.decision`.
+    /// `axon_code.tool.decision`.
     ToolDecision {
         tool_name: String,
         decision: &'static str,
         access_kind: &'static str,
         permission_mode: &'static str,
     },
-    /// `grok_code.tool.usage`.
+    /// `axon_code.tool.usage`.
     ToolUsage {
         tool_name: String,
         outcome: &'static str,
     },
-    /// `grok_code.error.count`.
+    /// `axon_code.error.count`.
     ErrorCount {
         error_category: String,
         model: String,
@@ -492,12 +492,12 @@ impl ExternalRecord {
 // Metric instrument schema (names / units / pinned attr keys)
 // ─────────────────────────────────────────────────────────────────────────────
 
-pub(crate) const METRIC_SESSION_COUNT: &str = "grok_code.session.count";
-pub(crate) const METRIC_TOKEN_USAGE: &str = "grok_code.token.usage";
-pub(crate) const METRIC_TURN_COUNT: &str = "grok_code.turn.count";
-pub(crate) const METRIC_TOOL_DECISION: &str = "grok_code.tool.decision";
-pub(crate) const METRIC_TOOL_USAGE: &str = "grok_code.tool.usage";
-pub(crate) const METRIC_ERROR_COUNT: &str = "grok_code.error.count";
+pub(crate) const METRIC_SESSION_COUNT: &str = "axon_code.session.count";
+pub(crate) const METRIC_TOKEN_USAGE: &str = "axon_code.token.usage";
+pub(crate) const METRIC_TURN_COUNT: &str = "axon_code.turn.count";
+pub(crate) const METRIC_TOOL_DECISION: &str = "axon_code.tool.decision";
+pub(crate) const METRIC_TOOL_USAGE: &str = "axon_code.tool.usage";
+pub(crate) const METRIC_ERROR_COUNT: &str = "axon_code.error.count";
 
 /// Every attribute key that may appear on a metric data point: the
 /// instrument-specific keys plus the per-increment identity/cardinality keys.
@@ -529,12 +529,12 @@ pub(crate) const METRIC_ALLOWED_ATTR_KEYS: &[&str] = &[
 /// field is externally controlled free text from ACP client metadata, so it
 /// must never pass verbatim — unknown values collapse to `"other"`.
 pub(crate) const KNOWN_CLIENT_IDENTIFIERS: &[&str] = &[
-    "grok-pager",
-    "grok-tui",
-    "grok-shell",
-    "grok-web",
-    "grok-desktop",
-    "grok-code-extension",
+    "axon-pager",
+    "axon-tui",
+    "axon-shell",
+    "axon-web",
+    "axon-desktop",
+    "axon-code-extension",
     "nebula",
     "zed",
 ];
@@ -725,7 +725,7 @@ fn yolo_trigger_label(t: events::YoloTrigger) -> &'static str {
 // Mapping functions (`telemetry_event!(…, external = …)` targets)
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// `SessionHarness` → `grok_code.session_start`. Emitted from a spawn outside
+/// `SessionHarness` → `axon_code.session_start`. Emitted from a spawn outside
 /// `TELEMETRY_CTX`, so `session.id` is mapped from the struct's own field.
 pub fn map_session_start(ev: &events::SessionHarness) -> Option<ExternalRecord> {
     Some(
@@ -751,7 +751,7 @@ pub fn map_session_start(ev: &events::SessionHarness) -> Option<ExternalRecord> 
     )
 }
 
-/// `SessionNew` → `grok_code.session.count` (metric only; the flagship
+/// `SessionNew` → `axon_code.session.count` (metric only; the flagship
 /// `session_start` log record comes from the richer `SessionHarness`).
 pub fn map_session_new(ev: &events::SessionNew) -> Option<ExternalRecord> {
     Some(
@@ -761,7 +761,7 @@ pub fn map_session_new(ev: &events::SessionNew) -> Option<ExternalRecord> {
     )
 }
 
-/// `SessionEnded` → `grok_code.session_end`.
+/// `SessionEnded` → `axon_code.session_end`.
 pub fn map_session_end(ev: &events::SessionEnded) -> Option<ExternalRecord> {
     Some(
         ExternalRecord::event(ExternalEventName::SessionEnd)
@@ -773,7 +773,7 @@ pub fn map_session_end(ev: &events::SessionEnded) -> Option<ExternalRecord> {
     )
 }
 
-/// `PromptSubmitted` → `grok_code.user_prompt`. Prompt text rides the
+/// `PromptSubmitted` → `axon_code.user_prompt`. Prompt text rides the
 /// `UserPrompts` gate (60 KB cap applied at emit time).
 pub fn map_user_prompt(ev: &events::PromptSubmitted) -> Option<ExternalRecord> {
     let mut rec = ExternalRecord::event(ExternalEventName::UserPrompt)
@@ -789,7 +789,7 @@ pub fn map_user_prompt(ev: &events::PromptSubmitted) -> Option<ExternalRecord> {
     Some(rec)
 }
 
-/// `TurnCompleted` → `grok_code.turn_completed` + `turn.count`
+/// `TurnCompleted` → `axon_code.turn_completed` + `turn.count`
 /// (+ `error.count` on error outcomes).
 pub fn map_turn_completed(ev: &events::TurnCompleted) -> Option<ExternalRecord> {
     let outcome = outcome_label(ev.outcome);
@@ -819,7 +819,7 @@ pub fn map_turn_completed(ev: &events::TurnCompleted) -> Option<ExternalRecord> 
     Some(rec)
 }
 
-/// `ModelResponseReceived` → `grok_code.api_request` + `token.usage`.
+/// `ModelResponseReceived` → `axon_code.api_request` + `token.usage`.
 pub fn map_api_request(ev: &events::ModelResponseReceived) -> Option<ExternalRecord> {
     let mut rec = ExternalRecord::event(ExternalEventName::ApiRequest)
         .attr(ExternalKey::Model, ev.model_id.as_str())
@@ -846,7 +846,7 @@ pub fn map_api_request(ev: &events::ModelResponseReceived) -> Option<ExternalRec
     Some(rec)
 }
 
-/// `RateLimitHit` → `grok_code.api_error` (`error_category = rate_limit`).
+/// `RateLimitHit` → `axon_code.api_error` (`error_category = rate_limit`).
 /// No `error.count` increment: a rate-limited turn (retries exhausted) also
 /// ends in `TurnCompleted{outcome: Error}`, which is the single increment
 /// source — incrementing here too would double-count the failure.
@@ -858,7 +858,7 @@ pub fn map_rate_limit_hit(ev: &events::RateLimitHit) -> Option<ExternalRecord> {
     )
 }
 
-/// `ApiError` → `grok_code.api_error`. Category/class enums only — no
+/// `ApiError` → `axon_code.api_error`. Category/class enums only — no
 /// message text. Deliberately **no** `error.count` increment: `ApiError` is
 /// emitted alongside `TurnCompleted{outcome: Error}` for the same failure,
 /// and the metric's increment sources are exactly `TurnCompleted{Error}` +
@@ -874,7 +874,7 @@ pub fn map_api_error(ev: &events::ApiError) -> Option<ExternalRecord> {
     )
 }
 
-/// `ToolCallCompleted` → `grok_code.tool_result` + `tool.usage`.
+/// `ToolCallCompleted` → `axon_code.tool_result` + `tool.usage`.
 pub fn map_tool_result(ev: &events::ToolCallCompleted) -> Option<ExternalRecord> {
     use axon_file_utils::events::types::ToolOutcome;
     let sanitized = sanitize_tool_name(&ev.tool_name);
@@ -911,7 +911,7 @@ pub fn map_tool_result(ev: &events::ToolCallCompleted) -> Option<ExternalRecord>
     Some(rec)
 }
 
-/// `PermissionDecisionPayload` → `grok_code.tool_decision` + `tool.decision`.
+/// `PermissionDecisionPayload` → `axon_code.tool_decision` + `tool.decision`.
 pub fn map_tool_decision(ev: &events::PermissionDecisionPayload) -> Option<ExternalRecord> {
     let sanitized = sanitize_tool_name(&ev.tool_name);
     let decision = ev.decision.as_str();
@@ -938,7 +938,7 @@ pub fn map_tool_decision(ev: &events::PermissionDecisionPayload) -> Option<Exter
     )
 }
 
-/// `McpServerConnected` → `grok_code.mcp_server_connection` (`status=connected`).
+/// `McpServerConnected` → `axon_code.mcp_server_connection` (`status=connected`).
 /// Server name collapses to `"mcp_server"` by default (name is details-gated).
 pub fn map_mcp_server_connected(ev: &events::McpServerConnected) -> Option<ExternalRecord> {
     Some(
@@ -959,7 +959,7 @@ pub fn map_mcp_server_connected(ev: &events::McpServerConnected) -> Option<Exter
     )
 }
 
-/// `McpServerFailed` → `grok_code.mcp_server_connection` (`status=failed`).
+/// `McpServerFailed` → `axon_code.mcp_server_connection` (`status=failed`).
 pub fn map_mcp_server_failed(ev: &events::McpServerFailed) -> Option<ExternalRecord> {
     Some(
         ExternalRecord::event(ExternalEventName::McpServerConnection)
@@ -975,7 +975,7 @@ pub fn map_mcp_server_failed(ev: &events::McpServerFailed) -> Option<ExternalRec
     )
 }
 
-/// `PlanModeToggled` → `grok_code.permission_mode_changed`.
+/// `PlanModeToggled` → `axon_code.permission_mode_changed`.
 pub fn map_plan_mode_toggled(ev: &events::PlanModeToggled) -> Option<ExternalRecord> {
     Some(
         ExternalRecord::event(ExternalEventName::PermissionModeChanged)
@@ -987,7 +987,7 @@ pub fn map_plan_mode_toggled(ev: &events::PlanModeToggled) -> Option<ExternalRec
     )
 }
 
-/// `ContextualTip` → `grok_code.contextual_tip`. Labels only (no user
+/// `ContextualTip` → `axon_code.contextual_tip`. Labels only (no user
 /// content), so nothing here is gated.
 pub fn map_contextual_tip(ev: &events::ContextualTip) -> Option<ExternalRecord> {
     Some(
@@ -997,7 +997,7 @@ pub fn map_contextual_tip(ev: &events::ContextualTip) -> Option<ExternalRecord> 
     )
 }
 
-/// `YoloToggled` → `grok_code.permission_mode_changed`.
+/// `YoloToggled` → `axon_code.permission_mode_changed`.
 pub fn map_yolo_toggled(ev: &events::YoloToggled) -> Option<ExternalRecord> {
     Some(
         ExternalRecord::event(ExternalEventName::PermissionModeChanged)
@@ -1013,7 +1013,7 @@ pub fn map_yolo_toggled(ev: &events::YoloToggled) -> Option<ExternalRecord> {
     )
 }
 
-/// `SkillDispatched` → `grok_code.skill_activated`. Skill names are
+/// `SkillDispatched` → `axon_code.skill_activated`. Skill names are
 /// details-gated; only the source category exports by default.
 pub fn map_skill_activated(ev: &events::SkillDispatched) -> Option<ExternalRecord> {
     Some(
@@ -1034,7 +1034,7 @@ pub fn map_skill_activated(ev: &events::SkillDispatched) -> Option<ExternalRecor
     )
 }
 
-/// `PluginInstalled` → `grok_code.plugin_loaded`.
+/// `PluginInstalled` → `axon_code.plugin_loaded`.
 pub fn map_plugin_installed(ev: &events::PluginInstalled) -> Option<ExternalRecord> {
     Some(
         ExternalRecord::event(ExternalEventName::PluginLoaded)
@@ -1044,7 +1044,7 @@ pub fn map_plugin_installed(ev: &events::PluginInstalled) -> Option<ExternalReco
     )
 }
 
-/// `PluginUsed` → `grok_code.plugin_loaded` (plugin name details-gated).
+/// `PluginUsed` → `axon_code.plugin_loaded` (plugin name details-gated).
 pub fn map_plugin_used(ev: &events::PluginUsed) -> Option<ExternalRecord> {
     Some(
         ExternalRecord::event(ExternalEventName::PluginLoaded)
@@ -1057,7 +1057,7 @@ pub fn map_plugin_used(ev: &events::PluginUsed) -> Option<ExternalRecord> {
     )
 }
 
-/// `CompactionCompleted` → `grok_code.compaction`.
+/// `CompactionCompleted` → `axon_code.compaction`.
 pub fn map_compaction(ev: &events::CompactionCompleted) -> Option<ExternalRecord> {
     Some(
         ExternalRecord::event(ExternalEventName::Compaction)
@@ -1068,9 +1068,9 @@ pub fn map_compaction(ev: &events::CompactionCompleted) -> Option<ExternalRecord
     )
 }
 
-/// `CompactionTriggered` → `grok_code.compaction` trigger attrs ride on the
+/// `CompactionTriggered` → `axon_code.compaction` trigger attrs ride on the
 /// completion event instead (one event per compaction); not mapped.
-/// `SubagentLaunched` → `grok_code.subagent` (`phase=launched`).
+/// `SubagentLaunched` → `axon_code.subagent` (`phase=launched`).
 pub fn map_subagent_launched(ev: &events::SubagentLaunched) -> Option<ExternalRecord> {
     Some(
         ExternalRecord::event(ExternalEventName::Subagent)
@@ -1079,7 +1079,7 @@ pub fn map_subagent_launched(ev: &events::SubagentLaunched) -> Option<ExternalRe
     )
 }
 
-/// `SubagentCompleted` → `grok_code.subagent` (`phase=completed`).
+/// `SubagentCompleted` → `axon_code.subagent` (`phase=completed`).
 pub fn map_subagent_completed(ev: &events::SubagentCompleted) -> Option<ExternalRecord> {
     Some(
         ExternalRecord::event(ExternalEventName::Subagent)
@@ -1089,7 +1089,7 @@ pub fn map_subagent_completed(ev: &events::SubagentCompleted) -> Option<External
     )
 }
 
-/// `Login` → `grok_code.auth`.
+/// `Login` → `axon_code.auth`.
 pub fn map_auth(ev: &events::Login) -> Option<ExternalRecord> {
     Some(
         ExternalRecord::event(ExternalEventName::Auth)
@@ -1097,7 +1097,7 @@ pub fn map_auth(ev: &events::Login) -> Option<ExternalRecord> {
     )
 }
 
-/// `InternalError` → `grok_code.internal_error`. Error class only — no
+/// `InternalError` → `axon_code.internal_error`. Error class only — no
 /// message, no location (user decision, RQ5).
 pub fn map_internal_error(ev: &events::InternalError) -> Option<ExternalRecord> {
     Some(
@@ -1106,7 +1106,7 @@ pub fn map_internal_error(ev: &events::InternalError) -> Option<ExternalRecord> 
     )
 }
 
-/// `ModelSwitched` → `grok_code.model_switched`.
+/// `ModelSwitched` → `axon_code.model_switched`.
 pub fn map_model_switched(ev: &events::ModelSwitched) -> Option<ExternalRecord> {
     Some(
         ExternalRecord::event(ExternalEventName::ModelSwitched)

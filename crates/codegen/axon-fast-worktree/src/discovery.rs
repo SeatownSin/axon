@@ -92,15 +92,15 @@ fn scan_two_level_dir(base_dir: &Path, kind: WorktreeKind, report: &mut Discover
     }
 }
 
-pub fn discover_worktrees(grok_home: &Path) -> DiscoveryReport {
+pub fn discover_worktrees(axon_home: &Path) -> DiscoveryReport {
     let mut report = DiscoveryReport::default();
     scan_two_level_dir(
-        &grok_home.join("worktrees"),
+        &axon_home.join("worktrees"),
         WorktreeKind::Session,
         &mut report,
     );
     scan_two_level_dir(
-        &grok_home.join("worktree_pool"),
+        &axon_home.join("worktree_pool"),
         WorktreeKind::Pool,
         &mut report,
     );
@@ -156,9 +156,9 @@ pub struct RebuildReport {
 
 pub fn rebuild_worktree_db(
     db: &crate::db::WorktreeDb,
-    grok_home: &Path,
+    axon_home: &Path,
 ) -> anyhow::Result<RebuildReport> {
-    let discovery = discover_worktrees(grok_home);
+    let discovery = discover_worktrees(axon_home);
     let mut report = RebuildReport {
         discovered: discovery.found.len() as u64,
         ..Default::default()
@@ -195,12 +195,12 @@ mod tests {
     #[test]
     fn discover_session_worktrees() {
         let tmp = tempfile::TempDir::new().unwrap();
-        let grok_home = tmp.path();
+        let axon_home = tmp.path();
 
-        let wt = grok_home.join("worktrees/myrepo/worktree-abc123");
+        let wt = axon_home.join("worktrees/myrepo/worktree-abc123");
         make_fake_linked_worktree(&wt, "/repo/.git/worktrees/abc123");
 
-        let report = discover_worktrees(grok_home);
+        let report = discover_worktrees(axon_home);
         assert_eq!(report.found.len(), 1);
         assert_eq!(report.found[0].kind, WorktreeKind::Session);
         assert_eq!(report.found[0].creation_mode, "linked");
@@ -210,12 +210,12 @@ mod tests {
     #[test]
     fn discover_pool_worktrees() {
         let tmp = tempfile::TempDir::new().unwrap();
-        let grok_home = tmp.path();
+        let axon_home = tmp.path();
 
-        let wt = grok_home.join("worktree_pool/inst-1/pool-a");
+        let wt = axon_home.join("worktree_pool/inst-1/pool-a");
         make_fake_standalone_worktree(&wt);
 
-        let report = discover_worktrees(grok_home);
+        let report = discover_worktrees(axon_home);
         assert_eq!(report.found.len(), 1);
         assert_eq!(report.found[0].kind, WorktreeKind::Pool);
         assert_eq!(report.found[0].creation_mode, "standalone");
@@ -224,9 +224,9 @@ mod tests {
     #[test]
     fn skips_dot_prefixed_and_markers() {
         let tmp = tempfile::TempDir::new().unwrap();
-        let grok_home = tmp.path();
+        let axon_home = tmp.path();
 
-        let base = grok_home.join("worktrees/myrepo");
+        let base = axon_home.join("worktrees/myrepo");
         std::fs::create_dir_all(&base).unwrap();
 
         std::fs::create_dir_all(base.join(".tmp_creating")).unwrap();
@@ -236,7 +236,7 @@ mod tests {
 
         make_fake_standalone_worktree(&base.join("real-session"));
 
-        let report = discover_worktrees(grok_home);
+        let report = discover_worktrees(axon_home);
         assert_eq!(report.found.len(), 1);
         assert_eq!(report.found[0].path, base.join("real-session"));
         assert!(report.skipped > 0);
@@ -253,19 +253,19 @@ mod tests {
     #[test]
     fn rebuild_registers_and_skips_duplicates() {
         let tmp = tempfile::TempDir::new().unwrap();
-        let grok_home = tmp.path();
+        let axon_home = tmp.path();
 
-        let wt = grok_home.join("worktrees/repo/worktree-sess1");
+        let wt = axon_home.join("worktrees/repo/worktree-sess1");
         make_fake_standalone_worktree(&wt);
 
         let db = crate::db::WorktreeDb::open_in_memory().unwrap();
 
-        let r1 = rebuild_worktree_db(&db, grok_home).unwrap();
+        let r1 = rebuild_worktree_db(&db, axon_home).unwrap();
         assert_eq!(r1.discovered, 1);
         assert_eq!(r1.registered, 1);
         assert_eq!(r1.already_tracked, 0);
 
-        let r2 = rebuild_worktree_db(&db, grok_home).unwrap();
+        let r2 = rebuild_worktree_db(&db, axon_home).unwrap();
         assert_eq!(r2.discovered, 1);
         assert_eq!(r2.registered, 0);
         assert_eq!(r2.already_tracked, 1);
@@ -277,15 +277,15 @@ mod tests {
         // worktree. Discovery + rebuild must register BOTH (distinct ids), not
         // collapse them into one and then permanently skip the other.
         let tmp = tempfile::TempDir::new().unwrap();
-        let grok_home = tmp.path();
+        let axon_home = tmp.path();
 
-        let wt_a = grok_home.join("worktrees/repo-a/wt-abc");
-        let wt_b = grok_home.join("worktrees/repo-b/wt-abc");
+        let wt_a = axon_home.join("worktrees/repo-a/wt-abc");
+        let wt_b = axon_home.join("worktrees/repo-b/wt-abc");
         make_fake_standalone_worktree(&wt_a);
         make_fake_standalone_worktree(&wt_b);
 
         let db = crate::db::WorktreeDb::open_in_memory().unwrap();
-        let report = rebuild_worktree_db(&db, grok_home).unwrap();
+        let report = rebuild_worktree_db(&db, axon_home).unwrap();
         assert_eq!(report.discovered, 2);
         assert_eq!(
             report.registered, 2,
@@ -298,7 +298,7 @@ mod tests {
         assert!(db.get(&wt_b.to_string_lossy()).unwrap().is_some());
 
         // Idempotent: a second rebuild finds both already tracked, skips neither.
-        let report2 = rebuild_worktree_db(&db, grok_home).unwrap();
+        let report2 = rebuild_worktree_db(&db, axon_home).unwrap();
         assert_eq!(report2.registered, 0);
         assert_eq!(report2.already_tracked, 2);
     }

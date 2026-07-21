@@ -20,7 +20,7 @@ const PROMO_MSG: &str = "ZZANNPROMOMSG";
 const PROMO_LABEL: &str = "ZZPROMOCTA";
 /// The promo CTA renders as a bracketed button.
 const PROMO_BUTTON: &str = "[ZZPROMOCTA]";
-const PROMO_URL: &str = "https://x.ai/zz-promo-cta";
+const PROMO_URL: &str = "https://blocked.invalid/zz-promo-cta";
 /// Configured `cta.caption` for the pinned multi-surface fixture; the banner
 /// paints it after the button, the in-session header never does.
 const PROMO_CAPTION: &str = "or use Ctrl+O";
@@ -173,7 +173,7 @@ async fn critical_announcement_hide_button_click_hides_banner() {
 
     // 115-col message vs row-1 budget DEFAULT_COLS − 29: the truncation asserts below hold only while DEFAULT_COLS ≤ 143.
     let long_msg = format!(
-        "{CRIT_MSG} elevated error rates persist across regions check status.x.ai for updates and retry your request later"
+        "{CRIT_MSG} elevated error rates persist across regions check status.blocked.invalid for updates and retry your request later"
     );
     let override_json = format!(
         r#"[{{"id":"pty-crit-click","title":"{CRIT_TITLE}","message":"{long_msg}","severity":"critical"}}]"#

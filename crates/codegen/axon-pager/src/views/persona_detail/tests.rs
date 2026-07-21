@@ -9,7 +9,7 @@ fn editable_state() -> (tempfile::TempDir, PathBuf, PersonaDetailState) {
         concat!(
             "name = \"reviewer\"\n",
             "description = \"old description\"\n",
-            "model = \"grok\"\n",
+            "model = \"axon\"\n",
             "reasoning_effort = \"high\"\n",
             "default_isolation = \"worktree\"\n",
             "instructions = \"read only instructions\"\n",

@@ -83,7 +83,7 @@ pub fn check_dream_gates(
 
 use super::text_utils::{has_markdown_headers, is_no_reply};
 
-const LOG: &str = "xai_memory";
+const LOG: &str = "axon_memory";
 
 pub const DREAM_SYSTEM_PROMPT: &str = "\
 You are performing a dream \u{2014} a reflective pass over memory files. \

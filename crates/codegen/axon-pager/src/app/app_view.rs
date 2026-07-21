@@ -717,12 +717,12 @@ pub struct AppView {
     /// Periodic billing poll requested (credits >= 99%).
     pub billing_poll_wanted: bool,
     /// Leader-mode session roster (FleetView dashboard). Populated from
-    /// `x.ai/sessions/list` polls and `x.ai/sessions/changed` broadcasts.
+    /// `axon/sessions/list` polls and `axon/sessions/changed` broadcasts.
     /// Empty in non-leader mode, which naturally gates roster rendering.
     pub leader_roster: Vec<crate::app::roster::RosterEntry>,
     /// Local on-disk session list (dormant/idle sessions) surfaced on the
     /// dashboard when NOT in leader mode. There is no live leader roster to
-    /// poll outside leader mode, so we fetch the same `x.ai/session/list` the
+    /// poll outside leader mode, so we fetch the same `axon/session/list` the
     /// resume picker uses and render those as idle rows. Entries are stored as
     /// [`crate::app::roster::RosterEntry`] (activity `Dormant`) so they reuse
     /// the existing roster-row rendering / attach path. Empty in leader mode.
@@ -730,14 +730,14 @@ pub struct AppView {
     /// Whether the dashboard is currently loading local sessions (non-leader mode).
     pub dashboard_sessions_loading: bool,
     /// Server-authoritative shared prompt queues, keyed by `sessionId`
-    /// Reconciled from `x.ai/queue/changed` broadcasts so
+    /// Reconciled from `axon/queue/changed` broadcasts so
     /// every client renders the same ordered queue (including prompts queued
     /// by other clients). Empty in non-leader mode.
     pub shared_prompt_queues:
         std::collections::HashMap<String, Vec<crate::app::prompt_queue::QueueEntryWire>>,
     /// Optimistic echo rows for prompts the pager sent server-authoritatively
     /// (plain prompt typed while a turn is running) but for which the
-    /// confirming `x.ai/queue/changed` broadcast has not yet arrived. Keyed by
+    /// confirming `axon/queue/changed` broadcast has not yet arrived. Keyed by
     /// `sessionId`. Pinned into `shared_prompt_queues` on reconcile so the row
     /// doesn't flicker, and dropped once the authoritative broadcast reflects
     /// the id (or it starts running). Never persisted.
@@ -760,7 +760,7 @@ pub struct AppView {
     pub cancel_rewind_enabled: bool,
     /// Whether session recap (`/recap` + automatic away recap) is rolled out,
     /// resolved by the shell and advertised on ACP initialize (`sessionRecap`).
-    /// When false, the pager must not request recaps (zero `x.ai/recap` traffic).
+    /// When false, the pager must not request recaps (zero `axon/recap` traffic).
     pub session_recap_available: bool,
     /// Stateful prompt widget rendered on the welcome screen (persists input across frames).
     pub welcome_prompt: PromptWidget,
@@ -934,7 +934,7 @@ pub struct AppView {
     /// Automatically enabled by `plan_mode`.
     pub ask_user: bool,
     /// Process-wide gateway light-frontend from CLI `--chat` only.
-    /// Stamps `_meta["x.ai/session"].kind = "chat"` and omits Build agent
+    /// Stamps `_meta["axon/session"].kind = "chat"` and omits Build agent
     /// profiles on create/load while set. `/chat` does **not** set this
     /// (uses [`Self::deferred_startup`] one-shot state instead).
     pub chat_mode: bool,
@@ -999,7 +999,7 @@ pub struct AppView {
     /// when `Pending`, the welcome screen shows the trust question and session
     /// creation is deferred (gated after auth) until it is answered.
     pub trust_state: TrustState,
-    /// Login button label from `AuthMethod.name` (e.g., "grok.com", "Acme Corp").
+    /// Login button label from `AuthMethod.name` (e.g., "blocked.invalid", "Acme Corp").
     pub login_label: Option<String>,
     /// The auth method ID to use for login.
     pub login_method_id: Option<acp::AuthMethodId>,
@@ -1043,7 +1043,7 @@ pub struct AppView {
     pub zdr_access_enabled: bool,
     /// When set, `/usage` shows a link to this URL instead of fetching billing
     /// data from the backend. Server-controlled via RemoteSettings (remote settings
-    /// `grok_build_usage_redirect_url`, targeted at personal-team users).
+    /// `axon_build_usage_redirect_url`, targeted at personal-team users).
     /// `None` (default) fetches usage from the backend.
     pub usage_billing_redirect_url: Option<String>,
     pub access_gate_shown_logged: bool,
@@ -1053,9 +1053,9 @@ pub struct AppView {
     /// event's `id`).
     pub announcement_cta_impressions_logged:
         std::collections::BTreeSet<(String, axon_telemetry::events::AnnouncementCtaSurface)>,
-    /// Access gate from `grok_build_access_gate`. `Some` = blocked.
+    /// Access gate from `axon_build_access_gate`. `Some` = blocked.
     pub gate: Option<axon_shell::auth::GateInfo>,
-    /// User-friendly subscription tier name (e.g. "SuperGrok", "Free").
+    /// User-friendly subscription tier name (e.g. "SuperAxon", "Free").
     pub subscription_tier: Option<String>,
     /// When the pager started auto-checking subscriptions (for 10-min timeout).
     pub paywall_check_started: Option<std::time::Instant>,
@@ -1127,7 +1127,7 @@ pub struct AppView {
     pub voice_ui_active: bool,
     /// Optional `[voice]` overrides from config (`api_base`, `language`, …).
     pub voice_config: axon_voice::VoiceConfig,
-    /// Auth for STT (OAuth session via shell `AuthManager`, or `XAI_API_KEY`).
+    /// Auth for STT (OAuth session via shell `AuthManager`, or `AXON_API_KEY`).
     /// `None` until the pipeline is first started (lazy on `/voice`).
     pub voice_auth: Option<axon_voice::SharedVoiceAuth>,
     /// Commands into the voice pipeline (start/stop capture — toggle, not hold).
@@ -1491,7 +1491,7 @@ impl AppView {
     /// lockstep. Mirrors [`Self::apply_voice_mode_enabled`].
     ///
     /// Called from [`Self::apply_auth_meta`] (startup / login) and from the
-    /// `x.ai/settings/update` handler when the subscription tier changes, so
+    /// `axon/settings/update` handler when the subscription tier changes, so
     /// a mid-session upgrade lifts the restrictions without a restart.
     pub fn apply_tier_restrictions(&mut self) {
         let restricted = self.team_name.is_none()
@@ -1799,7 +1799,7 @@ impl AppView {
         }
     }
     /// Reconcile the shared prompt queue for a session from a
-    /// `x.ai/queue/changed` broadcast. The broadcast is
+    /// `axon/queue/changed` broadcast. The broadcast is
     /// authoritative: it fully replaces the previously-known queue for that
     /// session. An empty list clears the entry.
     ///
@@ -1868,7 +1868,7 @@ impl AppView {
     /// Push an optimistic echo row for a server-authoritative prompt the pager
     /// just sent (a plain prompt or agent-bound kind typed while a turn is
     /// running). The row is keyed by `prompt_id` so the authoritative
-    /// `x.ai/queue/changed` broadcast replaces it (matched by `id`) rather than
+    /// `axon/queue/changed` broadcast replaces it (matched by `id`) rather than
     /// duplicating it. `kind` (`"prompt"`/`"bash"`/…) drives the row's display
     /// and, on adoption, the turn-start shim's block + focus flag.
     pub fn push_optimistic_prompt_echo(
@@ -3409,7 +3409,7 @@ fn handle_welcome_input(ev: &Event, ctx: &mut WelcomeInputCtx<'_>) -> InputOutco
                 if let Some(rect) = ctx.gate_url_rect
                     && rect.contains(ratatui::layout::Position::new(mouse.column, mouse.row))
                 {
-                    return InputOutcome::Action(Action::OpenSupergrokUrl);
+                    return InputOutcome::Action(Action::OpenSuperaxonUrl);
                 }
                 if let Some(rect) = ctx.upgrade_cta_rect
                     && rect.contains(ratatui::layout::Position::new(mouse.column, mouse.row))
@@ -3585,7 +3585,7 @@ fn dispatch_zdr_menu_action(index: usize) -> InputOutcome {
 /// "Refresh" (ctrl-r) is handled as a direct key shortcut, not a menu item.
 fn dispatch_access_gate_menu_action(index: usize) -> InputOutcome {
     match index {
-        0 => InputOutcome::Action(Action::OpenSupergrokUrl),
+        0 => InputOutcome::Action(Action::OpenSuperaxonUrl),
         1 => InputOutcome::Action(Action::Logout),
         2 => InputOutcome::Action(Action::Quit),
         _ => InputOutcome::Unchanged,
@@ -4071,9 +4071,9 @@ impl AppView {
                         if !has_access && !self.access_gate_shown_logged {
                             self.access_gate_shown_logged = true;
                             axon_telemetry::session_ctx::log_event(
-                                axon_telemetry::events::SuperGrokUpsellShown {
+                                axon_telemetry::events::SuperAxonUpsellShown {
                                     source:
-                                        axon_telemetry::events::SuperGrokUpsell::WelcomeScreen,
+                                        axon_telemetry::events::SuperAxonUpsell::WelcomeScreen,
                                     auth_method: self
                                         .login_method_id
                                         .as_ref()
@@ -6641,7 +6641,7 @@ pub(crate) mod tests {
         let mut app = test_app();
         advertise_media_tools(&mut app);
         let meta = axon_shell::auth::AuthMeta {
-            subscription_tier: Some("SuperGrok".into()),
+            subscription_tier: Some("SuperAxon".into()),
             ..Default::default()
         };
         app.apply_auth_meta(&meta);
@@ -6651,7 +6651,7 @@ pub(crate) mod tests {
         advertise_media_tools(&mut app);
         app.apply_auth_meta(&axon_shell::auth::AuthMeta::default());
         assert!(!app.tier_restricted_commands.is_empty());
-        app.subscription_tier = Some("SuperGrok".into());
+        app.subscription_tier = Some("SuperAxon".into());
         app.apply_tier_restrictions();
         assert!(app.tier_restricted_commands.is_empty());
         assert_tier_restricted_commands_present(&app);
@@ -6671,8 +6671,8 @@ pub(crate) mod tests {
         assert!(is_restricted_tier(Some("Free")));
         assert!(is_restricted_tier(Some("X Basic")));
         assert!(is_restricted_tier(Some("x_basic")));
-        assert!(!is_restricted_tier(Some("SuperGrok")));
-        assert!(!is_restricted_tier(Some("SuperGrok Heavy")));
+        assert!(!is_restricted_tier(Some("SuperAxon")));
+        assert!(!is_restricted_tier(Some("SuperAxon Heavy")));
         assert!(!is_restricted_tier(Some("X Premium")));
         assert!(!is_restricted_tier(Some("X Premium+")));
         assert!(!is_restricted_tier(Some("SomeFutureTier")));
@@ -6688,7 +6688,7 @@ pub(crate) mod tests {
         assert!(app.is_voice_tier_restricted());
         let mut app = test_app();
         let meta = axon_shell::auth::AuthMeta {
-            subscription_tier: Some("SuperGrok".into()),
+            subscription_tier: Some("SuperAxon".into()),
             ..Default::default()
         };
         app.apply_auth_meta(&meta);
@@ -6698,8 +6698,8 @@ pub(crate) mod tests {
     fn apply_auth_meta_clears_gate_on_subscription() {
         let mut app = test_app();
         app.gate = Some(axon_shell::auth::GateInfo {
-            message: "Subscribe to use Grok Build".into(),
-            url: Some("https://grok.com/supergrok?referrer=grok-build".into()),
+            message: "Subscribe to use Axon Build".into(),
+            url: Some("https://blocked.invalid/superaxon?referrer=axon-build".into()),
             label: None,
         });
         assert!(app.is_access_blocked());
@@ -10018,7 +10018,7 @@ pub(crate) mod tests {
         n_questions: usize,
     ) {
         use crate::views::question_view::QuestionViewState;
-        use axon_tools::implementations::grok_build::ask_user_question::{
+        use axon_tools::implementations::axon_build::ask_user_question::{
             Question, QuestionOption,
         };
         let questions: Vec<Question> = (0..n_questions)

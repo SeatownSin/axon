@@ -76,64 +76,64 @@ pub struct PermissionEvent {
 pub enum ClientType {
     /// Generic client - show simple permission options with full command text
     #[default]
-    #[serde(rename = "generic", alias = "grok-shell", alias = "grok_shell")]
+    #[serde(rename = "generic", alias = "axon-shell", alias = "axon_shell")]
     Generic,
-    /// Grok TUI client - show fancy options with interactive bash term selection
-    #[serde(rename = "grok-tui", alias = "grok_tui")]
-    GrokTUI,
-    /// Grok Web client - identified by clientIdentifier "grok-web"
-    #[serde(rename = "grok_web")]
-    GrokWeb,
+    /// Axon TUI client - show fancy options with interactive bash term selection
+    #[serde(rename = "axon-tui", alias = "axon_tui")]
+    AxonTUI,
+    /// Axon Web client - identified by clientIdentifier "axon-web"
+    #[serde(rename = "axon_web")]
+    AxonWeb,
     /// Named client (`"nebula"`) — uses the generic permission UI
     #[serde(rename = "nebula")]
     Nebula,
-    /// IDE extension client (VS Code and similar) - identified by clientIdentifier "grok-code-extension"
+    /// IDE extension client (VS Code and similar) - identified by clientIdentifier "axon-code-extension"
     #[serde(rename = "extension")]
     Extension,
-    /// Grok Pager client - TUI-like terminal pager with interactive permission UI.
-    /// Treated identically to GrokTUI for permission options (gets bash highlights +
+    /// Axon Pager client - TUI-like terminal pager with interactive permission UI.
+    /// Treated identically to AxonTUI for permission options (gets bash highlights +
     /// interactive selection). Reports as "pager" for telemetry attribution.
     ///
-    /// Accepts both the hyphenated `"grok-pager"` (what the pager actually
+    /// Accepts both the hyphenated `"axon-pager"` (what the pager actually
     /// sends over the wire, matching `PAGER_CLIENT_TYPE`) and the underscored
-    /// `"grok_pager"` form for symmetry with the rest of this enum.
-    #[serde(rename = "grok-pager", alias = "grok_pager")]
-    GrokPager,
-    /// Grok Desktop (Electron) client - identified by clientIdentifier "grok-desktop".
+    /// `"axon_pager"` form for symmetry with the rest of this enum.
+    #[serde(rename = "axon-pager", alias = "axon_pager")]
+    AxonPager,
+    /// Axon Desktop (Electron) client - identified by clientIdentifier "axon-desktop".
     /// Uses TUI-style bash permission options (primary command extraction + prefix matching)
     /// but without interactive `<`/`>` word selection.
-    #[serde(rename = "grok_desktop")]
+    #[serde(rename = "axon_desktop")]
     Desktop,
 }
 impl ClientType {
-    /// Product token for the `User-Agent` header (e.g. `grok-pager`).
+    /// Product token for the `User-Agent` header (e.g. `axon-pager`).
     pub fn user_agent_label(&self) -> &'static str {
         match self {
-            Self::Generic => "grok-shell",
-            Self::GrokTUI => "grok-tui",
-            Self::GrokWeb => "grok-web",
+            Self::Generic => "axon-shell",
+            Self::AxonTUI => "axon-tui",
+            Self::AxonWeb => "axon-web",
             Self::Nebula => "nebula",
-            Self::Extension => "grok-code-extension",
-            Self::GrokPager => "grok-pager",
-            Self::Desktop => "grok-desktop",
+            Self::Extension => "axon-code-extension",
+            Self::AxonPager => "axon-pager",
+            Self::Desktop => "axon-desktop",
         }
     }
-    /// Resolve from ACP `clientIdentifier` string (e.g. `"grok-web"`, `"grok-desktop"`).
+    /// Resolve from ACP `clientIdentifier` string (e.g. `"axon-web"`, `"axon-desktop"`).
     pub fn from_client_identifier(id: Option<&str>) -> Self {
         match id {
-            Some("grok-web") => Self::GrokWeb,
+            Some("axon-web") => Self::AxonWeb,
             Some("nebula") => Self::Nebula,
-            Some("grok-code-extension") => Self::Extension,
-            Some("grok-desktop") => Self::Desktop,
-            Some("grok-pager") => Self::GrokPager,
+            Some("axon-code-extension") => Self::Extension,
+            Some("axon-desktop") => Self::Desktop,
+            Some("axon-pager") => Self::AxonPager,
             _ => Self::Generic,
         }
     }
     /// Label for feedback reporting and experiment filtering.
     pub fn feedback_label(&self) -> &'static str {
         match self {
-            Self::GrokTUI | Self::GrokPager => "tui",
-            Self::GrokWeb => "web",
+            Self::AxonTUI | Self::AxonPager => "tui",
+            Self::AxonWeb => "web",
             Self::Nebula => "nebula",
             Self::Extension => "extension",
             Self::Generic => "agent",
@@ -496,7 +496,7 @@ mod tests {
     }
     #[test]
     fn hashline_edit_maps_to_edit_access() {
-        use axon_tools::implementations::grok_build_hashline::edit::types::HashlineEditInput;
+        use axon_tools::implementations::axon_build_hashline::edit::types::HashlineEditInput;
         use axon_tools::types::ToolInput;
         let input = ToolInput::HashlineEdit(HashlineEditInput {
             file_path: "src/main.rs".into(),
@@ -510,7 +510,7 @@ mod tests {
     }
     #[test]
     fn bash_maps_to_bash_access() {
-        use axon_tools::implementations::grok_build::bash::BashToolInput;
+        use axon_tools::implementations::axon_build::bash::BashToolInput;
         use axon_tools::types::ToolInput;
         let input = ToolInput::Bash(BashToolInput {
             command: "cargo test".into(),
@@ -541,7 +541,7 @@ mod tests {
     }
     #[test]
     fn monitor_maps_to_bash_access() {
-        use axon_tools::implementations::grok_build::monitor::types::MonitorInput;
+        use axon_tools::implementations::axon_build::monitor::types::MonitorInput;
         use axon_tools::types::ToolInput;
         let input = ToolInput::Monitor(MonitorInput {
             command: "tail -f /var/log/syslog".into(),
@@ -558,7 +558,7 @@ mod tests {
     }
     #[test]
     fn search_replace_maps_to_edit_access() {
-        use axon_tools::implementations::grok_build::search_replace::SearchReplaceInput;
+        use axon_tools::implementations::axon_build::search_replace::SearchReplaceInput;
         use axon_tools::types::ToolInput;
         let input = ToolInput::SearchReplace(SearchReplaceInput {
             file_path: "lib.rs".into(),
@@ -574,7 +574,7 @@ mod tests {
     }
     #[test]
     fn web_fetch_maps_to_web_fetch_access() {
-        use axon_tools::implementations::grok_build::web_fetch::WebFetchInput;
+        use axon_tools::implementations::axon_build::web_fetch::WebFetchInput;
         use axon_tools::types::ToolInput;
         let input = ToolInput::WebFetch(WebFetchInput {
             url: "https://custom.example.com/api".into(),
@@ -588,7 +588,7 @@ mod tests {
     }
     #[test]
     fn web_search_maps_to_web_search_access() {
-        use axon_tools::implementations::grok_build::web_search::WebSearchInput;
+        use axon_tools::implementations::axon_build::web_search::WebSearchInput;
         use axon_tools::types::ToolInput;
         let input = ToolInput::WebSearch(WebSearchInput {
             query: "rust lang".into(),
@@ -628,13 +628,13 @@ mod tests {
         );
     }
     #[test]
-    fn client_type_deserializes_grok_shell_as_generic() {
+    fn client_type_deserializes_axon_shell_as_generic() {
         assert_eq!(
-            serde_json::from_value::<ClientType>("grok-shell".into()).unwrap(),
+            serde_json::from_value::<ClientType>("axon-shell".into()).unwrap(),
             ClientType::Generic,
         );
         assert_eq!(
-            serde_json::from_value::<ClientType>("grok_shell".into()).unwrap(),
+            serde_json::from_value::<ClientType>("axon_shell".into()).unwrap(),
             ClientType::Generic,
         );
         assert_eq!(

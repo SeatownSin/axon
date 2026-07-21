@@ -700,7 +700,7 @@ fn cmd_validate(path: &str) -> Result<()> {
         }
         Ok(ManifestLoadResult::NotFound) => {
             println!(
-                "No plugin.json found. Grok discovers skills, agents, and hooks \
+                "No plugin.json found. Axon discovers skills, agents, and hooks \
                  automatically from standard directories. A manifest is only needed \
                  for custom paths or metadata."
             );
@@ -900,7 +900,7 @@ fn marketplace_add(
         MarketplaceAddInput::GitUrl(u) => plugin::name_from_url(u),
         MarketplaceAddInput::LocalPath(p) => plugin::name_from_path(p),
     };
-    let config_path = axon_config::grok_home().join("config.toml");
+    let config_path = axon_config::axon_home().join("config.toml");
 
     let content = std::fs::read_to_string(&config_path).unwrap_or_default();
     let mut doc: toml_edit::DocumentMut = content
@@ -973,7 +973,7 @@ fn marketplace_remove(
 
     let uninstalled = plugin::uninstall_marketplace_source_plugins(&identity);
 
-    let config_path = axon_config::grok_home().join("config.toml");
+    let config_path = axon_config::axon_home().join("config.toml");
     let mut removed_from_config = false;
     if let Ok(content) = std::fs::read_to_string(&config_path)
         && let Some(new) = plugin::remove_toml_marketplace_block(&content, &identity)
@@ -1078,12 +1078,12 @@ mod tests {
     #[test]
     fn trust_prompt_marketplace_has_no_error_framing() {
         let msg = trust_prompt(
-            "\"sentry\" from marketplace \"xAI Official\"",
+            "\"sentry\" from marketplace \"Axon Official\"",
             "sentry@xai-org/plugin-marketplace",
         );
         assert!(
             msg.starts_with(
-                "Installing \"sentry\" from marketplace \"xAI Official\" requires confirmation."
+                "Installing \"sentry\" from marketplace \"Axon Official\" requires confirmation."
             ),
             "{msg}"
         );

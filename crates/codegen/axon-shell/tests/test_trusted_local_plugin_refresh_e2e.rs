@@ -6,7 +6,7 @@
 //! 3. Start a headless session — startup must re-copy trusted/user-home locals.
 //! 4. Smoke-validate session JSON under `$AXON_HOME/sessions/` after exit.
 //!
-//! Requires a built `grok` binary (`AXON_BINARY` or cargo-built pager) for the
+//! Requires a built `axon` binary (`AXON_BINARY` or cargo-built pager) for the
 //! ignored headless test.
 //!
 //! ```bash
@@ -114,9 +114,9 @@ fn trusted_local_refresh_surfaces_new_agent_via_discovery() {
     // symlink (macOS `/var` -> `/private/var`).
     let home_tmp = TempDir::new().unwrap();
     let home = dunce::canonicalize(home_tmp.path()).unwrap();
-    let grok_home = home.join(".axon");
+    let axon_home = home.join(".axon");
     let _home_guard = EnvVarGuard::set("HOME", &home);
-    let _grok_guard = EnvVarGuard::set("AXON_HOME", &grok_home);
+    let _axon_guard = EnvVarGuard::set("AXON_HOME", &axon_home);
 
     // Live source: a user-home local plugin (mirrors a `~/.claude` local tree).
     let source = home
@@ -127,7 +127,7 @@ fn trusted_local_refresh_surfaces_new_agent_via_discovery() {
     write_agent(&source, "old", "old-agent", "exists at install");
 
     // Install = full snapshot copy into installed-plugins (not a live symlink).
-    let mut registry = InstallRegistry::empty(grok_home.join("installed-plugins"));
+    let mut registry = InstallRegistry::empty(axon_home.join("installed-plugins"));
     let installed = register_local_install(&mut registry, &source);
     registry.save().expect("save registry");
 
@@ -168,7 +168,7 @@ fn trusted_local_refresh_surfaces_new_agent_via_discovery() {
     );
 
     // Session `_meta.pluginDirs` load. Lives in the same test because
-    // grok_home() caches the first AXON_HOME per process; a separate test
+    // axon_home() caches the first AXON_HOME per process; a separate test
     // could seed the cache first and break the assertions above.
     let plugin_dir = home.join("session-plugin");
     write_minimal_plugin(&plugin_dir, "session-plugin");
@@ -203,7 +203,7 @@ fn trusted_local_refresh_surfaces_new_agent_via_discovery() {
 
 /// Full binary smoke: session start runs refresh then writes session JSON.
 #[tokio::test]
-#[ignore = "requires pre-built grok binary; run with --ignored"]
+#[ignore = "requires pre-built axon binary; run with --ignored"]
 #[serial]
 async fn headless_session_refreshes_trusted_local_plugin_and_writes_session_json() {
     let server = MockInferenceServer::start()
@@ -214,8 +214,8 @@ async fn headless_session_refreshes_trusted_local_plugin_and_writes_session_json
     // symlink (macOS `/var` -> `/private/var`).
     let home_tmp = TempDir::new().unwrap();
     let home = dunce::canonicalize(home_tmp.path()).unwrap();
-    let grok_home = home.join(".axon");
-    std::fs::create_dir_all(&grok_home).unwrap();
+    let axon_home = home.join(".axon");
+    std::fs::create_dir_all(&axon_home).unwrap();
 
     let source = home
         .join(".claude")
@@ -226,11 +226,11 @@ async fn headless_session_refreshes_trusted_local_plugin_and_writes_session_json
 
     // The spawned binary gets HOME/AXON_HOME via `cmd.env` below; this global env
     // is only for the in-process post-run discovery assertion (which resolves the
-    // registry via grok_home()). `#[serial]` keeps it from racing other tests.
+    // registry via axon_home()). `#[serial]` keeps it from racing other tests.
     let _home_guard = EnvVarGuard::set("HOME", &home);
-    let _grok_guard = EnvVarGuard::set("AXON_HOME", &grok_home);
+    let _axon_guard = EnvVarGuard::set("AXON_HOME", &axon_home);
 
-    let mut registry = InstallRegistry::empty(grok_home.join("installed-plugins"));
+    let mut registry = InstallRegistry::empty(axon_home.join("installed-plugins"));
     let installed = register_local_install(&mut registry, &source);
     registry.save().expect("save registry");
 
@@ -238,7 +238,7 @@ async fn headless_session_refreshes_trusted_local_plugin_and_writes_session_json
     assert!(!installed.path.join("agents/new.md").exists());
 
     let workdir = git_workdir();
-    let mut cmd = tokio::process::Command::new(grok_binary());
+    let mut cmd = tokio::process::Command::new(axon_binary());
     cmd.args([
         "-p",
         "say hello",
@@ -255,7 +255,7 @@ async fn headless_session_refreshes_trusted_local_plugin_and_writes_session_json
     .kill_on_drop(true);
     axon_test_support::env::test_env_cmd_tokio(&mut cmd, &server.url(), &home);
     cmd.env("HOME", &home);
-    cmd.env("AXON_HOME", &grok_home);
+    cmd.env("AXON_HOME", &axon_home);
 
     let result = run_headless_with_cmd(cmd).await;
     assert_headless_success(
@@ -294,7 +294,7 @@ async fn headless_session_refreshes_trusted_local_plugin_and_writes_session_json
     );
 
     // Smoke: session storage under AXON_HOME/sessions has JSON artifacts.
-    let sessions_root = grok_home.join("sessions");
+    let sessions_root = axon_home.join("sessions");
     assert!(
         sessions_root.is_dir(),
         "expected sessions dir at {}",

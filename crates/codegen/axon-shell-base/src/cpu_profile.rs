@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::sync::watch;
 
-use crate::util::grok_home::grok_home;
+use crate::util::axon_home::axon_home;
 
 const DEFAULT_PROFILE_DIR: &str = "profiles";
 const DEFAULT_FREQUENCY_HZ: i32 = 1000;
@@ -468,7 +468,7 @@ fn is_directory_target(path: &Path) -> bool {
 }
 
 fn derive_default_svg_path(started_at: &str) -> Result<PathBuf, ControlError> {
-    derive_unique_svg_path(&grok_home().join(DEFAULT_PROFILE_DIR), "leader", started_at)
+    derive_unique_svg_path(&axon_home().join(DEFAULT_PROFILE_DIR), "leader", started_at)
 }
 
 fn derive_unique_svg_path(

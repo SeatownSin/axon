@@ -22,10 +22,10 @@ use std::collections::VecDeque;
 use std::sync::Arc as StdArc;
 use std::sync::atomic::{AtomicUsize, Ordering as SeqOrd};
 use tokio::sync::Notify;
-use axon_tools::implementations::grok_build::task::types::{
+use axon_tools::implementations::axon_build::task::types::{
     SubagentCancelOutcome, SubagentEvent, SubagentResult,
 };
-use axon_tools::implementations::grok_build::update_goal::{RejectReason, UpdateGoalInput};
+use axon_tools::implementations::axon_build::update_goal::{RejectReason, UpdateGoalInput};
 const ENV_FLAG: &str = "AXON_GOAL_CLASSIFIER";
 /// Canned subagent response for a single verifier-skeptic spawn.
 /// Constructors mirror the verification-stage contract: each
@@ -191,7 +191,7 @@ struct MockCoordinator {
     /// describe-driven fail-open branches.
     describe_outcome: StdArc<
         parking_lot::Mutex<
-            axon_tools::implementations::grok_build::task::types::SubagentDescribeOutcome,
+            axon_tools::implementations::axon_build::task::types::SubagentDescribeOutcome,
         >,
     >,
     /// Per-describe `(subagent_type, harness_agent_type)` in call order.
@@ -200,8 +200,8 @@ struct MockCoordinator {
 /// A fully-capable describe summary (read + search + execute + edit + write)
 /// so any role's capability gate passes.
 fn capable_describe_outcome()
--> axon_tools::implementations::grok_build::task::types::SubagentDescribeOutcome {
-    use axon_tools::implementations::grok_build::task::types::{
+-> axon_tools::implementations::axon_build::task::types::SubagentDescribeOutcome {
+    use axon_tools::implementations::axon_build::task::types::{
         SubagentDescribeOutcome, SubagentTypeSummary,
     };
     use axon_tools::types::tool::ToolKind;
@@ -403,7 +403,7 @@ fn seed_channel(actor: &SessionActor, cmds: Vec<UpdateGoalInput>) {
     let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
     *actor.goal_update_rx.borrow_mut() = Some(rx);
     for cmd in cmds {
-        tx.send(axon_tools::implementations::grok_build::update_goal::envelope_for_test(cmd))
+        tx.send(axon_tools::implementations::axon_build::update_goal::envelope_for_test(cmd))
             .unwrap();
     }
     drop(tx);
@@ -416,7 +416,7 @@ fn seed_channel_with_acks(
     cmds: Vec<UpdateGoalInput>,
 ) -> Vec<
     tokio::sync::oneshot::Receiver<
-        axon_tools::implementations::grok_build::update_goal::UpdateGoalAck,
+        axon_tools::implementations::axon_build::update_goal::UpdateGoalAck,
     >,
 > {
     let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
@@ -788,7 +788,7 @@ async fn goal_classifier_stall_early_exit_pauses_with_no_progress() {
                 VecDeque::from([Response::not_achieved(), Response::not_achieved()]),
             );
             let (actor, tmp) = make_actor(Some(coord.tx.clone()), true).await;
-            use axon_tools::implementations::grok_build::update_goal::UpdateGoalAck;
+            use axon_tools::implementations::axon_build::update_goal::UpdateGoalAck;
             let mut last_ack = None;
             for _ in 0..2 {
                 let mut rxs = seed_channel_with_acks(&actor, vec![make_completed()]);
@@ -828,7 +828,7 @@ async fn goal_classifier_blocked_outcome_pauses_for_user_and_consolidates_queue(
     let local = tokio::task::LocalSet::new();
     local
         .run_until(async {
-            use axon_tools::implementations::grok_build::update_goal::UpdateGoalAck;
+            use axon_tools::implementations::axon_build::update_goal::UpdateGoalAck;
             let coord = MockCoordinator::spawn(VecDeque::from([Response::blocked("unverifiable")]));
             let (actor, tmp) = make_actor(Some(coord.tx.clone()), true).await;
             let rxs = seed_channel_with_acks(&actor, vec![make_completed(), make_completed()]);
@@ -893,7 +893,7 @@ async fn goal_classifier_cap_takes_precedence_over_stall() {
     let local = tokio::task::LocalSet::new();
     local
         .run_until(async {
-            use axon_tools::implementations::grok_build::update_goal::UpdateGoalAck;
+            use axon_tools::implementations::axon_build::update_goal::UpdateGoalAck;
             let coord = MockCoordinator::spawn(VecDeque::from([
                 Response::not_achieved(),
                 Response::not_achieved(),
@@ -954,7 +954,7 @@ async fn goal_classifier_stall_pause_consolidates_mid_drain_queue() {
     let local = tokio::task::LocalSet::new();
     local
         .run_until(async {
-            use axon_tools::implementations::grok_build::update_goal::UpdateGoalAck;
+            use axon_tools::implementations::axon_build::update_goal::UpdateGoalAck;
             let coord = MockCoordinator::spawn(VecDeque::from([
                 Response::not_achieved(),
                 Response::not_achieved(),
@@ -1005,7 +1005,7 @@ async fn goal_classifier_post_blocked_resume_does_not_immediately_restall() {
     let local = tokio::task::LocalSet::new();
     local
         .run_until(async {
-            use axon_tools::implementations::grok_build::update_goal::UpdateGoalAck;
+            use axon_tools::implementations::axon_build::update_goal::UpdateGoalAck;
             let coord = MockCoordinator::spawn(VecDeque::from([
                 Response::not_achieved_with("src/a.rs:1 missing coverage"),
                 Response::blocked("contradiction"),
@@ -2150,7 +2150,7 @@ async fn update_goal_tool_blocks_until_classifier_verdict_when_enabled() {
             let ack = ack_rx.await.expect("ack delivered");
             assert!(
                 matches!(ack,
-                axon_tools::implementations::grok_build::update_goal::UpdateGoalAck::ClassifierAchieved
+                axon_tools::implementations::axon_build::update_goal::UpdateGoalAck::ClassifierAchieved
                 { .. },),
                 "classifier-enabled drain must deliver Achieved ack; got {ack:?}",
             );
@@ -2169,7 +2169,7 @@ async fn update_goal_tool_returns_immediately_when_classifier_disabled() {
             let ack = ack_rx.await.expect("ack delivered");
             assert!(
                 matches!(ack,
-                axon_tools::implementations::grok_build::update_goal::UpdateGoalAck::CompletedWithoutClassifier,)
+                axon_tools::implementations::axon_build::update_goal::UpdateGoalAck::CompletedWithoutClassifier,)
             );
         })
         .await;
@@ -2185,7 +2185,7 @@ async fn update_goal_tool_returns_error_when_classifier_in_flight_for_previous_c
             let ack_rx = rxs.pop().expect("one ack");
             actor.drain_goal_updates(0, DrainPurpose::TurnEnd).await;
             let ack = ack_rx.await.expect("ack delivered");
-            use axon_tools::implementations::grok_build::update_goal::UpdateGoalAck;
+            use axon_tools::implementations::axon_build::update_goal::UpdateGoalAck;
             match ack {
                 UpdateGoalAck::ClassifierConcurrentInFlight {
                     attempt, max_runs, ..
@@ -2207,7 +2207,7 @@ async fn update_goal_tool_returns_error_when_classifier_in_flight_for_previous_c
 }
 #[tokio::test(flavor = "current_thread")]
 async fn update_goal_tool_does_not_deadlock_on_mid_turn_completion() {
-    use axon_tools::implementations::grok_build::update_goal::UpdateGoalAck;
+    use axon_tools::implementations::axon_build::update_goal::UpdateGoalAck;
     let local = tokio::task::LocalSet::new();
     local
         .run_until(async {
@@ -2230,7 +2230,7 @@ async fn update_goal_tool_does_not_deadlock_on_mid_turn_completion() {
 }
 #[tokio::test(flavor = "current_thread")]
 async fn update_goal_tool_deferred_input_fires_classifier_at_turn_end() {
-    use axon_tools::implementations::grok_build::update_goal::UpdateGoalAck;
+    use axon_tools::implementations::axon_build::update_goal::UpdateGoalAck;
     let local = tokio::task::LocalSet::new();
     local
         .run_until(async {
@@ -2274,7 +2274,7 @@ async fn update_goal_tool_returns_immediately_for_blocked_reason() {
             let ack = ack_rx.await.expect("ack delivered");
             assert!(
                 matches!(ack,
-                axon_tools::implementations::grok_build::update_goal::UpdateGoalAck::Accepted
+                axon_tools::implementations::axon_build::update_goal::UpdateGoalAck::Accepted
                 { .. },)
             );
         })
@@ -2371,7 +2371,7 @@ async fn goal_classifier_sequential_drain_four_completions_three_attempts_then_c
     let local = tokio::task::LocalSet::new();
     local
         .run_until(async {
-            use axon_tools::implementations::grok_build::update_goal::UpdateGoalAck;
+            use axon_tools::implementations::axon_build::update_goal::UpdateGoalAck;
             let coordinator = MockCoordinator::spawn(three_distinct_not_achieved());
             let (actor, _tmp) = make_actor_with_cap(
                     Some(coordinator.tx.clone()),
@@ -2438,7 +2438,7 @@ async fn goal_classifier_sequential_drain_four_completions_three_attempts_then_c
 /// must ack as `ClassifierConcurrentInFlight` (NOT success).
 #[tokio::test(flavor = "current_thread")]
 async fn goal_classifier_concurrent_in_flight_short_circuits_second_completion() {
-    use axon_tools::implementations::grok_build::update_goal::UpdateGoalAck;
+    use axon_tools::implementations::axon_build::update_goal::UpdateGoalAck;
     let local = tokio::task::LocalSet::new();
     local
         .run_until(async {
@@ -2494,7 +2494,7 @@ async fn rejected_ack_post_cap_carries_correct_reason() {
             let ack_rx = rxs.pop().unwrap();
             actor.drain_goal_updates(0, DrainPurpose::TurnEnd).await;
             let ack = ack_rx.await.expect("ack delivered");
-            use axon_tools::implementations::grok_build::update_goal::UpdateGoalAck;
+            use axon_tools::implementations::axon_build::update_goal::UpdateGoalAck;
             match ack {
                 UpdateGoalAck::Rejected { reason, detail } => {
                     assert_eq!(reason, RejectReason::PostCap);
@@ -2517,7 +2517,7 @@ async fn pending_queue_overflow_acks_all_as_deferred_and_caps_at_pending_queue_c
             }
             let rxs = seed_channel_with_acks(&actor, inputs);
             actor.drain_goal_updates(0, DrainPurpose::MidTurn).await;
-            use axon_tools::implementations::grok_build::update_goal::UpdateGoalAck;
+            use axon_tools::implementations::axon_build::update_goal::UpdateGoalAck;
             for rx in rxs {
                 let ack = rx.await.expect("ack delivered");
                 assert!(
@@ -2542,7 +2542,7 @@ async fn pending_queue_overflow_acks_all_as_deferred_and_caps_at_pending_queue_c
 }
 #[test]
 fn render_ack_classifier_achieved_is_success() {
-    use axon_tools::implementations::grok_build::update_goal::{
+    use axon_tools::implementations::axon_build::update_goal::{
         UpdateGoalAck, render_ack_into_output,
     };
     let out = render_ack_into_output(UpdateGoalAck::ClassifierAchieved {
@@ -2555,7 +2555,7 @@ fn render_ack_classifier_achieved_is_success() {
 }
 #[test]
 fn render_ack_classifier_fail_open_achieved_clarifies_no_verdict() {
-    use axon_tools::implementations::grok_build::update_goal::{
+    use axon_tools::implementations::axon_build::update_goal::{
         UpdateGoalAck, render_ack_into_output,
     };
     let out =
@@ -2568,7 +2568,7 @@ fn render_ack_classifier_fail_open_achieved_clarifies_no_verdict() {
 }
 #[test]
 fn render_ack_not_achieved_is_tool_error_with_correct_code() {
-    use axon_tools::implementations::grok_build::update_goal::{
+    use axon_tools::implementations::axon_build::update_goal::{
         UpdateGoalAck, render_ack_into_output,
     };
     let err = render_ack_into_output(UpdateGoalAck::ClassifierNotAchieved {
@@ -2581,7 +2581,7 @@ fn render_ack_not_achieved_is_tool_error_with_correct_code() {
 }
 #[test]
 fn render_ack_cap_reached_is_tool_error_with_cap_code() {
-    use axon_tools::implementations::grok_build::update_goal::{
+    use axon_tools::implementations::axon_build::update_goal::{
         UpdateGoalAck, render_ack_into_output,
     };
     let err = render_ack_into_output(UpdateGoalAck::ClassifierCapReached {
@@ -2604,7 +2604,7 @@ fn tool_error_code(err: &axon_tool_runtime::ToolError) -> &str {
 }
 #[test]
 fn render_ack_rejected_uses_reason_error_code() {
-    use axon_tools::implementations::grok_build::update_goal::{
+    use axon_tools::implementations::axon_build::update_goal::{
         UpdateGoalAck, render_ack_into_output,
     };
     for (reason, want_code) in all_reject_reasons() {
@@ -2693,7 +2693,7 @@ fn reject_reasons_complete_matrix() {
 }
 use crate::session::acp_session::GoalRoleModelConfig;
 use crate::session::acp_session::goal::{PanelResolveCache, RoleCapability};
-use axon_tools::implementations::grok_build::task::types::SubagentDescribeOutcome;
+use axon_tools::implementations::axon_build::task::types::SubagentDescribeOutcome;
 fn role_pair(model: &str, agent_type: &str) -> crate::util::config::GoalRoleModel {
     crate::util::config::GoalRoleModel {
         model: model.to_string(),
@@ -2724,7 +2724,7 @@ fn test_auth_manager_for_models() -> std::sync::Arc<crate::auth::AuthManager> {
     let tmp = tempfile::tempdir().expect("tempdir");
     let mgr = std::sync::Arc::new(crate::auth::AuthManager::new(
         tmp.path(),
-        crate::auth::GrokComConfig::default(),
+        crate::auth::AxonComConfig::default(),
     ));
     std::mem::forget(tmp);
     mgr
@@ -2905,7 +2905,7 @@ async fn resolve_role_override_toolset_incapable_fails_open() {
     local
         .run_until(async {
             let mut summary =
-                axon_tools::implementations::grok_build::task::types::SubagentTypeSummary {
+                axon_tools::implementations::axon_build::task::types::SubagentTypeSummary {
                     can_read: true,
                     ..Default::default()
                 };
@@ -2952,7 +2952,7 @@ async fn resolve_role_override_all_pass_commits_and_emits_resolved() {
 }
 /// A strict-but-unrepresentable harness (`codex`) fails open with the distinct
 /// `harness_flavor_unsupported` reason. Honored:
-/// `grok-build-plan` (non-strict), and `opencode` (non-strict + unrepresentable
+/// `axon-build-plan` (non-strict), and `opencode` (non-strict + unrepresentable
 /// — proving the gate keys on `is_strict`, not representability alone).
 #[tokio::test(flavor = "current_thread")]
 async fn resolve_role_override_harness_flavor_representability_gate() {
@@ -2970,7 +2970,7 @@ async fn resolve_role_override_harness_flavor_representability_gate() {
             let evs = lines_with_type(&log, "goal_role_model_fail_open");
             assert_eq!(evs.len(), 1, "{log}");
             assert_eq!(evs[0]["reason"], "harness_flavor_unsupported");
-            let honored = ["grok-build-plan", "opencode"];
+            let honored = ["axon-build-plan", "opencode"];
             for harness in honored {
                 let (ov, log) = run_resolve(
                     &role_pair("good-model", harness),
@@ -3064,7 +3064,7 @@ async fn single_role_override_explicit_builds_tool_names_from_summary() {
     let local = tokio::task::LocalSet::new();
     local
         .run_until(async {
-            use axon_tools::implementations::grok_build::task::types::{
+            use axon_tools::implementations::axon_build::task::types::{
                 SubagentDescribeOutcome, SubagentTypeSummary,
             };
             use axon_tools::types::tool::ToolKind;

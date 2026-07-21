@@ -118,8 +118,8 @@ impl EmitterOrigin {
     /// stay in lockstep.
     pub fn event_prefix(self) -> &'static str {
         match self {
-            EmitterOrigin::Shell => "grok-shell-",
-            EmitterOrigin::Workspace => "grok-workspace-",
+            EmitterOrigin::Shell => "axon-shell-",
+            EmitterOrigin::Workspace => "axon-workspace-",
         }
     }
 }
@@ -177,7 +177,7 @@ pub fn log_session_event<T: TelemetryEvent>(data: T) {
 
 /// Session lifecycle event tagged with the emitting [`EmitterOrigin`]. Fires in
 /// both `Enabled` and `SessionMetrics` modes; the origin selects the analytics
-/// event-name prefix (`grok-shell-*` vs `grok-workspace-*`).
+/// event-name prefix (`axon-shell-*` vs `axon-workspace-*`).
 ///
 /// Deliberately **no external fan-out** here: workspace-side callers
 /// (`EmitterOrigin::Workspace` — remote sampler / workspace server, a
@@ -268,26 +268,26 @@ mod tests {
     /// they must not drift.
     #[test]
     fn event_prefix_is_stable_per_origin() {
-        assert_eq!(EmitterOrigin::Shell.event_prefix(), "grok-shell-");
-        assert_eq!(EmitterOrigin::Workspace.event_prefix(), "grok-workspace-");
+        assert_eq!(EmitterOrigin::Shell.event_prefix(), "axon-shell-");
+        assert_eq!(EmitterOrigin::Workspace.event_prefix(), "axon-workspace-");
     }
 
     /// The `Shell` reroute must reproduce the historical
-    /// `format!("grok-shell-{suffix}")` event name byte-for-byte, since every
+    /// `format!("axon-shell-{suffix}")` event name byte-for-byte, since every
     /// existing `log_session_event` / `log_event` / `emit_event` call funnels
     /// through `EmitterOrigin::Shell`.
     #[test]
     fn shell_origin_event_name_matches_legacy_format() {
         let suffix = "trace_upload_attempted";
         let rerouted = format!("{}{}", EmitterOrigin::Shell.event_prefix(), suffix);
-        let legacy = format!("grok-shell-{suffix}");
+        let legacy = format!("axon-shell-{suffix}");
         assert_eq!(rerouted, legacy);
     }
 
     #[test]
     fn workspace_origin_event_name_uses_workspace_prefix() {
         let name = format!("{}turn", EmitterOrigin::Workspace.event_prefix());
-        assert_eq!(name, "grok-workspace-turn");
+        assert_eq!(name, "axon-workspace-turn");
     }
 
     /// `ALL` must enumerate every variant so the stripper in `client` can

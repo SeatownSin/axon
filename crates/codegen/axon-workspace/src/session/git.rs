@@ -777,7 +777,7 @@ fn collect_diff_stats(
     }
     DiffStatsResult { stats, paths }
 }
-/// Payload for the `x.ai/git_head_changed` ACP extension notification.
+/// Payload for the `axon/git_head_changed` ACP extension notification.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GitHeadChanged {
@@ -1689,7 +1689,7 @@ pub async fn stash(git_root: &Path, include_untracked: bool) -> Result<()> {
 /// Tracing target used by all `--restore-code` log lines that are NOT
 /// scoped to a specific worktree subsystem. Operators filter on this to
 /// find restore-code-related warnings.
-pub const RESTORE_CODE_LOG: &str = "xai_restore_code";
+pub const RESTORE_CODE_LOG: &str = "axon_restore_code";
 /// Emit the "session registry disabled" warning shared by both the
 /// worktree and non-worktree `--restore-code` paths. Centralised so a
 /// future refactor cannot silently downgrade one site to `debug!`.
@@ -1785,7 +1785,7 @@ pub async fn stash_before_destructive_op(
         return StashOutcome::Skipped(reason);
     }
     let message = format!(
-        "grok: pre-{label} {} {}",
+        "axon: pre-{label} {} {}",
         session_id,
         chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ")
     );
@@ -1903,7 +1903,7 @@ pub async fn checkout_session_commit(
 /// The restore-code path runs `git fetch origin` + `git checkout <sha>`,
 /// which *detaches HEAD*. That is only acceptable in two situations:
 ///
-/// 1. `supplied_cwd` is a grok-managed worktree (`~/.axon/worktrees/...`).
+/// 1. `supplied_cwd` is a axon-managed worktree (`~/.axon/worktrees/...`).
 ///    These are disposable snapshots that exist precisely to carry a
 ///    detached session HEAD.
 /// 2. `supplied_cwd` is exactly the cwd the session was persisted with
@@ -1915,7 +1915,7 @@ pub async fn checkout_session_commit(
 /// user's real repository and leave their active branch behind, so we
 /// refuse.
 pub fn restore_code_checkout_allowed(supplied_cwd: &Path, persisted_cwd: Option<&str>) -> bool {
-    let worktrees_dir = axon_tools::util::grok_home::grok_home().join("worktrees");
+    let worktrees_dir = axon_tools::util::axon_home::axon_home().join("worktrees");
     restore_code_checkout_allowed_in(supplied_cwd, persisted_cwd, &worktrees_dir)
 }
 /// Pure core of [`restore_code_checkout_allowed`] with the worktrees root
@@ -3517,7 +3517,7 @@ mod restore_code_tests {
         assert!(porcelain.trim().is_empty(), "got: {porcelain:?}");
         let list = git_cli(tmp.path(), &["stash", "list"]).await.unwrap();
         assert!(
-            list.contains("grok: pre-test sess-2"),
+            list.contains("axon: pre-test sess-2"),
             "stash list missing session id: {list}"
         );
     }

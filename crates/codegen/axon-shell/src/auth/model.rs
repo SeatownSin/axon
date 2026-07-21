@@ -2,22 +2,22 @@ use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-use super::is_xai_oauth2_issuer;
+use super::is_axon_oauth2_issuer;
 
 pub(crate) const TOKEN_TTL: Duration = Duration::days(30);
 const DEFAULT_EARLY_INVALIDATION_SECS: u64 = 300; // 5 minutes
 
 /// Legacy auth.json scope key. Fallback for old devbox auth files.
-pub(super) const LEGACY_SCOPE: &str = "https://accounts.x.ai/sign-in";
+pub(super) const LEGACY_SCOPE: &str = "https://accounts.blocked.invalid/sign-in";
 
 /// auth.json scope key for plain API key auth (desktop login, `axon login --api-key`).
-pub const API_KEY_SCOPE: &str = "xai::api_key";
+pub const API_KEY_SCOPE: &str = "axon::api_key";
 
 const BLOCKED_REASON_NO_LOGS: &str = "BLOCKED_REASON_NO_LOGS";
 const BLOCKED_REASON_NO_LOGS_MODERATED: &str = "BLOCKED_REASON_NO_LOGS_MODERATED";
 
 /// Fresh-credential / missing-field default: opted out until the user or
-/// server enrichment opts in. Single source for `GrokAuth`, `AuthMeta`, and
+/// server enrichment opts in. Single source for `AxonAuth`, `AuthMeta`, and
 /// every login-path constructor so the sides cannot drift.
 pub(crate) fn default_coding_data_retention_opt_out() -> bool {
     true
@@ -28,14 +28,14 @@ pub(crate) fn default_coding_data_retention_opt_out() -> bool {
 #[serde(rename_all = "snake_case")]
 pub enum AuthMode {
     /// Deprecated. Kept for deserializing old auth.json files.
-    #[serde(alias = "grok")]
+    #[serde(alias = "axon")]
     WebLogin,
     /// OIDC or OAuth2 interactive login via customer IdP
     #[serde(alias = "oidc")]
     Oidc,
     /// External auth provider binary
     External,
-    /// Plain API key (e.g. from grok-desktop login or `axon login --api-key`)
+    /// Plain API key (e.g. from axon-desktop login or `axon login --api-key`)
     ApiKey,
 }
 
@@ -44,7 +44,7 @@ pub enum AuthMode {
 pub(crate) const TEAM_PRINCIPAL_TYPE: &str = "Team";
 
 #[derive(Clone, Serialize, Deserialize)]
-pub struct GrokAuth {
+pub struct AxonAuth {
     pub key: String,
     pub auth_mode: AuthMode,
     pub create_time: DateTime<Utc>,
@@ -83,7 +83,7 @@ pub struct GrokAuth {
 
     /// Deprecated. Kept for deserializing existing auth.json files.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub has_grok_code_access: Option<bool>,
+    pub has_axon_code_access: Option<bool>,
 
     /// Refresh token (OIDC/OAuth2 or external provider).
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -96,8 +96,8 @@ pub struct GrokAuth {
 
     /// Issuer URL that issued this token. For OIDC credentials it drives
     /// refresh via discovery; for external-provider credentials it is the
-    /// provider's `issuer` claim. In both modes an x.ai issuer marks the
-    /// credential first-party (`is_xai_auth`).
+    /// provider's `issuer` claim. In both modes an blocked.invalid issuer marks the
+    /// credential first-party (`is_axon_auth`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub oidc_issuer: Option<String>,
 
@@ -106,9 +106,9 @@ pub struct GrokAuth {
     pub oidc_client_id: Option<String>,
 }
 
-impl std::fmt::Debug for GrokAuth {
+impl std::fmt::Debug for AxonAuth {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("GrokAuth")
+        f.debug_struct("AxonAuth")
             .field("key", &token_suffix(&self.key))
             .field("auth_mode", &self.auth_mode)
             .field("user_id", &self.user_id)
@@ -121,7 +121,7 @@ impl std::fmt::Debug for GrokAuth {
     }
 }
 
-impl GrokAuth {
+impl AxonAuth {
     /// Seconds since this credential was minted. Negative when the local
     /// clock stepped back past `create_time` (NTP correction, VM restore, or
     /// a sibling machine's clock via an adopted auth.json) — `create_time`
@@ -132,39 +132,39 @@ impl GrokAuth {
             .num_seconds()
     }
 
-    /// `true` when the token comes from a first-party xAI account —
-    /// either an OIDC login against https://auth.x.ai (or the local-dev
-    /// equivalent), or an external auth provider that declared an xAI
+    /// `true` when the token comes from a first-party Axon account —
+    /// either an OIDC login against https://auth.blocked.invalid (or the local-dev
+    /// equivalent), or an external auth provider that declared an Axon
     /// issuer for its token.
     ///
     /// The issuer is a client-side hint, not a trust assertion: everything
     /// it unlocks still authenticates the actual token server-side, and it
     /// never influences endpoints.
-    pub fn is_xai_auth(&self) -> bool {
+    pub fn is_axon_auth(&self) -> bool {
         match self.auth_mode {
             AuthMode::Oidc | AuthMode::External => self
                 .oidc_issuer
                 .as_deref()
-                .is_some_and(is_xai_oauth2_issuer),
+                .is_some_and(is_axon_oauth2_issuer),
             AuthMode::ApiKey | AuthMode::WebLogin => false,
         }
     }
 
-    /// `true` when this auth can access grok.com managed MCP connectors.
+    /// `true` when this auth can access blocked.invalid managed MCP connectors.
     pub fn is_managed_mcp_eligible(&self) -> bool {
-        self.is_xai_auth() || self.auth_mode == AuthMode::WebLogin
+        self.is_axon_auth() || self.auth_mode == AuthMode::WebLogin
     }
 
     /// Whether this credential can access `supported_in_api: false` models.
     ///
     /// Session logins (WebLogin, OIDC — including enterprise issuers) always
     /// qualify; external-provider credentials qualify only when first-party
-    /// (`is_xai_auth`), matching the built-in devbox login they replace.
+    /// (`is_axon_auth`), matching the built-in devbox login they replace.
     /// Plain API keys never do.
     pub fn is_session_auth(&self) -> bool {
         match self.auth_mode {
             AuthMode::WebLogin | AuthMode::Oidc => true,
-            AuthMode::External => self.is_xai_auth(),
+            AuthMode::External => self.is_axon_auth(),
             AuthMode::ApiKey => false,
         }
     }
@@ -189,7 +189,7 @@ impl GrokAuth {
     }
 
     /// Carry `/user`-derived fields from a previous auth so refresh rebuilds don't drop them.
-    pub(crate) fn carry_user_profile_from(&mut self, prev: &GrokAuth) {
+    pub(crate) fn carry_user_profile_from(&mut self, prev: &AxonAuth) {
         self.user_id = prev.user_id.clone();
         self.email = prev.email.clone();
         self.principal_type = prev.principal_type.clone();
@@ -206,7 +206,7 @@ impl GrokAuth {
     }
 }
 
-impl Default for GrokAuth {
+impl Default for AxonAuth {
     fn default() -> Self {
         Self {
             key: String::new(),
@@ -228,7 +228,7 @@ impl Default for GrokAuth {
             user_blocked_reason: None,
             team_blocked_reasons: vec![],
             coding_data_retention_opt_out: default_coding_data_retention_opt_out(),
-            has_grok_code_access: None,
+            has_axon_code_access: None,
             refresh_token: None,
             expires_at: None,
             oidc_issuer: None,
@@ -238,11 +238,11 @@ impl Default for GrokAuth {
 }
 
 #[cfg(test)]
-impl GrokAuth {
-    /// Returns a `GrokAuth` with sensible defaults for tests. Override fields
+impl AxonAuth {
+    /// Returns a `AxonAuth` with sensible defaults for tests. Override fields
     /// with struct update syntax:
     /// ```ignore
-    /// GrokAuth { key: "my-key".into(), ..GrokAuth::test_default() }
+    /// AxonAuth { key: "my-key".into(), ..AxonAuth::test_default() }
     /// ```
     pub fn test_default() -> Self {
         Self {
@@ -256,7 +256,7 @@ impl GrokAuth {
     }
 }
 
-pub(crate) type AuthStore = BTreeMap<String, GrokAuth>;
+pub(crate) type AuthStore = BTreeMap<String, AxonAuth>;
 
 /// User information from the cli-chat-proxy `GET /v1/user` endpoint.
 #[derive(Debug, Clone, Deserialize)]
@@ -315,7 +315,7 @@ pub(crate) fn token_suffix(t: &str) -> &str {
 /// flow) are skipped — they are validated via a per-request DB lookup
 /// server-side which fails at high volume.  Skipping them here forces
 /// affected users to re-authenticate via OIDC on next launch.
-pub fn lookup_auth(map: &AuthStore, scope: &str) -> Option<GrokAuth> {
+pub fn lookup_auth(map: &AuthStore, scope: &str) -> Option<AxonAuth> {
     let auth = map.get(scope).cloned().or_else(|| {
         if scope == LEGACY_SCOPE {
             None
@@ -340,14 +340,14 @@ pub(super) fn early_invalidation() -> Duration {
         .unwrap_or_else(|| Duration::seconds(DEFAULT_EARLY_INVALIDATION_SECS as i64))
 }
 
-pub(crate) fn is_expired(auth: &GrokAuth) -> bool {
+pub(crate) fn is_expired(auth: &AxonAuth) -> bool {
     is_expired_with_buffer(auth, early_invalidation())
 }
 
 /// Like [`is_expired`] but with an explicit pre-expiry buffer. Pass
 /// `Duration::zero()` for actual (hard) expiry — the instant the token would
 /// really be rejected on the wire, with no early-invalidation margin.
-pub(crate) fn is_expired_with_buffer(auth: &GrokAuth, buffer: Duration) -> bool {
+pub(crate) fn is_expired_with_buffer(auth: &AxonAuth, buffer: Duration) -> bool {
     if let Some(expires_at) = auth.expires_at {
         Utc::now() >= (expires_at - buffer)
     } else {
@@ -360,8 +360,8 @@ pub(crate) fn is_expired_with_buffer(auth: &GrokAuth, buffer: Duration) -> bool 
 mod tests {
     use super::*;
 
-    fn make_auth(mode: AuthMode) -> GrokAuth {
-        GrokAuth {
+    fn make_auth(mode: AuthMode) -> AxonAuth {
+        AxonAuth {
             key: "k".into(),
             auth_mode: mode,
             create_time: Utc::now(),
@@ -381,7 +381,7 @@ mod tests {
             user_blocked_reason: None,
             team_blocked_reasons: vec![],
             coding_data_retention_opt_out: false,
-            has_grok_code_access: None,
+            has_axon_code_access: None,
             refresh_token: None,
             expires_at: None,
             oidc_issuer: None,
@@ -390,30 +390,30 @@ mod tests {
     }
 
     #[test]
-    fn is_xai_auth_matrix() {
-        use crate::auth::XAI_OAUTH2_ISSUER;
-        let with_issuer = |mode: AuthMode, issuer: Option<&str>| GrokAuth {
+    fn is_axon_auth_matrix() {
+        use crate::auth::AXON_OAUTH2_ISSUER;
+        let with_issuer = |mode: AuthMode, issuer: Option<&str>| AxonAuth {
             oidc_issuer: issuer.map(str::to_owned),
             ..make_auth(mode)
         };
 
-        // Only Oidc/External qualify, and only with an x.ai issuer.
-        assert!(with_issuer(AuthMode::Oidc, Some(XAI_OAUTH2_ISSUER)).is_xai_auth());
-        assert!(with_issuer(AuthMode::External, Some(XAI_OAUTH2_ISSUER)).is_xai_auth());
-        assert!(!with_issuer(AuthMode::Oidc, None).is_xai_auth());
-        assert!(!with_issuer(AuthMode::External, None).is_xai_auth());
-        assert!(!with_issuer(AuthMode::Oidc, Some("https://idp.acme.example")).is_xai_auth());
-        assert!(!with_issuer(AuthMode::External, Some("https://idp.acme.example")).is_xai_auth());
+        // Only Oidc/External qualify, and only with an blocked.invalid issuer.
+        assert!(with_issuer(AuthMode::Oidc, Some(AXON_OAUTH2_ISSUER)).is_axon_auth());
+        assert!(with_issuer(AuthMode::External, Some(AXON_OAUTH2_ISSUER)).is_axon_auth());
+        assert!(!with_issuer(AuthMode::Oidc, None).is_axon_auth());
+        assert!(!with_issuer(AuthMode::External, None).is_axon_auth());
+        assert!(!with_issuer(AuthMode::Oidc, Some("https://idp.acme.example")).is_axon_auth());
+        assert!(!with_issuer(AuthMode::External, Some("https://idp.acme.example")).is_axon_auth());
 
-        // ApiKey / WebLogin stay false even with an x.ai issuer set.
-        assert!(!with_issuer(AuthMode::ApiKey, Some(XAI_OAUTH2_ISSUER)).is_xai_auth());
-        assert!(!with_issuer(AuthMode::WebLogin, Some(XAI_OAUTH2_ISSUER)).is_xai_auth());
+        // ApiKey / WebLogin stay false even with an blocked.invalid issuer set.
+        assert!(!with_issuer(AuthMode::ApiKey, Some(AXON_OAUTH2_ISSUER)).is_axon_auth());
+        assert!(!with_issuer(AuthMode::WebLogin, Some(AXON_OAUTH2_ISSUER)).is_axon_auth());
     }
 
     #[test]
     fn is_session_auth_requires_first_party_for_external() {
-        use crate::auth::XAI_OAUTH2_ISSUER;
-        let with_issuer = |mode: AuthMode, issuer: Option<&str>| GrokAuth {
+        use crate::auth::AXON_OAUTH2_ISSUER;
+        let with_issuer = |mode: AuthMode, issuer: Option<&str>| AxonAuth {
             oidc_issuer: issuer.map(str::to_owned),
             ..make_auth(mode)
         };
@@ -424,14 +424,14 @@ mod tests {
         assert!(with_issuer(AuthMode::Oidc, Some("https://idp.acme.example")).is_session_auth());
 
         // External qualifies only when first-party (devbox-login parity).
-        assert!(with_issuer(AuthMode::External, Some(XAI_OAUTH2_ISSUER)).is_session_auth());
+        assert!(with_issuer(AuthMode::External, Some(AXON_OAUTH2_ISSUER)).is_session_auth());
         assert!(!with_issuer(AuthMode::External, None).is_session_auth());
         assert!(
             !with_issuer(AuthMode::External, Some("https://idp.acme.example")).is_session_auth()
         );
 
         // Plain API keys never do.
-        assert!(!with_issuer(AuthMode::ApiKey, Some(XAI_OAUTH2_ISSUER)).is_session_auth());
+        assert!(!with_issuer(AuthMode::ApiKey, Some(AXON_OAUTH2_ISSUER)).is_session_auth());
     }
 
     #[test]
@@ -467,10 +467,10 @@ mod tests {
     fn user_info_subscription_tier_present() {
         let json = r#"{
             "userId": "u1",
-            "subscriptionTier": "SuperGrokPro"
+            "subscriptionTier": "SuperAxonPro"
         }"#;
         let info: UserInfo = serde_json::from_str(json).unwrap();
-        assert_eq!(info.subscription_tier.as_deref(), Some("SuperGrokPro"));
+        assert_eq!(info.subscription_tier.as_deref(), Some("SuperAxonPro"));
     }
 
     /// subscriptionTier absent → deserializes to None (backwards compat).
@@ -509,12 +509,12 @@ mod tests {
             "create_time": "2020-01-01T00:00:00Z",
             "user_id": "u"
         }"#;
-        let auth: GrokAuth = serde_json::from_str(json).unwrap();
+        let auth: AxonAuth = serde_json::from_str(json).unwrap();
         assert!(
             auth.coding_data_retention_opt_out,
             "missing field must default to opted-out"
         );
         assert!(default_coding_data_retention_opt_out());
-        assert!(GrokAuth::default().coding_data_retention_opt_out);
+        assert!(AxonAuth::default().coding_data_retention_opt_out);
     }
 }

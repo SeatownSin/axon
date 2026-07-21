@@ -30,7 +30,7 @@ fn find_protoc_include_dir(protoc: Option<&Path>) -> Option<PathBuf> {
     }
 }
 
-pub struct XaiProtoBuilder {
+pub struct AxonProtoBuilder {
     builder: tonic_prost_build::Builder,
     file_descriptor_set_path: Option<PathBuf>,
     gen_pbjson: bool,
@@ -38,7 +38,7 @@ pub struct XaiProtoBuilder {
     pbjson_preserve_proto_field_names: bool,
 }
 
-impl XaiProtoBuilder {
+impl AxonProtoBuilder {
     fn map_builder(
         self,
         f: impl FnOnce(tonic_prost_build::Builder) -> tonic_prost_build::Builder,
@@ -221,7 +221,7 @@ impl XaiProtoBuilder {
             }
         }
 
-        let XaiProtoBuilder {
+        let AxonProtoBuilder {
             builder,
             gen_pbjson,
             file_descriptor_set_path,
@@ -307,13 +307,13 @@ impl XaiProtoBuilder {
     }
 }
 
-pub fn configure() -> XaiProtoBuilder {
+pub fn configure() -> AxonProtoBuilder {
     let builder = tonic_prost_build::configure()
         .compile_well_known_types(true)
         .extern_path(".google.protobuf", "::pbjson_types")
         .extern_path(".google.protobuf.Empty", "()")
         .protoc_arg("--experimental_allow_proto3_optional");
-    XaiProtoBuilder {
+    AxonProtoBuilder {
         builder,
         gen_pbjson: false,
         pbjson_ignore_unknown_fields: false,

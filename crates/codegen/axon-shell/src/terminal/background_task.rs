@@ -273,9 +273,9 @@ impl BackgroundTaskRegistry {
 /// Creates the directory structure if it doesn't exist.
 /// Path format: `~/.axon/sessions/{session_id}/tasks/{task_id}.log`
 pub fn get_task_output_path(session_id: &str, task_id: &str) -> PathBuf {
-    use crate::util::grok_home::grok_home;
+    use crate::util::axon_home::axon_home;
 
-    let tasks_dir = grok_home().join("sessions").join(session_id).join("tasks");
+    let tasks_dir = axon_home().join("sessions").join(session_id).join("tasks");
     // Create directory (ignore errors - will fail on write if dir creation fails)
     std::fs::create_dir_all(&tasks_dir).ok();
     tasks_dir.join(format!("{}.log", task_id))

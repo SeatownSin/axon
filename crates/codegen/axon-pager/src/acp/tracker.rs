@@ -255,7 +255,7 @@ pub struct AcpUpdateTracker {
     /// Tool call IDs marked as background (`is_background=true`).
     ///
     /// First-detection (no scrollback entry yet): defers entry creation until
-    /// `x.ai/task_backgrounded` creates a `BgTask` block.
+    /// `axon/task_backgrounded` creates a `BgTask` block.
     /// Late-detection (Execute block already exists): suppresses further output
     /// streaming; the existing block is demoted by `handle_task_backgrounded`.
     ///
@@ -2023,7 +2023,7 @@ fn media_gen_block(tc: &acp::ToolCall, success: bool) -> RenderBlock {
     RenderBlock::ToolCall(ToolCallBlock::Other(block))
 }
 /// Plain-text body of a media-variant tool that returned `ToolOutput::Text`
-/// rather than a media file (the free / X Basic SuperGrok-upsell short-circuit).
+/// rather than a media file (the free / X Basic SuperAxon-upsell short-circuit).
 /// `None` for real media outputs — including ZDR upload-only results — so their
 /// typed rendering is untouched.
 fn media_gen_text(tc: &acp::ToolCall) -> Option<String> {
@@ -2177,7 +2177,7 @@ fn task_ids_from_raw_input(raw: &serde_json::Value) -> Vec<String> {
 }
 /// Check if a tool call is a background execute (`is_background=true`).
 ///
-/// These are deferred from scrollback — the `x.ai/task_backgrounded`
+/// These are deferred from scrollback — the `axon/task_backgrounded`
 /// notification creates a `BgTask` block instead of an `Execute` block.
 ///
 /// Eager ACP messages often use `kind=Other` with `title=run_terminal_command`
@@ -2650,7 +2650,7 @@ fn make_relative_path(path: &str) -> String {
 mod tests {
     use super::*;
     use std::sync::Arc;
-    /// Default meta with no timestamps (simulates old grok-shell or tests that
+    /// Default meta with no timestamps (simulates old axon-shell or tests that
     /// don't care about timing).
     fn meta() -> NotificationMeta {
         NotificationMeta::default()
@@ -4662,7 +4662,7 @@ mod tests {
             "stream A message should be finished"
         );
     }
-    /// No stream_start_ms (old grok-shell) should not break anything.
+    /// No stream_start_ms (old axon-shell) should not break anything.
     #[test]
     fn no_stream_start_ms_preserves_existing_behavior() {
         let mut sb = ScrollbackState::new();
@@ -5614,7 +5614,7 @@ mod tests {
         .status(acp::ToolCallStatus::Pending)
     }
     #[test]
-    fn is_task_tool_recognizes_grok_build_variant() {
+    fn is_task_tool_recognizes_axon_build_variant() {
         assert!(is_task_tool(&initial_tool_call("tc1", "task")));
         let mut with_variant = initial_tool_call("tc2", "anything");
         with_variant.raw_input = Some(serde_json::json!({ "variant" : "Task" }));
@@ -6506,13 +6506,13 @@ mod tests {
         );
     }
     /// A tier-restricted (free / X Basic) imagine call short-circuits with the
-    /// SuperGrok upsell as `ToolOutput::Text` on a `Completed` status. The media
+    /// SuperAxon upsell as `ToolOutput::Text` on a `Completed` status. The media
     /// renderer has no file to open, so it must surface the upsell text in the
     /// card body (not a bare title) and must NOT mark the card as an error.
     #[test]
     fn tier_restricted_media_shows_upsell_text_not_error() {
-        let upsell = "Image generation is a SuperGrok feature. Upgrade at \
-             https://grok.com/supergrok?referrer=grok-build";
+        let upsell = "Image generation is a SuperAxon feature. Upgrade at \
+             https://blocked.invalid/superaxon?referrer=axon-build";
         let output = ToolOutput::Text(axon_tools::types::output::TextOutput::from(upsell));
         let tc = acp::ToolCall::new(
             acp::ToolCallId::new(Arc::from("tier-restricted-img")),
@@ -6539,7 +6539,7 @@ mod tests {
                 .output
                 .as_deref()
                 .unwrap_or_default()
-                .contains("SuperGrok"),
+                .contains("SuperAxon"),
             "upsell text must be shown in the card body, got: {:?}",
             block.output
         );

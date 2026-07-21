@@ -135,7 +135,7 @@ pub(super) fn should_intercept_exit_plan_approval(
 pub(super) enum PlanEditGate {
     /// Execute normally (plan mode inactive, not an edit, or allowed target).
     Allow,
-    /// Grok-toolset edit outside the plan file (plan-file-only rule).
+    /// Axon-toolset edit outside the plan file (plan-file-only rule).
     RejectNonPlanFile,
 }
 /// Gate edit-class tool calls while plan mode is active.
@@ -149,7 +149,7 @@ pub(super) enum PlanEditGate {
 ///   file is editable in plan mode (plan docs are written with these
 ///   same tools); everything else is rejected. Pre-existing behavior.
 /// - **Compat-toolset `Delete`** is **not** on the markdown carve-out: it maps to
-///   `AccessKind::Edit` and is plan-file-only (same as grok edits). Deleting
+///   `AccessKind::Edit` and is plan-file-only (same as axon edits). Deleting
 ///   an arbitrary `.md` in plan mode must not pass.
 /// - **Every other edit tool** (`AccessKind::Edit`) is restricted to the plan
 ///   file itself, via the same predicate that auto-approves plan-file edits
@@ -192,7 +192,7 @@ pub(super) enum PlanApprovalOutcome {
 }
 impl PlanApprovalOutcome {
     fn from_response(
-        resp: &axon_tools::implementations::grok_build::exit_plan_mode::ExitPlanModeExtResponse,
+        resp: &axon_tools::implementations::axon_build::exit_plan_mode::ExitPlanModeExtResponse,
     ) -> Self {
         match resp.outcome.as_str() {
             "approved" => Self::Approved,
@@ -255,7 +255,7 @@ fn resume_action_for(outcome: PlanApprovalOutcome, feedback: Option<String>) -> 
     }
 }
 impl SessionActor {
-    /// Merge the canonical `x.ai/tool` identity envelope into a tool-call
+    /// Merge the canonical `axon/tool` identity envelope into a tool-call
     /// event's `_meta`, resolving the tool from the live toolset by wire name.
     pub(super) fn stamp_tool_meta(
         &self,
@@ -1360,7 +1360,7 @@ impl SessionActor {
         };
         Ok(Ok(prepared))
     }
-    /// Issue the `x.ai/exit_plan_mode` reverse-request and await the user's
+    /// Issue the `axon/exit_plan_mode` reverse-request and await the user's
     /// decision. Shared by the mid-turn intercept and the resume
     /// re-park. Marks `awaiting_plan_approval` while the request is
     /// outstanding and clears it on every exit path via [`AwaitingApprovalGuard`].
@@ -1369,11 +1369,11 @@ impl SessionActor {
         tool_call_id: &acp::ToolCallId,
         plan_content: Option<String>,
     ) -> Result<
-        axon_tools::implementations::grok_build::exit_plan_mode::ExitPlanModeExtResponse,
+        axon_tools::implementations::axon_build::exit_plan_mode::ExitPlanModeExtResponse,
         acp::Error,
     > {
         use agent_client_protocol::Client as _;
-        use axon_tools::implementations::grok_build::exit_plan_mode::{
+        use axon_tools::implementations::axon_build::exit_plan_mode::{
             ExitPlanModeExtRequest, ExitPlanModeExtResponse,
         };
         let ext_req = ExitPlanModeExtRequest {
@@ -1386,7 +1386,7 @@ impl SessionActor {
             "exit_plan_mode reverse-request must carry a non-empty sessionId (design §5.4)"
         );
         let ext_request = acp::ExtRequest::new(
-            "x.ai/exit_plan_mode",
+            "axon/exit_plan_mode",
             serde_json::value::to_raw_value(&ext_req)
                 .expect("ExitPlanModeExtRequest serialization should not fail")
                 .into(),
@@ -2251,7 +2251,7 @@ impl SessionActor {
                 is_cursor_for_tool_result,
             ) {
                 deferred_followups.push(ConversationItem::user(notice));
-                self.send_xai_notification(XaiSessionUpdate::ImageDropped { notes })
+                self.send_axon_notification(AxonSessionUpdate::ImageDropped { notes })
                     .await;
             }
             for norm in norm_result.images {
@@ -2425,7 +2425,7 @@ impl SessionActor {
                         cap.phase = CapturePhase::ToolCall;
                     }
                 }
-                self.send_buffered_xai_update(XaiSessionUpdate::ToolCallDeltaChunk {
+                self.send_buffered_axon_update(AxonSessionUpdate::ToolCallDeltaChunk {
                     tool_call_id: id,
                     tool_index,
                     name,
@@ -2510,7 +2510,7 @@ impl SessionActor {
                         "reason" : crate ::util::truncate(& reason, 300), }
                     )),
                 );
-                self.send_xai_notification(XaiSessionUpdate::RetryState(
+                self.send_axon_notification(AxonSessionUpdate::RetryState(
                     crate::extensions::notification::RetryState::Retrying {
                         attempt,
                         max_retries,
@@ -2766,7 +2766,7 @@ mod plan_mode_edit_gate_tests {
         plan_mode_edit_gate(tracker, input, &AccessKind::from(input))
     }
     fn search_replace(path: &str) -> ToolInput {
-        use axon_tools::implementations::grok_build::search_replace::SearchReplaceInput;
+        use axon_tools::implementations::axon_build::search_replace::SearchReplaceInput;
         ToolInput::SearchReplace(SearchReplaceInput {
             file_path: path.into(),
             old_string: "a".into(),
@@ -2781,10 +2781,10 @@ mod plan_mode_edit_gate_tests {
             content: "x".into(),
         })
     }
-    /// Grok edit tools are plan-file-only while plan mode is active — the
+    /// Axon edit tools are plan-file-only while plan mode is active — the
     /// enforcement that makes plan mode read-only even under always-approve.
     #[test]
-    fn grok_edits_outside_plan_file_rejected() {
+    fn axon_edits_outside_plan_file_rejected() {
         let t = active_tracker();
         assert_eq!(
             gate(&t, &search_replace("/tmp/src/main.rs")),
@@ -2793,7 +2793,7 @@ mod plan_mode_edit_gate_tests {
         assert_eq!(
             gate(&t, &write("/tmp/README.md")),
             PlanEditGate::RejectNonPlanFile,
-            "grok tools get no markdown exception — plan file only"
+            "axon tools get no markdown exception — plan file only"
         );
     }
     /// The carve-out and the permission bypass share `should_auto_approve_edit`,
@@ -2870,7 +2870,7 @@ mod plan_approval_helper_tests {
         PlanApprovalOutcome, ResumeAction, ext_method_no_client, resume_action_for,
         revise_plan_message,
     };
-    use axon_tools::implementations::grok_build::exit_plan_mode::ExitPlanModeExtResponse;
+    use axon_tools::implementations::axon_build::exit_plan_mode::ExitPlanModeExtResponse;
     fn resp(outcome: &str) -> ExitPlanModeExtResponse {
         ExitPlanModeExtResponse {
             outcome: outcome.into(),

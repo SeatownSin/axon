@@ -1,7 +1,7 @@
 //! One-child supervisor for the in-sandbox preview-proxy.
 //!
 //! After the workspace-server self-daemonizes (see [`crate::daemonize`]) it
-//! spawns the unchanged `/usr/local/bin/xai-grok-preview-proxy` binary as a
+//! spawns the unchanged `/usr/local/bin/axon-axon-preview-proxy` binary as a
 //! child process and supervises exactly that one child: fork/exec → `wait` →
 //! restart-on-exit with capped backoff that resets after a healthy run.
 //!
@@ -30,7 +30,7 @@ use tokio::sync::watch;
 use crate::activity::ActivityTracker;
 
 /// Absolute path of the preview-proxy binary the supervisor execs.
-pub const PREVIEW_PROXY_BIN_PATH: &str = "/usr/local/bin/xai-grok-preview-proxy";
+pub const PREVIEW_PROXY_BIN_PATH: &str = "/usr/local/bin/axon-axon-preview-proxy";
 
 /// WS-owned, per-restart-truncated log capturing the proxy's stdout+stderr. A
 /// sibling of `WORKSPACE_SERVER_LOG_PATH` on the snapshot-excluded `/var/tmp`
@@ -49,11 +49,11 @@ pub const PREVIEW_PROXY_RESTART_BACKOFF_BASE_SECS: u64 = 1;
 /// than growing unbounded.
 pub const PREVIEW_PROXY_RESTART_BACKOFF_CAP_SECS: u64 = 30;
 
-/// `grok_workspace_preview_proxy_restart_total{reason}` — (re)start events the
+/// `axon_workspace_preview_proxy_restart_total{reason}` — (re)start events the
 /// in-sandbox supervisor emits, by reason; tracks preview-proxy restart pressure.
 static PREVIEW_PROXY_RESTART_TOTAL: LazyLock<IntCounterVec> = LazyLock::new(|| {
     register_int_counter_vec!(
-        "grok_workspace_preview_proxy_restart_total",
+        "axon_workspace_preview_proxy_restart_total",
         "preview-proxy (re)start events emitted by the in-sandbox supervisor, by reason",
         &["reason"]
     )
@@ -129,7 +129,7 @@ pub struct PreviewArgs {
 
 impl PreviewArgs {
     /// Map the forwarded fields to the proxy's exact CLI flag names (see
-    /// `xai-grok-preview-proxy/src/cli.rs`). Absent options and a false
+    /// `axon-axon-preview-proxy/src/cli.rs`). Absent options and a false
     /// `allow_public` contribute nothing; the `enabled` gate is never emitted.
     pub fn to_argv(&self) -> Vec<String> {
         let mut argv = Vec::new();
@@ -379,11 +379,11 @@ async fn sleep_or_shutdown(delay: Duration, shutdown: &mut watch::Receiver<bool>
 // `ActivityTracker` so in-sandbox preview traffic withholds idle.
 
 /// Proxy control path exposing the last-activity stamp (mirrors
-/// `xai-grok-preview-proxy`'s `/__control/activity` route).
+/// `axon-axon-preview-proxy`'s `/__control/activity` route).
 const PREVIEW_ACTIVITY_PATH: &str = "/__control/activity";
 
 /// Effective proxy `--control-port` when the supervisor didn't pin one (mirrors
-/// the default in `xai-grok-preview-proxy/src/cli.rs`).
+/// the default in `axon-axon-preview-proxy/src/cli.rs`).
 const DEFAULT_PREVIEW_CONTROL_PORT: u16 = 6015;
 
 /// Per-scrape budget. The endpoint is loopback and trivial, so a small bound is
@@ -541,7 +541,7 @@ mod tests {
             control_port: Some(6015),
             visibility: Some(PreviewVisibility::Public),
             instance_suffix: Some(".inst.example".to_owned()),
-            auth_redirect: Some("https://grok.com/preview-auth".to_owned()),
+            auth_redirect: Some("https://blocked.invalid/preview-auth".to_owned()),
             allow_public: true,
             workspace_server_port: Some(8470),
             workspace_dir: PathBuf::from("/workspace"),
@@ -550,7 +550,7 @@ mod tests {
 
     #[test]
     fn to_argv_maps_every_flag_to_the_proxy_cli_names() {
-        // Flag names must match xai-grok-preview-proxy/src/cli.rs exactly.
+        // Flag names must match axon-axon-preview-proxy/src/cli.rs exactly.
         assert_eq!(
             sample_cfg().to_argv(),
             vec![
@@ -563,7 +563,7 @@ mod tests {
                 "--instance-suffix",
                 ".inst.example",
                 "--auth-redirect",
-                "https://grok.com/preview-auth",
+                "https://blocked.invalid/preview-auth",
                 "--allow-public",
                 "--workspace-server-port",
                 "8470",

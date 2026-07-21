@@ -1,4 +1,4 @@
-//! GrokBuildEnvironment configuration for the shell crate family.
+//! AxonBuildEnvironment configuration for the shell crate family.
 //!
 //! The environment presets (per-environment endpoint URLs, the staging
 //! trust check, `EnvVarGuard`) live in the [`axon_env`] leaf crate so
@@ -9,12 +9,12 @@
 //! # Gateway-bridge mode (env-only)
 //! - `AXON_GATEWAY_URL` — when set to a valid URL, `MvpAgent` spawns a
 //!   per-session gateway bridge actor and routes prompts through
-//!   it. Unset → falls back to [`GrokBuildEnvironment::gateway_ws_url`] for
+//!   it. Unset → falls back to [`AxonBuildEnvironment::gateway_ws_url`] for
 //!   sessions created in gateway mode; otherwise local-mode (unchanged).
 #[cfg(any(test, feature = "test-support"))]
 pub use axon_env::EnvVarGuard;
 pub use axon_env::{
-    GrokBuildEnvironment, PROD_ASSET_SERVER_URL, PROD_CLI_CHAT_PROXY_BASE_URL, PROD_GATEWAY_WS_URL,
+    AxonBuildEnvironment, PROD_ASSET_SERVER_URL, PROD_CLI_CHAT_PROXY_BASE_URL, PROD_GATEWAY_WS_URL,
     PROD_RELAY_WS_URL, PROD_WS_ORIGIN,
 };
 /// Env var that opts a process into gateway-bridge mode. When set to

@@ -22,7 +22,7 @@ use axon_file_utils::queue::{
 /// Successful re-enqueues, labelled by artifact name.
 static ORPHAN_RECOVERED: LazyLock<IntCounterVec> = LazyLock::new(|| {
     register_int_counter_vec!(
-        "grok_workspace_orphan_recovered_total",
+        "axon_workspace_orphan_recovered_total",
         "Queue-item sidecars re-enqueued from disk on startup",
         &["artifact_name"]
     )
@@ -33,7 +33,7 @@ static ORPHAN_RECOVERED: LazyLock<IntCounterVec> = LazyLock::new(|| {
 /// (`missing_tmp` | `sha_mismatch` | `io_error` | `parse_error`).
 static ORPHAN_LOST: LazyLock<IntCounterVec> = LazyLock::new(|| {
     register_int_counter_vec!(
-        "grok_workspace_orphan_lost_total",
+        "axon_workspace_orphan_lost_total",
         "Queue-item sidecars dropped on startup (corrupt / orphaned temp file)",
         &["reason"]
     )
@@ -43,7 +43,7 @@ static ORPHAN_LOST: LazyLock<IntCounterVec> = LazyLock::new(|| {
 /// Pairs dropped because they exceeded [`DEFAULT_MAX_AGE`] before recovery ran.
 static ORPHAN_EXPIRED: LazyLock<IntCounter> = LazyLock::new(|| {
     register_int_counter!(
-        "grok_workspace_orphan_expired_total",
+        "axon_workspace_orphan_expired_total",
         "Queue-item sidecars dropped on startup for exceeding the max age"
     )
     .unwrap()

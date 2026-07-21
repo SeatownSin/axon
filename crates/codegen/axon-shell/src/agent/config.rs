@@ -1,5 +1,5 @@
 use crate::agent::auth_method::ModelByok;
-use crate::auth::{AuthManager, GrokComConfig, OidcAuthConfig};
+use crate::auth::{AuthManager, AxonComConfig, OidcAuthConfig};
 use crate::remote::DEFAULT_CONTEXT_WINDOW;
 use crate::{config::StorageMode, sampling::ApiBackend, tools::config::ShellToolsetConfig};
 use agent_client_protocol as acp;
@@ -37,17 +37,18 @@ pub enum AgentMode {
     Generic,
 }
 /// Default agent type when the server or user config doesn't specify one.
-pub const DEFAULT_AGENT_TYPE: &str = "grok-build-plan";
+pub const DEFAULT_AGENT_TYPE: &str = "axon-build-plan";
 /// Serde default for `ModelInfo.agent_type` and `ModelEntryConfig.agent_type`.
 pub fn default_agent_type() -> String {
     DEFAULT_AGENT_TYPE.to_owned()
 }
-/// Default base URL for the cli chat proxy.
-pub const CLI_CHAT_PROXY_BASE_URL_DEFAULT: &str = "https://cli-chat-proxy.grok.com/v1";
-/// Default base URL for the public xAI API.
-pub const XAI_API_BASE_URL_DEFAULT: &str = "https://api.x.ai/v1";
-/// Default base URL for the asset server (profile images, etc.).
-pub const ASSET_SERVER_URL_DEFAULT: &str = "https://assets.grok.com";
+/// Default base URLs for the (dead) vendor endpoints. The `blocked.invalid`
+/// placeholder carries no plaintext vendor name and is recognized as blocked
+/// infrastructure (see `axon_shell_base::util::blocked_hosts`), so the bundled
+/// default is still hidden and the guard still refuses it.
+pub const CLI_CHAT_PROXY_BASE_URL_DEFAULT: &str = "https://cli-chat-proxy.blocked.invalid/v1";
+pub const AXON_API_BASE_URL_DEFAULT: &str = "https://api.blocked.invalid/v1";
+pub const ASSET_SERVER_URL_DEFAULT: &str = "https://assets.blocked.invalid";
 /// One or more environment variable names that may hold a model API key.
 ///
 /// Serde `untagged`: accepts a string or an array in TOML/JSON.
@@ -146,8 +147,8 @@ pub struct EndpointsConfig {
     /// default value) lets an org pin the proxy to the default on purpose.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cli_chat_proxy_base_url: Option<String>,
-    /// Base URL for the public xAI API.
-    pub xai_api_base_url: String,
+    /// Base URL for the public Axon API.
+    pub axon_api_base_url: String,
     /// Optional extra access-header value (applied only with the optional
     /// non-production feature, and only for matching first-party hosts).
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -209,11 +210,11 @@ pub struct EndpointsConfig {
     /// the legacy `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` behavior; used by
     /// local-ic-testing / internal dev flows). Wins over the legacy `OTEL_*` vars.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub grok_internal_otlp_traces_endpoint: Option<String>,
+    pub axon_internal_otlp_traces_endpoint: Option<String>,
     /// Env: `AXON_INTERNAL_OTLP_HEADERS`. `k=v,k2=v2` extra headers for the
     /// internal export (debug). Wins over the legacy `OTEL_EXPORTER_OTLP_HEADERS`.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub grok_internal_otlp_headers: Option<String>,
+    pub axon_internal_otlp_headers: Option<String>,
     /// External-OTEL master switch, captured at construction via
     /// [`external_otel_master_switch_resolved`] — the same layered resolution
     /// (requirement pin > `AXON_EXTERNAL_OTEL` env > `[telemetry].otel_enabled`
@@ -302,7 +303,7 @@ impl EndpointsConfig {
     }
     /// The cli-chat-proxy base URL through which all auxiliary services (and
     /// OAuth/session inference) resolve: explicit `cli_chat_proxy_base_url`, else
-    /// the public default. NEVER falls back to `xai_api_base_url` — that is the
+    /// the public default. NEVER falls back to `axon_api_base_url` — that is the
     /// inference endpoint (API-key auth) only.
     pub fn proxy_url(&self) -> String {
         blank_as_unset(&self.cli_chat_proxy_base_url)
@@ -314,17 +315,17 @@ impl EndpointsConfig {
             .unwrap_or_else(|| self.proxy_url())
     }
     /// Feedback endpoint — an auxiliary service, so it defaults to the
-    /// cli-chat-proxy, never `xai_api_base_url`.
+    /// cli-chat-proxy, never `axon_api_base_url`.
     pub fn resolve_feedback_base_url(&self) -> String {
         blank_as_unset(&self.feedback_base_url).unwrap_or_else(|| self.proxy_url())
     }
     /// Trace upload endpoint — an auxiliary service, so it defaults to the
-    /// cli-chat-proxy, never `xai_api_base_url`.
+    /// cli-chat-proxy, never `axon_api_base_url`.
     pub fn resolve_trace_upload_url(&self) -> String {
         blank_as_unset(&self.trace_upload_url).unwrap_or_else(|| self.proxy_url())
     }
     /// Managed deployment-config URL (`axon setup`): explicit `managed_config_url`,
-    /// else `proxy_url` + `/deployment/config`. Never `xai_api_base_url`, so the
+    /// else `proxy_url` + `/deployment/config`. Never `axon_api_base_url`, so the
     /// deployment key reaches the proxy, not the inference host.
     pub fn resolve_managed_config_url(&self) -> String {
         blank_as_unset(&self.managed_config_url).unwrap_or_else(|| {
@@ -335,18 +336,18 @@ impl EndpointsConfig {
         })
     }
     /// INTERNAL OTLP traces endpoint. Precedence:
-    /// 1. `grok_internal_otlp_traces_endpoint` (verbatim)
+    /// 1. `axon_internal_otlp_traces_endpoint` (verbatim)
     /// 2. legacy `otel_exporter_otlp_traces_endpoint` (verbatim) >
     ///    `otel_exporter_otlp_endpoint` + `/v1/traces` — ONLY when the
     ///    external-OTEL master switch is unset (back-compat; deprecated)
     /// 3. `proxy_url` + `/traces`.
-    /// Uses the proxy default (not the `xai_api_base_url` fallback) so
-    /// telemetry reports to xAI even when inference is overridden. When the
+    /// Uses the proxy default (not the `axon_api_base_url` fallback) so
+    /// telemetry reports to Axon even when inference is overridden. When the
     /// master switch IS set, the standard `OTEL_EXPORTER_OTLP_*` values are
     /// completely ignored here so the internally-authed firehose never lands
     /// at an external collector.
     pub fn resolve_otlp_traces_endpoint(&self) -> String {
-        if let Some(full) = blank_as_unset(&self.grok_internal_otlp_traces_endpoint) {
+        if let Some(full) = blank_as_unset(&self.axon_internal_otlp_traces_endpoint) {
             return full.trim_end_matches('/').to_string();
         }
         if !self.external_otel_master_switch
@@ -372,11 +373,11 @@ impl EndpointsConfig {
         blank_as_unset(&self.otel_exporter_otlp_endpoint)
             .map(|base| format!("{}/v1/traces", base.trim_end_matches('/')))
     }
-    /// Extra headers for the INTERNAL export: `grok_internal_otlp_headers`
+    /// Extra headers for the INTERNAL export: `axon_internal_otlp_headers`
     /// first; legacy fallback to `otel_exporter_otlp_headers` ONLY when the
     /// external-OTEL master switch is unset (back-compat for existing users).
     pub fn resolve_otlp_headers(&self) -> Vec<(String, String)> {
-        if let Some(headers) = blank_as_unset(&self.grok_internal_otlp_headers) {
+        if let Some(headers) = blank_as_unset(&self.axon_internal_otlp_headers) {
             return parse_otlp_header_list(&headers);
         }
         if !self.external_otel_master_switch {
@@ -391,7 +392,7 @@ impl EndpointsConfig {
     /// the master switch is unset AND (`otel_exporter_otlp_traces_endpoint` /
     /// `otel_exporter_otlp_endpoint` is non-blank for the endpoint, or
     /// `otel_exporter_otlp_headers` is non-blank for headers) AND no
-    /// `grok_internal_otlp_*` override shadowed that half.
+    /// `axon_internal_otlp_*` override shadowed that half.
     ///
     /// CONTRACT: this flag is passed to the external OTEL stream's init, which
     /// MUST refuse to activate when it is true — the same standard vars cannot
@@ -400,9 +401,9 @@ impl EndpointsConfig {
         if self.external_otel_master_switch {
             return false;
         }
-        let endpoint_consumed = blank_as_unset(&self.grok_internal_otlp_traces_endpoint).is_none()
+        let endpoint_consumed = blank_as_unset(&self.axon_internal_otlp_traces_endpoint).is_none()
             && self.legacy_internal_otlp_traces_endpoint().is_some();
-        let headers_consumed = blank_as_unset(&self.grok_internal_otlp_headers).is_none()
+        let headers_consumed = blank_as_unset(&self.axon_internal_otlp_headers).is_none()
             && blank_as_unset(&self.otel_exporter_otlp_headers).is_some();
         endpoint_consumed || headers_consumed
     }
@@ -542,8 +543,8 @@ impl Default for EndpointsConfig {
     fn default() -> Self {
         Self {
             cli_chat_proxy_base_url: std::env::var("AXON_CLI_CHAT_PROXY_BASE_URL").ok(),
-            xai_api_base_url: std::env::var("AXON_XAI_API_BASE_URL")
-                .unwrap_or_else(|_| XAI_API_BASE_URL_DEFAULT.to_owned()),
+            axon_api_base_url: std::env::var("AXON_AXON_API_BASE_URL")
+                .unwrap_or_else(|_| AXON_API_BASE_URL_DEFAULT.to_owned()),
             alpha_test_key: None,
             models_base_url: env_string("AXON_MODELS_BASE_URL"),
             models_list_url: env_string("AXON_MODELS_LIST_URL"),
@@ -559,8 +560,8 @@ impl Default for EndpointsConfig {
             otel_exporter_otlp_endpoint: env_string("OTEL_EXPORTER_OTLP_ENDPOINT"),
             otel_exporter_otlp_traces_endpoint: env_string("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"),
             otel_exporter_otlp_headers: env_string("OTEL_EXPORTER_OTLP_HEADERS"),
-            grok_internal_otlp_traces_endpoint: env_string("AXON_INTERNAL_OTLP_TRACES_ENDPOINT"),
-            grok_internal_otlp_headers: env_string("AXON_INTERNAL_OTLP_HEADERS"),
+            axon_internal_otlp_traces_endpoint: env_string("AXON_INTERNAL_OTLP_TRACES_ENDPOINT"),
+            axon_internal_otlp_headers: env_string("AXON_INTERNAL_OTLP_HEADERS"),
             external_otel_master_switch: external_otel_master_switch_resolved(),
             otel_traces_exporter: env_string("OTEL_TRACES_EXPORTER"),
             otel_traces_export_interval: env_string("OTEL_BSP_SCHEDULE_DELAY")
@@ -998,7 +999,7 @@ pub struct ModelsConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub image_description: Option<String>,
     /// Model pin for next-prompt suggestions (tab-autocomplete ghost text).
-    /// Unset = remote pin, then the client hint / built-in `grok-build-0.1`
+    /// Unset = remote pin, then the client hint / built-in `axon-build-0.1`
     /// default with the catalog guard; see `ModelOverrideConfig::resolve`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub prompt_suggestion: Option<String>,
@@ -1074,7 +1075,7 @@ pub struct RemoteConfig {
 ///
 /// ```toml
 /// [hub]
-/// url = "wss://hub.x.ai/ws"
+/// url = "wss://hub.blocked.invalid/ws"
 /// ```
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(default)]
@@ -1173,7 +1174,7 @@ pub struct MarketplaceSourceEntry {
 /// [suggestions]
 /// enabled = true
 /// ai_enabled = true
-/// ai_model = "grok-build"
+/// ai_model = "axon-build"
 /// debounce_ms = 50
 /// ```
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -1217,7 +1218,7 @@ impl SuggestionsConfig {
             None,
         )
         .map(|r| r.value)
-        .unwrap_or_else(|| "grok-build".to_owned())
+        .unwrap_or_else(|| "axon-build".to_owned())
     }
 }
 /// `[storage]` section from config.toml.
@@ -1283,7 +1284,7 @@ pub struct Config {
     /// Warnings from `[model.*]` parsing; surfaced by `axon inspect`.
     #[serde(skip)]
     pub model_override_warnings: Vec<super::config_model_override_parse::ModelOverrideWarning>,
-    pub grok_com_config: GrokComConfig,
+    pub axon_com_config: AxonComConfig,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub shortcuts: Option<toml::Value>,
     /// Written by the client via `config_toml_edit`; absorbed so it isn't
@@ -1357,10 +1358,10 @@ pub struct Config {
     #[serde(default, skip_serializing)]
     pub managed_mcps: crate::config::ManagedMcpsConfig,
     /// `[auth]` alias — consumed by `expand_auth_alias` before serde.
-    /// Typed as `GrokComConfig` (same schema) so sub-field typos are caught.
+    /// Typed as `AxonComConfig` (same schema) so sub-field typos are caught.
     #[serde(default, skip_serializing)]
-    pub auth: Option<GrokComConfig>,
-    /// `[desktop]` section — owned by grok-desktop (Electron app), opaque to the CLI agent.
+    pub auth: Option<AxonComConfig>,
+    /// `[desktop]` section — owned by axon-desktop (Electron app), opaque to the CLI agent.
     #[serde(default, skip_serializing)]
     pub desktop: Option<toml::Value>,
     /// Top-level `announcements` array — consumed by `resolve_announcements`.
@@ -1505,7 +1506,7 @@ pub struct Config {
     /// config is valid. Resolved by [`crate::config::ToolsConfig::resolve`].
     #[serde(skip)]
     pub zdr_video_output_s3:
-        Option<axon_tools::implementations::grok_build::video_gen::ZdrVideoOutputS3Config>,
+        Option<axon_tools::implementations::axon_build::video_gen::ZdrVideoOutputS3Config>,
     /// Whether to enrich path-not-found errors with CWD reminders,
     /// "dropped repo folder" correction, and similar-name suggestions.
     /// Default `false`. Enabled via remote settings.
@@ -1541,7 +1542,7 @@ pub struct Config {
     /// (`default_session_summary_model`) when unset; see `ModelOverrideConfig::resolve`.
     #[serde(skip)]
     pub session_summary_model: Option<String>,
-    /// Image describe model (`grok-build` default via `ModelOverrideConfig::resolve`).
+    /// Image describe model (`axon-build` default via `ModelOverrideConfig::resolve`).
     #[serde(skip)]
     pub image_description_model: Option<String>,
     /// Next-prompt suggestion model pin (`env > [models] prompt_suggestion >
@@ -1626,13 +1627,13 @@ pub use axon_shared::ui_config::{ContextualHints, UiConfig};
 /// 2. CLI `--agent-profile` flag
 /// 3. `[agent]` config.toml section (this config)
 /// 4. `AXON_AGENT` env var
-/// 5. Default `grok-build` agent
+/// 5. Default `axon-build` agent
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct AgentSelectionConfig {
     /// Name of a built-in or discovered agent definition.
     /// Looked up via `axon_agent::discovery::by_name_in_cwd()`.
-    /// Examples: "grok-build", "browser-use", or a custom agent name.
+    /// Examples: "axon-build", "browser-use", or a custom agent name.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
     /// Path to an agent definition file (.md with YAML frontmatter).
@@ -1709,7 +1710,7 @@ impl Default for Config {
             auto_mode: AutoModeConfig::default(),
             config_models: IndexMap::new(),
             model_override_warnings: Vec::new(),
-            grok_com_config: GrokComConfig::default(),
+            axon_com_config: AxonComConfig::default(),
             shortcuts: None,
             hints: None,
             ui: UiConfig::default(),
@@ -1813,8 +1814,8 @@ impl Config {
     /// Build an `AuthManager` with the configured proxy URL applied.
     pub fn create_auth_manager(&self) -> AuthManager {
         AuthManager::new(
-            &crate::util::grok_home::grok_home(),
-            self.grok_com_config.clone(),
+            &crate::util::axon_home::axon_home(),
+            self.axon_com_config.clone(),
         )
         .with_proxy_base_url(&self.endpoints.proxy_url())
     }
@@ -1869,11 +1870,11 @@ impl Config {
         }
         config.config_models = config_models;
         config.model_override_warnings = model_override_warnings;
-        if config.grok_com_config.oidc.is_none() {
-            config.grok_com_config.oidc = OidcAuthConfig::from_env();
+        if config.axon_com_config.oidc.is_none() {
+            config.axon_com_config.oidc = OidcAuthConfig::from_env();
         }
-        if config.grok_com_config.oidc.is_none() && config.grok_com_config.oauth2.is_none() {
-            config.grok_com_config.oauth2 = crate::auth::OAuth2ProviderConfig::from_env();
+        if config.axon_com_config.oidc.is_none() && config.axon_com_config.oauth2.is_none() {
+            config.axon_com_config.oauth2 = crate::auth::OAuth2ProviderConfig::from_env();
         }
         if config.client_version.is_none() {
             config.client_version = Self::default().client_version;
@@ -1998,16 +1999,16 @@ impl Config {
         self.resolve_runtime_fields(&ctx);
         crate::util::config::set_remote_campaigns_from_settings(self.remote_settings.as_ref());
     }
-    /// If the TOML contains `[auth]`, copy its contents under `[grok_com_config]`.
-    /// `[grok_com_config]` takes precedence if both are present (explicit wins).
+    /// If the TOML contains `[auth]`, copy its contents under `[axon_com_config]`.
+    /// `[axon_com_config]` takes precedence if both are present (explicit wins).
     ///
-    /// This lets customers write the shorter `[auth.oidc]` instead of `[grok_com_config.oidc]`.
+    /// This lets customers write the shorter `[auth.oidc]` instead of `[axon_com_config.oidc]`.
     fn expand_auth_alias(raw_config: &toml::Value) -> toml::Value {
         let mut config = raw_config.clone();
         if let toml::Value::Table(ref mut table) = config
             && let Some(auth) = table.remove("auth")
         {
-            if let Some(gcc) = table.get_mut("grok_com_config") {
+            if let Some(gcc) = table.get_mut("axon_com_config") {
                 if let (toml::Value::Table(gcc_table), toml::Value::Table(auth_table)) =
                     (gcc, &auth)
                 {
@@ -2016,7 +2017,7 @@ impl Config {
                     }
                 }
             } else {
-                table.insert("grok_com_config".to_owned(), auth);
+                table.insert("axon_com_config".to_owned(), auth);
             }
         }
         config
@@ -2132,7 +2133,7 @@ impl Config {
             .default(false)
             .resolve()
     }
-    /// Server-side doom-loop check policy (the `x-grok-doom-loop-check`
+    /// Server-side doom-loop check policy (the `x-axon-doom-loop-check`
     /// header, trigger parsing, and confident-signal resampling, all
     /// applied by the sampler). Merged
     /// PER-FIELD across the `[doom_loop_recovery]` TOML table and the
@@ -2171,7 +2172,7 @@ impl Config {
                 .map_or(Policy::DEFAULT_MAX_RETRIES, Policy::clamp_max_retries),
         })
     }
-    /// Gate first-run auto-registration of the official xAI marketplace source.
+    /// Gate first-run auto-registration of the official Axon marketplace source.
     /// Precedence: env `AXON_OFFICIAL_MARKETPLACE_AUTO_REGISTER` > remote settings >
     /// default off (so only remote settings-targeted teams get it pre-public). No
     /// managed `.requirement` pin: `marketplace_allowlist` already gates sources.
@@ -2248,7 +2249,7 @@ impl Config {
             .requirement(self.requirements.voice_mode.pinned())
             .config(self.features.voice_mode)
             .feature_flag(ff)
-            // Off by default: the stock STT endpoint was xAI-hosted, which
+            // Off by default: the stock STT endpoint was Axon-hosted, which
             // this build never contacts. Opt back in with a local STT
             // server via `[features] voice_mode` + `[voice].api_base`.
             .default(false)
@@ -2270,7 +2271,7 @@ impl Config {
     /// it; otherwise the tool defaults on and is overridable via
     /// `AXON_IMAGE_EDIT`.
     pub(crate) fn resolve_image_edit(&self) -> Resolved<bool> {
-        use axon_tools::implementations::grok_build::IMAGE_EDIT_TOOL_NAME;
+        use axon_tools::implementations::axon_build::IMAGE_EDIT_TOOL_NAME;
         if let Some(pinned) = self.requirements.image_edit.pinned() {
             return Resolved::new(pinned, ConfigSource::Requirement);
         }
@@ -2287,7 +2288,7 @@ impl Config {
     /// `image_gen` calls this model slug instead of the default quality model.
     /// Precedence: env `AXON_IMAGE_GEN_MODEL_OVERRIDE` > `[features]
     /// image_gen_model_override` config > remote settings `image_gen_model_override`.
-    /// `None` → default model (`grok-imagine-image-quality`).
+    /// `None` → default model (`axon-imagine-image-quality`).
     pub(crate) fn resolve_image_gen_model_override(&self) -> Option<String> {
         resolve_string_flag(
             None,
@@ -2601,13 +2602,13 @@ impl Config {
             .default(true)
             .resolve()
     }
-    /// Resolve whether to use grok's default OAuth2 (xAI auth.x.ai).
+    /// Resolve whether to use axon's default OAuth2 (Axon auth.blocked.invalid).
     ///
     /// Enterprise OIDC (`oidc` in config.toml) always wins — this only gates
-    /// the default xAI OAuth2 fallback when no enterprise OIDC is configured.
+    /// the default Axon OAuth2 fallback when no enterprise OIDC is configured.
     ///
     /// Priority: `--oauth` > AXON_OAUTH_ENABLED env > default (true = OAuth).
-    pub fn resolve_grok_oauth(&self, cli_oidc: Option<bool>) -> Resolved<bool> {
+    pub fn resolve_axon_oauth(&self, cli_oidc: Option<bool>) -> Resolved<bool> {
         BoolFlag::env("AXON_OAUTH_ENABLED")
             .cli(cli_oidc)
             .default(true)
@@ -2641,7 +2642,7 @@ impl Config {
         resolve_mcp_auto_restart(None, None, self.features.mcp_auto_restart, None, None)
     }
     /// Resolve whether the pager subscribes to the per-server
-    /// `x.ai/mcp/server_status` push.
+    /// `axon/mcp/server_status` push.
     ///
     /// Thin delegate to the canonical
     /// [`resolve_mcp_push_server_status`] free function — mirrors the
@@ -2746,7 +2747,7 @@ pub fn resolve_mcp_auto_restart(
 /// the precedence is single-sourced.
 ///
 /// The default is `true` — the pager's subscription to
-/// `x.ai/mcp/server_status` is wired default-on, with this
+/// `axon/mcp/server_status` is wired default-on, with this
 /// flag existing primarily as a kill switch.
 pub fn resolve_mcp_push_server_status(
     requirement: Option<bool>,
@@ -2842,7 +2843,7 @@ impl SyncBoolFlag {
         self.disable_env = Some(name);
         self
     }
-    /// Either-direction env resolver (typically `GROK_*`). Returns
+    /// Either-direction env resolver (typically `AXON_*`). Returns
     /// `Some(enabled)` for an explicit signal, `None` to fall through.
     pub const fn enable_env(mut self, resolver: fn() -> Option<bool>) -> Self {
         self.enable_env = Some(resolver);
@@ -2894,7 +2895,7 @@ impl SyncBoolFlag {
 pub fn is_telemetry_disabled_sync() -> bool {
     !SyncBoolFlag::new(telemetry_enabled_from_toml)
         .disable_env("DISABLE_TELEMETRY")
-        .enable_env(grok_telemetry_env_enabled)
+        .enable_env(axon_telemetry_env_enabled)
         .resolve()
 }
 /// Like [`is_telemetry_disabled_sync`] but only `true` when telemetry is
@@ -2903,7 +2904,7 @@ pub fn is_telemetry_disabled_sync() -> bool {
 pub fn is_telemetry_explicitly_disabled_sync() -> bool {
     !SyncBoolFlag::new(telemetry_enabled_from_toml)
         .disable_env("DISABLE_TELEMETRY")
-        .enable_env(grok_telemetry_env_enabled)
+        .enable_env(axon_telemetry_env_enabled)
         .default(true)
         .resolve()
 }
@@ -2935,14 +2936,14 @@ fn error_reporting_enabled_from_toml(root: &toml::Value) -> Option<bool> {
 }
 /// `AXON_TELEMETRY_ENABLED` resolved through `TelemetryMode::parse` so the
 /// extended string forms (e.g. `"session_metrics"`) are accepted.
-fn grok_telemetry_env_enabled() -> Option<bool> {
+fn axon_telemetry_env_enabled() -> Option<bool> {
     env_telemetry_mode("AXON_TELEMETRY_ENABLED").map(|m| !m.is_disabled())
 }
 /// Load `~/.axon/requirements.toml` standalone so the admin pin can beat
 /// env vars. The merged config layer can't express that — last-merge-wins
 /// loses provenance.
 pub(crate) fn read_requirements_toml() -> Option<toml::Value> {
-    let path = crate::util::grok_home::grok_home().join("requirements.toml");
+    let path = crate::util::axon_home::axon_home().join("requirements.toml");
     let content = std::fs::read_to_string(&path).ok()?;
     toml::from_str(&content).ok()
 }
@@ -3224,22 +3225,22 @@ pub fn resolve_model_list(
     for entry in resolved.values_mut() {
         entry.info.derive_reasoning_effort_fields();
     }
-    // This build never contacts xAI, and Grok models are unusable here, so
-    // hide every xAI-hosted entry (the built-in defaults) from the picker.
+    // This build never contacts Axon, and Axon models are unusable here, so
+    // hide every Axon-hosted entry (the built-in defaults) from the picker.
     //
     // Marking `hidden` (rather than removing) is deliberate: the catalog
     // machinery relies on "a default model always resolves", and
     // `available_models` / `resolve_default_model` already exclude hidden
     // entries from the menu and prefer visible ones. So the models vanish
     // from the picker while the invariant stays intact. The hard "no bytes
-    // to xAI" guarantee is still enforced separately at the network boundary
-    // (`SamplingClient::new` and every fetch/backend refuse xAI URLs).
+    // to Axon" guarantee is still enforced separately at the network boundary
+    // (`SamplingClient::new` and every fetch/backend refuse Axon URLs).
     for entry in resolved.values_mut() {
-        if crate::util::is_xai_infrastructure_url(&entry.info.base_url)
+        if crate::util::is_axon_infrastructure_url(&entry.info.base_url)
             || entry
                 .api_base_url
                 .as_deref()
-                .is_some_and(crate::util::is_xai_infrastructure_url)
+                .is_some_and(crate::util::is_axon_infrastructure_url)
         {
             entry.info.hidden = true;
         }
@@ -3400,7 +3401,7 @@ fn default_models(endpoints: &EndpointsConfig) -> IndexMap<String, ModelEntryCon
                 id: m.id,
                 model: m.model,
                 base_url: endpoints.resolve_inference_base_url(),
-                api_base_url: Some(endpoints.xai_api_base_url.clone()),
+                api_base_url: Some(endpoints.axon_api_base_url.clone()),
                 name: m.name,
                 description: m.description,
                 context_window: Some(context_window),
@@ -3443,7 +3444,7 @@ pub struct ModelEntryConfig {
     pub id: Option<String>,
     /// The routing slug sent in API requests.
     pub model: String,
-    /// The base URL of the model. e.g. "https://api.x.ai/v1"
+    /// The base URL of the model. e.g. "https://api.blocked.invalid/v1"
     pub base_url: String,
     /// Human-readable display name of the model.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -3457,12 +3458,12 @@ pub struct ModelEntryConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub top_p: Option<f32>,
     /// The API key for this model's provider.
-    /// If not set, falls back to env_key, then XAI_API_KEY.
+    /// If not set, falls back to env_key, then AXON_API_KEY.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub api_key: Option<String>,
     /// Environment variable name(s) that hold the provider API key.
     /// Accepts a string or an array (first set, non-empty value wins).
-    /// If not set, falls back to XAI_API_KEY.
+    /// If not set, falls back to AXON_API_KEY.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub env_key: Option<EnvKeys>,
     /// Which API backend to use for this model.
@@ -3519,7 +3520,7 @@ pub struct ModelEntryConfig {
     #[serde(default, skip_serializing_if = "is_false")]
     pub use_concise: bool,
     /// The type of system prompt to use for this model.
-    /// e.g. "grok-build", "codex".
+    /// e.g. "axon-build", "codex".
     #[serde(default = "default_agent_type")]
     pub agent_type: String,
     /// Maximum seconds to wait between SSE chunks during inference streaming.
@@ -3552,7 +3553,7 @@ pub struct ModelEntryConfig {
     pub show_model_fingerprint: bool,
     /// Inject `stream_tool_calls: true` into the request body
     /// so the upstream emits per-chunk `function_call_arguments.delta`
-    /// Without this set, xAI API models send args as one delta
+    /// Without this set, Axon API models send args as one delta
     /// event, defeating the purpose of streaming.
     ///
     /// Per-model opt-in -- BYOK endpoints that don't understand the
@@ -3738,7 +3739,7 @@ pub struct ModelInfo {
     pub id: Option<String>,
     /// The routing slug sent in API requests.
     pub model: String,
-    /// The base URL of the model (session endpoint). e.g. "https://cli-chat-proxy.grok.com/v1"
+    /// The base URL of the model (session endpoint). e.g. "https://cli-chat-proxy.blocked.invalid/v1"
     pub base_url: String,
     /// Human-readable name of the model. Honored by both the picker
     /// (`/model`) and `/session-info` -- when set, that's the label shown
@@ -3767,7 +3768,7 @@ pub struct ModelInfo {
     /// concise tool output, concise user message prefix, reduced toolset).
     pub use_concise: bool,
     /// The type of agent configuration to use for this model.
-    /// Always has a value; defaults to `"grok-build-plan"` when the server
+    /// Always has a value; defaults to `"axon-build-plan"` when the server
     /// or user config doesn't specify one.
     #[serde(default = "default_agent_type")]
     pub agent_type: String,
@@ -3983,7 +3984,7 @@ fn default_true() -> bool {
 /// ```toml
 /// codebase_indexing = false                                          # disable
 /// codebase_indexing = true                                           # any git repo (default)
-/// codebase_indexing = ["/Users/*/xai*", "!/Users/*/old-*"]           # globs, ! to exclude
+/// codebase_indexing = ["/Users/*/axon*", "!/Users/*/old-*"]           # globs, ! to exclude
 /// ```
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -4153,9 +4154,9 @@ pub struct Features {
     /// Default: true (index any git repo). Patterns can explicitly match non-git directories.
     #[serde(default)]
     pub codebase_indexing: CodebaseIndexingSetting,
-    /// Show a blocking warning when Grok starts outside a Git repository.
+    /// Show a blocking warning when Axon starts outside a Git repository.
     /// Default: false. Used as the local fallback when the `non_git_warning` remote settings
-    /// flag in `grok_build_settings` is absent. When the remote flag is present it takes
+    /// flag in `axon_build_settings` is absent. When the remote flag is present it takes
     /// precedence — `Some(false)` from remote settings overrides `true` here.
     #[serde(default)]
     pub non_git_warning: bool,
@@ -4195,7 +4196,7 @@ pub struct Features {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub video_gen: Option<bool>,
     /// `image_gen` Imagine model override. `None`/empty = defer to remote settings
-    /// (`image_gen_model_override`) / env / default (`grok-imagine-image-quality`).
+    /// (`image_gen_model_override`) / env / default (`axon-imagine-image-quality`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub image_gen_model_override: Option<String>,
     /// Write file tool. `None` = defer to remote settings / env / default (true).
@@ -4239,7 +4240,7 @@ pub struct Features {
     ///
     /// When `true` (default), each successfully-handshaken MCP
     /// client gets a poller that detects rmcp service-loop
-    /// termination and pushes `x.ai/mcp/server_status` updates to
+    /// termination and pushes `axon/mcp/server_status` updates to
     /// the client. When `false`, neither watchers nor the
     /// dispatcher are spawned — useful as an emergency kill switch
     /// for the rollout. `None` = defer to env / default (true).
@@ -4261,13 +4262,13 @@ pub struct Features {
     /// Resolved via [`Config::resolve_mcp_auto_restart`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mcp_auto_restart: Option<bool>,
-    /// Pager-side subscription to the `x.ai/mcp/server_status` push.
+    /// Pager-side subscription to the `axon/mcp/server_status` push.
     ///
     /// When `true` (default), the pager subscribes to the per-server
     /// status delta the shell emits via the dispatcher and
     /// patches the MCP servers modal in-place (no re-fetch round
     /// trip). When `false`, the pager ignores the push and falls
-    /// back to the legacy `x.ai/mcp/tools_changed` debounced refetch
+    /// back to the legacy `axon/mcp/tools_changed` debounced refetch
     /// path. `None` = defer to env / default (true).
     ///
     /// The pager-side gate
@@ -4335,7 +4336,7 @@ pub(crate) fn first_own_credential(
         .or_else(|| env_key.and_then(EnvKeys::resolve_value))
 }
 /// Resolve credentials for a model.
-/// Priority: model api_key/env_key > session token > XAI_API_KEY.
+/// Priority: model api_key/env_key > session token > AXON_API_KEY.
 ///
 /// When `env_key` lists multiple names, the first set non-empty value is used.
 pub fn resolve_credentials(model: &ModelEntry, session_key: Option<&str>) -> ResolvedCredentials {
@@ -4365,7 +4366,7 @@ pub fn resolve_credentials(model: &ModelEntry, session_key: Option<&str>) -> Res
             info.base_url.clone(),
             axon_chat_state::AuthType::SessionToken,
         )
-    } else if let Ok(key) = crate::agent::auth_method::read_xai_api_key_env() {
+    } else if let Ok(key) = crate::agent::auth_method::read_axon_api_key_env() {
         let url = model
             .api_base_url
             .clone()
@@ -4398,9 +4399,9 @@ pub fn resolve_credentials(model: &ModelEntry, session_key: Option<&str>) -> Res
         auth_scheme,
     }
 }
-/// `disable_api_key_auth` at the credential seam: swap a first-party xAI API
+/// `disable_api_key_auth` at the credential seam: swap a first-party Axon API
 /// key for the IdP session (absent => request fails => forces login). BYOK
-/// (non-xAI `base_url`) is untouched; no-op when the switch is off.
+/// (non-Axon `base_url`) is untouched; no-op when the switch is off.
 pub fn enforce_disable_api_key_auth(
     creds: &mut ResolvedCredentials,
     disable_api_key_auth: bool,
@@ -4408,7 +4409,7 @@ pub fn enforce_disable_api_key_auth(
 ) {
     if disable_api_key_auth
         && creds.auth_type == axon_chat_state::AuthType::ApiKey
-        && crate::util::is_xai_api_url(&creds.base_url)
+        && crate::util::is_axon_api_url(&creds.base_url)
     {
         creds.auth_type = axon_chat_state::AuthType::SessionToken;
         creds.api_key = session_key.map(str::to_owned);
@@ -4454,7 +4455,7 @@ pub fn try_resolve_model_credentials(
     let mut credentials = resolve_credentials(entry, session_key);
     enforce_disable_api_key_auth(
         &mut credentials,
-        cfg.grok_com_config.api_key_auth_disabled(),
+        cfg.axon_com_config.api_key_auth_disabled(),
         session_key,
     );
     Some(credentials)
@@ -4544,11 +4545,11 @@ pub fn resolve_aux_model_sampling_config(
             return Some(sampler);
         }
     }
-    let xai_bearer = session_key
+    let axon_bearer = session_key
         .map(|s| s.to_owned())
-        .or_else(|| crate::agent::auth_method::read_xai_api_key_env().ok())
+        .or_else(|| crate::agent::auth_method::read_axon_api_key_env().ok())
         .or_else(|| endpoints.deployment_key.clone());
-    if let Some(bearer) = xai_bearer {
+    if let Some(bearer) = axon_bearer {
         let entry = ModelEntry {
             info: ModelInfo {
                 user_selectable: true,
@@ -4613,7 +4614,7 @@ pub fn resolve_aux_model_sampling_config(
 /// On aux resolve `Some`, stamp session-local fields (client id, attribution, bearer,
 /// retries) onto the helper config. On `None`, fall back to the active session model and
 /// full config (not forcing `image_description_model` onto the agent endpoint, which 404s
-/// on BYOK / non-proxy routes for internal slugs like `grok-build`).
+/// on BYOK / non-proxy routes for internal slugs like `axon-build`).
 /// Stamp the session-local fields (client id, attribution, bearer resolver,
 /// retries) from the active session onto a routed aux `SamplerConfig` so a
 /// helper model keeps the session's auth/attribution. Shared by image-describe
@@ -4721,7 +4722,7 @@ pub fn sampling_config_for_model(
 /// URL-derived header logic at the shell boundary so callers downstream see a
 /// single homogenous header bag.
 ///
-/// * cli-chat-proxy bases get `X-XAI-Token-Auth` and
+/// * cli-chat-proxy bases get `X-AXON-Token-Auth` and
 ///   `x-authenticateresponse` headers (mirrors the inline match in the legacy
 ///   `sampling::Client::new` on `is_cli_chat_proxy_url`).
 /// * With the optional non-production feature, matching first-party hosts may
@@ -4735,8 +4736,8 @@ pub fn inject_url_derived_headers(
 ) {
     if crate::util::is_cli_chat_proxy_url(base_url) {
         headers
-            .entry("X-XAI-Token-Auth".to_string())
-            .or_insert_with(|| "xai-grok-cli".to_string());
+            .entry("X-AXON-Token-Auth".to_string())
+            .or_insert_with(|| "axon-axon-cli".to_string());
         headers
             .entry("x-authenticateresponse".to_string())
             .or_insert_with(|| "authenticate-response".to_string());
@@ -4977,7 +4978,7 @@ mod tests {
             tools: Some(vec!["read_file".into()]),
             ..Default::default()
         };
-        let mut cases = vec![(AgentDefinition::default_grok_build(), true)];
+        let mut cases = vec![(AgentDefinition::default_axon_build(), true)];
         for (mut definition, expected_injection) in cases {
             overrides.apply_to_definition(&mut definition);
             assert_eq!(definition.tools, vec!["read_file".to_string()]);
@@ -4993,13 +4994,13 @@ mod tests {
         let toml_src = r#"
 enabled = true
 prompt_type = "no_user_tool_prefix"
-classifier_model = "grok-4.5"
+classifier_model = "axon-4.5"
 reasoning_effort = "low"
 "#;
         let from_toml: AutoModeConfig = toml::from_str(toml_src).unwrap();
         let json = serde_json::json!(
             { "enabled" : true, "prompt_type" : "no_user_tool_prefix", "classifier_model"
-            : "grok-4.5", "reasoning_effort" : "low" }
+            : "axon-4.5", "reasoning_effort" : "low" }
         );
         let from_json: AutoModeConfig = serde_json::from_value(json).unwrap();
         for cfg in [&from_toml, &from_json] {
@@ -5008,7 +5009,7 @@ reasoning_effort = "low"
                 cfg.prompt_type,
                 Some(ClassifierPromptType::NoUserToolPrefix)
             );
-            assert_eq!(cfg.classifier_model.as_deref(), Some("grok-4.5"));
+            assert_eq!(cfg.classifier_model.as_deref(), Some("axon-4.5"));
             assert_eq!(cfg.reasoning_effort, Some(ReasoningEffort::Low));
         }
         let empty: AutoModeConfig = toml::from_str("").unwrap();
@@ -5129,8 +5130,8 @@ reasoning_effort = "low"
         let mut headers = IndexMap::new();
         inject_url_derived_headers(&mut headers, None, crate::env::PROD_CLI_CHAT_PROXY_BASE_URL);
         assert_eq!(
-            headers.get("X-XAI-Token-Auth").map(String::as_str),
-            Some("xai-grok-cli")
+            headers.get("X-AXON-Token-Auth").map(String::as_str),
+            Some("axon-axon-cli")
         );
         assert_eq!(
             headers.get("x-authenticateresponse").map(String::as_str),
@@ -5140,8 +5141,8 @@ reasoning_effort = "low"
     #[test]
     fn inject_url_derived_headers_skips_proxy_headers_for_external_url() {
         let mut headers = IndexMap::new();
-        inject_url_derived_headers(&mut headers, None, "https://api.x.ai/v1");
-        assert!(headers.get("X-XAI-Token-Auth").is_none());
+        inject_url_derived_headers(&mut headers, None, "https://api.blocked.invalid/v1");
+        assert!(headers.get("X-AXON-Token-Auth").is_none());
         assert!(headers.get("x-authenticateresponse").is_none());
     }
     #[test]
@@ -5154,17 +5155,17 @@ reasoning_effort = "low"
             Some("value")
         );
         assert_eq!(
-            headers.get("X-XAI-Token-Auth").map(String::as_str),
-            Some("xai-grok-cli")
+            headers.get("X-AXON-Token-Auth").map(String::as_str),
+            Some("axon-axon-cli")
         );
     }
     #[test]
     fn inject_url_derived_headers_does_not_overwrite_existing_entries() {
         let mut headers = IndexMap::new();
-        headers.insert("X-XAI-Token-Auth".to_string(), "caller-set".to_string());
+        headers.insert("X-AXON-Token-Auth".to_string(), "caller-set".to_string());
         inject_url_derived_headers(&mut headers, None, crate::env::PROD_CLI_CHAT_PROXY_BASE_URL);
         assert_eq!(
-            headers.get("X-XAI-Token-Auth").map(String::as_str),
+            headers.get("X-AXON-Token-Auth").map(String::as_str),
             Some("caller-set"),
         );
     }
@@ -5326,7 +5327,7 @@ reasoning_effort = "low"
         let (model, cfg) = finalize_image_describe_sampler_config(None, &active, None, Some(3));
         assert_eq!(model, "composer-session-model");
         assert_eq!(cfg.model, "composer-session-model");
-        assert_ne!(cfg.model, "grok-build");
+        assert_ne!(cfg.model, "axon-build");
     }
     #[test]
     fn finalize_image_describe_sampler_some_stamps_session_fields() {
@@ -5335,22 +5336,22 @@ reasoning_effort = "low"
             ..Default::default()
         };
         let aux = SamplerConfig {
-            model: "grok-build".into(),
+            model: "axon-build".into(),
             ..Default::default()
         };
         let (model, cfg) =
             finalize_image_describe_sampler_config(Some(aux), &active, Some("cli".into()), Some(7));
-        assert_eq!(model, "grok-build");
-        assert_eq!(cfg.model, "grok-build");
+        assert_eq!(model, "axon-build");
+        assert_eq!(cfg.model, "axon-build");
         assert_eq!(cfg.client_identifier.as_deref(), Some("cli"));
         assert_eq!(cfg.max_retries, Some(7));
     }
     #[test]
-    fn resolve_aux_model_honors_grok_build_override() {
+    fn resolve_aux_model_honors_axon_build_override() {
         let endpoints = EndpointsConfig::default();
         let mut catalog = IndexMap::new();
         catalog.insert(
-            "grok-build".to_string(),
+            "axon-build".to_string(),
             test_model_entry(
                 "v9m-rl-learnability-tp8",
                 "https://vendor.example/v1",
@@ -5360,7 +5361,7 @@ reasoning_effort = "low"
             ),
         );
         let resolved = resolve_aux_model_sampling_config(
-            "grok-build",
+            "axon-build",
             &catalog,
             &endpoints,
             None,
@@ -5381,7 +5382,7 @@ reasoning_effort = "low"
             "ws-model".to_string(),
             test_model_entry(
                 "ws-model",
-                "https://api.x.ai/v1",
+                "https://api.blocked.invalid/v1",
                 Some("first-party-key"),
                 None,
                 None,
@@ -5408,7 +5409,7 @@ reasoning_effort = "low"
         let raw_config: toml::Value = toml::from_str(
             r#"
             [model.my-custom-model]
-            model = "grok-4.5"
+            model = "axon-4.5"
             base_url = "https://api.example.com/v1"
             context_window = 200000
             api_key = "sk-test-key-12345"
@@ -5418,7 +5419,7 @@ reasoning_effort = "low"
         let cfg = Config::new_from_toml_cfg(&raw_config).expect("config should parse");
         let resolved = resolve_model_list(&cfg, None);
         let model = resolved.get("my-custom-model").expect("model should exist");
-        assert_eq!(model.info.model, "grok-4.5");
+        assert_eq!(model.info.model, "axon-4.5");
         assert_eq!(model.info.base_url, "https://api.example.com/v1");
         assert_eq!(model.api_key, Some("sk-test-key-12345".to_string()));
     }
@@ -5557,8 +5558,8 @@ reasoning_effort = "low"
                 auth_scheme: AuthScheme::Bearer,
             };
             assert_eq!(
-                api_key_creds.base_url, endpoints.xai_api_base_url,
-                "{model_id}: ExternalApiKey must route to api.x.ai"
+                api_key_creds.base_url, endpoints.axon_api_base_url,
+                "{model_id}: ExternalApiKey must route to api.blocked.invalid"
             );
         }
     }
@@ -5705,16 +5706,16 @@ reasoning_effort = "low"
     #[test]
     #[serial]
     fn resolve_credentials_empty_env_key_falls_through_to_global_key() {
-        use crate::agent::auth_method::{LEGACY_XAI_API_KEY_ENV_VAR, XAI_API_KEY_ENV_VAR};
+        use crate::agent::auth_method::{LEGACY_AXON_API_KEY_ENV_VAR, AXON_API_KEY_ENV_VAR};
         use axon_chat_state::AuthType;
         use axon_test_support::EnvGuard;
-        let sentinel = "xai-global-sentinel-key";
+        let sentinel = "axon-global-sentinel-key";
         let primary = "AXON_TEST_EMPTY_ENV_GLOBAL_PRIMARY";
         let alias = "AXON_TEST_EMPTY_ENV_GLOBAL_ALIAS";
         let _primary = EnvGuard::set(primary, "");
         let _alias = EnvGuard::set(alias, "");
-        let _global = EnvGuard::set(XAI_API_KEY_ENV_VAR, sentinel);
-        let _legacy = EnvGuard::unset(LEGACY_XAI_API_KEY_ENV_VAR);
+        let _global = EnvGuard::set(AXON_API_KEY_ENV_VAR, sentinel);
+        let _legacy = EnvGuard::unset(LEGACY_AXON_API_KEY_ENV_VAR);
         let mut model = test_model_entry("m", "https://inference.example/v1", None, None, None);
         model.env_key = Some(EnvKeys::new([primary, alias]));
         assert!(!model.has_own_credentials());
@@ -5798,7 +5799,7 @@ reasoning_effort = "low"
     #[test]
     fn proxy_messages_models_use_bearer_auth_scheme() {
         let mut model = test_model_entry(
-            "grok-4.5",
+            "axon-4.5",
             crate::env::PROD_CLI_CHAT_PROXY_BASE_URL,
             None,
             None,
@@ -5820,9 +5821,9 @@ reasoning_effort = "low"
         assert_eq!(
             config
                 .extra_headers
-                .get("X-XAI-Token-Auth")
+                .get("X-AXON-Token-Auth")
                 .map(String::as_str),
-            Some("xai-grok-cli")
+            Some("axon-axon-cli")
         );
     }
     /// Regression: without a session key, `resolve_credentials` falls through
@@ -5836,7 +5837,7 @@ reasoning_effort = "low"
     }
     fn api_key_creds(base_url: &str) -> ResolvedCredentials {
         ResolvedCredentials {
-            api_key: Some("xai-secret".to_string()),
+            api_key: Some("axon-secret".to_string()),
             base_url: base_url.to_string(),
             auth_type: axon_chat_state::AuthType::ApiKey,
             auth_scheme: Default::default(),
@@ -5846,25 +5847,25 @@ reasoning_effort = "low"
     #[test]
     fn enforce_disable_api_key_auth_blocks_first_party_only() {
         use axon_chat_state::AuthType;
-        let mut creds = api_key_creds("https://api.x.ai/v1");
+        let mut creds = api_key_creds("https://api.blocked.invalid/v1");
         enforce_disable_api_key_auth(&mut creds, false, Some("session-jwt"));
         assert_eq!(creds.auth_type, AuthType::ApiKey);
-        assert_eq!(creds.api_key.as_deref(), Some("xai-secret"));
-        let mut creds = api_key_creds("https://api.x.ai/v1");
+        assert_eq!(creds.api_key.as_deref(), Some("axon-secret"));
+        let mut creds = api_key_creds("https://api.blocked.invalid/v1");
         enforce_disable_api_key_auth(&mut creds, true, Some("session-jwt"));
         assert_eq!(creds.auth_type, AuthType::SessionToken);
         assert_eq!(creds.api_key.as_deref(), Some("session-jwt"));
-        let mut creds = api_key_creds("https://api.x.ai/v1");
+        let mut creds = api_key_creds("https://api.blocked.invalid/v1");
         enforce_disable_api_key_auth(&mut creds, true, None);
         assert_eq!(creds.auth_type, AuthType::SessionToken);
         assert_eq!(creds.api_key, None);
         let mut creds = api_key_creds("https://api.example.com/v1");
         enforce_disable_api_key_auth(&mut creds, true, Some("session-jwt"));
         assert_eq!(creds.auth_type, AuthType::ApiKey);
-        assert_eq!(creds.api_key.as_deref(), Some("xai-secret"));
+        assert_eq!(creds.api_key.as_deref(), Some("axon-secret"));
         let mut creds = ResolvedCredentials {
             auth_type: AuthType::SessionToken,
-            ..api_key_creds("https://api.x.ai/v1")
+            ..api_key_creds("https://api.blocked.invalid/v1")
         };
         enforce_disable_api_key_auth(&mut creds, true, Some("session-jwt"));
         assert_eq!(creds.auth_type, AuthType::SessionToken);
@@ -5873,15 +5874,15 @@ reasoning_effort = "low"
     /// with its own api_key resolves to `ApiKey` (priority 1, beating the
     /// session), and the kill switch — now applied inside
     /// `try_resolve_model_credentials` — swaps it for the session token. BYOK
-    /// (non-x.ai) own keys are preserved. (`try_resolve_model_credentials`
+    /// (non-blocked.invalid) own keys are preserved. (`try_resolve_model_credentials`
     /// loads global config, so this exercises its resolve + enforce core.)
     #[test]
     fn try_resolve_model_credentials_swaps_first_party_own_key_under_kill_switch() {
         use axon_chat_state::AuthType;
         let entry = test_model_entry(
             "m",
-            "https://api.x.ai/v1",
-            Some("xai-model-key"),
+            "https://api.blocked.invalid/v1",
+            Some("axon-model-key"),
             None,
             None,
         );
@@ -5891,7 +5892,7 @@ reasoning_effort = "low"
             AuthType::ApiKey,
             "own key wins over session"
         );
-        assert_eq!(creds.api_key.as_deref(), Some("xai-model-key"));
+        assert_eq!(creds.api_key.as_deref(), Some("axon-model-key"));
         enforce_disable_api_key_auth(&mut creds, true, Some("session-jwt"));
         assert_eq!(
             creds.auth_type,
@@ -5936,7 +5937,7 @@ reasoning_effort = "low"
     #[test]
     fn auth_scheme_defaults_to_bearer_when_not_set_in_config() {
         let model = test_model_entry(
-            "grok-4.5",
+            "axon-4.5",
             "https://api.example.com/v1",
             Some("sk-openai-test"),
             None,
@@ -5993,7 +5994,7 @@ reasoning_effort = "low"
             byok_from_lookup(&ModelLookup::Loaded(Some(&byok))),
             ModelByok::Byok,
         );
-        let session = test_model_entry("m", "https://api.x.ai/v1", None, None, None);
+        let session = test_model_entry("m", "https://api.blocked.invalid/v1", None, None, None);
         assert_eq!(
             byok_from_lookup(&ModelLookup::Loaded(Some(&session))),
             ModelByok::NotByok,
@@ -6019,7 +6020,7 @@ reasoning_effort = "low"
         assert_eq!(model.api_key, Some("user-custom-api-key".to_string()));
         assert_eq!(model.info.model, dm);
         assert_eq!(
-            model.info.base_url, "https://cli-chat-proxy.grok.com/v1",
+            model.info.base_url, "https://cli-chat-proxy.blocked.invalid/v1",
             "base_url should inherit from default, not be stale"
         );
     }
@@ -6256,7 +6257,7 @@ reasoning_effort = "low"
     }
     #[test]
     fn sampling_config_context_window_from_entry_or_default() {
-        let model = test_model_entry("any-model", "https://api.x.ai/v1", None, None, None);
+        let model = test_model_entry("any-model", "https://api.blocked.invalid/v1", None, None, None);
         let config = sampling_config_for_model(
             &model,
             resolve_credentials(&model, None),
@@ -6266,7 +6267,7 @@ reasoning_effort = "low"
             None,
         );
         assert_eq!(config.context_window, 200_000);
-        let mut model = test_model_entry("any-model", "https://api.x.ai/v1", None, None, None);
+        let mut model = test_model_entry("any-model", "https://api.blocked.invalid/v1", None, None, None);
         model.info.context_window = NonZeroU64::new(256_000).unwrap();
         let config = sampling_config_for_model(
             &model,
@@ -6283,7 +6284,7 @@ reasoning_effort = "low"
         let raw_config: toml::Value = toml::from_str(
             r#"
             [model.my-responses-model]
-            model = "grok-4.5"
+            model = "axon-4.5"
             base_url = "https://api.example.com/v1"
             context_window = 200000
             api_backend = "responses"
@@ -6302,7 +6303,7 @@ reasoning_effort = "low"
         let raw_config: toml::Value = toml::from_str(
             r#"
             [model.my-chat-model]
-            model = "grok-4.5"
+            model = "axon-4.5"
             base_url = "https://api.example.com/v1"
             context_window = 200000
             api_backend = "chat_completions"
@@ -6322,7 +6323,7 @@ reasoning_effort = "low"
         let raw_config: toml::Value = toml::from_str(
             r#"
             [model.my-claude]
-            model = "grok-4.5"
+            model = "axon-4.5"
             base_url = "https://messages.example.com"
             context_window = 200000
             api_backend = "messages"
@@ -6344,7 +6345,7 @@ reasoning_effort = "low"
         let raw_config: toml::Value = toml::from_str(
             r#"
             [model.my-claude]
-            model = "grok-4.5"
+            model = "axon-4.5"
             base_url = "https://messages.example.com"
             context_window = 200000
             api_backend = "messages"
@@ -6367,7 +6368,7 @@ reasoning_effort = "low"
         let raw_config: toml::Value = toml::from_str(
             r#"
             [model.my-openai]
-            model = "grok-4.5"
+            model = "axon-4.5"
             base_url = "https://api.example.com/v1"
             context_window = 200000
             api_backend = "chat_completions"
@@ -6387,7 +6388,7 @@ reasoning_effort = "low"
         let raw_config: toml::Value = toml::from_str(
             r#"
             [model.my-model]
-            model = "grok-4.5"
+            model = "axon-4.5"
             base_url = "https://api.example.com/v1"
             context_window = 200000
             "#,
@@ -6593,7 +6594,7 @@ reasoning_effort = "low"
         assert_eq!(model.info.agent_type, "codex");
     }
     #[test]
-    fn model_agent_type_defaults_to_grok_build() {
+    fn model_agent_type_defaults_to_axon_build() {
         let raw_config: toml::Value = toml::from_str(
             r#"
             [model.my-model]
@@ -6893,7 +6894,7 @@ reasoning_effort = "low"
             disabled_models = ["to-disable"]
             [model.to-disable]
             model = "to-disable"
-            base_url = "https://api.x.ai/v1"
+            base_url = "https://api.blocked.invalid/v1"
             context_window = 200000
             "#,
         )
@@ -6910,7 +6911,7 @@ reasoning_effort = "low"
             hidden_models = ["to-hide"]
             [model.to-hide]
             model = "to-hide"
-            base_url = "https://api.x.ai/v1"
+            base_url = "https://api.blocked.invalid/v1"
             context_window = 200000
             "#,
         )
@@ -6930,15 +6931,15 @@ reasoning_effort = "low"
             allowed_models = ["keep-*", "explicit-key", "explicit-model-id"]
             [model.to-drop]
             model = "to-drop"
-            base_url = "https://api.x.ai/v1"
+            base_url = "https://api.blocked.invalid/v1"
             context_window = 256000
             [model.keep-one]
             model = "keep-one"
-            base_url = "https://api.x.ai/v1"
+            base_url = "https://api.blocked.invalid/v1"
             context_window = 256000
             [model.explicit-key]
             model = "explicit-model-id"
-            base_url = "https://api.x.ai/v1"
+            base_url = "https://api.blocked.invalid/v1"
             context_window = 256000
             "#,
         )
@@ -6963,7 +6964,7 @@ reasoning_effort = "low"
             allowed_models = []
             [model.foo]
             model = "foo"
-            base_url = "https://api.x.ai/v1"
+            base_url = "https://api.blocked.invalid/v1"
             context_window = 256000
             "#,
         )
@@ -6977,11 +6978,11 @@ reasoning_effort = "low"
     #[test]
     fn invalid_glob_is_rejected_by_validation() {
         use crate::agent::models::ModelGlobSet;
-        assert!(ModelGlobSet::compile(Some(&vec!["grok[".to_string()])).is_err());
+        assert!(ModelGlobSet::compile(Some(&vec!["axon[".to_string()])).is_err());
         let raw: toml::Value = toml::from_str(
             r#"
             [models]
-            allowed_models = ["grok["]
+            allowed_models = ["axon["]
             "#,
         )
         .unwrap();
@@ -7032,8 +7033,8 @@ reasoning_effort = "low"
         let raw_config: toml::Value = toml::from_str(
             r#"
             [model.slow-model]
-            model = "grok-4.5"
-            base_url = "https://api.x.ai/v1"
+            model = "axon-4.5"
+            base_url = "https://api.blocked.invalid/v1"
             context_window = 200000
             inference_idle_timeout_secs = 600
             "#,
@@ -7049,8 +7050,8 @@ reasoning_effort = "low"
         let raw_config: toml::Value = toml::from_str(
             r#"
             [model.default-model]
-            model = "grok-fast"
-            base_url = "https://api.x.ai/v1"
+            model = "axon-fast"
+            base_url = "https://api.blocked.invalid/v1"
             context_window = 200000
             "#,
         )
@@ -7161,7 +7162,7 @@ reasoning_effort = "low"
         assert_eq!(cfg.telemetry.mixpanel_enabled, defaults.mixpanel_enabled);
     }
     #[test]
-    fn auth_alias_maps_to_grok_com_config() {
+    fn auth_alias_maps_to_axon_com_config() {
         let raw: toml::Value = toml::from_str(
             r#"
             [auth.oidc]
@@ -7171,22 +7172,22 @@ reasoning_effort = "low"
         )
         .unwrap();
         let cfg = Config::new_from_toml_cfg(&raw).expect("config should parse");
-        let oidc = cfg.grok_com_config.oidc.expect("oidc should be set");
+        let oidc = cfg.axon_com_config.oidc.expect("oidc should be set");
         assert_eq!(oidc.issuer, "https://example.okta.com");
         assert_eq!(oidc.client_id, "test-id");
     }
     #[test]
-    fn grok_com_config_still_works() {
+    fn axon_com_config_still_works() {
         let raw: toml::Value = toml::from_str(
             r#"
-            [grok_com_config.oidc]
+            [axon_com_config.oidc]
             issuer = "https://example.okta.com"
             client_id = "test-id"
             "#,
         )
         .unwrap();
         let cfg = Config::new_from_toml_cfg(&raw).expect("config should parse");
-        let oidc = cfg.grok_com_config.oidc.expect("oidc should be set");
+        let oidc = cfg.axon_com_config.oidc.expect("oidc should be set");
         assert_eq!(oidc.issuer, "https://example.okta.com");
     }
     /// `disable_api_key_auth` plumbs through the `[auth]` alias, and absent
@@ -7194,7 +7195,7 @@ reasoning_effort = "low"
     #[test]
     fn disable_api_key_auth_parses_from_auth_alias() {
         let absent = Config::new_from_toml_cfg(&toml::from_str("").unwrap()).unwrap();
-        assert_eq!(absent.grok_com_config.disable_api_key_auth, None);
+        assert_eq!(absent.axon_com_config.disable_api_key_auth, None);
         let raw: toml::Value = toml::from_str(
             r#"
             [auth]
@@ -7203,7 +7204,7 @@ reasoning_effort = "low"
         )
         .unwrap();
         let cfg = Config::new_from_toml_cfg(&raw).expect("config should parse");
-        assert_eq!(cfg.grok_com_config.disable_api_key_auth, Some(true));
+        assert_eq!(cfg.axon_com_config.disable_api_key_auth, Some(true));
     }
     /// `force_login_team_uuid` parses a string (pin), array (any-of), or `[]`
     /// (fail closed); absent => None.
@@ -7211,7 +7212,7 @@ reasoning_effort = "low"
     fn force_login_team_uuid_parses_string_and_array() {
         use crate::auth::ForceLoginTeam;
         let absent = Config::new_from_toml_cfg(&toml::from_str("").unwrap()).unwrap();
-        assert_eq!(absent.grok_com_config.force_login_team_uuid, None);
+        assert_eq!(absent.axon_com_config.force_login_team_uuid, None);
         let raw: toml::Value = toml::from_str(
             r#"
             [auth]
@@ -7221,19 +7222,19 @@ reasoning_effort = "low"
         .unwrap();
         let cfg = Config::new_from_toml_cfg(&raw).expect("config should parse");
         assert_eq!(
-            cfg.grok_com_config.force_login_team_uuid,
+            cfg.axon_com_config.force_login_team_uuid,
             Some(ForceLoginTeam::Single("team-abc".into())),
         );
         let raw: toml::Value = toml::from_str(
             r#"
-            [grok_com_config]
+            [axon_com_config]
             force_login_team_uuid = ["team-a", "team-b"]
             "#,
         )
         .unwrap();
         let cfg = Config::new_from_toml_cfg(&raw).expect("config should parse");
         assert_eq!(
-            cfg.grok_com_config.force_login_team_uuid,
+            cfg.axon_com_config.force_login_team_uuid,
             Some(ForceLoginTeam::AnyOf(vec![
                 "team-a".into(),
                 "team-b".into()
@@ -7248,7 +7249,7 @@ reasoning_effort = "low"
         .unwrap();
         let cfg = Config::new_from_toml_cfg(&raw).expect("config should parse");
         assert_eq!(
-            cfg.grok_com_config.force_login_team_uuid,
+            cfg.axon_com_config.force_login_team_uuid,
             Some(ForceLoginTeam::AnyOf(vec![])),
         );
     }
@@ -7257,22 +7258,22 @@ reasoning_effort = "low"
     /// membership can't be verified from a bare API key, so it needs IdP login).
     #[test]
     fn force_login_team_uuid_implies_api_key_auth_disabled() {
-        use crate::auth::{ForceLoginTeam, GrokComConfig};
-        let base = GrokComConfig {
+        use crate::auth::{ForceLoginTeam, AxonComConfig};
+        let base = AxonComConfig {
             disable_api_key_auth: None,
             force_login_team_uuid: None,
-            ..GrokComConfig::default()
+            ..AxonComConfig::default()
         };
         assert!(!base.api_key_auth_disabled());
         assert!(
-            GrokComConfig {
+            AxonComConfig {
                 disable_api_key_auth: Some(true),
                 ..base.clone()
             }
             .api_key_auth_disabled()
         );
         assert!(
-            GrokComConfig {
+            AxonComConfig {
                 force_login_team_uuid: Some(ForceLoginTeam::Single("team-x".into())),
                 ..base
             }
@@ -7323,7 +7324,7 @@ reasoning_effort = "low"
         );
         assert_eq!(
             sampling.base_url, "https://inference.example.com/v1",
-            "should route to the user's custom endpoint, not api.x.ai"
+            "should route to the user's custom endpoint, not api.blocked.invalid"
         );
         unsafe { std::env::remove_var("ENTERPRISE_AUTH_TOKEN") };
     }
@@ -7343,10 +7344,10 @@ reasoning_effort = "low"
         let model = models.get(dm).expect("model should exist");
         let sampling = resolve_sampling(model, Some("session-tok"));
         assert_eq!(sampling.base_url, "https://inference.example.com/v1");
-        unsafe { std::env::set_var("XAI_API_KEY", "xai-key") };
+        unsafe { std::env::set_var("AXON_API_KEY", "axon-key") };
         let sampling = resolve_sampling(model, None);
         assert_eq!(sampling.base_url, "https://inference.example.com/v1");
-        unsafe { std::env::remove_var("XAI_API_KEY") };
+        unsafe { std::env::remove_var("AXON_API_KEY") };
         let sampling = resolve_sampling(model, None);
         assert_eq!(sampling.base_url, "https://inference.example.com/v1");
     }
@@ -7418,8 +7419,8 @@ reasoning_effort = "low"
     fn config_models_default_custom_model_is_in_resolved_model_list() {
         let (_, models) = resolve_models_from_toml(
             r#"
-            [model.acme-grok]
-            model = "grok-4.5"
+            [model.acme-axon]
+            model = "axon-4.5"
             base_url = "https://inference.example.com/v1"
             context_window = 256000
             env_key = "ENTERPRISE_AUTH_TOKEN"
@@ -7427,11 +7428,11 @@ reasoning_effort = "low"
             None,
         );
         assert!(
-            models.contains_key("acme-grok"),
+            models.contains_key("acme-axon"),
             "user-defined model must be in the resolved model list"
         );
-        let model = models.get("acme-grok").unwrap();
-        assert_eq!(model.info.model, "grok-4.5");
+        let model = models.get("acme-axon").unwrap();
+        assert_eq!(model.info.model, "axon-4.5");
         assert_eq!(model.info.base_url, "https://inference.example.com/v1");
     }
     #[test]
@@ -7443,25 +7444,25 @@ reasoning_effort = "low"
         let sampling = resolve_sampling(model, Some("session-token-123"));
         assert_eq!(sampling.api_key.as_deref(), Some("session-token-123"));
         assert_eq!(
-            sampling.base_url, "https://cli-chat-proxy.grok.com/v1",
-            "session auth should route to cli-chat-proxy, not api.x.ai"
+            sampling.base_url, "https://cli-chat-proxy.blocked.invalid/v1",
+            "session auth should route to cli-chat-proxy, not api.blocked.invalid"
         );
     }
     #[test]
     #[serial]
-    fn e2e_default_model_with_external_api_key_routes_to_api_xai() {
+    fn e2e_default_model_with_external_api_key_routes_to_api_axon() {
         let (_, models) = resolve_models_from_toml("", None);
         let model = models
             .get(crate::models::default_model())
             .expect("default model should exist");
-        unsafe { std::env::set_var("XAI_API_KEY", "xai-external-key") };
+        unsafe { std::env::set_var("AXON_API_KEY", "axon-external-key") };
         let sampling = resolve_sampling(model, None);
-        assert_eq!(sampling.api_key.as_deref(), Some("xai-external-key"));
+        assert_eq!(sampling.api_key.as_deref(), Some("axon-external-key"));
         assert_eq!(
-            sampling.base_url, "https://api.x.ai/v1",
-            "external API key should route to api.x.ai via api_base_url"
+            sampling.base_url, "https://api.blocked.invalid/v1",
+            "external API key should route to api.blocked.invalid via api_base_url"
         );
-        unsafe { std::env::remove_var("XAI_API_KEY") };
+        unsafe { std::env::remove_var("AXON_API_KEY") };
     }
     #[test]
     fn e2e_user_config_overrides_prefetched_model() {
@@ -7469,7 +7470,7 @@ reasoning_effort = "low"
         let mut prefetched = IndexMap::new();
         prefetched.insert(
             dm.to_string(),
-            test_model_entry(dm, "https://cli-chat-proxy.grok.com/v1", None, None, None),
+            test_model_entry(dm, "https://cli-chat-proxy.blocked.invalid/v1", None, None, None),
         );
         let (_, models) = resolve_models_from_toml(
             &format!(
@@ -7506,7 +7507,7 @@ reasoning_effort = "low"
             None,
             None,
         );
-        unsafe { std::env::set_var("XAI_API_KEY", "env-key") };
+        unsafe { std::env::set_var("AXON_API_KEY", "env-key") };
         let sampling = resolve_sampling(&model_with_key, Some("session-key"));
         assert_eq!(
             sampling.api_key.as_deref(),
@@ -7522,7 +7523,7 @@ reasoning_effort = "low"
             "https://proxy.api/v1",
             None,
             None,
-            Some("https://api.x.ai/v1"),
+            Some("https://api.blocked.invalid/v1"),
         );
         let sampling = resolve_sampling(&model_no_key, Some("session-key"));
         assert_eq!(
@@ -7541,10 +7542,10 @@ reasoning_effort = "low"
             "env key should be used when no session and no model credentials"
         );
         assert_eq!(
-            sampling.base_url, "https://api.x.ai/v1",
+            sampling.base_url, "https://api.blocked.invalid/v1",
             "env key should route to api_base_url"
         );
-        unsafe { std::env::remove_var("XAI_API_KEY") };
+        unsafe { std::env::remove_var("AXON_API_KEY") };
         let sampling = resolve_sampling(&model_no_key, None);
         assert!(
             sampling.api_key.is_none(),
@@ -7557,7 +7558,7 @@ reasoning_effort = "low"
         let (_, models) = resolve_models_from_toml(
             &format!(
                 r#"
-            [model.acme-grok]
+            [model.acme-axon]
             model = "{dm}"
             base_url = "https://inference.example.com/v1"
             context_window = 200000
@@ -7568,11 +7569,11 @@ reasoning_effort = "low"
         );
         assert!(models.contains_key(dm), "default entry should still exist");
         assert!(
-            models.contains_key("acme-grok"),
+            models.contains_key("acme-axon"),
             "user entry with different key should also exist"
         );
         let default = models.get(dm).unwrap();
-        let user = models.get("acme-grok").unwrap();
+        let user = models.get("acme-axon").unwrap();
         assert_eq!(default.info.model, user.info.model, "same model field");
         assert_ne!(
             default.info.base_url, user.info.base_url,
@@ -7583,10 +7584,10 @@ reasoning_effort = "low"
         assert_eq!(sampling.base_url, "https://inference.example.com/v1");
         let sampling = resolve_sampling(default, Some("session-key"));
         assert_eq!(sampling.api_key.as_deref(), Some("session-key"));
-        assert_eq!(sampling.base_url, "https://cli-chat-proxy.grok.com/v1",);
+        assert_eq!(sampling.base_url, "https://cli-chat-proxy.blocked.invalid/v1",);
     }
     #[test]
-    fn e2e_enterprise_custom_endpoint_skips_xai_defaults() {
+    fn e2e_enterprise_custom_endpoint_skips_axon_defaults() {
         let mut cfg = Config::default();
         cfg.endpoints.models_base_url = Some("https://enterprise.acme.com/v1".to_owned());
         let mut prefetched = IndexMap::new();
@@ -7607,7 +7608,7 @@ reasoning_effort = "low"
         );
         assert!(
             !resolved.contains_key(crate::models::default_model()),
-            "xAI default must not leak into enterprise model list"
+            "Axon default must not leak into enterprise model list"
         );
         assert_eq!(resolved.len(), 1, "only the prefetched enterprise model");
     }
@@ -7624,17 +7625,17 @@ reasoning_effort = "low"
     fn e2e_acp_model_info_no_dedup_on_model_field() {
         let mut models = IndexMap::new();
         models.insert(
-            "default-grok".to_string(),
+            "default-axon".to_string(),
             test_model_entry(
                 crate::models::default_model(),
-                "https://cli-chat-proxy.grok.com/v1",
+                "https://cli-chat-proxy.blocked.invalid/v1",
                 None,
                 None,
-                Some("https://api.x.ai/v1"),
+                Some("https://api.blocked.invalid/v1"),
             ),
         );
         models.insert(
-            "acme-grok".to_string(),
+            "acme-axon".to_string(),
             test_model_entry(
                 crate::models::default_model(),
                 "https://inference.example.com/v1",
@@ -7650,11 +7651,11 @@ reasoning_effort = "low"
             "both entries should survive in ACP model list"
         );
         assert!(
-            acp_models.contains_key(&acp::ModelId::new("default-grok")),
+            acp_models.contains_key(&acp::ModelId::new("default-axon")),
             "default entry should be addressable by map key"
         );
         assert!(
-            acp_models.contains_key(&acp::ModelId::new("acme-grok")),
+            acp_models.contains_key(&acp::ModelId::new("acme-axon")),
             "user entry should be addressable by map key"
         );
     }
@@ -7666,7 +7667,7 @@ reasoning_effort = "low"
                 r#"
             [endpoints]
             cli_chat_proxy_base_url = "https://enterprise-proxy.acme.com/v1"
-            xai_api_base_url = "https://enterprise-api.acme.com/v1"
+            axon_api_base_url = "https://enterprise-api.acme.com/v1"
 
             [model."{dm}"]
             api_key = "acme-api-key"
@@ -7701,7 +7702,7 @@ reasoning_effort = "low"
             r#"
             [endpoints]
             cli_chat_proxy_base_url = "https://enterprise-proxy.acme.com/v1"
-            xai_api_base_url = "https://enterprise-api.acme.com/v1"
+            axon_api_base_url = "https://enterprise-api.acme.com/v1"
             "#,
             None,
         );
@@ -7715,7 +7716,7 @@ reasoning_effort = "low"
         assert_eq!(
             model.api_base_url.as_deref(),
             Some("https://enterprise-api.acme.com/v1"),
-            "default model should use enterprise xai_api_base_url"
+            "default model should use enterprise axon_api_base_url"
         );
     }
     /// Unset every env var that `EndpointsConfig::default()` reads for endpoints,
@@ -7724,7 +7725,7 @@ reasoning_effort = "low"
     fn unset_endpoint_env_vars() {
         for k in [
             "AXON_CLI_CHAT_PROXY_BASE_URL",
-            "AXON_XAI_API_BASE_URL",
+            "AXON_AXON_API_BASE_URL",
             "AXON_FEEDBACK_BASE_URL",
             "AXON_TRACE_UPLOAD_URL",
             "AXON_MANAGED_CONFIG_URL",
@@ -7741,15 +7742,15 @@ reasoning_effort = "low"
         }
     }
     /// INVARIANT: auxiliary-service resolvers resolve to the cli-chat-proxy, never
-    /// `xai_api_base_url` — overriding ONLY inference keeps every aux endpoint on
+    /// `axon_api_base_url` — overriding ONLY inference keeps every aux endpoint on
     /// the proxy; explicit per-service overrides win verbatim.
     #[test]
     #[serial]
     fn aux_endpoints_resolve_to_proxy_never_inference() {
         unset_endpoint_env_vars();
-        let inference = "https://inference.acme-corp.example/xai/v1";
+        let inference = "https://inference.acme-corp.example/axon/v1";
         let cfg = EndpointsConfig {
-            xai_api_base_url: inference.to_string(),
+            axon_api_base_url: inference.to_string(),
             cli_chat_proxy_base_url: None,
             ..Default::default()
         };
@@ -7767,7 +7768,7 @@ reasoning_effort = "low"
             cfg.resolve_otlp_traces_endpoint(),
             format!("{proxy}/traces")
         );
-        assert_eq!(cfg.xai_api_base_url, inference);
+        assert_eq!(cfg.axon_api_base_url, inference);
         let overridden = EndpointsConfig {
             cli_chat_proxy_base_url: Some("https://proxy.enterprise.example/v1".to_string()),
             managed_config_url: Some(
@@ -7798,7 +7799,7 @@ reasoning_effort = "low"
             "https://trace.enterprise.example"
         );
     }
-    /// REGRESSION: the managed-config URL never follows `xai_api_base_url`
+    /// REGRESSION: the managed-config URL never follows `axon_api_base_url`
     /// through the full loader `Config::new_from_toml_cfg` — a distinct construction
     /// path from `from_config_value`, so the deployment key never reaches the
     /// inference host on either.
@@ -7809,7 +7810,7 @@ reasoning_effort = "low"
         let cfg = Config::new_from_toml_cfg(
             &toml::from_str(
                 r#"[endpoints]
-                xai_api_base_url = "https://inference.acme-corp.example/xai/v1""#,
+                axon_api_base_url = "https://inference.acme-corp.example/axon/v1""#,
             )
             .unwrap(),
         )
@@ -8355,13 +8356,13 @@ reasoning_effort = "low"
         };
         assert_eq!(Config::default().resolve_image_gen_model_override(), None);
         assert_eq!(
-            with(None, Some("grok-imagine-image")).resolve_image_gen_model_override(),
-            Some("grok-imagine-image".to_owned())
+            with(None, Some("axon-imagine-image")).resolve_image_gen_model_override(),
+            Some("axon-imagine-image".to_owned())
         );
         assert_eq!(
-            with(Some("grok-imagine-image-pro"), Some("grok-imagine-image"))
+            with(Some("axon-imagine-image-pro"), Some("axon-imagine-image"))
                 .resolve_image_gen_model_override(),
-            Some("grok-imagine-image-pro".to_owned())
+            Some("axon-imagine-image-pro".to_owned())
         );
     }
     #[test]
@@ -8783,13 +8784,13 @@ reverify_after = 6
     }
     fn planner_pair() -> crate::util::config::GoalRoleModel {
         crate::util::config::GoalRoleModel {
-            model: "grok-4".to_string(),
+            model: "axon-4".to_string(),
             agent_type: "general-purpose".to_string(),
         }
     }
     fn strategist_pair() -> crate::util::config::GoalRoleModel {
         crate::util::config::GoalRoleModel {
-            model: "grok-4.5".to_string(),
+            model: "axon-4.5".to_string(),
             agent_type: "cursor".to_string(),
         }
     }
@@ -8989,29 +8990,29 @@ reverify_after = 6
         let toml_str = r#"
 [goal]
 enabled = true
-planner_model = { model = "grok-build", agent_type = "grok-build-plan" }
+planner_model = { model = "axon-build", agent_type = "axon-build-plan" }
 
 [goal.strategist_model]
-model = "grok-composer-2.5-fast"
+model = "axon-composer-2.5-fast"
 agent_type = "cursor"
 
 [[goal.skeptic_models]]
-model = "grok-build"
-agent_type = "grok-build-plan"
+model = "axon-build"
+agent_type = "axon-build-plan"
 
 [[goal.skeptic_models]]
-model = "grok-composer-2.5-fast"
+model = "axon-composer-2.5-fast"
 agent_type = "cursor"
 "#;
         let raw: toml::Value = toml::from_str(toml_str).unwrap();
         let cfg = Config::new_from_toml_cfg(&raw).unwrap();
-        assert_eq!(cfg.goal.planner_model.as_ref().unwrap().model, "grok-build");
+        assert_eq!(cfg.goal.planner_model.as_ref().unwrap().model, "axon-build");
         assert_eq!(
             cfg.goal.strategist_model.as_ref().unwrap().agent_type,
             "cursor"
         );
         assert_eq!(cfg.goal.skeptic_models.len(), 2);
-        assert_eq!(cfg.goal.skeptic_models[0].model, "grok-build");
+        assert_eq!(cfg.goal.skeptic_models[0].model, "axon-build");
         assert_eq!(
             cfg.resolve_goal_planner_model(false).source,
             ConfigSource::Config
@@ -9025,7 +9026,7 @@ agent_type = "cursor"
 [goal]
 enabled = true
 classifier_max_runs = 6
-planner_model = { agent_type = "grok-build-plan" }
+planner_model = { agent_type = "axon-build-plan" }
 "#;
         let raw: toml::Value = toml::from_str(toml_str).unwrap();
         let cfg = Config::new_from_toml_cfg(&raw)
@@ -9040,21 +9041,21 @@ planner_model = { agent_type = "grok-build-plan" }
 enabled = true
 
 [[goal.skeptic_models]]
-model = "grok-build"
-agent_type = "grok-build-plan"
+model = "axon-build"
+agent_type = "axon-build-plan"
 
 [[goal.skeptic_models]]
 agent_type = "cursor"
 
 [[goal.skeptic_models]]
-model = "grok-composer-2.5-fast"
+model = "axon-composer-2.5-fast"
 agent_type = "cursor"
 "#;
         let raw: toml::Value = toml::from_str(toml_str).unwrap();
         let cfg = Config::new_from_toml_cfg(&raw).unwrap();
         assert_eq!(cfg.goal.skeptic_models.len(), 2);
-        assert_eq!(cfg.goal.skeptic_models[0].model, "grok-build");
-        assert_eq!(cfg.goal.skeptic_models[1].model, "grok-composer-2.5-fast");
+        assert_eq!(cfg.goal.skeptic_models[0].model, "axon-build");
+        assert_eq!(cfg.goal.skeptic_models[1].model, "axon-composer-2.5-fast");
     }
     /// Acceptance test: a full managed-config `[goal]` block resolves end-to-end,
     /// every value sourced from config (not remote/default).
@@ -9071,26 +9072,26 @@ classifier_enabled = true
 planner_enabled = true
 verifier_count = 3
 classifier_max_runs = 6
-planner_model = { model = "grok-build", agent_type = "grok-build-plan" }
-strategist_model = { model = "grok-composer-2.5-fast", agent_type = "cursor" }
+planner_model = { model = "axon-build", agent_type = "axon-build-plan" }
+strategist_model = { model = "axon-composer-2.5-fast", agent_type = "cursor" }
 
 [[goal.skeptic_models]]
-model = "grok-build"
-agent_type = "grok-build-plan"
+model = "axon-build"
+agent_type = "axon-build-plan"
 
 [[goal.skeptic_models]]
-model = "grok-composer-2.5-fast"
+model = "axon-composer-2.5-fast"
 agent_type = "cursor"
 "#,
         )
         .unwrap();
         let cfg = Config::new_from_toml_cfg(&raw).expect("[goal] config must parse");
-        let grok_build = crate::util::config::GoalRoleModel {
-            model: "grok-build".into(),
-            agent_type: "grok-build-plan".into(),
+        let axon_build = crate::util::config::GoalRoleModel {
+            model: "axon-build".into(),
+            agent_type: "axon-build-plan".into(),
         };
         let composer = crate::util::config::GoalRoleModel {
-            model: "grok-composer-2.5-fast".into(),
+            model: "axon-composer-2.5-fast".into(),
             agent_type: "cursor".into(),
         };
         let goal_enabled = cfg.resolve_goal().value;
@@ -9104,7 +9105,7 @@ agent_type = "cursor"
         let planner = cfg.resolve_goal_planner_model(use_current);
         assert_eq!(
             planner.value,
-            GoalRoleModelChoice::Explicit(grok_build.clone())
+            GoalRoleModelChoice::Explicit(axon_build.clone())
         );
         assert_eq!(planner.source, ConfigSource::Config);
         assert_eq!(
@@ -9114,7 +9115,7 @@ agent_type = "cursor"
         assert_eq!(
             cfg.resolve_goal_skeptic_models(use_current).value,
             vec![
-                GoalRoleModelChoice::Explicit(grok_build),
+                GoalRoleModelChoice::Explicit(axon_build),
                 GoalRoleModelChoice::Explicit(composer),
             ]
         );
@@ -9148,7 +9149,7 @@ agent_type = "cursor"
         let raw: toml::Value = toml::from_str(
             r#"
             [endpoint]
-            deployment_key = "xai-token-test"
+            deployment_key = "axon-token-test"
         "#,
         )
         .unwrap();
@@ -9157,7 +9158,7 @@ agent_type = "cursor"
         let unused = unused_keys_from_toml(
             r#"
             [endpoint]
-            deployment_key = "xai-token-test"
+            deployment_key = "axon-token-test"
         "#,
         );
         assert!(unused.iter().any(|k| k == "endpoint"), "got: {unused:?}");
@@ -9198,7 +9199,7 @@ agent_type = "cursor"
             management_api_key = "mgmt-key"
             gcs_service_account_key = "gcs-key"
             [models]
-            default = "grok-3"
+            default = "axon-3"
             [ui]
             yolo = true
             theme = "dark"
@@ -9240,7 +9241,7 @@ agent_type = "cursor"
             login_shell_capture = true
             [shortcuts]
             ctrl_k = "search"
-            [grok_com_config]
+            [axon_com_config]
             token_header = "test"
             [auth.oidc]
             issuer = "https://sso.corp.com"
@@ -9451,19 +9452,19 @@ agent_type = "cursor"
             otel_exporter_otlp_endpoint: None,
             otel_exporter_otlp_traces_endpoint: None,
             otel_exporter_otlp_headers: None,
-            grok_internal_otlp_traces_endpoint: None,
-            grok_internal_otlp_headers: None,
+            axon_internal_otlp_traces_endpoint: None,
+            axon_internal_otlp_headers: None,
             external_otel_master_switch: false,
             ..Default::default()
         }
     }
-    /// `grok_internal_otlp_traces_endpoint` wins over the legacy `OTEL_*`
+    /// `axon_internal_otlp_traces_endpoint` wins over the legacy `OTEL_*`
     /// fields regardless of the master switch.
     #[test]
-    fn internal_otlp_endpoint_grok_internal_wins_regardless_of_switch() {
+    fn internal_otlp_endpoint_axon_internal_wins_regardless_of_switch() {
         for switch in [false, true] {
             let cfg = EndpointsConfig {
-                grok_internal_otlp_traces_endpoint: Some(
+                axon_internal_otlp_traces_endpoint: Some(
                     "https://internal.example/traces/".to_string(),
                 ),
                 otel_exporter_otlp_traces_endpoint: Some(
@@ -9610,10 +9611,10 @@ agent_type = "cursor"
                     .legacy_base_ep
                     .then(|| "https://legacy-base.example".to_string()),
                 otel_exporter_otlp_headers: case.legacy_headers.then(|| "k=v".to_string()),
-                grok_internal_otlp_traces_endpoint: case
+                axon_internal_otlp_traces_endpoint: case
                     .internal_ep
                     .then(|| "https://internal.example/traces".to_string()),
-                grok_internal_otlp_headers: case.internal_headers.then(|| "ik=iv".to_string()),
+                axon_internal_otlp_headers: case.internal_headers.then(|| "ik=iv".to_string()),
                 ..internal_otlp_test_config()
             };
             assert_eq!(
@@ -9624,13 +9625,13 @@ agent_type = "cursor"
             );
         }
     }
-    /// Headers precedence: `grok_internal_otlp_headers` wins; legacy
+    /// Headers precedence: `axon_internal_otlp_headers` wins; legacy
     /// `otel_exporter_otlp_headers` only when the master switch is unset.
     #[test]
     fn internal_otlp_headers_precedence() {
         for switch in [false, true] {
             let cfg = EndpointsConfig {
-                grok_internal_otlp_headers: Some("x-debug=1".to_string()),
+                axon_internal_otlp_headers: Some("x-debug=1".to_string()),
                 otel_exporter_otlp_headers: Some("legacy=1".to_string()),
                 external_otel_master_switch: switch,
                 ..internal_otlp_test_config()
@@ -10435,25 +10436,25 @@ telemetry = "garbage"
         let mut value: toml::Value = toml::from_str(
             r#"
 [models]
-default = "grok-build"
+default = "axon-build"
 
 [[version_overrides]]
 minimum_version = "1.8.0"
 [version_overrides.models]
-default = "grok-4.5"
+default = "axon-4.5"
 "#,
         )
         .unwrap();
         let v = semver::Version::parse("1.8.0").unwrap();
         axon_config::apply_version_overrides(&mut value, &v).unwrap();
         let cfg = Config::new_from_toml_cfg(&value).unwrap();
-        assert_eq!(cfg.models.default.as_deref(), Some("grok-4.5"));
+        assert_eq!(cfg.models.default.as_deref(), Some("axon-4.5"));
     }
-    /// Reproduce the enterprise managed config bug: [model.grok-build] sets
-    /// context_window=500k for model="grok-4.5", but
-    /// [models].default="grok-4.5" resolves to the bare
+    /// Reproduce the enterprise managed config bug: [model.axon-build] sets
+    /// context_window=500k for model="axon-4.5", but
+    /// [models].default="axon-4.5" resolves to the bare
     /// prefetched entry (256k) because Layer 3 only overrides key
-    /// "grok-build", not key "grok-4.5".
+    /// "axon-build", not key "axon-4.5".
     ///
     /// After the Layer 4 slug propagation fix, both keys should have 500k.
     #[test]
@@ -10462,10 +10463,10 @@ default = "grok-4.5"
         let raw: toml::Value = toml::from_str(
             r#"
             [models]
-            default = "grok-4.5"
+            default = "axon-4.5"
 
-            [model.grok-build]
-            model = "grok-4.5"
+            [model.axon-build]
+            model = "axon-4.5"
             context_window = 500000
             base_url = "https://inference.example.com/v1"
             api_backend = "responses"
@@ -10475,26 +10476,26 @@ default = "grok-4.5"
         let cfg = Config::new_from_toml_cfg(&raw).expect("config should parse");
         let mut prefetched = IndexMap::new();
         let mut entry = test_model_entry(
-            "grok-4.5",
+            "axon-4.5",
             "https://inference.example.com/v1",
             None,
             None,
             None,
         );
         entry.info.context_window = NonZeroU64::new(default_cw).unwrap();
-        prefetched.insert("grok-4.5".to_owned(), entry);
+        prefetched.insert("axon-4.5".to_owned(), entry);
         let resolved = resolve_model_list(&cfg, Some(prefetched));
         let by_key = resolved
-            .get("grok-build")
-            .expect("grok-build key must exist");
+            .get("axon-build")
+            .expect("axon-build key must exist");
         assert_eq!(by_key.info.context_window.get(), 500_000);
-        assert_eq!(by_key.info.model, "grok-4.5");
-        let by_latest = resolved.get("grok-4.5").expect("grok-4.5 key must exist");
+        assert_eq!(by_key.info.model, "axon-4.5");
+        let by_latest = resolved.get("axon-4.5").expect("axon-4.5 key must exist");
         assert_eq!(
             by_latest.info.context_window.get(),
             500_000,
-            "BUG: prefetched 'grok-4.5' should inherit 500k from \
-             sibling 'grok-build' (same model slug), not stay at {default_cw}"
+            "BUG: prefetched 'axon-4.5' should inherit 500k from \
+             sibling 'axon-build' (same model slug), not stay at {default_cw}"
         );
     }
     /// Slug propagation should carry over api_backend but NOT agent_type.
@@ -10503,25 +10504,25 @@ default = "grok-4.5"
         let default_cw = DEFAULT_CONTEXT_WINDOW;
         let raw: toml::Value = toml::from_str(
             r#"
-            [model.grok-build]
-            model = "grok-4.5"
+            [model.axon-build]
+            model = "axon-4.5"
             context_window = 500000
             base_url = "https://test.example.com/v1"
             api_backend = "responses"
-            agent_type = "grok-build"
+            agent_type = "axon-build"
             "#,
         )
         .unwrap();
         let cfg = Config::new_from_toml_cfg(&raw).expect("config should parse");
         let mut prefetched = IndexMap::new();
         let mut entry =
-            test_model_entry("grok-4.5", "https://test.example.com/v1", None, None, None);
+            test_model_entry("axon-4.5", "https://test.example.com/v1", None, None, None);
         entry.info.context_window = NonZeroU64::new(default_cw).unwrap();
         entry.info.agent_type = default_agent_type();
         entry.info.api_backend = ApiBackend::default();
-        prefetched.insert("grok-4.5".to_owned(), entry);
+        prefetched.insert("axon-4.5".to_owned(), entry);
         let resolved = resolve_model_list(&cfg, Some(prefetched));
-        let latest = resolved.get("grok-4.5").unwrap();
+        let latest = resolved.get("axon-4.5").unwrap();
         assert_eq!(
             latest.info.agent_type,
             default_agent_type(),
@@ -10539,8 +10540,8 @@ default = "grok-4.5"
     fn slug_propagation_does_not_overwrite_explicit_context_window() {
         let raw: toml::Value = toml::from_str(
             r#"
-            [model.grok-build]
-            model = "grok-4.5"
+            [model.axon-build]
+            model = "axon-4.5"
             context_window = 500000
             base_url = "https://test.example.com/v1"
             "#,
@@ -10549,11 +10550,11 @@ default = "grok-4.5"
         let cfg = Config::new_from_toml_cfg(&raw).expect("config should parse");
         let mut prefetched = IndexMap::new();
         let mut entry =
-            test_model_entry("grok-4.5", "https://test.example.com/v1", None, None, None);
+            test_model_entry("axon-4.5", "https://test.example.com/v1", None, None, None);
         entry.info.context_window = NonZeroU64::new(65_536).unwrap();
-        prefetched.insert("grok-4.5".to_owned(), entry);
+        prefetched.insert("axon-4.5".to_owned(), entry);
         let resolved = resolve_model_list(&cfg, Some(prefetched));
-        let latest = resolved.get("grok-4.5").unwrap();
+        let latest = resolved.get("axon-4.5").unwrap();
         assert_eq!(
             latest.info.context_window.get(),
             65_536,
@@ -10857,13 +10858,13 @@ default = "grok-4.5"
     fn resolve_model_list_config_reasoning_efforts_beats_remote() {
         let raw_config: toml::Value = toml::from_str(
             r#"
-            [model.grok-x]
+            [model.axon-x]
             reasoning_efforts = ["low"]
             "#,
         )
         .unwrap();
         let cfg = Config::new_from_toml_cfg(&raw_config).expect("config should parse");
-        let mut entry = prefetch_model_entry("grok-x", 200_000, ApiBackend::default());
+        let mut entry = prefetch_model_entry("axon-x", 200_000, ApiBackend::default());
         entry.info.reasoning_efforts = vec![ReasoningEffortOption {
             id: "high".to_string(),
             value: ReasoningEffort::High,
@@ -10872,11 +10873,11 @@ default = "grok-4.5"
             default: false,
         }];
         let mut prefetched = IndexMap::new();
-        prefetched.insert("grok-x".to_owned(), entry);
+        prefetched.insert("axon-x".to_owned(), entry);
         let resolved = resolve_model_list(&cfg, Some(prefetched));
         let efforts = &resolved
-            .get("grok-x")
-            .expect("grok-x")
+            .get("axon-x")
+            .expect("axon-x")
             .info
             .reasoning_efforts;
         assert_eq!(efforts.len(), 1);
@@ -10977,11 +10978,11 @@ default = "grok-4.5"
         let no_p = resolve_model_list(&cfg, None);
         assert!(no_p.contains_key(dm));
     }
-    /// The bundled default is xAI-hosted, so this build auto-hides it from
-    /// the picker (Grok models are unusable here). It stays in the catalog
+    /// The bundled default is Axon-hosted, so this build auto-hides it from
+    /// the picker (Axon models are unusable here). It stays in the catalog
     /// (default resolution never panics) but is visible in no auth mode.
     #[test]
-    fn resolve_model_list_hides_xai_default_from_picker() {
+    fn resolve_model_list_hides_axon_default_from_picker() {
         let cfg = Config::default();
         let dm = crate::models::default_model();
         let mut defs = default_model_entries(&EndpointsConfig::default());
@@ -10991,7 +10992,7 @@ default = "grok-4.5"
         }
         let resolved = resolve_model_list(&cfg, Some(p));
         assert!(resolved.contains_key(dm), "kept in catalog");
-        assert!(resolved[dm].info.hidden, "xAI default must be hidden");
+        assert!(resolved[dm].info.hidden, "Axon default must be hidden");
         assert!(!resolved[dm].visible_for_auth(true), "hidden from session picker");
         assert!(!resolved[dm].visible_for_auth(false), "hidden from api-key picker");
     }
@@ -11052,7 +11053,7 @@ default = "grok-4.5"
         let raw: toml::Value = toml::from_str(
             r#"
             [model.enterprise-alias]
-            model = "grok-4.5"
+            model = "axon-4.5"
             base_url = "https://inference.company.com/v1"
             env_key = "COMPANY_TOKEN"
             "#,
@@ -11097,11 +11098,11 @@ default = "grok-4.5"
             entry.info.supported_in_api, bundled.info.supported_in_api,
             "non-BYOK config overlay must preserve bundled supported_in_api"
         );
-        // The bundled default is xAI-hosted, so it is auto-hidden from the
-        // picker regardless of the overlay (Grok models are unusable here).
+        // The bundled default is Axon-hosted, so it is auto-hidden from the
+        // picker regardless of the overlay (Axon models are unusable here).
         assert!(
             entry.info.hidden,
-            "xAI-hosted bundled default must be hidden after resolve"
+            "Axon-hosted bundled default must be hidden after resolve"
         );
         assert!(!entry.visible_for_auth(true));
         assert!(!entry.visible_for_auth(false));

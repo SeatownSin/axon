@@ -14,7 +14,7 @@ use serde::Deserialize;
 use thiserror::Error;
 
 use crate::auth::oidc::with_alpha_test_key;
-use crate::auth::{AuthChannels, AuthManager, AuthMode, AuthUrlInfo, AuthUrlMode, GrokAuth};
+use crate::auth::{AuthChannels, AuthManager, AuthMode, AuthUrlInfo, AuthUrlMode, AxonAuth};
 
 const DEVICE_GRANT_TYPE: &str = "urn:ietf:params:oauth:grant-type:device_code";
 const DEFAULT_DEVICE_POLL_INTERVAL_SECS: i32 = 5;
@@ -25,7 +25,7 @@ const MIN_DEVICE_CODE_EXPIRY_FALLBACK_SECS: i64 = 10 * 60;
 pub enum DeviceCodeError {
     #[error(
         "Device-code login is not available for this deployment. \
-         Try `axon login` or set XAI_API_KEY instead."
+         Try `axon login` or set AXON_API_KEY instead."
     )]
     NotEnabled,
     #[error(transparent)]
@@ -41,7 +41,7 @@ impl From<reqwest::Error> for DeviceCodeError {
 // --- Public types ---
 
 /// Low-cardinality client-surface hint sent to the OAuth2 provider as the
-/// `x-grok-client-surface` header so device-flow metrics can separate logins a
+/// `x-axon-client-surface` header so device-flow metrics can separate logins a
 /// human can actually finish (`Ui`, `Cli`) from headless automation
 /// (`Headless`) that mints a device code but can never reach the browser
 /// consent page — the traffic that otherwise pollutes the device-flow
@@ -138,11 +138,11 @@ pub async fn request_device_code(
     scopes: &[String],
     surface: ClientSurface,
 ) -> Result<DeviceCode, DeviceCodeError> {
-    // This build never contacts xAI infrastructure; the device-code login
-    // flow targets the Grok OAuth issuer. Non-xAI issuers still work.
-    if crate::util::is_xai_infrastructure_url(issuer) {
+    // This build never contacts Axon infrastructure; the device-code login
+    // flow targets the Axon OAuth issuer. Non-Axon issuers still work.
+    if crate::util::is_axon_infrastructure_url(issuer) {
         return Err(DeviceCodeError::Other(anyhow::anyhow!(
-            "OIDC issuer '{issuer}' targets xAI infrastructure, which this build never contacts"
+            "OIDC issuer '{issuer}' targets Axon infrastructure, which this build never contacts"
         )));
     }
     let client = crate::http::shared_client();
@@ -153,14 +153,14 @@ pub async fn request_device_code(
         client
             .post(&url)
             // Lets oauth2-provider segment device-flow success by client version.
-            .header("x-grok-client-version", axon_version::VERSION)
+            .header("x-axon-client-version", axon_version::VERSION)
             // Lets oauth2-provider separate human-completable logins from
             // headless automation in the device-flow funnel metrics.
-            .header("x-grok-client-surface", surface.as_str())
+            .header("x-axon-client-surface", surface.as_str())
             .form(&[
                 ("client_id", client_id),
                 ("scope", scope_str.as_str()),
-                ("referrer", "grok-build"),
+                ("referrer", "axon-build"),
             ]),
         &url,
     )
@@ -212,7 +212,7 @@ pub async fn request_device_code(
 /// Poll the token endpoint until the user approves (or denies / expires).
 ///
 /// On success, persists credentials to `~/.axon/auth.json` and returns
-/// the authenticated `GrokAuth`.
+/// the authenticated `AxonAuth`.
 ///
 /// Callers should have already displayed `device_code.verification_uri`
 /// and `device_code.user_code` to the user before calling this.
@@ -222,7 +222,7 @@ pub async fn complete_device_code_login(
     device_code: DeviceCode,
     auth_manager: &Arc<AuthManager>,
     surface: ClientSurface,
-) -> anyhow::Result<(GrokAuth, bool)> {
+) -> anyhow::Result<(AxonAuth, bool)> {
     let client = crate::http::shared_client();
     let token_url = format!("{}/oauth2/token", issuer.trim_end_matches('/'));
     let mut poll_interval = std::time::Duration::from_secs(device_code.interval.max(1) as u64);
@@ -245,8 +245,8 @@ pub async fn complete_device_code_login(
         let resp = with_alpha_test_key(
             client
                 .post(&token_url)
-                .header("x-grok-client-version", axon_version::VERSION)
-                .header("x-grok-client-surface", surface.as_str())
+                .header("x-axon-client-version", axon_version::VERSION)
+                .header("x-axon-client-surface", surface.as_str())
                 .form(&[
                     ("grant_type", DEVICE_GRANT_TYPE),
                     ("device_code", device_code.device_code.as_str()),
@@ -309,7 +309,7 @@ pub async fn run_device_code_login_channels(
     scopes: &[String],
     auth_manager: &Arc<AuthManager>,
     channels: &mut Option<AuthChannels>,
-) -> anyhow::Result<(GrokAuth, bool)> {
+) -> anyhow::Result<(AxonAuth, bool)> {
     // A front-end (TUI/IDE) listening on `url_tx` renders the URL to a human, so
     // it's `Ui`. Without one we're on the CLI: a TTY means a human can act
     // (`Cli`), no TTY means headless automation (`Headless`) that will never
@@ -329,7 +329,7 @@ pub async fn run_device_code_login_channels(
     };
 
     // TUI: push the URL through the channel BEFORE opening the browser, so
-    // `x.ai/auth/get_url` isn't blocked on a slow/hanging browser launch
+    // `axon/auth/get_url` isn't blocked on a slow/hanging browser launch
     // (e.g. SSH/headless). When the issuer omits `verification_uri_complete`,
     // embed the code so the welcome screen can still show it (anti-phishing).
     let display_uri = match device_code.verification_uri_complete.as_deref() {
@@ -363,7 +363,7 @@ async fn prompt_and_poll(
     device_code: DeviceCode,
     auth_manager: &Arc<AuthManager>,
     surface: ClientSurface,
-) -> anyhow::Result<(GrokAuth, bool)> {
+) -> anyhow::Result<(AxonAuth, bool)> {
     let display_uri = device_code
         .verification_uri_complete
         .as_deref()
@@ -430,7 +430,7 @@ async fn build_auth(
     issuer: &str,
     client_id: &str,
     auth_manager: &Arc<AuthManager>,
-) -> anyhow::Result<GrokAuth> {
+) -> anyhow::Result<AxonAuth> {
     let (user_id, email) = if let Some(ref id_token) = tokens.id_token {
         decode_jwt_claims(id_token)
     } else {
@@ -446,7 +446,7 @@ async fn build_auth(
     // Device flow has no pre-selection; verify the token's principal here.
     // Match the principal id even if `principal_type` is absent.
     let principal_policy =
-        crate::auth::oidc::login_principal_policy(auth_manager.grok_com_config());
+        crate::auth::oidc::login_principal_policy(auth_manager.axon_com_config());
     crate::auth::oidc::enforce_login_principal(
         principal_policy.as_ref(),
         crate::auth::oidc::peek_access_token_principal_id(&tokens.access_token).as_deref(),
@@ -470,7 +470,7 @@ async fn build_auth(
         };
 
     let now = Utc::now();
-    let mut auth = GrokAuth {
+    let mut auth = AxonAuth {
         key: tokens.access_token.clone(),
         auth_mode: AuthMode::Oidc,
         create_time: now,
@@ -490,7 +490,7 @@ async fn build_auth(
         user_blocked_reason: None,
         team_blocked_reasons: vec![],
         coding_data_retention_opt_out: crate::auth::default_coding_data_retention_opt_out(),
-        has_grok_code_access: None,
+        has_axon_code_access: None,
         refresh_token: tokens.refresh_token.clone(),
         expires_at: tokens.expires_in.map(|s| now + Duration::seconds(s)),
         oidc_issuer: Some(issuer.to_owned()),
@@ -544,7 +544,7 @@ pub(crate) mod tests {
     use std::sync::Arc;
 
     use super::{AuthManager, build_auth, validate_verification_uri};
-    use crate::auth::{AuthMode, GrokComConfig};
+    use crate::auth::{AuthMode, AxonComConfig};
 
     #[test]
     fn validate_verification_uri_rejects_unsupported_scheme() {
@@ -555,12 +555,12 @@ pub(crate) mod tests {
         );
     }
 
-    fn auth_manager_with_grok_home(
-        grok_home: &std::path::Path,
+    fn auth_manager_with_axon_home(
+        axon_home: &std::path::Path,
         proxy_base_url: &str,
     ) -> Arc<AuthManager> {
         Arc::new(
-            AuthManager::new(grok_home, GrokComConfig::default())
+            AuthManager::new(axon_home, AxonComConfig::default())
                 .with_proxy_base_url(proxy_base_url),
         )
     }
@@ -568,14 +568,14 @@ pub(crate) mod tests {
     #[test]
     fn build_auth_persists_credentials_without_proxy_fetch() {
         let temp_dir = tempfile::tempdir().unwrap();
-        let grok_home = temp_dir.path().join(".axon");
-        std::fs::create_dir_all(&grok_home).unwrap();
-        let auth_manager = auth_manager_with_grok_home(&grok_home, "http://127.0.0.1:9");
+        let axon_home = temp_dir.path().join(".axon");
+        std::fs::create_dir_all(&axon_home).unwrap();
+        let auth_manager = auth_manager_with_axon_home(&axon_home, "http://127.0.0.1:9");
         let tokens = super::TokenOk {
             access_token: "access-token".to_string(),
             refresh_token: Some("refresh-token".to_string()),
             expires_in: Some(900),
-            scope: Some("openid email offline_access grok-cli:access".to_string()),
+            scope: Some("openid email offline_access axon-cli:access".to_string()),
             id_token: Some(
                 "eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiJ1c2VyLTEyMyIsImVtYWlsIjoiZGV2aWNlLWF1dGhAbG9jYWwudGVzdCJ9.sig".to_string(),
             ),
@@ -611,17 +611,17 @@ pub(crate) mod tests {
     fn build_auth_seeds_team_metadata_from_access_token() {
         ensure_crypto_provider();
         let temp_dir = tempfile::tempdir().unwrap();
-        let grok_home = temp_dir.path().join(".axon");
-        std::fs::create_dir_all(&grok_home).unwrap();
-        let auth_manager = auth_manager_with_grok_home(&grok_home, "http://127.0.0.1:9");
+        let axon_home = temp_dir.path().join(".axon");
+        std::fs::create_dir_all(&axon_home).unwrap();
+        let auth_manager = auth_manager_with_axon_home(&axon_home, "http://127.0.0.1:9");
         let header = jsonwebtoken::Header::new(jsonwebtoken::Algorithm::HS256);
         let claims = serde_json::json!({
             "sub": "user-42",
-            "iss": "https://auth.x.ai",
+            "iss": "https://auth.blocked.invalid",
             "aud": "client-id",
             "exp": 9999999999u64,
             "iat": 1000000000u64,
-            "scope": "offline_access grok-cli:access team:read",
+            "scope": "offline_access axon-cli:access team:read",
             "principal_type": "Team",
             "principal_id": "team-123",
             "client_id": "client-id",
@@ -636,7 +636,7 @@ pub(crate) mod tests {
             .unwrap(),
             refresh_token: Some("refresh-token".to_owned()),
             expires_in: Some(900),
-            scope: Some("offline_access grok-cli:access team:read".to_owned()),
+            scope: Some("offline_access axon-cli:access team:read".to_owned()),
             id_token: None,
         };
 
@@ -684,13 +684,13 @@ pub(crate) mod tests {
 
     /// `build_auth` with `token_principal` must fail with `expected_err` and
     /// persist nothing.
-    fn assert_build_auth_rejected(cfg: GrokComConfig, token_principal: &str, expected_err: &str) {
+    fn assert_build_auth_rejected(cfg: AxonComConfig, token_principal: &str, expected_err: &str) {
         ensure_crypto_provider();
         let temp_dir = tempfile::tempdir().unwrap();
-        let grok_home = temp_dir.path().join(".axon");
-        std::fs::create_dir_all(&grok_home).unwrap();
+        let axon_home = temp_dir.path().join(".axon");
+        std::fs::create_dir_all(&axon_home).unwrap();
         let auth_manager =
-            Arc::new(AuthManager::new(&grok_home, cfg).with_proxy_base_url("http://127.0.0.1:9"));
+            Arc::new(AuthManager::new(&axon_home, cfg).with_proxy_base_url("http://127.0.0.1:9"));
 
         let err = tokio::runtime::Runtime::new()
             .unwrap()
@@ -708,7 +708,7 @@ pub(crate) mod tests {
             "rejected login must not persist credentials",
         );
         assert!(
-            !grok_home.join("auth.json").exists(),
+            !axon_home.join("auth.json").exists(),
             "rejected login must not write auth.json",
         );
     }
@@ -719,7 +719,7 @@ pub(crate) mod tests {
     #[test]
     fn build_auth_does_not_enforce_legacy_oauth2_principal_id() {
         ensure_crypto_provider();
-        let cfg = GrokComConfig {
+        let cfg = AxonComConfig {
             oauth2: Some(crate::auth::OAuth2ProviderConfig {
                 issuer: "http://localhost:22255".into(),
                 client_id: "client-id".into(),
@@ -728,13 +728,13 @@ pub(crate) mod tests {
                 principal_id: Some("team-required".into()),
                 referrer: None,
             }),
-            ..GrokComConfig::default()
+            ..AxonComConfig::default()
         };
         let temp_dir = tempfile::tempdir().unwrap();
-        let grok_home = temp_dir.path().join(".axon");
-        std::fs::create_dir_all(&grok_home).unwrap();
+        let axon_home = temp_dir.path().join(".axon");
+        std::fs::create_dir_all(&axon_home).unwrap();
         let auth_manager =
-            Arc::new(AuthManager::new(&grok_home, cfg).with_proxy_base_url("http://127.0.0.1:9"));
+            Arc::new(AuthManager::new(&axon_home, cfg).with_proxy_base_url("http://127.0.0.1:9"));
 
         let auth = tokio::runtime::Runtime::new()
             .unwrap()
@@ -755,12 +755,12 @@ pub(crate) mod tests {
     /// Persistence-seam enforcement via a `force_login_team_uuid` list.
     #[test]
     fn build_auth_rejects_token_outside_force_login_team_list() {
-        let cfg = GrokComConfig {
+        let cfg = AxonComConfig {
             force_login_team_uuid: Some(crate::auth::ForceLoginTeam::AnyOf(vec![
                 "team-a".into(),
                 "team-b".into(),
             ])),
-            ..GrokComConfig::default()
+            ..AxonComConfig::default()
         };
         assert_build_auth_rejected(
             cfg,
@@ -821,10 +821,10 @@ pub(crate) mod tests {
     // floored at 10 min (MIN_DEVICE_CODE_EXPIRY_FALLBACK_SECS).
     async fn run_poll(
         responses: Vec<(u16, serde_json::Value)>,
-    ) -> anyhow::Result<(super::GrokAuth, bool)> {
+    ) -> anyhow::Result<(super::AxonAuth, bool)> {
         let (issuer, server) = spawn_token_server(responses).await;
         let temp_dir = tempfile::tempdir().unwrap();
-        let auth_manager = auth_manager_with_grok_home(temp_dir.path(), "http://127.0.0.1:9");
+        let auth_manager = auth_manager_with_axon_home(temp_dir.path(), "http://127.0.0.1:9");
         let device_code = device_code_for_test(1, 900);
         let result = super::complete_device_code_login(
             &issuer,

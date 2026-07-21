@@ -1,4 +1,4 @@
-use crate::auth::model::{AuthMode, GrokAuth};
+use crate::auth::model::{AuthMode, AxonAuth};
 
 /// What kind of bearer is loaded right now. Dispatch key for
 /// `auth()`, `unauthorized_recovery()`, and proactive refresh.
@@ -20,7 +20,7 @@ pub(crate) enum TokenType {
 
 impl TokenType {
     /// Classify the loaded credential (pure; no manager state).
-    pub(crate) fn from_auth(auth: Option<&GrokAuth>) -> Self {
+    pub(crate) fn from_auth(auth: Option<&AxonAuth>) -> Self {
         match auth {
             None => Self::None,
             // Oidc without a refresh_token degrades to the unrefreshable LegacySession shape.

@@ -185,7 +185,7 @@ fn is_gateway_owned_descriptor(path: &Path) -> bool {
         return false;
     };
     value
-        .get("x-grok-managed-gateway")
+        .get("x-axon-managed-gateway")
         .and_then(|v| v.as_bool())
         == Some(true)
 }
@@ -238,8 +238,8 @@ mod tests {
     #[test]
     fn sanitize_replaces_unsafe_chars_and_never_empty() {
         assert_eq!(
-            sanitize_descriptor_segment("grok_com_linear"),
-            "grok_com_linear"
+            sanitize_descriptor_segment("axon_com_linear"),
+            "axon_com_linear"
         );
         assert_eq!(sanitize_descriptor_segment("a/b:c d"), "a_b_c_d");
         assert_eq!(sanitize_descriptor_segment(""), "_");
@@ -327,7 +327,7 @@ mod tests {
                 "name": "gateway_tool",
                 "description": "Gateway tool",
                 "inputSchema": {"type": "object"},
-                "x-grok-managed-gateway": true,
+                "x-axon-managed-gateway": true,
             }))
             .unwrap(),
         )

@@ -105,7 +105,7 @@ pub enum AuthType {
     /// From AuthManager (axon login, OIDC, external binary). Refreshable.
     #[default]
     SessionToken,
-    /// From user config ([model.*] api_key, env_key, XAI_API_KEY). Not refreshable.
+    /// From user config ([model.*] api_key, env_key, AXON_API_KEY). Not refreshable.
     ApiKey,
 }
 
@@ -218,7 +218,7 @@ mod tests {
             ],
             sampling_config: SamplingConfig {
                 base_url: "https://api.example.com".to_string(),
-                model: "grok-3".to_string(),
+                model: "axon-3".to_string(),
                 max_completion_tokens: Some(4096),
                 temperature: Some(0.7),
                 top_p: None,

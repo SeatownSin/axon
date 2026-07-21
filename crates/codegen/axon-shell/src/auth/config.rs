@@ -10,7 +10,7 @@ fn default_oidc_scopes() -> Vec<String> {
         "api:access".into(),
     ]
 }
-/// Default scopes for the xAI OAuth2 provider. Includes `grok-cli:access`
+/// Default scopes for the Axon OAuth2 provider. Includes `axon-cli:access`
 /// which authorizes the token for API proxy requests.
 fn default_oauth2_scopes() -> Vec<String> {
     vec![
@@ -18,7 +18,7 @@ fn default_oauth2_scopes() -> Vec<String> {
         "profile".into(),
         "email".into(),
         "offline_access".into(),
-        "grok-cli:access".into(),
+        "axon-cli:access".into(),
         "api:access".into(),
         "conversations:read".into(),
         "conversations:write".into(),
@@ -30,7 +30,7 @@ fn default_team_oauth2_scopes() -> Vec<String> {
     vec![
         "profile".into(),
         "offline_access".into(),
-        "grok-cli:access".into(),
+        "axon-cli:access".into(),
         "api:access".into(),
         "team:read".into(),
         "conversations:read".into(),
@@ -48,17 +48,17 @@ fn default_team_oauth2_scopes() -> Vec<String> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PreferredAuthMethod {
-    /// `XAI_API_KEY` / auth.json `xai::api_key` / per-model BYOK (`xai.api_key`).
+    /// `AXON_API_KEY` / auth.json `axon::api_key` / per-model BYOK (`axon.api_key`).
     ApiKey,
-    /// OIDC / OAuth2 session (`cached_token`, interactive `grok.com` / `oidc`,
+    /// OIDC / OAuth2 session (`cached_token`, interactive `blocked.invalid` / `oidc`,
     /// including devbox-minted OIDC).
     Oidc,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
-pub struct GrokComConfig {
-    pub grok_ws_origin: String,
-    pub grok_ws_url: String,
+pub struct AxonComConfig {
+    pub axon_ws_origin: String,
+    pub axon_ws_url: String,
     pub token_header: String,
     /// OIDC config for customer-provided IdPs. See [`OidcAuthConfig`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -77,8 +77,8 @@ pub struct GrokComConfig {
     /// refresh works. Env: `AXON_AUTH_TOKEN_TTL`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub auth_token_ttl: Option<u64>,
-    /// Admin kill switch: when `Some(true)`, the `xai.api_key` auth method is
-    /// neither advertised nor accepted, so `XAI_API_KEY`/per-model credentials
+    /// Admin kill switch: when `Some(true)`, the `axon.api_key` auth method is
+    /// neither advertised nor accepted, so `AXON_API_KEY`/per-model credentials
     /// can't bypass the deployment's IdP login. Env: `AXON_DISABLE_API_KEY_AUTH`.
     /// Parity with common force-login-method admin knobs.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -102,7 +102,7 @@ pub enum ForceLoginTeam {
     /// Allowed teams; empty = fail closed.
     AnyOf(Vec<String>),
 }
-/// Customer OIDC Identity Provider configuration (`[grok_com_config.oidc]`).
+/// Customer OIDC Identity Provider configuration (`[axon_com_config.oidc]`).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OidcAuthConfig {
     pub issuer: String,
@@ -129,12 +129,12 @@ pub struct OAuth2ProviderConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub referrer: Option<String>,
 }
-pub const XAI_OAUTH2_ISSUER: &str = "https://auth.x.ai";
+pub const AXON_OAUTH2_ISSUER: &str = "https://auth.blocked.invalid";
 /// Production accounts-app origin allowlist — the only origins builds without
 /// non-production builds accept. Lives in its own const, referenced by both
 /// profiles below, so the frozen-contract test (monorepo CI compiles with
 /// that feature enabled) still pins this production-origin const.
-const PROD_ACCOUNTS_APP_ORIGINS: &[&str] = &["https://accounts.x.ai"];
+const PROD_ACCOUNTS_APP_ORIGINS: &[&str] = &["https://accounts.blocked.invalid"];
 /// See the opt-in non-production feature variant above — builds without
 /// the feature accept only the production accounts app.
 pub fn allowed_accounts_app_origins() -> Vec<String> {
@@ -164,8 +164,8 @@ pub fn accounts_app_cors_layer(method: axum::http::Method) -> tower_http::cors::
         .allow_methods([method])
 }
 /// Local-dev OAuth2 issuer (accounts-app running on localhost).
-const XAI_OAUTH2_LOCAL_ISSUER: &str = "http://localhost:22255";
-const DEFAULT_OAUTH2_REFERRER: &str = "grok-build";
+const AXON_OAUTH2_LOCAL_ISSUER: &str = "http://localhost:22255";
+const DEFAULT_OAUTH2_REFERRER: &str = "axon-build";
 /// Returns `true` when `AXON_LOCAL_AUTH=1` is set,
 /// indicating the local accounts-app should be used as the OAuth2 issuer.
 pub fn use_local_auth() -> bool {
@@ -173,27 +173,27 @@ pub fn use_local_auth() -> bool {
         .map(|v| !v.is_empty() && v != "0")
         .unwrap_or(false)
 }
-/// Returns the active xAI OAuth2 issuer — the local-dev issuer when
+/// Returns the active Axon OAuth2 issuer — the local-dev issuer when
 /// `AXON_LOCAL_AUTH=1` is set, otherwise the production issuer.
-pub fn xai_oauth2_issuer() -> &'static str {
+pub fn axon_oauth2_issuer() -> &'static str {
     if use_local_auth() {
-        XAI_OAUTH2_LOCAL_ISSUER
+        AXON_OAUTH2_LOCAL_ISSUER
     } else {
-        XAI_OAUTH2_ISSUER
+        AXON_OAUTH2_ISSUER
     }
 }
-/// Returns `true` if `issuer` is a recognised xAI OAuth2 issuer
+/// Returns `true` if `issuer` is a recognised Axon OAuth2 issuer
 /// (production **or** local-dev). Use this instead of comparing against
-/// [`XAI_OAUTH2_ISSUER`] directly so that local-dev sessions are still
-/// treated as first-party xAI auth.
-pub fn is_xai_oauth2_issuer(issuer: &str) -> bool {
-    issuer == XAI_OAUTH2_ISSUER || issuer == XAI_OAUTH2_LOCAL_ISSUER
+/// [`AXON_OAUTH2_ISSUER`] directly so that local-dev sessions are still
+/// treated as first-party Axon auth.
+pub fn is_axon_oauth2_issuer(issuer: &str) -> bool {
+    issuer == AXON_OAUTH2_ISSUER || issuer == AXON_OAUTH2_LOCAL_ISSUER
 }
 /// auth.json scope key used by the pre-OIDC `axon login --legacy` flow.
-/// Matches the key format produced by the original `accounts.x.ai` relay auth.
-pub const LEGACY_AUTH_SCOPE: &str = "https://accounts.x.ai/sign-in";
-impl GrokComConfig {
-    /// Whether `xai.api_key` auth is disabled. Pinning a team
+/// Matches the key format produced by the original `accounts.blocked.invalid` relay auth.
+pub const LEGACY_AUTH_SCOPE: &str = "https://accounts.blocked.invalid/sign-in";
+impl AxonComConfig {
+    /// Whether `axon.api_key` auth is disabled. Pinning a team
     /// (`force_login_team_uuid`) implies this — team membership can't be verified
     /// from a bare API key, so it must go through IdP login. The
     /// `AXON_DISABLE_API_KEY_AUTH` env lockdown is sticky: because the env value
@@ -220,7 +220,7 @@ impl GrokComConfig {
         } else if let Some(ref oauth2) = self.oauth2 {
             oauth2.auth_scope()
         } else {
-            unreachable!("oauth2 config is always present (xAI default or env override)")
+            unreachable!("oauth2 config is always present (Axon default or env override)")
         }
     }
 }
@@ -267,7 +267,7 @@ impl OAuth2ProviderConfig {
         self.base_auth_scope()
     }
 }
-impl Default for GrokComConfig {
+impl Default for AxonComConfig {
     fn default() -> Self {
         let oidc = OidcAuthConfig::from_env();
         let oauth2 = if oidc.is_some() {
@@ -275,7 +275,7 @@ impl Default for GrokComConfig {
         } else {
             Some(
                 OAuth2ProviderConfig::from_env().unwrap_or_else(|| OAuth2ProviderConfig {
-                    issuer: xai_oauth2_issuer().to_owned(),
+                    issuer: axon_oauth2_issuer().to_owned(),
                     client_id: obfstr::obfstr!("b1a00492-073a-47ea-816f-4c329264a828").to_owned(),
                     scopes: default_oauth2_scopes(),
                     principal_type: None,
@@ -285,11 +285,11 @@ impl Default for GrokComConfig {
             )
         };
         Self {
-            grok_ws_origin: std::env::var("AXON_WS_ORIGIN")
+            axon_ws_origin: std::env::var("AXON_WS_ORIGIN")
                 .unwrap_or_else(|_| PROD_WS_ORIGIN.to_owned()),
-            grok_ws_url: std::env::var("AXON_WS_URL")
+            axon_ws_url: std::env::var("AXON_WS_URL")
                 .unwrap_or_else(|_| PROD_RELAY_WS_URL.to_owned()),
-            token_header: "xai-grok-cli".to_owned(),
+            token_header: "axon-axon-cli".to_owned(),
             oidc,
             oauth2,
             auth_provider_command: std::env::var("AXON_AUTH_PROVIDER_COMMAND").ok(),
@@ -305,7 +305,7 @@ impl Default for GrokComConfig {
         }
     }
 }
-/// Parse a boolean env-var value for grok's on/off flags. A bare presence
+/// Parse a boolean env-var value for axon's on/off flags. A bare presence
 /// enables the flag, but the common falsy spellings (`0`, `false`, `off`,
 /// `no`, empty) count as disabled — so e.g. `AXON_DISABLE_API_KEY_AUTH=false`
 /// does NOT turn the kill switch on.
@@ -344,14 +344,14 @@ mod tests {
     #[test]
     fn team_auth_scope_is_base_scope() {
         let cfg = OAuth2ProviderConfig {
-            issuer: "https://auth.x.ai".into(),
+            issuer: "https://auth.blocked.invalid".into(),
             client_id: "client-123".into(),
             scopes: default_team_oauth2_scopes(),
             principal_type: Some("Team".into()),
             principal_id: Some("team-abc".into()),
-            referrer: Some("grok-build".into()),
+            referrer: Some("axon-build".into()),
         };
-        assert_eq!(cfg.auth_scope(), "https://auth.x.ai::client-123");
+        assert_eq!(cfg.auth_scope(), "https://auth.blocked.invalid::client-123");
     }
     #[test]
     fn env_flag_enabled_treats_falsy_spellings_as_off() {
@@ -365,27 +365,27 @@ mod tests {
     #[test]
     fn personal_auth_scope_is_base_scope() {
         let cfg = OAuth2ProviderConfig {
-            issuer: "https://auth.x.ai".into(),
+            issuer: "https://auth.blocked.invalid".into(),
             client_id: "client-123".into(),
             scopes: default_oauth2_scopes(),
             principal_type: None,
             principal_id: None,
-            referrer: Some("grok-build".into()),
+            referrer: Some("axon-build".into()),
         };
-        assert_eq!(cfg.auth_scope(), "https://auth.x.ai::client-123");
+        assert_eq!(cfg.auth_scope(), "https://auth.blocked.invalid::client-123");
     }
     /// FROZEN loopback contract: the accounts-app origins the CLI's loopback
     /// callback server accepts cross-origin requests from. The consent page
-    /// (served from accounts.x.ai) delivers the code via `fetch(..., cors)`, so
+    /// (served from accounts.blocked.invalid) delivers the code via `fetch(..., cors)`, so
     /// removing an origin breaks loopback delivery for already-installed CLIs.
     /// Keep in sync with the oauth2-provider / accounts-app deployments.
     /// Non-production / local-dev origins are opt-in only.
     #[test]
     fn allowed_accounts_app_origins_are_frozen() {
-        assert_eq!(PROD_ACCOUNTS_APP_ORIGINS, &["https://accounts.x.ai"]);
+        assert_eq!(PROD_ACCOUNTS_APP_ORIGINS, &["https://accounts.blocked.invalid"]);
         assert_eq!(allowed_accounts_app_origins(), PROD_ACCOUNTS_APP_ORIGINS);
     }
-    /// FROZEN client contract: the 10 scopes the xAI OAuth2 client requests.
+    /// FROZEN client contract: the 10 scopes the Axon OAuth2 client requests.
     /// The server must keep accepting all of them; existing tokens carry
     /// exactly this set. Frozen OAuth client scope contract.
     #[test]
@@ -399,7 +399,7 @@ mod tests {
                 "profile",
                 "email",
                 "offline_access",
-                "grok-cli:access",
+                "axon-cli:access",
                 "api:access",
                 "conversations:read",
                 "conversations:write",
@@ -410,21 +410,21 @@ mod tests {
     }
     #[test]
     fn preferred_method_deserializes_from_toml() {
-        let cfg: GrokComConfig = toml::from_str(
+        let cfg: AxonComConfig = toml::from_str(
             r#"
             preferred_method = "api_key"
             "#,
         )
         .expect("parse");
         assert_eq!(cfg.preferred_method, Some(PreferredAuthMethod::ApiKey));
-        let cfg: GrokComConfig = toml::from_str(
+        let cfg: AxonComConfig = toml::from_str(
             r#"
             preferred_method = "oidc"
             "#,
         )
         .expect("parse");
         assert_eq!(cfg.preferred_method, Some(PreferredAuthMethod::Oidc));
-        let cfg: GrokComConfig = toml::from_str("").expect("parse empty");
+        let cfg: AxonComConfig = toml::from_str("").expect("parse empty");
         assert_eq!(cfg.preferred_method, None);
     }
 }

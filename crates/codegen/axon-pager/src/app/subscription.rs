@@ -18,7 +18,7 @@ use super::actions::Effect;
 use super::app_view::{AppView, AuthState};
 
 /// Default watch cadence. Overridable via the remote settings
-/// `grok_build_settings.subscription_watch_interval_secs` field.
+/// `axon_build_settings.subscription_watch_interval_secs` field.
 pub(crate) const SUBSCRIPTION_WATCH_INTERVAL: std::time::Duration =
     std::time::Duration::from_secs(60);
 
@@ -43,7 +43,7 @@ pub(crate) const SUBSCRIPTION_CHECK_DEBOUNCE: std::time::Duration =
 pub(crate) const GATE_VERIFY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
 
 impl AppView {
-    /// Consumer xAI session auth: not an API key, not an enterprise team.
+    /// Consumer Axon session auth: not an API key, not an enterprise team.
     /// Subscription gates and the watch only apply to these sessions.
     fn is_consumer_session(&self) -> bool {
         matches!(self.auth_state, AuthState::Done)
@@ -259,7 +259,7 @@ mod tests {
         assert!(app.may_be_free_tier());
         app.subscription_tier = Some(" FREE ".into());
         assert!(app.may_be_free_tier(), "case/whitespace-insensitive");
-        app.subscription_tier = Some("SuperGrok Heavy".into());
+        app.subscription_tier = Some("SuperAxon Heavy".into());
         assert!(!app.may_be_free_tier());
         app.subscription_tier = Some("X Premium".into());
         assert!(!app.may_be_free_tier());
@@ -276,7 +276,7 @@ mod tests {
         app.subscription_tier = Some("Free".into());
         assert!(app.subscription_watch_wanted(), "free tier watches");
 
-        app.subscription_tier = Some("SuperGrok".into());
+        app.subscription_tier = Some("SuperAxon".into());
         assert!(!app.subscription_watch_wanted(), "paid tier is dormant");
 
         // Gated — watches regardless of the (stale) tier string.
@@ -361,7 +361,7 @@ mod tests {
         );
 
         let mut paid = test_app();
-        paid.subscription_tier = Some("SuperGrok".into());
+        paid.subscription_tier = Some("SuperAxon".into());
         assert!(
             paid.fire_subscription_check("watch").is_empty(),
             "paid tier never fires"

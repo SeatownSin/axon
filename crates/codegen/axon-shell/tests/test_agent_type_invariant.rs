@@ -39,7 +39,7 @@ fn invalidate_models_cache(home: &std::path::Path) {
     }
 }
 /// Start a mock server with two models:
-/// - `default-model`: no agent_type (→ defaults to "grok-build")
+/// - `default-model`: no agent_type (→ defaults to "axon-build")
 async fn dual_model_server() -> MockInferenceServer {
     MockInferenceServer::start_with_models(vec![
         MockModelEntry::new("default-model"),
@@ -49,8 +49,8 @@ async fn dual_model_server() -> MockInferenceServer {
     .expect("start mock server")
 }
 /// Start a mock server with two models that share the same agent_type:
-/// - `model-a`: no agent_type (→ "grok-build")
-/// - `model-b`: no agent_type (→ "grok-build")
+/// - `model-a`: no agent_type (→ "axon-build")
+/// - `model-b`: no agent_type (→ "axon-build")
 async fn same_type_server() -> MockInferenceServer {
     MockInferenceServer::start_with_models(vec![
         MockModelEntry::new("model-a"),
@@ -60,17 +60,17 @@ async fn same_type_server() -> MockInferenceServer {
     .expect("start mock server")
 }
 /// Session created with a model that has no `agent_type` should use the
-/// `grok-build` harness. The system prompt sent to the LLM should contain
-/// the grok-build identity string.
+/// `axon-build` harness. The system prompt sent to the LLM should contain
+/// the axon-build identity string.
 #[tokio::test]
 #[ignore]
-async fn test_default_model_uses_grok_build_harness() {
+async fn test_default_model_uses_axon_build_harness() {
     with_local_set(|| async {
         let server = MockInferenceServer::start()
             .await
             .expect("start mock server");
         let workdir = git_workdir();
-        let client = GrokStdioClient::spawn(&server, workdir.path()).await;
+        let client = AxonStdioClient::spawn(&server, workdir.path()).await;
         client.initialize_with_timeout().await;
         let session_id = client.create_session_with_timeout(workdir.path()).await;
         let result = client.prompt_with_timeout(&session_id, "say hello").await;
@@ -79,8 +79,8 @@ async fn test_default_model_uses_grok_build_harness() {
             .last_system_prompt()
             .expect("should have at least one inference request");
         assert!(
-            sys_prompt.contains("Grok") || sys_prompt.contains("grok"),
-            "default model should use grok-build harness\nsystem prompt preview: {}",
+            sys_prompt.contains("Axon") || sys_prompt.contains("axon"),
+            "default model should use axon-build harness\nsystem prompt preview: {}",
             &sys_prompt[..sys_prompt.len().min(500)]
         );
     })
@@ -94,7 +94,7 @@ async fn test_same_type_model_switch_no_rebuild() {
     with_local_set(|| async {
         let server = same_type_server().await;
         let workdir = git_workdir();
-        let client = GrokStdioClient::spawn(&server, workdir.path()).await;
+        let client = AxonStdioClient::spawn(&server, workdir.path()).await;
         client.initialize_with_timeout().await;
         let session_id = client
             .create_session_with_model_timeout(workdir.path(), "model-a")
@@ -128,7 +128,7 @@ async fn test_session_resume_preserves_harness() {
             .await
             .expect("start mock server");
         let workdir = git_workdir();
-        let mut writer = GrokStdioClient::spawn(&server, workdir.path()).await;
+        let mut writer = AxonStdioClient::spawn(&server, workdir.path()).await;
         writer.initialize_with_timeout().await;
         let session_id = writer.create_session_with_timeout(workdir.path()).await;
         let result = writer.prompt_with_timeout(&session_id, "say hello").await;
@@ -139,7 +139,7 @@ async fn test_session_resume_preserves_harness() {
         let shared_home = writer.take_home();
         invalidate_models_cache(shared_home.path());
         drop(writer);
-        let reader = GrokStdioClient::spawn_with_home(&server, workdir.path(), shared_home).await;
+        let reader = AxonStdioClient::spawn_with_home(&server, workdir.path(), shared_home).await;
         reader.initialize_with_timeout().await;
         let _ = reader
             .load_session_with_timeout(&session_id, workdir.path())
@@ -153,16 +153,16 @@ async fn test_session_resume_preserves_harness() {
         let resumed_sys_prompt = server
             .last_system_prompt()
             .expect("should have captured resumed system prompt");
-        let original_has_grok =
-            original_sys_prompt.contains("Grok") || original_sys_prompt.contains("grok");
-        let resumed_has_grok =
-            resumed_sys_prompt.contains("Grok") || resumed_sys_prompt.contains("grok");
+        let original_has_axon =
+            original_sys_prompt.contains("Axon") || original_sys_prompt.contains("axon");
+        let resumed_has_axon =
+            resumed_sys_prompt.contains("Axon") || resumed_sys_prompt.contains("axon");
         assert_eq!(
-            original_has_grok,
-            resumed_has_grok,
+            original_has_axon,
+            resumed_has_axon,
             "resumed session should use the same harness as the original\n\
-             original identity markers: grok={original_has_grok}\n\
-             resumed identity markers: grok={resumed_has_grok}\n\
+             original identity markers: axon={original_has_axon}\n\
+             resumed identity markers: axon={resumed_has_axon}\n\
              original prompt (first 300): {}\n\
              resumed prompt (first 300): {}",
             &original_sys_prompt[..original_sys_prompt.len().min(300)],
@@ -172,10 +172,10 @@ async fn test_session_resume_preserves_harness() {
     .await;
 }
 /// A model that doesn't declare `agent_type` in its metadata should
-/// default to `"grok-build"`. This exercises the serde default.
+/// default to `"axon-build"`. This exercises the serde default.
 #[tokio::test]
 #[ignore]
-async fn test_model_without_agent_type_defaults_to_grok_build() {
+async fn test_model_without_agent_type_defaults_to_axon_build() {
     with_local_set(|| async {
             let server = MockInferenceServer::start_with_models(
                     vec![MockModelEntry::new("no-agent-type-model"),],
@@ -183,7 +183,7 @@ async fn test_model_without_agent_type_defaults_to_grok_build() {
                 .await
                 .expect("start mock server");
             let workdir = git_workdir();
-            let client = GrokStdioClient::spawn(&server, workdir.path()).await;
+            let client = AxonStdioClient::spawn(&server, workdir.path()).await;
             client.initialize_with_timeout().await;
             let session_id = client
                 .create_session_with_model_timeout(workdir.path(), "no-agent-type-model")
@@ -194,23 +194,23 @@ async fn test_model_without_agent_type_defaults_to_grok_build() {
                 .last_system_prompt()
                 .expect("should have at least one inference request");
             assert!(
-                sys_prompt.contains("Grok") || sys_prompt.contains("grok"),
-                "model without agent_type should default to grok-build harness\nsystem prompt preview: {}",
+                sys_prompt.contains("Axon") || sys_prompt.contains("axon"),
+                "model without agent_type should default to axon-build harness\nsystem prompt preview: {}",
                 & sys_prompt[..sys_prompt.len().min(500)]
             );
         })
         .await;
 }
 /// The `AXON_AGENT` escape hatch should override the model's agent_type.
-/// Setting `AXON_AGENT=grok-build` with an alternate-agent model should use
-/// grok-build harness.
+/// Setting `AXON_AGENT=axon-build` with an alternate-agent model should use
+/// axon-build harness.
 #[tokio::test]
 #[ignore]
-async fn test_grok_agent_env_overrides_model_agent_type() {
+async fn test_axon_agent_env_overrides_model_agent_type() {
     with_local_set(|| async {
             let server = dual_model_server().await;
             let workdir = git_workdir();
-            let binary = grok_binary();
+            let binary = axon_binary();
             let home = tempfile::TempDir::new().expect("create temp home");
             let mut cmd = tokio::process::Command::new(&binary);
             cmd.args(["agent", "stdio"])
@@ -224,8 +224,8 @@ async fn test_grok_agent_env_overrides_model_agent_type() {
                 &server.url(),
                 home.path(),
             );
-            cmd.env("AXON_AGENT", "grok-build");
-            let mut child = cmd.spawn().expect("spawn grok");
+            cmd.env("AXON_AGENT", "axon-build");
+            let mut child = cmd.spawn().expect("spawn axon");
             let outgoing = child.stdin.take().unwrap();
             let incoming = child.stdout.take().unwrap();
             use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
@@ -293,7 +293,7 @@ async fn test_grok_agent_env_overrides_model_agent_type() {
                 .expect("init timed out")
                 .expect("init failed");
             conn.authenticate(
-                    acp::AuthenticateRequest::new(acp::AuthMethodId::new("xai.api_key"))
+                    acp::AuthenticateRequest::new(acp::AuthMethodId::new("axon.api_key"))
                         .meta(
                             serde_json::json!({ "headless" : true }).as_object().cloned(),
                         ),
@@ -334,8 +334,8 @@ async fn test_grok_agent_env_overrides_model_agent_type() {
                 .last_system_prompt()
                 .expect("should have inference request");
             assert!(
-                sys_prompt.contains("Grok") || sys_prompt.contains("grok"),
-                "AXON_AGENT=grok-build should override cursor model's agent_type\nsystem prompt preview: {}",
+                sys_prompt.contains("Axon") || sys_prompt.contains("axon"),
+                "AXON_AGENT=axon-build should override cursor model's agent_type\nsystem prompt preview: {}",
                 & sys_prompt[..sys_prompt.len().min(500)]
             );
         })

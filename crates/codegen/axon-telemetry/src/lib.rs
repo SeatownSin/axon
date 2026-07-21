@@ -1,4 +1,4 @@
-//! Telemetry engine for Grok Build sessions: product events + Mixpanel emission +
+//! Telemetry engine for Axon Build sessions: product events + Mixpanel emission +
 //! Sentry error reporting + OpenTelemetry tracing + structured unified log.
 //!
 //! Extracted from `axon-file-utils` per review feedback so telemetry has

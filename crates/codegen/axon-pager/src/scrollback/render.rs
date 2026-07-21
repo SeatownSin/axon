@@ -2605,7 +2605,7 @@ mod tests {
         // across rows. The whole path must be clickable (one overlay region
         // per row, all pointing at the full file:// URL) — not just the
         // leading path fragment on the first row.
-        let path = "/Users/alice/.axon/sessions/%2FUsers%2Falice%2Fcode%2Fxai/\
+        let path = "/Users/alice/.axon/sessions/%2FUsers%2Falice%2Fcode%2Faxon/\
                     019e0000-0000-7000-8000-000000000001/images/1.jpg";
         let entries = vec![make_markdown_entry(&format!(
             "Image generated and saved to {path}\n"
@@ -3774,7 +3774,7 @@ mod tests {
     }
 
     #[test]
-    fn basename_headers_stay_grok_owned_for_duplicate_and_outside_targets() {
+    fn basename_headers_stay_axon_owned_for_duplicate_and_outside_targets() {
         let cwd = std::path::PathBuf::from("/worktree");
         let terminal = official_vscode_remote_context();
         let cases = [

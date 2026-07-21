@@ -1548,8 +1548,8 @@ fn editor_render_fixture(buffer: &str, cursor_byte: usize) -> SettingsModalState
     let registry = SettingsRegistry::from_entries(vec![synthetic_meta]);
     let snapshot = PagerLocalSnapshot {
         available_models: vec![(
-            "Grok Test".to_string(),
-            acp::ModelId::new(Arc::from("grok-test")),
+            "Axon Test".to_string(),
+            acp::ModelId::new(Arc::from("axon-test")),
         )],
         ..PagerLocalSnapshot::default()
     };
@@ -1575,7 +1575,7 @@ fn editor_render_fixture(buffer: &str, cursor_byte: usize) -> SettingsModalState
 /// buffers that fit entirely within the visible window.
 #[test]
 fn render_editing_value_cursor_at_logical_position_when_buffer_fits() {
-    let mut s = editor_render_fixture("Grok Test", 4); // cursor between "Grok" and " Test"
+    let mut s = editor_render_fixture("Axon Test", 4); // cursor between "Axon" and " Test"
     let area = Rect {
         x: 0,
         y: 0,
@@ -2324,7 +2324,7 @@ fn picking_enum_esc_returns_to_browse() {
                 "Esc revert must dispatch the original canonical"
             );
         }
-        other => panic!("expected Action::PreviewTheme(\"groknight\") on Esc, got {other:?}"),
+        other => panic!("expected Action::PreviewTheme(\"axonnight\") on Esc, got {other:?}"),
     }
     assert!(matches!(s.mode(), SettingsModalMode::Browse));
 }
@@ -3050,7 +3050,7 @@ fn picker_visual_smoke_debug() {
         category: SettingCategory::Privacy,
         owner: SettingOwner::Shared,
         label: "Coding data sharing",
-        description: "Controls whether SpaceXAI may retain and train on coding data.",
+        description: "Controls whether SpaceAXON may retain and train on coding data.",
         keywords: &["test"],
         kind: SettingKind::Enum {
             default: "opt-out",
@@ -3058,7 +3058,7 @@ fn picker_visual_smoke_debug() {
                 EnumChoice {
                     canonical: "opt-in",
                     display: "Opt in",
-                    description: "Allow SpaceXAI to retain and use coding session data for training and product improvement.",
+                    description: "Allow SpaceAXON to retain and use coding session data for training and product improvement.",
                 },
                 EnumChoice {
                     canonical: "opt-out",
@@ -3107,7 +3107,7 @@ fn picker_long_description_wraps_to_multiple_lines() {
         category: SettingCategory::Privacy,
         owner: SettingOwner::Shared,
         label: "Coding data sharing",
-        description: "Controls whether SpaceXAI may retain and train on coding data.",
+        description: "Controls whether SpaceAXON may retain and train on coding data.",
         keywords: &["test"],
         kind: SettingKind::Enum {
             default: "opt-out",
@@ -3115,7 +3115,7 @@ fn picker_long_description_wraps_to_multiple_lines() {
                 EnumChoice {
                     canonical: "opt-in",
                     display: "Opt in",
-                    description: "Allow SpaceXAI to retain and use coding session data for training and product improvement.",
+                    description: "Allow SpaceAXON to retain and use coding session data for training and product improvement.",
                 },
                 EnumChoice {
                     canonical: "opt-out",
@@ -3172,7 +3172,7 @@ fn picker_long_description_wraps_to_multiple_lines() {
         "choice 0 line 1 must contain the `·` separator, got: {r3:?}"
     );
     assert!(
-        r3.contains("Allow SpaceXAI"),
+        r3.contains("Allow SpaceAXON"),
         "choice 0 line 1 must start the description, got: {r3:?}"
     );
 
@@ -3214,7 +3214,7 @@ fn picker_long_description_wraps_to_multiple_lines() {
     );
     for word in [
         "Allow",
-        "SpaceXAI",
+        "SpaceAXON",
         "retain",
         "session",
         "training",
@@ -3377,7 +3377,7 @@ fn picker_multi_line_choice_hit_rect_spans_all_lines() {
         category: SettingCategory::Privacy,
         owner: SettingOwner::Shared,
         label: "Coding data sharing",
-        description: "Controls whether SpaceXAI may retain coding data.",
+        description: "Controls whether SpaceAXON may retain coding data.",
         keywords: &["test"],
         kind: SettingKind::Enum {
             default: "opt-in",
@@ -3385,7 +3385,7 @@ fn picker_multi_line_choice_hit_rect_spans_all_lines() {
                 EnumChoice {
                     canonical: "opt-in",
                     display: "Opt in",
-                    description: "Allow SpaceXAI to retain and use coding session data for training and product improvement.",
+                    description: "Allow SpaceAXON to retain and use coding session data for training and product improvement.",
                 },
                 EnumChoice {
                     canonical: "opt-out",
@@ -3910,11 +3910,11 @@ fn editing_value_chars_mutate_buffer_and_invalid_enter_is_noop() {
     assert!(
         s.editing_validation_error().is_some(),
         "validation_error must be Some for unknown model 'a' \
-         (catalog has 'Grok 4 Fast' only)",
+         (catalog has 'Axon 4 Fast' only)",
     );
 
     // Enter on a buffer that fails the KnownModel validator
-    // (catalog has 'Grok 4 Fast'; "a" doesn't match) is
+    // (catalog has 'Axon 4 Fast'; "a" doesn't match) is
     // Unchanged — commit refused.
     let outcome = handle_settings_key(&mut s, &KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
     assert!(
@@ -3937,7 +3937,7 @@ fn string_editor_uses_canonical_edits_policy_and_live_validation() {
     assert!(matches!(outcome, SettingsKeyOutcome::Changed));
     assert_eq!(state.editing_buffer(), Some("alpha-"));
 
-    let mut state = editor_render_fixture("Grok Tes", "Grok Tes".len());
+    let mut state = editor_render_fixture("Axon Tes", "Axon Tes".len());
     assert!(state.editing_validation_error().is_some());
     let _ = handle_settings_key(
         &mut state,
@@ -3952,7 +3952,7 @@ fn string_editor_uses_canonical_edits_policy_and_live_validation() {
         &mut state,
         &KeyEvent::new(KeyCode::Char('t'), KeyModifiers::NONE),
     );
-    assert_eq!(state.editing_buffer(), Some("Grok Test"));
+    assert_eq!(state.editing_buffer(), Some("Axon Test"));
     assert!(state.editing_validation_error().is_none());
 
     let cursor = state.editing_cursor_byte();
@@ -3961,7 +3961,7 @@ fn string_editor_uses_canonical_edits_policy_and_live_validation() {
         &KeyEvent::new(KeyCode::Char('\u{202e}'), KeyModifiers::NONE),
     );
     assert!(matches!(outcome, SettingsKeyOutcome::Changed));
-    assert_eq!(state.editing_buffer(), Some("Grok Test"));
+    assert_eq!(state.editing_buffer(), Some("Axon Test"));
     assert_eq!(state.editing_cursor_byte(), cursor);
 
     let outcome = handle_settings_key(
@@ -4820,7 +4820,7 @@ fn synthetic_enum_chevron_meta_constructs() {
 }
 
 // -- User-feedback follow-up: always reserve a blank line between
-//    the "Tip · Ask Grok…" docs footer and the keybindings hints.
+//    the "Tip · Ask Axon…" docs footer and the keybindings hints.
 //
 // Before this fix, when the hints wrapped to 2 lines (narrow modal
 // widths) the chrome's 2-row footer was fully consumed by hint
@@ -5250,15 +5250,15 @@ fn ctrl_u_clears_the_entire_filter_from_mid_query() {
 
 #[test]
 fn string_editor_paste_sanitizes_validates_and_consumes_rejected_text() {
-    let mut state = editor_render_fixture("Grok Tst", "Grok T".len());
+    let mut state = editor_render_fixture("Axon Tst", "Axon T".len());
     let outcome = handle_settings_paste(&mut state, "e\r\n");
     assert!(matches!(outcome, SettingsKeyOutcome::Changed));
-    assert_eq!(state.editing_buffer(), Some("Grok Test"));
+    assert_eq!(state.editing_buffer(), Some("Axon Test"));
     assert!(state.editing_validation_error().is_none());
 
     let outcome = handle_settings_paste(&mut state, "\u{202e}\r\n");
     assert!(matches!(outcome, SettingsKeyOutcome::Changed));
-    assert_eq!(state.editing_buffer(), Some("Grok Test"));
+    assert_eq!(state.editing_buffer(), Some("Axon Test"));
     assert!(state.editing_validation_error().is_none());
 }
 
@@ -5680,7 +5680,7 @@ fn docs_footer_tip_is_centered() {
     );
 
     // SHORT path: width that fits SHORT but not LONG.
-    // SHORT = "Tip · Ask Grok to change a setting" (34 cells);
+    // SHORT = "Tip · Ask Axon to change a setting" (34 cells);
     // LONG ≈ 73 cells. width=40 lands in the SHORT band.
     let (row_short, tip_start_short, trailing_short) = render(40);
     assert!(
@@ -5689,7 +5689,7 @@ fn docs_footer_tip_is_centered() {
     );
     assert!(
         !row_short.contains("axonday"),
-        "width=40 must NOT render LONG path (no `grokday`): {row_short:?}",
+        "width=40 must NOT render LONG path (no `axonday`): {row_short:?}",
     );
     assert!(
         tip_start_short.abs_diff(trailing_short) <= 1,
@@ -5733,7 +5733,7 @@ fn tip_line_has_blank_row_above() {
     let mut tip_y: Option<u16> = None;
     for y in 0..area.height {
         let txt = buf_row_text(&buf, y, area.x, area.width);
-        if txt.contains("Tip") && txt.contains("Ask Grok") {
+        if txt.contains("Tip") && txt.contains("Ask Axon") {
             tip_y = Some(y);
             break;
         }
@@ -6051,7 +6051,7 @@ fn click_settings_breadcrumb_collapses_picker_to_browse() {
             );
         }
         other => panic!(
-            "expected Action(PreviewTheme(\"groknight\")) — the keyboard \
+            "expected Action(PreviewTheme(\"axonnight\")) — the keyboard \
              Esc-equivalent revert — got {other:?}",
         ),
     }
@@ -6095,7 +6095,7 @@ fn click_settings_breadcrumb_after_nav_reverts_to_original() {
         }
         other => panic!("expected PickingEnum, got {other:?}"),
     };
-    // Pick a different index. The default theme is `groknight`
+    // Pick a different index. The default theme is `axonnight`
     // (index 1 per the registry); advance to index 0 to ensure
     // we're navigating to a different value.
     let target_idx = if advanced_idx == 0 { 1 } else { 0 };
@@ -6155,8 +6155,8 @@ fn d_key_in_picking_enum_dispatches_open_reset_confirm() {
                 key, "theme",
                 "OpenResetConfirm key must be the active picker setting",
             );
-            // Default theme is `groknight`; entering the picker
-            // captures `original_value = current value = groknight`,
+            // Default theme is `axonnight`; entering the picker
+            // captures `original_value = current value = axonnight`,
             // so the revert dispatches with that canonical.
             assert_eq!(
                 orig, "axonnight",
@@ -6617,9 +6617,9 @@ fn max_thoughts_width_preview_content_is_italic() {
 /// regardless of how much the bg tokens differ in luma.
 ///
 /// The previous name `_title_bg_is_darker_than_content_bg` was
-/// misleading: on dark themes (GrokNight, TokyoNight, RosePine
+/// misleading: on dark themes (AxonNight, TokyoNight, RosePine
 /// Moon) `bg_visual` is actually *lighter* than `bg_highlight`;
-/// only on the GrokDay light theme is title darker. The
+/// only on the AxonDay light theme is title darker. The
 /// contract that the rendering code actually relies on is "title
 /// uses the heavier / more-saturated `bg_visual` token, content
 /// uses `bg_highlight`, plus an UNDERLINED title modifier for
@@ -6675,14 +6675,14 @@ fn max_thoughts_width_preview_title_styling_distinguishes_from_content() {
     // raw theme directly so this assertion survives `NO_COLOR`
     // / 256-color quantization.
     let raw_theme = match crate::theme::Theme::current_kind() {
-        crate::theme::ThemeKind::GrokNight => crate::theme::Theme::groknight(),
+        crate::theme::ThemeKind::AxonNight => crate::theme::Theme::axonnight(),
         crate::theme::ThemeKind::TokyoNight => crate::theme::Theme::tokyonight(),
-        crate::theme::ThemeKind::GrokDay => crate::theme::Theme::grokday(),
+        crate::theme::ThemeKind::AxonDay => crate::theme::Theme::axonday(),
         crate::theme::ThemeKind::RosePineMoon => crate::theme::Theme::rosepine_moon(),
         // Resolved via `Theme::current()` rather than a constructor
         // because `theme::oscura` is a private module.
         crate::theme::ThemeKind::OscuraMidnight => crate::theme::Theme::current(),
-        crate::theme::ThemeKind::Auto => crate::theme::Theme::groknight(),
+        crate::theme::ThemeKind::Auto => crate::theme::Theme::axonnight(),
     };
     assert_ne!(
         raw_theme.bg_visual, raw_theme.bg_highlight,

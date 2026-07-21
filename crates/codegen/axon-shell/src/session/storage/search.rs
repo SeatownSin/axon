@@ -8,7 +8,7 @@
 //! The index is bootstrapped (all sessions indexed) on first search.
 //! After that, individual sessions are re-indexed on save/title update
 //! via `notify_session_updated()`. Because the SQLite DB is shared with
-//! other concurrently running grok processes (which may wipe or downgrade
+//! other concurrently running axon processes (which may wipe or downgrade
 //! it — older binaries drop-and-restamp the schema on open), every
 //! subsequent search re-verifies the on-disk completed-bootstrap marker
 //! and re-runs the full bootstrap when it is missing.
@@ -27,7 +27,7 @@ use super::search_fts::{SessionDoc, SessionSearchIndex, SessionSearchRow};
 use super::search_remote_sync;
 use super::{
     ContentPeek, PromptExtractEvent, RawLinePeek, RawParamsPeek, StorageAdapter,
-    XAI_SESSION_UPDATE_METHOD, collect_prompts_from_events,
+    AXON_SESSION_UPDATE_METHOD, collect_prompts_from_events,
 };
 use crate::session::info::Info;
 use crate::session::persistence::Summary;
@@ -133,7 +133,7 @@ struct SearchManagerState {
 ///
 /// Requires an active tokio runtime on first access (spawns tasks).
 ///
-/// TODO: When multiple grok processes run concurrently, they each have
+/// TODO: When multiple axon processes run concurrently, they each have
 /// their own `SearchIndexManager` writing to the same SQLite database.
 /// WAL mode prevents corruption, but redundant work is done. Consider
 /// adding reindex claim coordination (like the memory system's
@@ -265,7 +265,7 @@ impl SearchIndexManager {
 /// This is the public hook to call from session persistence paths
 /// (e.g., after `update_session_title`, after each prompt turn).
 pub fn notify_session_updated(session_id: &str, cwd: &str) {
-    let root = crate::util::grok_home::grok_home();
+    let root = crate::util::axon_home::axon_home();
     SEARCH_INDEX_MANAGER.enqueue(root, session_id.to_string(), cwd.to_string());
 }
 
@@ -918,11 +918,11 @@ fn collect_all_indexable_content_single_pass(updates_path: &Path) -> io::Result<
         }
 
         // Step 1: Peek at envelope to get method + raw params
-        let (raw_params, is_xai) = if let Ok(env) = serde_json::from_str::<RawLinePeek<'_>>(trimmed)
+        let (raw_params, is_axon) = if let Ok(env) = serde_json::from_str::<RawLinePeek<'_>>(trimmed)
         {
             let raw = env.params.map(|p| p.get()).unwrap_or(trimmed);
-            let xai = env.method == Some(XAI_SESSION_UPDATE_METHOD);
-            (raw, xai)
+            let axon = env.method == Some(AXON_SESSION_UPDATE_METHOD);
+            (raw, axon)
         } else {
             (trimmed, false)
         };
@@ -937,9 +937,9 @@ fn collect_all_indexable_content_single_pass(updates_path: &Path) -> io::Result<
 
         // Content events (user messages, assistant responses, tool calls,
         // thoughts) come from the standard ACP protocol ("session/update").
-        // Control events (rewind markers) come from xAI extensions
-        // ("_x.ai/session/update"). Dispatch on source first, then tag.
-        if !is_xai {
+        // Control events (rewind markers) come from Axon extensions
+        // ("_axon/session/update"). Dispatch on source first, then tag.
+        if !is_axon {
             // ── ACP content events ──────────────────────────────────
             match tag {
                 Some(t) if t == *USER_MESSAGE_CHUNK => {
@@ -1050,7 +1050,7 @@ fn collect_all_indexable_content_single_pass(updates_path: &Path) -> io::Result<
                 }
             }
         } else {
-            // ── xAI control events ──────────────────────────────────
+            // ── Axon control events ──────────────────────────────────
             match tag {
                 Some(t) if t == *REWIND_MARKER => {
                     flush_assistant(&mut current_assistant, &mut assistant_texts);
@@ -1173,11 +1173,11 @@ fn collect_delta_content(updates_path: &Path, offset: u64) -> io::Result<DeltaRe
             continue;
         }
 
-        let (raw_params, is_xai) = if let Ok(env) = serde_json::from_str::<RawLinePeek<'_>>(trimmed)
+        let (raw_params, is_axon) = if let Ok(env) = serde_json::from_str::<RawLinePeek<'_>>(trimmed)
         {
             let raw = env.params.map(|p| p.get()).unwrap_or(trimmed);
-            let xai = env.method == Some(XAI_SESSION_UPDATE_METHOD);
-            (raw, xai)
+            let axon = env.method == Some(AXON_SESSION_UPDATE_METHOD);
+            (raw, axon)
         } else {
             (trimmed, false)
         };
@@ -1188,10 +1188,10 @@ fn collect_delta_content(updates_path: &Path, offset: u64) -> io::Result<DeltaRe
             .map(|u| u.session_update);
 
         match tag {
-            Some(t) if is_xai && t == *REWIND_MARKER => {
+            Some(t) if is_axon && t == *REWIND_MARKER => {
                 return Ok(DeltaResult::NeedsFullReread);
             }
-            Some(t) if !is_xai && t == *USER_MESSAGE_CHUNK => {
+            Some(t) if !is_axon && t == *USER_MESSAGE_CHUNK => {
                 flush_assistant(&mut current_assistant, &mut assistant_texts);
                 if let Ok(peek) = serde_json::from_str::<UserContentPeek<'_>>(raw_params)
                     && let Some(content) = peek.update.content
@@ -1205,7 +1205,7 @@ fn collect_delta_content(updates_path: &Path, offset: u64) -> io::Result<DeltaRe
                     user_texts.push(text.into_owned());
                 }
             }
-            Some("agent_message_chunk") if !is_xai => {
+            Some("agent_message_chunk") if !is_axon => {
                 if let Ok(peek) = serde_json::from_str::<AgentContentPeek<'_>>(raw_params)
                     && let Some(content) = peek.update.content
                     && content.content_type == Some("text")
@@ -1218,7 +1218,7 @@ fn collect_delta_content(updates_path: &Path, offset: u64) -> io::Result<DeltaRe
                     current_assistant.push_str(&text);
                 }
             }
-            Some("tool_call") if !is_xai => {
+            Some("tool_call") if !is_axon => {
                 flush_assistant(&mut current_assistant, &mut assistant_texts);
                 if let Ok(peek) = serde_json::from_str::<ToolCallPeek<'_>>(raw_params) {
                     if let Some(title) = peek.update.title
@@ -1343,7 +1343,7 @@ mod tests {
             head_commit: None,
             head_branch: None,
             request_id: None,
-            grok_home: None,
+            axon_home: None,
             last_active_at: None,
             generated_title: None,
             title_is_manual: false,
@@ -1387,9 +1387,9 @@ mod tests {
         )
     }
 
-    fn xai_update(session_update_json: &str) -> String {
+    fn axon_update(session_update_json: &str) -> String {
         format!(
-            r#"{{"timestamp":1,"method":"_x.ai/session/update","params":{{"sessionId":"s","update":{session_update_json}}}}}"#
+            r#"{{"timestamp":1,"method":"_axon/session/update","params":{{"sessionId":"s","update":{session_update_json}}}}}"#
         )
     }
 
@@ -1502,7 +1502,7 @@ mod tests {
             acp_update(
                 r#"{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"second reply"}}"#,
             ),
-            xai_update(
+            axon_update(
                 r#"{"sessionUpdate":"rewind_marker","target_prompt_index":1,"created_at":"2024-01-01"}"#,
             ),
             acp_update(
@@ -1869,7 +1869,7 @@ mod tests {
 
         // Append a rewind marker in the delta window
         let delta = vec![
-            xai_update(
+            axon_update(
                 r#"{"sessionUpdate":"rewind_marker","target_prompt_index":0,"created_at":"2024-01-01"}"#,
             ),
             acp_update(

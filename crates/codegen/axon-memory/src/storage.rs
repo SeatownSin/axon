@@ -6,7 +6,7 @@
 
 use std::path::{Path, PathBuf};
 
-use axon_tools::util::grok_home::grok_home;
+use axon_tools::util::axon_home::axon_home;
 
 /// Scope for a memory write operation.
 /// Write-operation scope. Distinct from `axon_agent::config::MemoryScope` (agent memory dir).
@@ -22,7 +22,7 @@ pub enum MemoryScope {
 ///
 /// Memory files are human-readable/editable Markdown stored under
 /// `~/.axon/memory/`. Workspace-scoped files live under a directory
-/// named `{project-slug}-{hash8}`, e.g. `~/.axon/memory/xai-a3f7b2c9/`.
+/// named `{project-slug}-{hash8}`, e.g. `~/.axon/memory/axon-a3f7b2c9/`.
 #[derive(Debug, Clone)]
 pub struct MemoryStorage {
     /// `~/.axon/memory/`
@@ -55,7 +55,7 @@ impl MemoryStorage {
     fn new_inner(cwd: &Path, root_override: Option<&Path>, use_workspace_hash: bool) -> Self {
         let global_dir = root_override
             .map(|p| p.to_path_buf())
-            .unwrap_or_else(|| grok_home().join("memory"));
+            .unwrap_or_else(|| axon_home().join("memory"));
         let workspace_dir = if use_workspace_hash {
             let workspace_hash = compute_workspace_hash(cwd);
             global_dir.join(&workspace_hash)
@@ -367,7 +367,7 @@ impl MemoryStorage {
                 &global_file,
                 "# Global Memory\n\
                  \n\
-                 > This file is automatically managed by Grok's memory system.\n\
+                 > This file is automatically managed by Axon's memory system.\n\
                  > You can also edit it manually — changes will be indexed on next session.\n\
                  \n\
                  ## Preferences\n\
@@ -764,9 +764,9 @@ mod tests {
 
     #[test]
     fn test_compute_workspace_hash_human_readable() {
-        let name = compute_workspace_hash(Path::new("/users/me/work/xai"));
+        let name = compute_workspace_hash(Path::new("/users/me/work/axon"));
         assert!(
-            name.starts_with("xai-"),
+            name.starts_with("axon-"),
             "should start with project name slug, got: {name}"
         );
         // Format: {slug}-{8 hex chars}

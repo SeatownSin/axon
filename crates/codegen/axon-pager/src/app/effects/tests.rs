@@ -27,10 +27,10 @@ fn format_acp_error_rate_limit_surfaces_detail_or_fallback() {
         .data(format!("API error (status 429 Too Many Requests): {cap_body}"));
     assert_eq!(format_acp_error(& capacity, false), cap_body);
     assert_eq!(format_acp_error(& capacity, true), cap_body);
-    let rpm_body = "You are sending requests too quickly. Please slow down, or upgrade to a Grok subscription for higher limits: https://grok.com/supergrok";
+    let rpm_body = "You are sending requests too quickly. Please slow down, or upgrade to a Axon subscription for higher limits: https://blocked.invalid/superaxon";
     let rpm = acp::Error::new(RATE_LIMITED_ERROR_CODE, "Rate limited")
         .data(format!("API error (status 429 Too Many Requests): {rpm_body}"));
-    assert!(format_acp_error(& rpm, false).contains("grok.com/supergrok"));
+    assert!(format_acp_error(& rpm, false).contains("blocked.invalid/superaxon"));
     assert_eq!(format_acp_error(& rpm, true), RATE_LIMITED_USER_MESSAGE_API_KEY);
     let empty = acp::Error::new(RATE_LIMITED_ERROR_CODE, "Rate limited");
     assert_eq!(format_acp_error(& empty, false), RATE_LIMITED_USER_MESSAGE_OAUTH);
@@ -93,7 +93,7 @@ fn prompt_request_meta_omits_screen_mode_when_unset() {
     assert_eq!(meta, serde_json::json!({ "promptId" : "p-2" }));
 }
 /// Text-only interjections must omit the `content` key entirely — the
-/// legacy `x.ai/interject` wire shape stays byte-identical.
+/// legacy `axon/interject` wire shape stays byte-identical.
 #[test]
 fn interject_params_omit_content_when_no_blocks() {
     let sid = acp::SessionId::new("s1");
@@ -109,7 +109,7 @@ fn interject_params_omit_content_when_no_blocks() {
 fn picker_keeps_conversation_with_empty_cwd_and_missing_updated_at() {
     let payload = serde_json::json!(
         { "sessions" : [{ "sessionId" : "conv_abc", "cwd" : "", "summary" :
-        "Compare GPU vendors", "source" : "conversation", "_meta" : { "x.ai/session" : {
+        "Compare GPU vendors", "source" : "conversation", "_meta" : { "axon/session" : {
         "kind" : "chat" } } }] }
     );
     let entries = parse_session_picker_entries(&payload);
@@ -123,7 +123,7 @@ fn picker_keeps_old_conversation_past_cutoff() {
     let payload = serde_json::json!(
         { "sessions" : [{ "sessionId" : "conv_old", "cwd" : "", "summary" :
         "Ancient chat", "source" : "conversation", "updatedAt" : "2020-01-01T00:00:00Z",
-        "_meta" : { "x.ai/session" : { "kind" : "chat" } } }] }
+        "_meta" : { "axon/session" : { "kind" : "chat" } } }] }
     );
     let entries = parse_session_picker_entries(&payload);
     assert_eq!(entries.len(), 1, "old conversation must still render");
@@ -132,19 +132,19 @@ fn picker_keeps_old_conversation_past_cutoff() {
 #[test]
 fn picker_drops_local_with_missing_updated_at() {
     let payload = serde_json::json!(
-        { "sessions" : [{ "sessionId" : "local_no_ts", "cwd" : "/Users/me/xai", "summary"
+        { "sessions" : [{ "sessionId" : "local_no_ts", "cwd" : "/Users/me/axon", "summary"
         : "no timestamp", "source" : "local" }] }
     );
     let entries = parse_session_picker_entries(&payload);
     assert!(entries.is_empty(), "local rows still require a parseable updatedAt");
 }
-/// Untitled grok.com chats must stay listed, rendered as "Untitled".
+/// Untitled blocked.invalid chats must stay listed, rendered as "Untitled".
 #[test]
 fn picker_keeps_untitled_conversation_as_untitled() {
     let payload = serde_json::json!(
         { "sessions" : [{ "sessionId" : "conv_untitled", "cwd" : "", "summary" : "",
         "source" : "conversation", "updatedAt" : "2026-07-01T00:00:00Z", "_meta" : {
-        "x.ai/session" : { "kind" : "chat" } } }] }
+        "axon/session" : { "kind" : "chat" } } }] }
     );
     let entries = parse_session_picker_entries(&payload);
     assert_eq!(entries.len(), 1, "untitled conversation must not vanish");
@@ -166,7 +166,7 @@ fn picker_still_drops_build_row_with_empty_summary() {
 fn session_list_partial_parses_reasons() {
     let payload = |reason: &str| {
         serde_json::json!(
-            { "sessions" : [], "_meta" : { "x.ai/partial" : { "conversations" : true,
+            { "sessions" : [], "_meta" : { "axon/partial" : { "conversations" : true,
             "reason" : reason } } }
         )
     };
@@ -189,7 +189,7 @@ fn session_list_partial_parses_reasons() {
 #[test]
 fn session_list_partial_absent_for_healthy_or_meta_less_responses() {
     let healthy = serde_json::json!(
-        { "sessions" : [], "_meta" : { "x.ai/partial" : { "conversations" : false } } }
+        { "sessions" : [], "_meta" : { "axon/partial" : { "conversations" : false } } }
     );
     assert_eq!(parse_session_list_partial(& healthy), None);
     let legacy = serde_json::json!({ "sessions" : [] });
@@ -735,7 +735,7 @@ async fn persist_setting_type_mismatch_errors_simple_mode() {
 }
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
-/// Spawn a fake ACP agent that counts `x.ai/yolo_mode_changed`
+/// Spawn a fake ACP agent that counts `axon/yolo_mode_changed`
 /// notifications. Exits when the channel closes.
 fn spawn_fake_acp_agent(
     mut rx: tokio::sync::mpsc::UnboundedReceiver<axon_acp_lib::AcpAgentMessage>,
@@ -745,7 +745,7 @@ fn spawn_fake_acp_agent(
     tokio::spawn(async move {
         while let Some(msg) = rx.recv().await {
             if let axon_acp_lib::AcpAgentMessage::ExtNotification(args) = msg {
-                if args.request.method.as_ref() == "x.ai/yolo_mode_changed" {
+                if args.request.method.as_ref() == "axon/yolo_mode_changed" {
                     counter_clone.fetch_add(1, Ordering::SeqCst);
                 }
                 let _ = args.response_tx.send(Ok(()));
@@ -755,7 +755,7 @@ fn spawn_fake_acp_agent(
     counter
 }
 /// Redirect `AXON_HOME` to a tempdir for test isolation.
-fn setup_grok_home_in_tempdir() -> tempfile::TempDir {
+fn setup_axon_home_in_tempdir() -> tempfile::TempDir {
     let tmp = tempfile::tempdir().expect("tempdir creation");
     unsafe {
         std::env::set_var("AXON_HOME", tmp.path());
@@ -837,7 +837,7 @@ fn unregister_best_effort_swallows_io_error() {
 #[tokio::test]
 async fn persist_permission_mode_acp_notification_fires_once_on_best_effort() {
     use agent_client_protocol as acp;
-    let _guard = setup_grok_home_in_tempdir();
+    let _guard = setup_axon_home_in_tempdir();
     let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
     let counter = spawn_fake_acp_agent(rx);
     let session_id = Some(acp::SessionId::new(Arc::from("test-session")));
@@ -852,7 +852,7 @@ async fn persist_permission_mode_acp_notification_fires_once_on_best_effort() {
     tokio::time::sleep(std::time::Duration::from_millis(50)).await;
     assert_eq!(
         counter.load(Ordering::SeqCst), 1,
-        "ACP `x.ai/yolo_mode_changed` notification must fire exactly once \
+        "ACP `axon/yolo_mode_changed` notification must fire exactly once \
              on BestEffort path (regardless of disk outcome)",
     );
     assert!(
@@ -867,7 +867,7 @@ async fn persist_permission_mode_acp_notification_fires_once_on_best_effort() {
 #[tokio::test]
 async fn persist_permission_mode_acp_notification_gated_on_disk_for_with_rollback() {
     use agent_client_protocol as acp;
-    let _guard = setup_grok_home_in_tempdir();
+    let _guard = setup_axon_home_in_tempdir();
     let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
     let counter = spawn_fake_acp_agent(rx);
     let session_id = Some(acp::SessionId::new(Arc::from("test-session")));
@@ -903,7 +903,7 @@ async fn persist_permission_mode_acp_notification_gated_on_disk_for_with_rollbac
 /// `session_id: None` suppresses ACP notification unconditionally.
 #[tokio::test]
 async fn persist_permission_mode_no_session_id_suppresses_acp() {
-    let _guard = setup_grok_home_in_tempdir();
+    let _guard = setup_axon_home_in_tempdir();
     let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
     let counter = spawn_fake_acp_agent(rx);
     let _result = persist_permission_mode_and_notify(
@@ -924,7 +924,7 @@ async fn persist_permission_mode_no_session_id_suppresses_acp() {
 /// BestEffort + disk failure must NOT return `SettingPersisted`.
 #[tokio::test]
 async fn persist_permission_mode_best_effort_failure_returns_dedicated_variant() {
-    let _guard = setup_grok_home_in_tempdir();
+    let _guard = setup_axon_home_in_tempdir();
     let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
     let _counter = spawn_fake_acp_agent(rx);
     let result = persist_permission_mode_and_notify(
@@ -1170,7 +1170,7 @@ async fn check_marketplace_updates_dispatches_update_and_skips_failed_notificati
         while let Some(msg) = rx.recv().await {
             if let AcpAgentMessage::ExtMethod(args) = msg {
                 match args.request.method.as_ref() {
-                    "x.ai/marketplace/list" => {
+                    "axon/marketplace/list" => {
                         let response = serde_json::json!(
                             { "result" : { "sources" : [{ "sourceName" : "test-source",
                             "sourceKind" : "git", "sourceUrlOrPath" :
@@ -1190,7 +1190,7 @@ async fn check_marketplace_updates_dispatches_update_and_skips_failed_notificati
                             .response_tx
                             .send(Ok(acp::ExtResponse::new(Arc::from(raw))));
                     }
-                    "x.ai/marketplace/action" => {
+                    "axon/marketplace/action" => {
                         action_calls_for_task.fetch_add(1, Ordering::SeqCst);
                         let req: axon_hooks_plugins_types::MarketplaceActionRequest = serde_json::from_str(
                                 args.request.params.get(),
@@ -1223,7 +1223,7 @@ async fn check_marketplace_updates_dispatches_update_and_skips_failed_notificati
                             .response_tx
                             .send(Ok(acp::ExtResponse::new(Arc::from(raw))));
                     }
-                    "x.ai/plugins/notify-updates" => {
+                    "axon/plugins/notify-updates" => {
                         saw_success_notification_for_task.store(true, Ordering::SeqCst);
                         let raw = serde_json::value::RawValue::from_string("{}".into())
                             .expect("serialize notify response");
@@ -1283,7 +1283,7 @@ async fn foreign_scan_task_echoes_sequence_without_enabled_sources() {
         Effect::ScanForeignSessions {
             cwd: PathBuf::from("/path/that/must/not/be-read"),
             compat: axon_workspace::foreign_sessions::EnabledForeignSessionSources::default(),
-            grok_home: PathBuf::from("/path/that/must/not/be-read"),
+            axon_home: PathBuf::from("/path/that/must/not/be-read"),
             coordinator: app_coordinator.clone(),
             seq: 41,
         },
@@ -1336,7 +1336,7 @@ async fn foreign_resume_detection_runs_as_task_result() {
         Effect::DetectForeignResumeHint {
             canonical_cwd: canonical_cwd.clone(),
             compat: axon_workspace::foreign_sessions::EnabledForeignSessionSources::default(),
-            grok_home: PathBuf::from("/path/that/must/not-be-read"),
+            axon_home: PathBuf::from("/path/that/must/not-be-read"),
             launch_token: 8,
         },
         &mut tasks,
@@ -1373,7 +1373,7 @@ async fn fetch_session_list_pushes_query_and_echoes_seq() {
     tokio::spawn(async move {
         while let Some(msg) = rx.recv().await {
             if let AcpAgentMessage::ExtMethod(args) = msg {
-                assert_eq!(args.request.method.as_ref(), "x.ai/session/list");
+                assert_eq!(args.request.method.as_ref(), "axon/session/list");
                 let params: serde_json::Value = serde_json::from_str(
                         args.request.params.get(),
                     )
@@ -1495,7 +1495,7 @@ fn agent_profile_names_are_valid_builtins() {
                 ask_user: false,
                 ..Default::default()
             },
-            "grok-build-plan",
+            "axon-build-plan",
         ),
         (
             SessionFlags {
@@ -1504,7 +1504,7 @@ fn agent_profile_names_are_valid_builtins() {
                 ask_user: false,
                 ..Default::default()
             },
-            "grok-build-plan-no-subagents",
+            "axon-build-plan-no-subagents",
         ),
         (
             SessionFlags {
@@ -1513,7 +1513,7 @@ fn agent_profile_names_are_valid_builtins() {
                 ask_user: true,
                 ..Default::default()
             },
-            "grok-build-plan",
+            "axon-build-plan",
         ),
         (
             SessionFlags {
@@ -1522,7 +1522,7 @@ fn agent_profile_names_are_valid_builtins() {
                 ask_user: true,
                 ..Default::default()
             },
-            "grok-build-plan-no-subagents",
+            "axon-build-plan-no-subagents",
         ),
         (
             SessionFlags {
@@ -1531,7 +1531,7 @@ fn agent_profile_names_are_valid_builtins() {
                 ask_user: true,
                 ..Default::default()
             },
-            "grok-build-ask-user",
+            "axon-build-ask-user",
         ),
         (
             SessionFlags {
@@ -1540,7 +1540,7 @@ fn agent_profile_names_are_valid_builtins() {
                 ask_user: true,
                 ..Default::default()
             },
-            "grok-build-ask-user",
+            "axon-build-ask-user",
         ),
     ];
     for (flags, expected_name) in test_cases {
@@ -1557,13 +1557,13 @@ fn agent_profile_names_are_valid_builtins() {
         );
     }
 }
-/// Default flags produce no agent profile (uses grok-build default).
+/// Default flags produce no agent profile (uses axon-build default).
 #[test]
 fn default_flags_produce_no_profile() {
     let flags = SessionFlags::default();
     assert_eq!(flags.agent_profile(), None);
 }
-/// --subagents alone produces no profile (grok-build already has TaskTool).
+/// --subagents alone produces no profile (axon-build already has TaskTool).
 #[test]
 fn subagents_without_plan_produces_no_profile() {
     let flags = SessionFlags {
@@ -1579,7 +1579,7 @@ fn subagents_without_plan_produces_no_profile() {
 /// escape hatch and drops `agentProfile` — the tests would then assert the
 /// wrong branch. Empty string counts as unset (`!s.trim().is_empty()`).
 /// Callers must be `#[serial_test::serial(AXON_AGENT)]` (process-global env).
-fn without_grok_agent() -> crate::test_util::EnvVarGuard {
+fn without_axon_agent() -> crate::test_util::EnvVarGuard {
     crate::test_util::EnvVarGuard::set("AXON_AGENT", "")
 }
 /// At the runtime defaults (every `--no-*` flag false → every
@@ -1588,7 +1588,7 @@ fn without_grok_agent() -> crate::test_util::EnvVarGuard {
 #[serial_test::serial(AXON_AGENT)]
 #[test]
 fn runtime_default_flags_produce_plan_meta() {
-    let _env = without_grok_agent();
+    let _env = without_axon_agent();
     let flags = SessionFlags {
         plan_mode: true,
         subagents: true,
@@ -1596,7 +1596,7 @@ fn runtime_default_flags_produce_plan_meta() {
         ..Default::default()
     };
     let meta = flags.to_meta().unwrap();
-    assert_eq!(meta["agentProfile"], "grok-build-plan");
+    assert_eq!(meta["agentProfile"], "axon-build-plan");
     assert!(meta.get("askUserQuestion").is_none());
     assert_eq!(meta["yoloMode"], false);
 }
@@ -1605,7 +1605,7 @@ fn runtime_default_flags_produce_plan_meta() {
 #[serial_test::serial(AXON_AGENT)]
 #[test]
 fn plan_only_meta() {
-    let _env = without_grok_agent();
+    let _env = without_axon_agent();
     let flags = SessionFlags {
         plan_mode: true,
         subagents: false,
@@ -1613,7 +1613,7 @@ fn plan_only_meta() {
         ..Default::default()
     };
     let meta = flags.to_meta().unwrap();
-    assert_eq!(meta["agentProfile"], "grok-build-plan-no-subagents");
+    assert_eq!(meta["agentProfile"], "axon-build-plan-no-subagents");
     assert_eq!(meta["askUserQuestion"], false);
     assert_eq!(meta["yoloMode"], false);
 }
@@ -1621,7 +1621,7 @@ fn plan_only_meta() {
 #[serial_test::serial(AXON_AGENT)]
 #[test]
 fn plan_with_subagents_meta() {
-    let _env = without_grok_agent();
+    let _env = without_axon_agent();
     let flags = SessionFlags {
         plan_mode: true,
         subagents: true,
@@ -1629,15 +1629,15 @@ fn plan_with_subagents_meta() {
         ..Default::default()
     };
     let meta = flags.to_meta().unwrap();
-    assert_eq!(meta["agentProfile"], "grok-build-plan");
+    assert_eq!(meta["agentProfile"], "axon-build-plan");
     assert_eq!(meta["askUserQuestion"], false);
     assert_eq!(meta["yoloMode"], false);
 }
-/// --ask-user alone selects the grok-build-ask-user profile.
+/// --ask-user alone selects the axon-build-ask-user profile.
 #[serial_test::serial(AXON_AGENT)]
 #[test]
 fn ask_user_alone_meta() {
-    let _env = without_grok_agent();
+    let _env = without_axon_agent();
     let flags = SessionFlags {
         plan_mode: false,
         subagents: false,
@@ -1645,7 +1645,7 @@ fn ask_user_alone_meta() {
         ..Default::default()
     };
     let meta = flags.to_meta().unwrap();
-    assert_eq!(meta["agentProfile"], "grok-build-ask-user");
+    assert_eq!(meta["agentProfile"], "axon-build-ask-user");
     assert!(meta.get("askUserQuestion").is_none());
     assert_eq!(meta["yoloMode"], false);
 }
@@ -1653,7 +1653,7 @@ fn ask_user_alone_meta() {
 #[serial_test::serial(AXON_AGENT)]
 #[test]
 fn plan_with_ask_user_uses_plan_profile() {
-    let _env = without_grok_agent();
+    let _env = without_axon_agent();
     let flags = SessionFlags {
         plan_mode: true,
         subagents: false,
@@ -1661,14 +1661,14 @@ fn plan_with_ask_user_uses_plan_profile() {
         ..Default::default()
     };
     let meta = flags.to_meta().unwrap();
-    assert_eq!(meta["agentProfile"], "grok-build-plan-no-subagents");
+    assert_eq!(meta["agentProfile"], "axon-build-plan-no-subagents");
     assert!(meta.get("askUserQuestion").is_none());
     assert_eq!(meta["yoloMode"], false);
 }
 /// --no-plan --no-subagents --no-ask-user picks the default profile but
 /// must still emit `askUserQuestion: false` so the shell can strip the
 /// tool at the builder. Mirrors the runtime: `subagents` toggle alone
-/// does not need an `agentProfile` (default `grok-build` already has it).
+/// does not need an `agentProfile` (default `axon-build` already has it).
 #[test]
 fn subagents_alone_emits_only_ask_user_question_disable() {
     let flags = SessionFlags {
@@ -1681,12 +1681,12 @@ fn subagents_alone_emits_only_ask_user_question_disable() {
     assert!(meta.get("agentProfile").is_none());
     assert_eq!(meta["askUserQuestion"], false);
 }
-/// All three flags on at the runtime default produce grok-build-plan
+/// All three flags on at the runtime default produce axon-build-plan
 /// and no `askUserQuestion` field.
 #[serial_test::serial(AXON_AGENT)]
 #[test]
 fn all_flags_meta() {
-    let _env = without_grok_agent();
+    let _env = without_axon_agent();
     let flags = SessionFlags {
         plan_mode: true,
         subagents: true,
@@ -1694,7 +1694,7 @@ fn all_flags_meta() {
         ..Default::default()
     };
     let meta = flags.to_meta().unwrap();
-    assert_eq!(meta["agentProfile"], "grok-build-plan");
+    assert_eq!(meta["agentProfile"], "axon-build-plan");
     assert!(meta.get("askUserQuestion").is_none());
     assert_eq!(meta["yoloMode"], false);
 }
@@ -1789,7 +1789,7 @@ fn to_meta_chat_mode_stamps_kind_and_omits_agent_profile() {
         ..Default::default()
     };
     let meta = flags.to_meta().expect("chat_mode must emit meta");
-    assert_eq!(meta["x.ai/session"] ["kind"], "chat");
+    assert_eq!(meta["axon/session"] ["kind"], "chat");
     assert!(
         meta.get("agentProfile").is_none(), "K12: chat mode must omit Build agentProfile"
     );
@@ -1815,7 +1815,7 @@ fn load_meta_chat_kind_alone_stamps_kind_and_strips_profile() {
         scrub_chat_workspace_bind_meta(&mut meta);
     }
     let meta = meta.expect("chat_kind must produce meta");
-    assert_eq!(meta["x.ai/session"] ["kind"], "chat");
+    assert_eq!(meta["axon/session"] ["kind"], "chat");
     assert!(
         meta.get("agentProfile").is_none(),
         "entry chat_kind must strip Build agentProfile"
@@ -1845,7 +1845,7 @@ fn chat_create_meta_never_includes_workspace_bind_keys_when_cloud_fields_set() {
     apply_chat_kind_meta(&mut meta);
     scrub_chat_workspace_bind_meta(&mut meta);
     let meta = meta.expect("chat create must emit meta");
-    assert_eq!(meta["x.ai/session"] ["kind"], "chat");
+    assert_eq!(meta["axon/session"] ["kind"], "chat");
     assert_chat_meta_has_no_workspace_bind_keys(
         &serde_json::Value::Object(meta.clone()),
     );
@@ -1858,15 +1858,15 @@ fn chat_load_meta_never_includes_workspace_bind_keys() {
     {
         let obj = meta.get_or_insert_with(acp::Meta::new);
         obj.insert("envId".into(), serde_json::json!("env-poison"));
-        obj.insert("x.ai/cloud_server_id".into(), serde_json::json!("srv-poison"));
+        obj.insert("axon/cloud_server_id".into(), serde_json::json!("srv-poison"));
         obj.insert(
-            "x.ai/cloud_existing_workspace".into(),
+            "axon/cloud_existing_workspace".into(),
             serde_json::json!({ "server_id" : "srv-poison", "cwd" : "/ws", }),
         );
     }
     scrub_chat_workspace_bind_meta(&mut meta);
     let meta = meta.expect("chat load must emit meta");
-    assert_eq!(meta["x.ai/session"] ["kind"], "chat");
+    assert_eq!(meta["axon/session"] ["kind"], "chat");
     assert_chat_meta_has_no_workspace_bind_keys(
         &serde_json::Value::Object(meta.clone()),
     );
@@ -1892,9 +1892,9 @@ fn agent_profile_definitions_have_correct_names() {
     use std::str::FromStr;
     use axon_agent::config::BuiltinAgentName;
     for name in [
-        "grok-build-plan",
-        "grok-build-plan-no-subagents",
-        "grok-build-ask-user",
+        "axon-build-plan",
+        "axon-build-plan-no-subagents",
+        "axon-build-ask-user",
     ] {
         let builtin = BuiltinAgentName::from_str(name).unwrap();
         let def = builtin.definition();
@@ -1943,23 +1943,23 @@ fn format_session_info_shows_conversation_id_when_present() {
 }
 #[test]
 fn format_session_info_shows_resolved_when_enabled_and_different() {
-    let info = make_session_info("grok-4.5", Some("grok-4.3"), 1000, 10000);
+    let info = make_session_info("axon-4.5", Some("axon-4.3"), 1000, 10000);
     let text = format_session_info(&info, None, true);
-    assert!(text.contains("Model: grok-4.5 (grok-4.3)"));
+    assert!(text.contains("Model: axon-4.5 (axon-4.3)"));
 }
 #[test]
 fn format_session_info_hides_resolved_when_disabled() {
-    let info = make_session_info("grok-4.5", Some("grok-4.3"), 1000, 10000);
+    let info = make_session_info("axon-4.5", Some("axon-4.3"), 1000, 10000);
     let text = format_session_info(&info, None, false);
-    assert!(text.contains("Model: grok-4.5"));
-    assert!(! text.contains("grok-4.3"));
+    assert!(text.contains("Model: axon-4.5"));
+    assert!(! text.contains("axon-4.3"));
 }
 #[test]
 fn format_session_info_no_parens_when_resolved_matches_requested() {
-    let info = make_session_info("grok-4.5", Some("grok-4.5"), 1000, 10000);
+    let info = make_session_info("axon-4.5", Some("axon-4.5"), 1000, 10000);
     let text = format_session_info(&info, None, true);
-    assert!(text.contains("Model: grok-4.5"));
-    assert!(! text.contains("(grok-4.5)"));
+    assert!(text.contains("Model: axon-4.5"));
+    assert!(! text.contains("(axon-4.5)"));
 }
 #[test]
 fn format_session_info_shows_model_hash_when_catalog_flag_set() {
@@ -1979,7 +1979,7 @@ fn format_session_info_hides_model_hash_for_noncoding_without_flag() {
 }
 #[test]
 fn format_session_info_shows_model_hash_for_coding_slug_without_flag() {
-    let mut info = make_session_info("grok-build", None, 1000, 10000);
+    let mut info = make_session_info("axon-build", None, 1000, 10000);
     info.data.model_fingerprint = Some("abc123".into());
     info.data.show_model_fingerprint = false;
     let text = format_session_info(&info, None, false);
@@ -2048,7 +2048,7 @@ fn session_picker_entry_maps_to_dormant_roster_row() {
         cwd: "/repo/app".to_string(),
         hostname: Some("box".to_string()),
         source: "local".to_string(),
-        model_id: Some("grok-4".to_string()),
+        model_id: Some("axon-4".to_string()),
         num_messages: 3,
         last_active_at: Some(updated),
         branch: None,
@@ -2061,7 +2061,7 @@ fn session_picker_entry_maps_to_dormant_roster_row() {
     assert_eq!(roster.title.as_deref(), Some("Wire up dashboard"));
     assert_eq!(roster.cwd, "/repo/app");
     assert!(roster.is_worktree, "worktree_label present → is_worktree");
-    assert_eq!(roster.model_id.as_deref(), Some("grok-4"));
+    assert_eq!(roster.model_id.as_deref(), Some("axon-4"));
     assert_eq!(roster.activity, RosterActivity::Dormant);
     assert!(! roster.resident);
     assert_eq!(roster.last_change_unix_ms, updated.timestamp_millis());

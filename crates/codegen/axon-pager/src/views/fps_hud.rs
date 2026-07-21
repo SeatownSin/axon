@@ -12,7 +12,7 @@
 //! always and this HUD stays toggle-only (no double overlay); on release
 //! binaries — where that overlay does not exist — the same env enables this
 //! HUD from startup, so `AXON_FPS=1` is never a silent no-op
-//! ([`HONORS_GROK_FPS_ENV`]).
+//! ([`HONORS_AXON_FPS_ENV`]).
 //!
 //! "fps" here is render throughput (1 / mean frame cost), not paint
 //! frequency: the pager draws on demand, so an idle UI paints nothing and a
@@ -34,9 +34,9 @@ const PANEL_WIDTH: u16 = 32;
 /// Whether this HUD owns the `AXON_FPS` env gate: only where the dev
 /// `FrameMetrics` overlay is compiled out. In debug/dev builds the env keeps
 /// feeding that overlay alone.
-const HONORS_GROK_FPS_ENV: bool = true;
+const HONORS_AXON_FPS_ENV: bool = true;
 /// Runtime state for the FPS HUD. `AXON_FPS` enables it at startup on
-/// release binaries ([`HONORS_GROK_FPS_ENV`]); `/debug fps` toggles it
+/// release binaries ([`HONORS_AXON_FPS_ENV`]); `/debug fps` toggles it
 /// live everywhere. Deliberately NOT a settings-registry entry: it is a
 /// diagnostic, not a preference to persist.
 pub struct FpsHud {
@@ -58,7 +58,7 @@ impl FpsHud {
     /// `env` is the raw `AXON_FPS` value; the truthiness rule (nonempty and
     /// not `"0"`) matches `FrameMetrics` and `AXON_SCROLL_DEBUG`.
     fn with_env(env: Option<String>) -> Self {
-        let env_on = HONORS_GROK_FPS_ENV && env.is_some_and(|v| !v.is_empty() && v != "0");
+        let env_on = HONORS_AXON_FPS_ENV && env.is_some_and(|v| !v.is_empty() && v != "0");
         Self {
             enabled: env_on,
             samples: VecDeque::with_capacity(SAMPLE_CAP),
@@ -178,15 +178,15 @@ mod tests {
     /// Default test builds compile without dev instrumentation — release-shaped
     /// for this gate — so a truthy env must construct enabled. A
     /// debug/dev test build hands the env to `FrameMetrics` instead;
-    /// asserting against [`HONORS_GROK_FPS_ENV`] keeps the test true under
+    /// asserting against [`HONORS_AXON_FPS_ENV`] keeps the test true under
     /// both cfgs (the dev half is pinned by the constant's shape, the same
     /// limitation as the `/debug` visibility test).
     #[test]
-    fn grok_fps_env_enables_hud_where_dev_overlay_absent() {
+    fn axon_fps_env_enables_hud_where_dev_overlay_absent() {
         for truthy in ["1", "full", " "] {
             assert_eq!(
                 FpsHud::with_env(Some(truthy.into())).enabled(),
-                HONORS_GROK_FPS_ENV,
+                HONORS_AXON_FPS_ENV,
                 "AXON_FPS={truthy:?} must track the env-gate owner"
             );
         }

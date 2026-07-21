@@ -246,7 +246,7 @@ fn plugins_list_response() -> axon_hooks_plugins_types::PluginsListResponse {
         plugins: vec![
             test_plugin_info(
                 "user-tool",
-                Some(axon_hooks_plugins_types::PluginOrigin::UserGrok),
+                Some(axon_hooks_plugins_types::PluginOrigin::UserAxon),
             ),
             test_plugin_info(
                 "claude-tool",

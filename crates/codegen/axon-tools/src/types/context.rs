@@ -11,7 +11,7 @@ const MAX_LINES_READ_DEFAULT: usize = 1_000;
 /// the whole-read `MAX_NUM_TOKENS` cap instead (skill files are exempt from
 /// all read limits by design). Other agent CLIs likewise apply no
 /// per-line cap. The wire field (`TruncationConfig.max_chars_per_line` in
-/// grok-tools.proto) is deprecated and ignored.
+/// axon-tools.proto) is deprecated and ignored.
 #[derive(Debug, Clone, Default)]
 pub struct TruncationConfig {
     /// Max total output bytes for any tool. Default: 40KB.
@@ -70,7 +70,7 @@ impl TruncationConfig {
     /// - `{max_chars_per_line}` — fixed display value for opencode-compat
     ///   descriptions only; the opencode `read` tool clips at its own
     ///   hardcoded `MAX_LINE_LENGTH` (2000), independent of this config.
-    ///   grok_build `read_file` never clips lines.
+    ///   axon_build `read_file` never clips lines.
     ///
     /// Returns the original string unchanged if no placeholders are present.
     pub fn interpolate_description(

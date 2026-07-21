@@ -536,10 +536,10 @@ impl ScriptedScenarioRunner {
         }
 
         if let Some(config_toml) = &scenario.environment.config_toml {
-            let grok_home = content.home().join(".axon");
-            fs::create_dir_all(&grok_home)
-                .with_context(|| format!("create scenario AXON_HOME {}", grok_home.display()))?;
-            fs::write(grok_home.join("config.toml"), config_toml)
+            let axon_home = content.home().join(".axon");
+            fs::create_dir_all(&axon_home)
+                .with_context(|| format!("create scenario AXON_HOME {}", axon_home.display()))?;
+            fs::write(axon_home.join("config.toml"), config_toml)
                 .context("write scenario config.toml")?;
         }
 

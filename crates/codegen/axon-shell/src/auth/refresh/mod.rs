@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use crate::auth::manager::AuthManager;
 pub(crate) use crate::auth::manager::RefreshReason;
-use crate::auth::model::GrokAuth;
+use crate::auth::model::AxonAuth;
 
 use external_refresher::ExternalBinaryRefresher;
 pub(crate) use oidc_refresher::OidcRefresher;
@@ -23,25 +23,25 @@ pub(crate) type DiagnosticUploader =
 /// `clear()`, `hot_swap()`, or `refresh_chain()`.
 pub(crate) trait AuthSnapshot: Send + Sync {
     /// Read the current in-memory bearer outside the early-invalidation buffer.
-    fn current(&self) -> Option<GrokAuth>;
+    fn current(&self) -> Option<AxonAuth>;
     /// Read the expired in-memory bearer (for its `refresh_token`).
-    fn expired_auth(&self) -> Option<GrokAuth>;
+    fn expired_auth(&self) -> Option<AxonAuth>;
     /// Re-read auth.json from disk for the configured scope. Read-only w.r.t.
     /// credentials, but may advance disk-observation state and emit transition
     /// telemetry (not credential mutation).
-    fn read_disk_auth(&self) -> Option<GrokAuth>;
+    fn read_disk_auth(&self) -> Option<AxonAuth>;
     /// Whether the in-memory bearer is expired.
     fn is_expired(&self) -> bool;
 }
 
 impl AuthSnapshot for AuthManager {
-    fn current(&self) -> Option<GrokAuth> {
+    fn current(&self) -> Option<AxonAuth> {
         self.current()
     }
-    fn expired_auth(&self) -> Option<GrokAuth> {
+    fn expired_auth(&self) -> Option<AxonAuth> {
         self.expired_auth()
     }
-    fn read_disk_auth(&self) -> Option<GrokAuth> {
+    fn read_disk_auth(&self) -> Option<AxonAuth> {
         self.read_disk_auth()
     }
     fn is_expired(&self) -> bool {
@@ -54,11 +54,11 @@ impl AuthSnapshot for AuthManager {
 /// (interface segregation); only [`ExternalBinaryRefresher`] depends on it.
 pub(crate) trait ExternalCommandRunner: Send + Sync {
     /// Run the external auth binary and return the parsed output.
-    fn run_external_command(&self, command: &str) -> Option<GrokAuth>;
+    fn run_external_command(&self, command: &str) -> Option<AxonAuth>;
 }
 
 impl ExternalCommandRunner for AuthManager {
-    fn run_external_command(&self, command: &str) -> Option<GrokAuth> {
+    fn run_external_command(&self, command: &str) -> Option<AxonAuth> {
         self.run_external_refresh_command(command)
     }
 }
@@ -71,9 +71,9 @@ impl ExternalCommandRunner for AuthManager {
 /// side-effect-free read, the refresher the observing one.
 pub(crate) fn resolve_refresh_credential(
     snap: &dyn AuthSnapshot,
-    disk_auth: Option<GrokAuth>,
+    disk_auth: Option<AxonAuth>,
     reason: RefreshReason,
-) -> Option<GrokAuth> {
+) -> Option<AxonAuth> {
     disk_auth
         .filter(|a| a.refresh_token.is_some())
         .or_else(|| snap.expired_auth())
@@ -89,7 +89,7 @@ pub(crate) fn resolve_refresh_credential(
 #[must_use = "RefreshOutcome encodes a state transition; route it through refresh_chain"]
 pub(crate) enum RefreshOutcome {
     /// Authority returned a fresh token. Caller persists via `update()`.
-    Success(Box<GrokAuth>),
+    Success(Box<AxonAuth>),
     /// Terminal failure (e.g. invalid_grant), or a transient escalated to
     /// `Other` after repeated blips. Caller records a verdict scoped to the
     /// rejected credential and retains it (`RefreshTokenRejected` is sticky,
@@ -110,7 +110,7 @@ pub(crate) enum RefreshOutcome {
 
 impl RefreshOutcome {
     /// A fresh credential from the authority (hides the `Box`).
-    pub(crate) fn success(auth: GrokAuth) -> Self {
+    pub(crate) fn success(auth: AxonAuth) -> Self {
         Self::Success(Box::new(auth))
     }
 
@@ -168,7 +168,7 @@ pub(crate) fn build_refresher(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::auth::{AuthMode, GrokAuth, GrokComConfig};
+    use crate::auth::{AuthMode, AxonAuth, AxonComConfig};
     use chrono::{Duration, Utc};
 
     /// auth_token_ttl makes is_token_expired use create_time + ttl for
@@ -176,20 +176,20 @@ mod tests {
     #[test]
     fn token_ttl_expires_external_token_by_create_time() {
         let dir = tempfile::tempdir().unwrap();
-        let cfg = GrokComConfig {
+        let cfg = AxonComConfig {
             auth_token_ttl: Some(3600), // 1 hour
-            ..GrokComConfig::default()
+            ..AxonComConfig::default()
         };
         let mgr = AuthManager::new(dir.path(), cfg);
 
         // Token created 2 hours ago, no expires_at. With auth_token_ttl=3600,
         // is_token_expired should return true (age 2h > ttl 1h).
-        let old_token = GrokAuth {
+        let old_token = AxonAuth {
             key: "old-external-token".into(),
             auth_mode: AuthMode::External,
             create_time: Utc::now() - Duration::hours(2),
             expires_at: None,
-            ..GrokAuth::test_default()
+            ..AxonAuth::test_default()
         };
         mgr.hot_swap(old_token);
         assert!(
@@ -199,12 +199,12 @@ mod tests {
         assert!(mgr.is_expired());
 
         // Fresh token created just now — should be valid.
-        let new_token = GrokAuth {
+        let new_token = AxonAuth {
             key: "new-external-token".into(),
             auth_mode: AuthMode::External,
             create_time: Utc::now(),
             expires_at: None,
-            ..GrokAuth::test_default()
+            ..AxonAuth::test_default()
         };
         mgr.hot_swap(new_token);
         assert!(

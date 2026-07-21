@@ -94,7 +94,7 @@ pub fn resolve_tips(
 pub fn resolve_tips_from_disk(
     raw_config: &TomlValue,
     remote_settings: Option<&RemoteSettings>,
-    grok_home: &std::path::Path,
+    axon_home: &std::path::Path,
 ) -> Option<String> {
     let requirements = crate::config::load_merged_requirements();
     let managed = crate::config::load_managed_config().ok();
@@ -109,7 +109,7 @@ pub fn resolve_tips_from_disk(
     if all.is_empty() {
         return None;
     }
-    crate::util::tips::pick_and_advance(&all, grok_home)
+    crate::util::tips::pick_and_advance(&all, axon_home)
 }
 
 /// Read `[cli] channel` from config.toml.

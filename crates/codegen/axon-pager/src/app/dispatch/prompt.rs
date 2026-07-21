@@ -407,7 +407,7 @@ pub(super) fn dispatch_send_prompt_inner(
             .is_restricted(invocation.token)
     {
         // Only consume the composer when the upsell can actually open: with
-        // another question modal already up, `open_supergrok_upsell` would
+        // another question modal already up, `open_superaxon_upsell` would
         // no-op and wiping the composer here would silently drop the typed
         // text. Keep it instead so the user can resubmit after closing the
         // modal — and never fall through to passthrough for restricted
@@ -627,7 +627,7 @@ pub(super) fn dispatch_send_prompt_inner(
         // immediately instead of being held in the local drip-feed queue. The
         // agent appends it to its authoritative `pending_inputs` (no concurrent
         // turn starts — validated keystone) and drives the drain via
-        // `x.ai/queue/changed`. We render an optimistic echo into the shared
+        // `axon/queue/changed`. We render an optimistic echo into the shared
         // queue keyed by `prompt_id`; the broadcast reconciles it by id.
         //
         // The IDLE case is unchanged (falls through to the local path below,
@@ -1048,7 +1048,7 @@ pub(super) fn handle_prompt_response(
                 // Server-authoritative queue lifecycle: this prompt's RPC
                 // resolved without becoming the running turn (removed,
                 // cancelled, rewound). Retire its optimistic echo so a
-                // later `x.ai/queue/changed` broadcast can't re-pin a
+                // later `axon/queue/changed` broadcast can't re-pin a
                 // stale placeholder and reorder the queue.
                 if let Some(sid) = agent.session.session_id.as_ref().map(|s| s.0.to_string()) {
                     retire_optimistic_echo(
@@ -1319,7 +1319,7 @@ pub(super) fn handle_prompt_response(
                 // title into the body automatically.
                 let notif_title = session_name
                     .map(|s| s.to_string())
-                    .unwrap_or_else(|| "Grok".into());
+                    .unwrap_or_else(|| "Axon".into());
 
                 app.deferred_notification = Some((
                     NotificationEvent {

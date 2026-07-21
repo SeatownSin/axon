@@ -27,16 +27,16 @@ pub(crate) async fn test_agent_default() -> axon_agent::Agent {
 /// resolve to their builtins when a turn is driven through `handle_prompt`.
 #[cfg(test)]
 pub(crate) async fn test_agent_with_goal_tool() -> axon_agent::Agent {
-    use axon_tools::implementations::grok_build::update_goal::UpdateGoalTool;
+    use axon_tools::implementations::axon_build::update_goal::UpdateGoalTool;
     use axon_tools::registry::types::ToolConfig;
     test_agent_with_tools(vec![ToolConfig::for_tool::<UpdateGoalTool>()]).await
 }
-/// Grok-build agent with the real `TodoWriteTool` (id `todo_write`, kind
+/// Axon-build agent with the real `TodoWriteTool` (id `todo_write`, kind
 /// `Plan`) registered, so `tool_for_kind(ToolKind::Plan)` resolves through the
 /// live toolset instead of the literal fallback.
 #[cfg(test)]
-pub(crate) async fn test_grok_build_agent_with_todo() -> axon_agent::Agent {
-    use axon_tools::implementations::grok_build::todo::TodoWriteTool;
+pub(crate) async fn test_axon_build_agent_with_todo() -> axon_agent::Agent {
+    use axon_tools::implementations::axon_build::todo::TodoWriteTool;
     use axon_tools::registry::types::ToolConfig;
     test_agent_with_tools(vec![ToolConfig::for_tool::<TodoWriteTool>()]).await
 }
@@ -45,8 +45,8 @@ pub(crate) async fn test_grok_build_agent_with_todo() -> axon_agent::Agent {
 /// `exit_plan_mode` only finalizes when `enter_plan_mode` is also present.
 #[cfg(test)]
 pub(crate) async fn test_agent_with_plan_tools() -> axon_agent::Agent {
-    use axon_tools::implementations::grok_build::enter_plan_mode::EnterPlanModeTool;
-    use axon_tools::implementations::grok_build::exit_plan_mode::ExitPlanModeTool;
+    use axon_tools::implementations::axon_build::enter_plan_mode::EnterPlanModeTool;
+    use axon_tools::implementations::axon_build::exit_plan_mode::ExitPlanModeTool;
     use axon_tools::registry::types::ToolConfig;
     test_agent_with_tools(vec![
         ToolConfig::for_tool::<EnterPlanModeTool>(),
@@ -63,7 +63,7 @@ pub(crate) async fn test_agent_with_tools(
             tools,
             behavior_preset: None,
         },
-        axon_agent::AgentDefinition::default_grok_build(),
+        axon_agent::AgentDefinition::default_axon_build(),
         std::sync::Arc::new(axon_tools::computer::local::LocalTerminalBackend::new()),
     )
     .await
@@ -84,7 +84,7 @@ async fn test_agent_from_config(
         backend,
         fs,
         cwd: std::path::PathBuf::from("/tmp"),
-        session_folder: std::env::temp_dir().join("grok-test"),
+        session_folder: std::env::temp_dir().join("axon-test"),
         session_env: std::sync::Arc::new(std::collections::HashMap::new()),
         notification_handle: ToolNotificationHandle::noop(),
         owner_session_id: None,

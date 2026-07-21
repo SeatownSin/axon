@@ -4,11 +4,11 @@
 //! This creates new session files but does not start the session.
 
 use crate::remote::BackendClient;
-const FORK_LOG: &str = "xai_fork";
+const FORK_LOG: &str = "axon_fork";
 use crate::session::export::ExportedMetadata;
 use crate::session::info::Info;
 use crate::session::storage::{CopySessionOptions, JsonlStorageAdapter};
-use crate::util::grok_home::grok_home;
+use crate::util::axon_home::axon_home;
 use agent_client_protocol as acp;
 use std::io;
 
@@ -69,7 +69,7 @@ pub async fn fork_session(
 ) -> io::Result<ForkSessionResponse> {
     let t0 = std::time::Instant::now();
 
-    let root_dir = grok_home();
+    let root_dir = axon_home();
     let storage = JsonlStorageAdapter::with_root(root_dir.clone());
 
     // Build source and target Info
@@ -254,7 +254,7 @@ mod tests {
             source_cwd: "/old/project".to_string(),
             new_cwd: "/new/project".to_string(),
             new_session_id: Some("custom-session-id".to_string()),
-            new_model_id: Some("grok-3".to_string()),
+            new_model_id: Some("axon-3".to_string()),
             target_prompt_index: None,
             ..Default::default()
         };
@@ -269,7 +269,7 @@ mod tests {
             deserialized.new_session_id,
             Some("custom-session-id".to_string())
         );
-        assert_eq!(deserialized.new_model_id, Some("grok-3".to_string()));
+        assert_eq!(deserialized.new_model_id, Some("axon-3".to_string()));
     }
 
     #[test]
@@ -292,7 +292,7 @@ mod tests {
             plan_state_copied: true,
             new_cwd: "/new/project".to_string(),
             parent_session_id: "abc123".to_string(),
-            new_model_id: Some("grok-3".to_string()),
+            new_model_id: Some("axon-3".to_string()),
         };
 
         let json = serde_json::to_string(&response).unwrap();
@@ -304,7 +304,7 @@ mod tests {
         assert!(deserialized.plan_state_copied);
         assert_eq!(deserialized.new_cwd, "/new/project");
         assert_eq!(deserialized.parent_session_id, "abc123");
-        assert_eq!(deserialized.new_model_id, Some("grok-3".to_string()));
+        assert_eq!(deserialized.new_model_id, Some("axon-3".to_string()));
     }
 
     #[test]

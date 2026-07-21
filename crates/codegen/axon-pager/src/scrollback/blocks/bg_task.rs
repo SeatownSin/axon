@@ -466,7 +466,7 @@ mod tests {
     #[test]
     fn preamble_uses_primary_text_color_for_description() {
         // Pin theme to avoid races with parallel tests that call `cache::set`.
-        crate::theme::cache::set(crate::theme::ThemeKind::GrokNight);
+        crate::theme::cache::set(crate::theme::ThemeKind::AxonNight);
         let block =
             BgTaskBlock::started("ls", "t1").with_description(Some("List the files".into()));
         let text = block.preamble(&test_ctx()).expect("preamble");
@@ -522,7 +522,7 @@ mod tests {
         // smashed multi-line bg-task commands into one unreadable blob when
         // expanded in the block viewer.
         let block = BgTaskBlock::started(
-            "export XAI_ROOT=/tmp\ncd /tmp\necho start\nprod-run start backend",
+            "export AXON_ROOT=/tmp\ncd /tmp\necho start\nprod-run start backend",
             "t1",
         )
         .with_description(Some("Start backend".into()));
@@ -532,7 +532,7 @@ mod tests {
             vec![
                 "Start backend",
                 "",
-                "$ export XAI_ROOT=/tmp",
+                "$ export AXON_ROOT=/tmp",
                 "  cd /tmp",
                 "  echo start",
                 "  prod-run start backend",

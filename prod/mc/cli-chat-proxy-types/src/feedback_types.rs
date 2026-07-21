@@ -1,6 +1,6 @@
 //! Feedback API request and response types.
 //!
-//! These types support the feedback collection system for Grok sessions.
+//! These types support the feedback collection system for Axon sessions.
 //! The agent (axon-shell) uses heuristics to determine when to request feedback,
 //! and clients submit feedback through these types to the feedback backend.
 
@@ -1516,7 +1516,7 @@ fn default_feedback_mode_stars_text() -> String {
     "stars_text".to_string()
 }
 fn default_tier1_prompt() -> String {
-    "You've been using Grok Code productively! Would you mind sharing quick feedback?".to_string()
+    "You've been using Axon Code productively! Would you mind sharing quick feedback?".to_string()
 }
 fn default_tier2_prompt() -> String {
     "You've worked through a complex session. Your feedback would help us improve.".to_string()

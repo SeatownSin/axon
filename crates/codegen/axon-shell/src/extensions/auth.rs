@@ -1,4 +1,4 @@
-//! `x.ai/auth/*` and legacy `x.ai/{get,set}ApiKey` extension handlers.
+//! `axon/auth/*` and legacy `axon/{get,set}ApiKey` extension handlers.
 //!
 //! These methods let the client read/write the API key via the agent and
 //! drive the OAuth login flow. The agent is the single source of truth for
@@ -14,15 +14,15 @@ use crate::session::ExtMethodResult;
 #[tracing::instrument(skip_all, fields(method = %args.method))]
 pub async fn handle(agent: &MvpAgent, args: &acp::ExtRequest) -> ExtResult {
     match args.method.as_ref() {
-        "x.ai/auth/getBearerToken" => handle_get_bearer_token(agent).await,
-        "x.ai/getApiKey" => handle_get_api_key(),
-        "x.ai/setApiKey" => handle_set_api_key(args),
-        "x.ai/auth/submit_code" => handle_submit_code(agent, args),
-        "x.ai/auth/get_url" => handle_get_url(agent).await,
-        "x.ai/auth/cancel" => handle_cancel(agent, args),
-        "x.ai/auth/logout" => handle_logout(agent, args).await,
-        "x.ai/auth/info" => handle_info(agent),
-        "x.ai/auth/check_subscription" => handle_check_subscription(agent).await,
+        "axon/auth/getBearerToken" => handle_get_bearer_token(agent).await,
+        "axon/getApiKey" => handle_get_api_key(),
+        "axon/setApiKey" => handle_set_api_key(args),
+        "axon/auth/submit_code" => handle_submit_code(agent, args),
+        "axon/auth/get_url" => handle_get_url(agent).await,
+        "axon/auth/cancel" => handle_cancel(agent, args),
+        "axon/auth/logout" => handle_logout(agent, args).await,
+        "axon/auth/info" => handle_info(agent),
+        "axon/auth/check_subscription" => handle_check_subscription(agent).await,
         _ => Err(acp::Error::method_not_found()),
     }
 }
@@ -63,7 +63,7 @@ async fn handle_get_bearer_token(agent: &MvpAgent) -> ExtResult {
 }
 
 fn handle_get_api_key() -> ExtResult {
-    let key = crate::agent::auth_method::read_xai_api_key_env().ok();
+    let key = crate::agent::auth_method::read_axon_api_key_env().ok();
     ExtMethodResult::success(serde_json::json!({ "key": key }))
         .to_ext_response()
         .map_err(|e| acp::Error::internal_error().data(e.to_string()))
@@ -72,24 +72,24 @@ fn handle_get_api_key() -> ExtResult {
 fn handle_set_api_key(args: &acp::ExtRequest) -> ExtResult {
     let params: serde_json::Value = parse_params(args)?;
     let key = params.get("key").and_then(|v| v.as_str());
-    let grok_home = crate::util::grok_home::grok_home();
+    let axon_home = crate::util::axon_home::axon_home();
     if let Some(k) = key {
         if k.is_empty() {
-            crate::auth::clear_api_key(&grok_home)
+            crate::auth::clear_api_key(&axon_home)
                 .map_err(|e| acp::Error::internal_error().data(e.to_string()))?;
             // SAFETY: ext_method is single-threaded per agent
-            unsafe { std::env::remove_var("XAI_API_KEY") };
+            unsafe { std::env::remove_var("AXON_API_KEY") };
         } else {
-            crate::auth::store_api_key(&grok_home, k)
+            crate::auth::store_api_key(&axon_home, k)
                 .map_err(|e| acp::Error::internal_error().data(e.to_string()))?;
             // SAFETY: ext_method is single-threaded per agent
-            unsafe { std::env::set_var("XAI_API_KEY", k) };
+            unsafe { std::env::set_var("AXON_API_KEY", k) };
         }
     } else {
-        crate::auth::clear_api_key(&grok_home)
+        crate::auth::clear_api_key(&axon_home)
             .map_err(|e| acp::Error::internal_error().data(e.to_string()))?;
         // SAFETY: ext_method is single-threaded per agent
-        unsafe { std::env::remove_var("XAI_API_KEY") };
+        unsafe { std::env::remove_var("AXON_API_KEY") };
     }
     ExtMethodResult::success(serde_json::json!({ "ok": true }))
         .to_ext_response()
@@ -188,7 +188,7 @@ fn handle_info(agent: &MvpAgent) -> ExtResult {
         email: Option<String>,
         first_name: Option<String>,
         last_name: Option<String>,
-        /// `grok-asset://` URL resolved by the Electron protocol handler,
+        /// `axon-asset://` URL resolved by the Electron protocol handler,
         /// or a full `http(s)://` URL passed through unchanged.
         profile_image_url: Option<String>,
         team_id: Option<String>,
@@ -212,7 +212,7 @@ fn handle_info(agent: &MvpAgent) -> ExtResult {
     let auth = agent.auth_manager.current();
     let raw_asset_id = auth.as_ref().and_then(|a| a.profile_image_asset_id.clone());
 
-    // Return a grok-asset:// URL that the Electron renderer resolves at
+    // Return a axon-asset:// URL that the Electron renderer resolves at
     // display time via a custom protocol handler. The handler proxies
     // through cli-chat-proxy's /asset endpoint; Electron's HTTP cache
     // handles reuse. No disk-cache or network call needed here.
@@ -220,7 +220,7 @@ fn handle_info(agent: &MvpAgent) -> ExtResult {
         Some(key) if key.starts_with("http://") || key.starts_with("https://") => {
             Some(key.to_owned())
         }
-        Some(key) => Some(format!("grok-asset:///{key}")),
+        Some(key) => Some(format!("axon-asset:///{key}")),
         None => None,
     };
     to_raw_response(&AuthInfoResponse {
@@ -243,7 +243,7 @@ fn handle_info(agent: &MvpAgent) -> ExtResult {
             .map(|a| a.team_blocked_reasons.clone())
             .unwrap_or_default(),
         // No credential ⇒ unknown privacy state: report opted-out (fail closed),
-        // matching `AuthManager::allows_data_collection` / GrokAuth Default.
+        // matching `AuthManager::allows_data_collection` / AxonAuth Default.
         coding_data_retention_opt_out: auth
             .as_ref()
             .map(|a| a.coding_data_retention_opt_out)

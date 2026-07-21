@@ -306,15 +306,15 @@ impl ForeignPickerSource {
         format!("/{} {native_id}", self.skill_name())
     }
 
-    fn skill_paths(self, grok_home: &Path) -> [PathBuf; 2] {
+    fn skill_paths(self, axon_home: &Path) -> [PathBuf; 2] {
         let skill = self.skill_name();
         [
-            grok_home
+            axon_home
                 .join("bundled")
                 .join("skills")
                 .join(skill)
                 .join("SKILL.md"),
-            grok_home.join("skills").join(skill).join("SKILL.md"),
+            axon_home.join("skills").join(skill).join("SKILL.md"),
         ]
     }
 }
@@ -339,7 +339,7 @@ pub(crate) fn foreign_tool_display_label(tool: ForeignSessionTool) -> &'static s
 
 pub(crate) async fn gated_sources_async_with<F, Fut>(
     compat: EnabledForeignSessionSources,
-    grok_home: &Path,
+    axon_home: &Path,
     mut metadata_exists: F,
 ) -> EnabledForeignSessionSources
 where
@@ -352,7 +352,7 @@ where
             continue;
         }
         let mut available = false;
-        for path in source.skill_paths(grok_home) {
+        for path in source.skill_paths(axon_home) {
             if metadata_exists(path).await {
                 available = true;
                 break;
@@ -367,9 +367,9 @@ where
 
 pub(crate) async fn gated_sources_async(
     compat: EnabledForeignSessionSources,
-    grok_home: &Path,
+    axon_home: &Path,
 ) -> EnabledForeignSessionSources {
-    gated_sources_async_with(compat, grok_home, |path| async move {
+    gated_sources_async_with(compat, axon_home, |path| async move {
         tokio::fs::metadata(path).await.is_ok()
     })
     .await
@@ -377,7 +377,7 @@ pub(crate) async fn gated_sources_async(
 
 pub(crate) async fn with_gated_sources_async_with<F, Fut, W, WorkFut, T>(
     compat: EnabledForeignSessionSources,
-    grok_home: &Path,
+    axon_home: &Path,
     metadata_exists: F,
     work: W,
 ) -> Option<T>
@@ -387,7 +387,7 @@ where
     W: FnOnce(EnabledForeignSessionSources) -> WorkFut,
     WorkFut: Future<Output = T>,
 {
-    let enabled = gated_sources_async_with(compat, grok_home, metadata_exists).await;
+    let enabled = gated_sources_async_with(compat, axon_home, metadata_exists).await;
     if !(enabled.claude || enabled.codex || enabled.cursor) {
         return None;
     }
@@ -396,7 +396,7 @@ where
 
 pub(crate) async fn with_gated_sources_async<W, WorkFut, T>(
     compat: EnabledForeignSessionSources,
-    grok_home: &Path,
+    axon_home: &Path,
     work: W,
 ) -> Option<T>
 where
@@ -405,7 +405,7 @@ where
 {
     with_gated_sources_async_with(
         compat,
-        grok_home,
+        axon_home,
         |path| async move { tokio::fs::metadata(path).await.is_ok() },
         work,
     )
@@ -415,7 +415,7 @@ where
 pub(crate) fn scan_effect(
     cwd: &Path,
     compat: EnabledForeignSessionSources,
-    grok_home: &Path,
+    axon_home: &Path,
     coordinator: ForeignScanCoordinator,
     seq: u64,
 ) -> Option<Effect> {
@@ -423,7 +423,7 @@ pub(crate) fn scan_effect(
     (compat.claude || compat.codex || compat.cursor).then(|| Effect::ScanForeignSessions {
         cwd: cwd.to_path_buf(),
         compat,
-        grok_home: grok_home.to_path_buf(),
+        axon_home: axon_home.to_path_buf(),
         coordinator,
         seq,
     })
@@ -565,7 +565,7 @@ mod tests {
         let probed = RefCell::new(Vec::new());
         let enabled = gated_sources_async_with(
             EnabledForeignSessionSources::default(),
-            Path::new("/grok"),
+            Path::new("/axon"),
             |path| {
                 probed.borrow_mut().push(path.to_path_buf());
                 std::future::ready(true)
@@ -586,7 +586,7 @@ mod tests {
                 codex: true,
                 ..Default::default()
             },
-            Path::new("/grok"),
+            Path::new("/axon"),
             |path| {
                 probed.borrow_mut().push(path.to_path_buf());
                 std::future::ready(false)
@@ -610,7 +610,7 @@ mod tests {
 
     #[tokio::test]
     async fn async_gate_supports_bundled_and_user_skill_locations() {
-        let enabled = gated_sources_async_with(compat_all(), Path::new("/grok"), |path| {
+        let enabled = gated_sources_async_with(compat_all(), Path::new("/axon"), |path| {
             let path = path.to_string_lossy();
             std::future::ready(
                 path.contains("bundled/skills/resume-claude")

@@ -328,7 +328,7 @@ mod tests {
             vec![],
             &terminal,
         );
-        assert_eq!(map.len(), 1, "opaque relative paint stays Grok-owned");
+        assert_eq!(map.len(), 1, "opaque relative paint stays Axon-owned");
         assert!(!map.is_stale(state.generation()));
 
         let new_cwd = std::path::PathBuf::from("/worktree");

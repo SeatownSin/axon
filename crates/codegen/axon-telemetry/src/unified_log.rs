@@ -1,7 +1,7 @@
 //! Centralized unified log for cross-component session observability.
 //!
 //! Shell writes directly via [`emit()`]. Pager and desktop forward entries
-//! over ACP (`x.ai/log` notifications); shell receives them in
+//! over ACP (`axon/log` notifications); shell receives them in
 //! [`ingest_client_entries()`] and writes on their behalf.
 
 use std::fs::{self, File, OpenOptions};
@@ -12,7 +12,7 @@ use std::sync::{LazyLock, Mutex, OnceLock};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 
-use axon_config::grok_home;
+use axon_config::axon_home;
 
 /// Binary version stamped into every log entry. Set once at startup via
 /// [`set_version()`]; entries emitted before that get `None`.
@@ -29,7 +29,7 @@ const LOG_FILE: &str = "unified.jsonl";
 pub const MAX_SIZE: u64 = 5 * 1024 * 1024; // 5 MB
 
 /// ACP method name for unified log notifications.
-pub const LOG_METHOD: &str = "x.ai/log";
+pub const LOG_METHOD: &str = "axon/log";
 
 // ---------------------------------------------------------------------------
 // Log entry types
@@ -52,12 +52,12 @@ pub enum LogSource {
     #[strum(serialize = "shell")]
     #[serde(rename = "shell")]
     Shell,
-    #[strum(serialize = "grok-pager")]
-    #[serde(rename = "grok-pager")]
-    GrokPager,
-    #[strum(serialize = "grok-desktop")]
-    #[serde(rename = "grok-desktop")]
-    GrokDesktop,
+    #[strum(serialize = "axon-pager")]
+    #[serde(rename = "axon-pager")]
+    AxonPager,
+    #[strum(serialize = "axon-desktop")]
+    #[serde(rename = "axon-desktop")]
+    AxonDesktop,
 }
 
 /// A single unified log entry, written as one JSONL line.
@@ -95,7 +95,7 @@ pub struct LogEntry {
     pub ctx: Option<serde_json::Value>,
 }
 
-/// Wire format for the `x.ai/log` ACP notification params.
+/// Wire format for the `axon/log` ACP notification params.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LogNotificationParams {
     /// Source component identifier.
@@ -139,7 +139,7 @@ struct LogWriter {
 static WRITER: LazyLock<Mutex<Option<LogWriter>>> = LazyLock::new(|| Mutex::new(open_writer()));
 
 fn log_path() -> PathBuf {
-    grok_home().join(LOG_DIR).join(LOG_FILE)
+    axon_home().join(LOG_DIR).join(LOG_FILE)
 }
 
 pub fn file_size(path: &std::path::Path) -> u64 {
@@ -254,7 +254,7 @@ pub fn emit(lvl: LogLevel, msg: &str, sid: Option<&str>, ctx: Option<serde_json:
 
 /// Ingest a batch of log entries from a client (pager or desktop).
 ///
-/// Called by the `x.ai/log` notification handler. Entries from
+/// Called by the `axon/log` notification handler. Entries from
 /// [`LogSource::Shell`] are rejected to prevent spoofing.
 pub fn ingest_client_entries(src: LogSource, entries: &[ClientLogEntry]) {
     if matches!(src, LogSource::Shell) || entries.is_empty() {
@@ -381,7 +381,7 @@ mod tests {
     fn log_entry_serializes_full() {
         let entry = LogEntry {
             ts: "2025-07-14T10:30:00.123Z".into(),
-            src: LogSource::GrokPager,
+            src: LogSource::AxonPager,
             pid: Some(4242),
             ver: Some("0.1.211".into()),
             lvl: LogLevel::Warn,
@@ -465,7 +465,7 @@ mod tests {
         for bad in &[
             r#"{"src":"evil","entries":[]}"#,
             r#"{"src":"","entries":[]}"#,
-            r#"{"src":"GROK-PAGER","entries":[]}"#,
+            r#"{"src":"AXON-PAGER","entries":[]}"#,
         ] {
             assert!(serde_json::from_str::<LogNotificationParams>(bad).is_err());
         }
@@ -474,7 +474,7 @@ mod tests {
     #[test]
     fn notification_params_round_trip() {
         let params = LogNotificationParams {
-            src: LogSource::GrokPager,
+            src: LogSource::AxonPager,
             entries: vec![
                 ClientLogEntry {
                     ts: "2025-07-14T10:30:00.123Z".into(),

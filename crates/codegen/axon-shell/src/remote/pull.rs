@@ -139,9 +139,9 @@ pub(crate) mod hydrate {
             head_commit: None,
             head_branch: None,
             request_id: None,
-            // Record the *local* grok_home (where this hydrated copy lives),
+            // Record the *local* axon_home (where this hydrated copy lives),
             // not the original remote session's, since reconstruction runs locally.
-            grok_home: crate::session::persistence::grok_home_string(),
+            axon_home: crate::session::persistence::axon_home_string(),
             last_active_at: None,
             generated_title: None,
             title_is_manual: false,
@@ -279,7 +279,7 @@ pub(crate) mod hydrate {
 
             match update {
                 SessionUpdate::Acp(n) => self.handle_acp(&n.update),
-                SessionUpdate::Xai(n) => self.handle_xai(&n.update),
+                SessionUpdate::Axon(n) => self.handle_axon(&n.update),
             }
         }
 
@@ -293,14 +293,14 @@ pub(crate) mod hydrate {
             }
         }
 
-        fn handle_xai(
+        fn handle_axon(
             &mut self,
             update: &crate::extensions::notification::SessionUpdate,
         ) -> Vec<ConversationItem> {
-            use crate::extensions::notification::SessionUpdate as XaiUpdate;
+            use crate::extensions::notification::SessionUpdate as AxonUpdate;
 
             match update {
-                XaiUpdate::CompactionCheckpoint(_) => {
+                AxonUpdate::CompactionCheckpoint(_) => {
                     self.reset();
                     self.needs_truncate = true;
                     Vec::new()
@@ -512,7 +512,7 @@ pub(crate) mod hydrate {
     }
 
     /// Replayable JSON-RPC methods (excludes metadata like `prompt_complete`).
-    const REPLAYABLE_METHODS: &[&str] = &["session/update", "_x.ai/session/update"];
+    const REPLAYABLE_METHODS: &[&str] = &["session/update", "_axon/session/update"];
 
     fn is_session_update(json_rpc: &serde_json::Value) -> bool {
         json_rpc

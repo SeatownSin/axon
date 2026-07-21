@@ -5,7 +5,7 @@
 
 use std::sync::Arc;
 
-use crate::auth::{AuthManager, GrokComConfig};
+use crate::auth::{AuthManager, AxonComConfig};
 use anyhow::{Context, Result, bail};
 use serde::de::DeserializeOwned;
 
@@ -42,7 +42,7 @@ impl SandboxClient {
     pub fn new(base_url: impl Into<String>, auth_manager: Arc<AuthManager>) -> Self {
         Self {
             client: crate::http::shared_client(),
-            base_url: crate::util::block_xai_base_url(base_url.into(), "cloud sandbox backend"),
+            base_url: crate::util::block_axon_base_url(base_url.into(), "cloud sandbox backend"),
             auth_manager,
         }
     }
@@ -64,9 +64,9 @@ impl SandboxClient {
             .context("failed to resolve sandbox auth")?;
         let mut builder = builder
             .header("Authorization", format!("Bearer {}", &auth.key))
-            .header("X-XAI-Token-Auth", GrokComConfig::default().token_header)
+            .header("X-AXON-Token-Auth", AxonComConfig::default().token_header)
             .header("x-userid", &auth.user_id)
-            .header("x-grok-client-version", axon_version::VERSION);
+            .header("x-axon-client-version", axon_version::VERSION);
 
         if let Some(email) = &auth.email {
             builder = builder.header("x-email", email);
@@ -74,7 +74,7 @@ impl SandboxClient {
 
         builder = builder
             .header(
-                "x-grok-client-identifier",
+                "x-axon-client-identifier",
                 crate::http::process_client_identifier(),
             )
             .header(

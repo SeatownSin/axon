@@ -2,7 +2,7 @@
 //!
 //! Extracted from `axon-shell::agent::unique_identifier` so the
 //! telemetry engine can stamp events without depending on shell internals.
-//! `$AXON_HOME` is resolved through `axon-config::grok_home`.
+//! `$AXON_HOME` is resolved through `axon-config::axon_home`.
 
 use std::sync::OnceLock;
 
@@ -32,7 +32,7 @@ pub fn agent_instance_id() -> String {
 }
 
 fn load_or_compute_agent_id() -> String {
-    let cache_path = axon_config::grok_home().join("agent_id");
+    let cache_path = axon_config::axon_home().join("agent_id");
 
     // Try to read from cache file first (fast path)
     if let Ok(cached) = std::fs::read_to_string(&cache_path) {
@@ -136,12 +136,12 @@ mod tests {
     }
 }
 
-/// Returns true when workspace marker env vars (`XAI_ROOT` and `XAI_USER`) are set.
+/// Returns true when workspace marker env vars (`AXON_ROOT` and `AXON_USER`) are set.
 ///
 /// Used as a coarse local gate for features that require a full workspace
 /// checkout. External installs typically leave both unset.
 pub fn has_workspace_env_markers() -> bool {
-    std::env::var("XAI_ROOT").is_ok() && std::env::var("XAI_USER").is_ok()
+    std::env::var("AXON_ROOT").is_ok() && std::env::var("AXON_USER").is_ok()
 }
 
 /// Opt-in special-user gate for telemetry.

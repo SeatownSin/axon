@@ -39,15 +39,15 @@ async fn campaign_remote_settings_nudge_and_dismiss() {
     }));
 
     // Seed config.toml with the user's own default model.
-    let grok_home = content.home().join(".axon");
-    std::fs::create_dir_all(&grok_home).expect("create AXON_HOME");
+    let axon_home = content.home().join(".axon");
+    std::fs::create_dir_all(&axon_home).expect("create AXON_HOME");
     std::fs::write(
-        grok_home.join("config.toml"),
+        axon_home.join("config.toml"),
         format!("[models]\ndefault = \"{CONFIG_MODEL}\"\n"),
     )
     .expect("write config.toml");
 
-    // Session (OAuth) auth, not the harness's default XAI_API_KEY: the
+    // Session (OAuth) auth, not the harness's default AXON_API_KEY: the
     // settings fetch requires `auth_manager.auth()` — in ApiKey/BYOK mode the
     // pager never requests `/v1/settings`, so a remote campaign would be
     // structurally unreachable (see `spawn_polling_session`'s doc).
@@ -81,7 +81,7 @@ async fn campaign_remote_settings_nudge_and_dismiss() {
             .expect("pick model");
 
         // Deterministically wait for the dismiss to land on disk.
-        let state_path = grok_home.join("campaigns_state.json");
+        let state_path = axon_home.join("campaigns_state.json");
         let deadline = Instant::now() + Duration::from_secs(20);
         loop {
             h.update(Duration::from_millis(200));

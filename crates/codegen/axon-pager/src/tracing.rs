@@ -425,7 +425,7 @@ pub fn init_tracing() -> TracingHandle {
         .with_writer(make_writer);
     let otel_layer = axon_telemetry::otel_layer::build_otel_layer(
         axon_telemetry::otel_layer::OtelClientInfo {
-            client_name: "grok-pager",
+            client_name: "axon-pager",
             client_version: axon_version::VERSION,
             service_version: env!("VERSION_WITH_COMMIT"),
             app_entrypoint: "tui",

@@ -1,10 +1,10 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 use axon_sampler::SamplerConfig;
-use axon_tools::implementations::grok_build;
+use axon_tools::implementations::axon_build;
 use axon_tools::registry::types::ToolConfig;
 
-/// Production grok-build foreground command-timeout ceiling (seconds). The
+/// Production axon-build foreground command-timeout ceiling (seconds). The
 /// tool-server binary defaults to a 5-minute foreground ceiling
 /// (`DEFAULT_MAX_TIMEOUT_MS`); production opts *up* to 10h by sending this
 /// explicitly (overridable via config.toml). Bounds only foreground commands —
@@ -54,7 +54,7 @@ impl BashToolConfig {
             map.insert("timeout_secs".into(), t.into());
         }
         // The tool-server binary defaults the foreground ceiling to 5 min;
-        // production grok-build opts up to 10h by sending it explicitly
+        // production axon-build opts up to 10h by sending it explicitly
         // (overridable via config.toml). Foreground-only; background stays unbounded.
         let max_timeout_secs = self.max_timeout_secs.unwrap_or(PRODUCTION_MAX_TIMEOUT_SECS);
         map.insert("max_timeout_secs".into(), max_timeout_secs.into());
@@ -128,7 +128,7 @@ impl WebFetchToolConfig {
         remote_proxy: Option<&str>,
         remote_domains: Option<&[String]>,
         context_window_tokens: Option<u64>,
-    ) -> axon_tools::implementations::grok_build::web_fetch::WebFetchParams {
+    ) -> axon_tools::implementations::axon_build::web_fetch::WebFetchParams {
         use crate::agent::config::env_string;
 
         let proxy_endpoint = self
@@ -148,7 +148,7 @@ impl WebFetchToolConfig {
             .allow_local
             .or_else(|| axon_config::env_bool("AXON_WEB_FETCH_ALLOW_LOCAL"));
 
-        axon_tools::implementations::grok_build::web_fetch::WebFetchParams {
+        axon_tools::implementations::axon_build::web_fetch::WebFetchParams {
             proxy_endpoint,
             allowed_domains,
             context_window_tokens,
@@ -212,7 +212,7 @@ impl ShellToolsetConfig {
     pub fn new(base: Option<Self>, sampling_config: Option<SamplerConfig>) -> Self {
         let default_base = SamplerConfig {
             api_key: None,
-            base_url: "https://api.x.ai/v1".to_string(),
+            base_url: "https://api.blocked.invalid/v1".to_string(),
             model: String::new(),
             max_completion_tokens: None,
             temperature: None,
@@ -347,8 +347,8 @@ impl HashlineSchemeConfig {
 
 /// Which set of read/edit/search tools to use for file operations.
 ///
-/// Selects between the standard `GrokBuild` toolset (`read_file`,
-/// `search_replace`, `grep`) and the anchor-based `GrokBuildHashline`
+/// Selects between the standard `AxonBuild` toolset (`read_file`,
+/// `search_replace`, `grep`) and the anchor-based `AxonBuildHashline`
 /// toolset (`hashline_read`, `hashline_edit`, `hashline_grep`).
 /// The two are mutually exclusive.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -372,9 +372,9 @@ impl FileToolset {
     ) -> Result<Vec<ToolConfig>, String> {
         match self {
             Self::Standard => Ok(vec![
-                ToolConfig::for_tool::<grok_build::ReadFileTool>(),
-                ToolConfig::for_tool::<grok_build::SearchReplaceTool>(),
-                ToolConfig::for_tool::<grok_build::GrepTool>(),
+                ToolConfig::for_tool::<axon_build::ReadFileTool>(),
+                ToolConfig::for_tool::<axon_build::SearchReplaceTool>(),
+                ToolConfig::for_tool::<axon_build::GrepTool>(),
             ]),
             Self::Hashline => {
                 hashline_config.validate()?;
@@ -389,7 +389,7 @@ impl FileToolset {
                 };
                 Ok(vec![
                     ToolConfig {
-                        id: "GrokBuildHashline:hashline_read".to_owned(),
+                        id: "AxonBuildHashline:hashline_read".to_owned(),
                         params: params_map.clone(),
                         name_override: None,
                         params_name_overrides: None,
@@ -398,7 +398,7 @@ impl FileToolset {
                         kind: None,
                     },
                     ToolConfig {
-                        id: "GrokBuildHashline:hashline_edit".to_owned(),
+                        id: "AxonBuildHashline:hashline_edit".to_owned(),
                         params: params_map.clone(),
                         name_override: None,
                         params_name_overrides: None,
@@ -407,7 +407,7 @@ impl FileToolset {
                         kind: None,
                     },
                     ToolConfig {
-                        id: "GrokBuildHashline:hashline_grep".to_owned(),
+                        id: "AxonBuildHashline:hashline_grep".to_owned(),
                         params: params_map,
                         name_override: None,
                         params_name_overrides: None,
@@ -437,9 +437,9 @@ mod tests {
             .unwrap();
         assert_eq!(configs.len(), 3);
         let ids: Vec<&str> = configs.iter().map(|c| c.id.as_str()).collect();
-        assert!(ids.contains(&"GrokBuild:read_file"));
-        assert!(ids.contains(&"GrokBuild:search_replace"));
-        assert!(ids.contains(&"GrokBuild:grep"));
+        assert!(ids.contains(&"AxonBuild:read_file"));
+        assert!(ids.contains(&"AxonBuild:search_replace"));
+        assert!(ids.contains(&"AxonBuild:grep"));
     }
 
     #[test]
@@ -449,9 +449,9 @@ mod tests {
             .unwrap();
         assert_eq!(configs.len(), 3);
         let ids: Vec<&str> = configs.iter().map(|c| c.id.as_str()).collect();
-        assert!(ids.contains(&"GrokBuildHashline:hashline_read"));
-        assert!(ids.contains(&"GrokBuildHashline:hashline_edit"));
-        assert!(ids.contains(&"GrokBuildHashline:hashline_grep"));
+        assert!(ids.contains(&"AxonBuildHashline:hashline_read"));
+        assert!(ids.contains(&"AxonBuildHashline:hashline_edit"));
+        assert!(ids.contains(&"AxonBuildHashline:hashline_grep"));
     }
 
     /// Plan/explore omit `search_replace` by contract ("no Write/Edit/
@@ -472,7 +472,7 @@ mod tests {
                 !def.tool_config
                     .tools
                     .iter()
-                    .any(|t| t.id == "GrokBuild:search_replace"),
+                    .any(|t| t.id == "AxonBuild:search_replace"),
                 "{name}: fixture must be read-only before the override"
             );
             def.override_file_tools(file_tools.clone());
@@ -484,13 +484,13 @@ mod tests {
                 .collect();
             // The swap engages (read moves to hashline)...
             assert!(
-                ids.contains(&"GrokBuildHashline:hashline_read"),
+                ids.contains(&"AxonBuildHashline:hashline_read"),
                 "{name}: {ids:?}"
             );
-            assert!(!ids.contains(&"GrokBuild:read_file"), "{name}: {ids:?}");
+            assert!(!ids.contains(&"AxonBuild:read_file"), "{name}: {ids:?}");
             // ...but never grants the edit slot.
             assert!(
-                !ids.contains(&"GrokBuildHashline:hashline_edit"),
+                !ids.contains(&"AxonBuildHashline:hashline_edit"),
                 "{name}: override granted an edit tool to a no-edit toolset: {ids:?}"
             );
         }
@@ -694,7 +694,7 @@ mod tests {
         assert_eq!(
             max_timeout(&local.to_bash_params_json(None, None)),
             Some(PRODUCTION_MAX_TIMEOUT_SECS),
-            "production grok-build must set the 10h foreground ceiling"
+            "production axon-build must set the 10h foreground ceiling"
         );
     }
 

@@ -5,7 +5,7 @@
 //! 1. **Quarantines `rmcp` 2.1 and `reqwest` 0.13.** `rmcp` 2.1 requires
 //!    `reqwest >= 0.13.2`. The rest of the workspace consumes `reqwest` 0.12
 //!    and a transitive ecosystem (`opentelemetry-otlp`, `oauth2`,
-//!    `xai-mixpanel`, `axon-tools`, ...) also pinned to 0.12. Bumping every
+//!    `axon-mixpanel`, `axon-tools`, ...) also pinned to 0.12. Bumping every
 //!    crate to 0.13 to satisfy `rmcp` triggers a cascade — an OpenTelemetry
 //!    `HttpClient` adapter and cross-version test breakage when a crate
 //!    carries both versions under a renamed `package = "reqwest"` alias.

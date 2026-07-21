@@ -1374,11 +1374,11 @@ mod tests {
         // Summary mode → model + always-approve on the bottom border.
         let mut panel =
             PeekPanelState::new(DashboardRowId::TopLevel(AgentId(0)), fields("Response"));
-        panel.model_name = Some("Grok 4 Fast".to_string());
+        panel.model_name = Some("Axon 4 Fast".to_string());
         panel.auto_approve = true;
         let bottom = badge_row(&panel, 6);
         assert!(
-            bottom.contains("Grok 4 Fast"),
+            bottom.contains("Axon 4 Fast"),
             "model on bottom border: {bottom:?}"
         );
         assert!(
@@ -1395,17 +1395,17 @@ mod tests {
         ];
         q.request_id = Some(1);
         let mut qpanel = PeekPanelState::new(DashboardRowId::TopLevel(AgentId(0)), q);
-        qpanel.model_name = Some("Grok 4 Fast".to_string());
+        qpanel.model_name = Some("Axon 4 Fast".to_string());
         let qbottom = badge_row(&qpanel, 8);
         assert!(
-            qbottom.contains("Grok 4 Fast"),
+            qbottom.contains("Axon 4 Fast"),
             "model shows in question/approval mode: {qbottom:?}",
         );
 
         // No always-approve flag when the agent isn't in yolo mode.
         let mut plain =
             PeekPanelState::new(DashboardRowId::TopLevel(AgentId(0)), fields("Response"));
-        plain.model_name = Some("Grok 4 Fast".to_string());
+        plain.model_name = Some("Axon 4 Fast".to_string());
         plain.auto_approve = false;
         let plain_bottom = badge_row(&plain, 6);
         assert!(
@@ -1417,7 +1417,7 @@ mod tests {
         // are visible on the badge).
         let mut planp =
             PeekPanelState::new(DashboardRowId::TopLevel(AgentId(0)), fields("Response"));
-        planp.model_name = Some("Grok 4 Fast".to_string());
+        planp.model_name = Some("Axon 4 Fast".to_string());
         planp.plan_mode = true;
         let plan_bottom = badge_row(&planp, 6);
         assert!(

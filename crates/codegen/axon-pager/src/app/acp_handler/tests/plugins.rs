@@ -18,10 +18,10 @@
         let handled = handle(
             make_ext_session_notification(
                 "sess-plugins",
-                XaiSessionUpdate::PluginsChanged {
+                AxonSessionUpdate::PluginsChanged {
                     plugins: vec![crate::views::extensions_modal::test_plugin_info(
                         "user-tool",
-                        Some(axon_hooks_plugins_types::PluginOrigin::UserGrok),
+                        Some(axon_hooks_plugins_types::PluginOrigin::UserAxon),
                     )],
                 },
             ),
@@ -56,11 +56,11 @@
         let handled = handle(
             make_ext_session_notification(
                 "sess-plugins",
-                XaiSessionUpdate::PluginsChanged {
+                AxonSessionUpdate::PluginsChanged {
                     plugins: vec![
                         crate::views::extensions_modal::test_plugin_info(
                             "user-tool",
-                            Some(axon_hooks_plugins_types::PluginOrigin::UserGrok),
+                            Some(axon_hooks_plugins_types::PluginOrigin::UserAxon),
                         ),
                         crate::views::extensions_modal::test_plugin_info(
                             "claude-tool",
@@ -100,10 +100,10 @@
         let handled = handle(
             make_ext_session_notification(
                 "sess-plugins",
-                XaiSessionUpdate::PluginsChanged {
+                AxonSessionUpdate::PluginsChanged {
                     plugins: vec![crate::views::extensions_modal::test_plugin_info(
                         "user-tool",
-                        Some(axon_hooks_plugins_types::PluginOrigin::UserGrok),
+                        Some(axon_hooks_plugins_types::PluginOrigin::UserAxon),
                     )],
                 },
             ),

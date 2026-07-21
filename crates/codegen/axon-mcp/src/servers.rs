@@ -112,7 +112,7 @@ pub struct McpConfigDiff {
     pub retained: Vec<McpServerName>,
 }
 
-/// MCP server name used as the key in client/tool maps (e.g. `"github"`, `"grok_com_linear"`).
+/// MCP server name used as the key in client/tool maps (e.g. `"github"`, `"axon_com_linear"`).
 pub type McpServerName = String;
 
 /// Unqualified MCP tool name (e.g. `"create_issue"`, without the `server__` prefix).
@@ -310,10 +310,10 @@ impl InitProgress {
 }
 
 /// One in-process SDK MCP server registration: its tool-namespace name and the
-/// SDK-side id echoed back in `x.ai/mcp/sdk_call`. A named struct (rather than a
+/// SDK-side id echoed back in `axon/mcp/sdk_call`. A named struct (rather than a
 /// `(String, String)` tuple) so callers can't transpose the two strings.
 ///
-/// `Deserialize`d straight from a `_meta["x.ai/mcp/servers"]` entry, so the
+/// `Deserialize`d straight from a `_meta["axon/mcp/servers"]` entry, so the
 /// `serverId` wire field name is declared (and serde-checked) exactly once here.
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct AcpServerEntry {
@@ -322,7 +322,7 @@ pub struct AcpServerEntry {
     pub server_id: String,
 }
 
-/// The session's in-process SDK MCP servers (declared via `_meta["x.ai/mcp/servers"]`,
+/// The session's in-process SDK MCP servers (declared via `_meta["axon/mcp/servers"]`,
 /// reached over the ACP reverse channel), bundled with the shared reverse-RPC invoker.
 /// Held as `McpState::acp_mcp: Option<_>` so the set is one atom — present together or
 /// absent, never "servers without an invoker" — and survives `update_configs` clears
@@ -332,7 +332,7 @@ struct AcpMcpRegistry {
     /// Registered servers (`name -> serverId`).
     servers: Vec<AcpServerEntry>,
     /// Shared reverse-RPC invoker all these servers' tools are called through (emits
-    /// `x.ai/mcp/sdk_call` over the ACP connection).
+    /// `axon/mcp/sdk_call` over the ACP connection).
     invoker: Arc<dyn crate::acp_transport::AcpReverseInvoker>,
 }
 
@@ -381,7 +381,7 @@ pub struct McpState {
     /// task.  When `Some`, the state — and every [`McpClient`] reached
     /// through [`Self::all_clients`] / [`Self::get_client`] — forwards
     /// [`McpClientEvent`]s here for coalescing and fan-out as ACP
-    /// `x.ai/mcp/server_status` notifications.
+    /// `axon/mcp/server_status` notifications.
     ///
     /// Intentionally `None` in subagent-pool / shared-pool snapshots
     /// ([`SharedMcpPool`]) where the **parent** session is the
@@ -441,7 +441,7 @@ impl McpState {
     /// [`McpClient::set_event_tx`] **before**
     /// `get_tool_registrations` (so `ensure_initialized`'s
     /// `Ready`/`HandshakeFailed` emit fires with `Some(tx)` and the
-    /// `GrokClientHandler` cloned during `try_handshake` reads
+    /// `AxonClientHandler` cloned during `try_handshake` reads
     /// through the same Arc).
     pub fn set_client_event_tx(
         &mut self,
@@ -1219,8 +1219,8 @@ pub struct McpTool {
 ///   so the LLM can invoke them during a conversation.
 /// - **App-visible only** (`["app"]`): not registered in `ToolBridge`, so the LLM
 ///   never sees them. These are UI-only actions (e.g. refresh buttons) surfaced to
-///   the frontend via `x.ai/mcp/tools_changed` notifications and callable via
-///   `x.ai/mcp/call`.
+///   the frontend via `axon/mcp/tools_changed` notifications and callable via
+///   `axon/mcp/call`.
 pub struct McpToolRegistration {
     pub name: String,
     pub description: String,
@@ -2196,7 +2196,7 @@ enum PendingTransport {
         auth_manager: Arc<tokio::sync::Mutex<rmcp::transport::auth::AuthorizationManager>>,
     },
     /// In-process SDK MCP server reached over the ACP reverse channel
-    /// (`x.ai/mcp/sdk_call`). Rebuildable from its `server_id` + invoker, so handshake
+    /// (`axon/mcp/sdk_call`). Rebuildable from its `server_id` + invoker, so handshake
     /// failures restore like Http (unlike the consumed Stdio child).
     Acp {
         server_id: String,
@@ -2205,14 +2205,14 @@ enum PendingTransport {
 }
 
 /// A connected MCP service (rmcp's RunningService wrapped in Arc).
-/// Uses [`GrokClientHandler`] rather than rmcp's default `ClientInfo`
+/// Uses [`AxonClientHandler`] rather than rmcp's default `ClientInfo`
 /// handler: rmcp 2.1 parameterizes `RunningService` over the handler
 /// type, and `ClientInfo` is only a `ClientHandler` impl with no
 /// notification routing. The custom handler keeps the same protocol
 /// behavior (same `get_info`) while plumbing
 /// `tools/list_changed` / `resources/list_changed` notifications
 /// through to the session-actor dispatcher.
-pub type McpService = Arc<RunningService<RoleClient, GrokClientHandler>>;
+pub type McpService = Arc<RunningService<RoleClient, AxonClientHandler>>;
 
 /// MCP client connection state machine.
 ///
@@ -2285,13 +2285,13 @@ pub enum LivenessCheck {
 /// 1. [`crate::liveness::spawn_transport_liveness`] when an `is_healthy`
 ///    poll observes that the rmcp service loop has shut down its receiver
 ///    (`TransportClosed`).
-/// 2. [`GrokClientHandler`] when the server pushes a notification we
+/// 2. [`AxonClientHandler`] when the server pushes a notification we
 ///    care about — currently `notifications/tools/list_changed` and
 ///    `notifications/resources/list_changed`.
 /// 3. The session/managed-config layer when a server is added, removed,
 ///    or successfully (re-)initialized.
 ///
-/// Consumers fan these out to ACP `x.ai/mcp/server_status` after 50 ms
+/// Consumers fan these out to ACP `axon/mcp/server_status` after 50 ms
 /// of tumbling-window coalescing keyed by `(server, kind)`; see the
 /// session-actor `StatusDispatcher`.
 #[derive(Debug, Clone)]
@@ -2522,7 +2522,7 @@ pub struct McpClient {
     ///
     /// The slot is `Some` after [`Self::set_event_tx`] is called and
     /// `None` otherwise. The `Arc<Mutex<...>>` is **shared with
-    /// [`GrokClientHandler`]** constructed by
+    /// [`AxonClientHandler`]** constructed by
     /// [`Self::make_client_handler`]: the handler holds a clone of
     /// the same Arc and reads through it on every notification.
     /// Snapshotting the slot at handshake time instead would mean any
@@ -2564,7 +2564,7 @@ pub struct McpClient {
 }
 
 /// Shared sender slot type — the same Arc lives on the [`McpClient`]
-/// and the [`GrokClientHandler`] it constructs during
+/// and the [`AxonClientHandler`] it constructs during
 /// [`McpClient::try_handshake`]. Mutating the slot via
 /// [`McpClient::set_event_tx`] is observed by the live rmcp service
 /// loop on the next notification, so there's no "snapshot at
@@ -3021,7 +3021,7 @@ impl McpClient {
     }
 
     /// Build a client for an in-process SDK MCP server reached over the ACP reverse
-    /// channel. `server_id` is the id the agent echoes back in `x.ai/mcp/sdk_call`; the
+    /// channel. `server_id` is the id the agent echoes back in `axon/mcp/sdk_call`; the
     /// `invoker` performs the reverse request. Same downstream path as HTTP/stdio.
     pub fn new_acp(
         server_name: String,
@@ -3345,7 +3345,7 @@ impl McpClient {
     async fn try_handshake(
         &self,
         pending: PendingTransport,
-    ) -> Result<rmcp::service::RunningService<RoleClient, GrokClientHandler>, McpError> {
+    ) -> Result<rmcp::service::RunningService<RoleClient, AxonClientHandler>, McpError> {
         let timeout = std::time::Duration::from_secs(self.startup_timeout_sec);
         let name = &self.server_name;
 
@@ -3426,7 +3426,7 @@ impl McpClient {
                     })
             }
             PendingTransport::Acp { server_id, invoker } => {
-                // Per-reverse-call backstop on `x.ai/mcp/sdk_call`: the larger of the
+                // Per-reverse-call backstop on `axon/mcp/sdk_call`: the larger of the
                 // startup and tool timeouts, so it never undercuts the real outer bound
                 // (the handshake `initialize` is bounded by the serve `timeout` below;
                 // tool calls by `tool_timeout_for` in `try_call_tool`). The bridge
@@ -3463,7 +3463,7 @@ impl McpClient {
         ClientInfo::new(
             capabilities,
             Implementation::new(
-                format!("grok-shell-{server_name}"),
+                format!("axon-shell-{server_name}"),
                 axon_version::VERSION.to_string(),
             ),
         )
@@ -3473,14 +3473,14 @@ impl McpClient {
         .with_protocol_version(rmcp::model::ProtocolVersion::V_2025_06_18)
     }
 
-    /// Build the [`GrokClientHandler`] that drives `client.serve(...)`.
+    /// Build the [`AxonClientHandler`] that drives `client.serve(...)`.
     ///
     /// The handler holds a **clone of `Arc<Mutex<Option<Sender>>>`**,
     /// not a snapshot — so any subsequent call to
     /// [`Self::set_event_tx`] is observed by the live rmcp service
     /// loop on its next notification.
-    fn make_client_handler(&self) -> GrokClientHandler {
-        GrokClientHandler {
+    fn make_client_handler(&self) -> AxonClientHandler {
+        AxonClientHandler {
             info: Self::make_client_info(&self.server_name),
             server_name: self.server_name.clone(),
             notify_tx: Arc::clone(&self.notify_tx),
@@ -3490,7 +3490,7 @@ impl McpClient {
     /// Wire a sender for [`McpClientEvent`]s emitted by this client.
     ///
     /// Mutates the shared slot synchronously. All previously-cloned
-    /// references (the [`GrokClientHandler`] handed to
+    /// references (the [`AxonClientHandler`] handed to
     /// `client.serve`, the [`crate::liveness::spawn_transport_liveness`]
     /// task) read through the same Arc, so this is observed
     /// session-wide on the next event.
@@ -3921,7 +3921,7 @@ fn sanitize_mcp_log_filename(name: &str) -> String {
 /// Copy an MCP server's stderr to `~/.axon/logs/mcp/<server>.stderr.log`
 /// in a background task. Truncated per spawn.
 fn drain_mcp_stderr_to_log(server_name: &str, mut stderr: tokio::process::ChildStderr) {
-    let log_dir = axon_config::grok_home().join("logs").join("mcp");
+    let log_dir = axon_config::axon_home().join("logs").join("mcp");
     if let Err(e) = std::fs::create_dir_all(&log_dir) {
         tracing::warn!("MCP stderr drain: failed to create log dir: {e}");
         return;
@@ -4008,8 +4008,8 @@ fn is_figma_mcp(server_name: &str, url: &str) -> bool {
     if server_name.eq_ignore_ascii_case("figma") {
         return true;
     }
-    // Legacy direct managed name (`grok_com_figma`); newer clients use gateway tools (`managed_mcp_gateway_tools_enabled`).
-    const MANAGED_PREFIX: &str = "grok_com_";
+    // Legacy direct managed name (`axon_com_figma`); newer clients use gateway tools (`managed_mcp_gateway_tools_enabled`).
+    const MANAGED_PREFIX: &str = "axon_com_";
     if let (Some(prefix), Some(rest)) = (
         server_name.get(..MANAGED_PREFIX.len()),
         server_name.get(MANAGED_PREFIX.len()..),
@@ -4033,7 +4033,7 @@ fn ensure_figma_user_agent(headers: &mut reqwest::header::HeaderMap, server_name
     }
     headers.insert(
         reqwest::header::USER_AGENT,
-        reqwest::header::HeaderValue::from_static("grok-cli"),
+        reqwest::header::HeaderValue::from_static("axon-cli"),
     );
 }
 
@@ -4313,7 +4313,7 @@ impl McpClient {
 /// Plumbs server-pushed notifications through an
 /// [`tokio::sync::mpsc::UnboundedSender<McpClientEvent>`] so the
 /// session-actor dispatcher can fan them out as ACP
-/// `x.ai/mcp/server_status` events.
+/// `axon/mcp/server_status` events.
 ///
 /// ## RPIT, not `#[async_trait]`
 ///
@@ -4338,7 +4338,7 @@ impl McpClient {
 /// send fails silently; rmcp must not see an error from a
 /// notification handler or the service loop tears down.
 #[derive(Debug)]
-pub struct GrokClientHandler {
+pub struct AxonClientHandler {
     /// Static `ClientInfo` returned by [`Self::get_info`]; built once
     /// at handshake time and stored to avoid re-allocating per call.
     info: ClientInfo,
@@ -4353,7 +4353,7 @@ pub struct GrokClientHandler {
     notify_tx: SharedEventTx,
 }
 
-impl GrokClientHandler {
+impl AxonClientHandler {
     /// Best-effort event emit. Reads the shared `notify_tx` slot on
     /// every call (so the handler picks up any post-handshake wiring
     /// done by [`McpClient::set_event_tx`]). Drops the send error: if
@@ -4368,13 +4368,13 @@ impl GrokClientHandler {
     }
 }
 
-impl ClientHandler for GrokClientHandler {
+impl ClientHandler for AxonClientHandler {
     // NOTE: `async fn` here is sugar for the trait's
     // `-> impl Future<Output = ()> + Send + '_`. We INTENTIONALLY do
     // not use `#[async_trait]` — rmcp 2.1's `ClientHandler` declares
     // its notification methods as return-position `impl Future`, and
     // async_trait would produce a different (incompatible) signature.
-    // See the [`GrokClientHandler`] doc-comment for the full RPIT
+    // See the [`AxonClientHandler`] doc-comment for the full RPIT
     // contract.
     async fn on_tool_list_changed(&self, _context: NotificationContext<RoleClient>) {
         self.emit(McpClientEvent::ToolsChanged {
@@ -4516,33 +4516,33 @@ mod tests {
     fn is_figma_mcp_matches_name_and_host() {
         assert!(is_figma_mcp("figma", "https://example.com/mcp"));
         assert!(is_figma_mcp("Figma", "https://example.com/mcp"));
-        assert!(is_figma_mcp("grok_com_figma", "https://example.com/mcp"));
+        assert!(is_figma_mcp("axon_com_figma", "https://example.com/mcp"));
         assert!(is_figma_mcp("AXON_COM_FIGMA", "https://example.com/mcp"));
-        assert!(is_figma_mcp("grok_com_FIGMA", "https://example.com/mcp"));
+        assert!(is_figma_mcp("axon_com_FIGMA", "https://example.com/mcp"));
         assert!(is_figma_mcp("other", "https://mcp.figma.com/mcp"));
         assert!(is_figma_mcp("other", "https://figma.com/mcp"));
         assert!(!is_figma_mcp("linear", "https://mcp.linear.app/mcp"));
         assert!(!is_figma_mcp("figma_extra", "https://example.com/mcp"));
-        assert!(!is_figma_mcp("grok_com_linear", "https://example.com/mcp"));
+        assert!(!is_figma_mcp("axon_com_linear", "https://example.com/mcp"));
         assert!(!is_figma_mcp("linear", "not-a-url"));
         assert!(!is_figma_mcp("linear", "https://notfigma.com/mcp"));
         assert!(!is_figma_mcp("linear", "https://figma.com.evil/mcp"));
     }
 
     #[test]
-    fn ensure_figma_user_agent_sets_grok_cli_when_missing() {
+    fn ensure_figma_user_agent_sets_axon_cli_when_missing() {
         let mut headers = reqwest::header::HeaderMap::new();
         ensure_figma_user_agent(&mut headers, "figma", "https://mcp.figma.com/mcp");
         assert_eq!(
             headers.get(reqwest::header::USER_AGENT).unwrap(),
-            "grok-cli"
+            "axon-cli"
         );
 
         let mut host_only = reqwest::header::HeaderMap::new();
         ensure_figma_user_agent(&mut host_only, "other", "https://mcp.figma.com/mcp");
         assert_eq!(
             host_only.get(reqwest::header::USER_AGENT).unwrap(),
-            "grok-cli"
+            "axon-cli"
         );
     }
 
@@ -6746,7 +6746,7 @@ mod tests {
                     }
                 }
             });
-            let handler = GrokClientHandler {
+            let handler = AxonClientHandler {
                 info: McpClient::make_client_info("dead"),
                 server_name: "dead".to_string(),
                 notify_tx: Arc::new(parking_lot::Mutex::new(None)),
@@ -6823,7 +6823,7 @@ mod tests {
     fn is_auth_rejection_message_matches_auth_signals() {
         // The verbatim string captured in production for a managed handshake.
         assert!(is_auth_rejection_message(
-            "MCP server 'grok_com_notion' handshake failed: Auth required, when send initialize request"
+            "MCP server 'axon_com_notion' handshake failed: Auth required, when send initialize request"
         ));
         assert!(is_auth_rejection_message("401 Unauthorized"));
         assert!(is_auth_rejection_message("unauthorized"));
@@ -7470,7 +7470,7 @@ mod tests {
         );
     }
 
-    // -- GrokClientHandler --------------------------------------
+    // -- AxonClientHandler --------------------------------------
     //
     // The handler's notification routing is the only behavior worth
     // unit-testing here; `get_info` is a literal `info.clone()` and
@@ -7484,7 +7484,7 @@ mod tests {
     #[tokio::test]
     async fn client_handler_routes_tools_changed() {
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<McpClientEvent>();
-        let handler = GrokClientHandler {
+        let handler = AxonClientHandler {
             info: McpClient::make_client_info("test"),
             server_name: "test".to_string(),
             notify_tx: Arc::new(parking_lot::Mutex::new(Some(tx))),
@@ -7504,7 +7504,7 @@ mod tests {
     /// must not panic.
     #[tokio::test]
     async fn client_handler_no_dispatcher_is_silent() {
-        let handler = GrokClientHandler {
+        let handler = AxonClientHandler {
             info: McpClient::make_client_info("test"),
             server_name: "test".to_string(),
             notify_tx: Arc::new(parking_lot::Mutex::new(None)),
@@ -7519,7 +7519,7 @@ mod tests {
     #[tokio::test]
     async fn client_handler_get_info_round_trips() {
         let info = McpClient::make_client_info("test-srv");
-        let handler = GrokClientHandler {
+        let handler = AxonClientHandler {
             info: info.clone(),
             server_name: "test-srv".to_string(),
             notify_tx: Arc::new(parking_lot::Mutex::new(None)),

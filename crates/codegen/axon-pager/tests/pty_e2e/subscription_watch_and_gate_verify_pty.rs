@@ -9,10 +9,10 @@ use super::common::*;
 const GATE_MSG: &str = "ZZSUBGATEMSG";
 
 /// A tier in the shell's `QUALIFYING_TIERS` list.
-const PAID_TIER: &str = "SuperGrokPro";
+const PAID_TIER: &str = "SuperAxonPro";
 
 /// Display name delivered via `/settings` `subscription_tier_display`.
-const PAID_TIER_DISPLAY: &str = "SuperGrok Pro";
+const PAID_TIER_DISPLAY: &str = "SuperAxon Pro";
 
 /// Count of live subscription checks the client made against the mock
 /// (`GET /v1/user?include=subscription`). Plain `/v1/user` enrichment
@@ -51,8 +51,8 @@ const PAID_ONLY_MODEL: &str = "composer-paid-only";
 
 /// Minimal unsigned JWT with a `tier` claim matching [`PAID_TIER`].
 ///
-/// Proto `prod_auth.SubscriptionTier`: 5 = `supergrok_heavy` = live
-/// `/user` string `SuperGrokPro`. Must match
+/// Proto `prod_auth.SubscriptionTier`: 5 = `superaxon_heavy` = live
+/// `/user` string `SuperAxonPro`. Must match
 /// `jwt_claim_matches_user_subscription_tier` or post-unblock catalog
 /// refresh treats the claim as stale and never re-fetches `/v1/models`
 /// within the test timeout.
@@ -144,18 +144,18 @@ fn pump_until(
 }
 
 /// Like [`seed_fake_oauth`], but under the `AXON_LOCAL_AUTH` dev issuer
-/// (`http://localhost:22255`). Two reasons: `is_xai_oauth2_issuer()` accepts
+/// (`http://localhost:22255`). Two reasons: `is_axon_oauth2_issuer()` accepts
 /// the local issuer, so the subscription gate applies (an enterprise/unknown
 /// issuer bypasses it); and the qualifying-tier JWT refresh then hits
 /// `localhost:22255` — instant connection-refused instead of a real network
-/// call to auth.x.ai (hermetic, no CI-network flake). Pair with
+/// call to auth.blocked.invalid (hermetic, no CI-network flake). Pair with
 /// `AXON_LOCAL_AUTH=1` in the spawn env so the shell's scope-key lookup
 /// resolves this entry.
 fn seed_fake_oauth_local_issuer(content: &ContentController, user: &str) {
-    let grok_home = content.home().join(".axon");
-    std::fs::create_dir_all(&grok_home).expect("create temp .axon");
+    let axon_home = content.home().join(".axon");
+    std::fs::create_dir_all(&axon_home).expect("create temp .axon");
     std::fs::write(
-        grok_home.join("auth.json"),
+        axon_home.join("auth.json"),
         format!(
             r#"{{
   "http://localhost:22255::b1a00492-073a-47ea-816f-4c329264a828": {{
@@ -233,7 +233,7 @@ async fn subscription_watch_polls_free_tier_then_goes_dormant_after_upgrade() {
     // Start free-targeted (no paid-only model); swap after upgrade.
     // OIDC mock is started only after free-phase polling so early refresh
     // still connection-refuses (keeps the free watch path hermetic).
-    let content = ContentController::start_with_models(vec![MockModel::new("grok-3")])
+    let content = ContentController::start_with_models(vec![MockModel::new("axon-3")])
         .await
         .expect("start content");
     content.set_response(format!("{MOCK_RESPONSE_SENTINEL} watch cadence."));
@@ -266,7 +266,7 @@ async fn subscription_watch_polls_free_tier_then_goes_dormant_after_upgrade() {
         "subscription_tier_display": PAID_TIER_DISPLAY,
     }));
     content.server().set_models(vec![
-        MockModel::new("grok-3"),
+        MockModel::new("axon-3"),
         MockModel::new(PAID_ONLY_MODEL),
     ]);
     let models_before = models_count(&content);
@@ -331,7 +331,7 @@ async fn startup_gate_shows_paywall_for_free_user_after_live_check() {
     // Gated settings (no allow_access), free user (no subscriptionTier).
     content.server().set_settings(json!({
         "gate_message": GATE_MSG,
-        "gate_url": "https://grok.com/supergrok?referrer=grok-build",
+        "gate_url": "https://blocked.invalid/superaxon?referrer=axon-build",
         "gate_label": "Subscribe",
     }));
 

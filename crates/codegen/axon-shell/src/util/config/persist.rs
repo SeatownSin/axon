@@ -733,7 +733,7 @@ auto_dark_theme = "tokyonight"
 auto_light_theme = "axonday"
 
 [models]
-default = "grok-3"
+default = "axon-3"
 
 [cli]
 auto_update = true
@@ -742,7 +742,7 @@ auto_update = true
         let mut cfg = load_config_from_toml(&root);
 
         // User changes default model (unrelated to UI)
-        cfg.models.default = Some("grok-4".to_string());
+        cfg.models.default = Some("axon-4".to_string());
 
         // Simulate save_config
         let mut table = root.as_table().unwrap().clone();
@@ -770,7 +770,7 @@ auto_update = true
         let models = table.get("models").unwrap().as_table().unwrap();
         assert_eq!(
             models.get("default").and_then(|v| v.as_str()),
-            Some("grok-4")
+            Some("axon-4")
         );
     }
 
@@ -823,7 +823,7 @@ auto_update = true
     #[test]
     fn models_config_serializes_only_some_fields() {
         let m = crate::agent::config::ModelsConfig {
-            default: Some("grok-3".to_string()),
+            default: Some("axon-3".to_string()),
             ..Default::default()
         };
         let v = TomlValue::try_from(&m).expect("serialize ModelsConfig");
@@ -837,7 +837,7 @@ auto_update = true
             assert!(!t.contains_key("disabled_models"));
             assert!(!t.contains_key("allowed_models"));
             assert!(!t.contains_key("agent_type"));
-            assert_eq!(t.get("default").and_then(|x| x.as_str()), Some("grok-3"));
+            assert_eq!(t.get("default").and_then(|x| x.as_str()), Some("axon-3"));
         } else {
             panic!("expected table from serialization");
         }
@@ -939,12 +939,12 @@ auto_update = true
         models.insert("unmodeled_foo".into(), TomlValue::String("keep-me".into()));
         table.insert("models".into(), TomlValue::Table(models));
         let cfg = crate::agent::config::ModelsConfig {
-            default: Some("grok-new".to_string()),
+            default: Some("axon-new".to_string()),
             ..Default::default()
         };
         merge_section(&mut table, "models", &cfg);
         let m = table.get("models").unwrap().as_table().unwrap();
-        assert_eq!(m.get("default").and_then(|v| v.as_str()), Some("grok-new"));
+        assert_eq!(m.get("default").and_then(|v| v.as_str()), Some("axon-new"));
         assert_eq!(
             m.get("web_search").and_then(|v| v.as_str()),
             Some("old-search")
@@ -958,10 +958,10 @@ auto_update = true
 
     #[test]
     fn persist_preferred_model_flow_roundtrips_via_load_and_new_from_toml_cfg() {
-        let original = "[models]\ndefault = \"grok-old\"\nweb_search = \"some-search\"\n";
+        let original = "[models]\ndefault = \"axon-old\"\nweb_search = \"some-search\"\n";
         let root: TomlValue = toml::from_str(original).unwrap();
         let mut cfg = load_config_from_toml(&root);
-        cfg.models.default = Some("grok-persisted".to_string());
+        cfg.models.default = Some("axon-persisted".to_string());
         let mut table = if let TomlValue::Table(t) = root {
             t
         } else {
@@ -970,10 +970,10 @@ auto_update = true
         merge_section(&mut table, "models", &cfg.models);
         let reloaded_root = TomlValue::Table(table);
         let reloaded = load_config_from_toml(&reloaded_root);
-        assert_eq!(reloaded.models.default.as_deref(), Some("grok-persisted"));
+        assert_eq!(reloaded.models.default.as_deref(), Some("axon-persisted"));
         let cfg2 = crate::agent::config::Config::new_from_toml_cfg(&reloaded_root)
             .expect("new_from_toml_cfg");
-        assert_eq!(cfg2.models.default.as_deref(), Some("grok-persisted"));
+        assert_eq!(cfg2.models.default.as_deref(), Some("axon-persisted"));
     }
 
     // ── merge_section pin tests for CLI/session setters ──────────────────
@@ -1114,8 +1114,8 @@ auto_update = true
         use crate::agent::config::{Config, ConfigModelOverride, ModelInfo};
         use std::sync::Mutex;
 
-        const TEST_MODEL: &str = "grok-4.5";
-        const OTHER_MODEL: &str = "grok-4.3";
+        const TEST_MODEL: &str = "axon-4.5";
+        const OTHER_MODEL: &str = "axon-4.3";
 
         /// Serialize tests that mutate `AXON_AUTO_COMPACT_THRESHOLD_PERCENT`.
         static ENV_LOCK: Mutex<()> = Mutex::new(());

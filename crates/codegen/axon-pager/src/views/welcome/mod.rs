@@ -378,11 +378,11 @@ impl WelcomeLayout {
 
 /// Controls what the version badge renders.
 pub(super) enum VersionBadgeMode<'a> {
-    /// Full badge: team | tier | api_key | **Grok Build** VERSION+channel **Beta** (right-aligned).
+    /// Full badge: team | tier | api_key | **Axon Build** VERSION+channel **Beta** (right-aligned).
     Full { subscription_tier: Option<&'a str> },
-    /// Hero footer: team | api_key | Grok Build Beta [channel] (right-aligned, gray).
+    /// Hero footer: team | api_key | Axon Build Beta [channel] (right-aligned, gray).
     HeroFooter,
-    /// Hero inline: **Grok Build Beta**  VERSION (left-aligned).
+    /// Hero inline: **Axon Build Beta**  VERSION (left-aligned).
     HeroInline,
 }
 
@@ -922,7 +922,7 @@ fn render_welcome_blocked(
 
 /// Render the folder-trust question. Mirrors [`render_welcome_blocked`]'s
 /// stacked layout (logo + message + menu + version badge), but the message is a
-/// multi-line block showing the workspace path and the warning that Grok Build
+/// multi-line block showing the workspace path and the warning that Axon Build
 /// may run or modify contents in this directory (a security risk). The y/N
 /// answer is handled by the welcome input interceptor, so this only paints;
 /// `menu_rects` are returned for parity with the other welcome arms.
@@ -1986,7 +1986,7 @@ fn render_welcome_done(
             let gate_link = p
                 .gate
                 .and_then(|g| g.url.as_deref())
-                .unwrap_or("https://github.com/SeatownSin/grok-build-local");
+                .unwrap_or("https://github.com/SeatownSin/axon-build-local");
             let url = Line::from(Span::styled(
                 gate_link,
                 Style::default()
@@ -2923,8 +2923,8 @@ mod tests {
     #[test]
     fn grouped_entries_insert_headers() {
         let entries = vec![
-            make_entry("s1", "Fix auth", "xai"),
-            make_entry("s2", "Add streaming", "xai"),
+            make_entry("s1", "Fix auth", "axon"),
+            make_entry("s2", "Add streaming", "axon"),
             make_entry("s3", "Nuke tables", "fw-1"),
         ];
         let indices: Vec<usize> = (0..entries.len()).collect();
@@ -2938,8 +2938,8 @@ mod tests {
 
         // 2 headers + 3 rows = 5 entries
         assert_eq!(result.len(), 5);
-        // Groups are sorted alphabetically: fw-1 before xai.
-        // Header positions: 0 (fw-1), 2 (xai)
+        // Groups are sorted alphabetically: fw-1 before axon.
+        // Header positions: 0 (fw-1), 2 (axon)
         assert_eq!(non_sel.len(), 5);
         assert!(non_sel[0], "first entry should be header (non-selectable)");
         assert!(!non_sel[1], "second entry should be selectable row");
@@ -2952,7 +2952,7 @@ mod tests {
             matches!(&result[0], crate::views::picker::PickerEntry::Header { label } if label == &"fw-1")
         );
         assert!(
-            matches!(&result[2], crate::views::picker::PickerEntry::Header { label } if label == &"xai")
+            matches!(&result[2], crate::views::picker::PickerEntry::Header { label } if label == &"axon")
         );
     }
 
@@ -2993,8 +2993,8 @@ mod tests {
     #[test]
     fn grouped_entries_single_group_has_one_header() {
         let entries = vec![
-            make_entry("s1", "Fix auth", "xai"),
-            make_entry("s2", "Add streaming", "xai"),
+            make_entry("s1", "Fix auth", "axon"),
+            make_entry("s2", "Add streaming", "axon"),
         ];
         let indices: Vec<usize> = (0..entries.len()).collect();
         let state = PickerState::default();
@@ -3028,7 +3028,7 @@ mod tests {
 
     #[test]
     fn grouped_entries_rows_are_indented() {
-        let entries = vec![make_entry("s1", "Fix auth", "xai")];
+        let entries = vec![make_entry("s1", "Fix auth", "axon")];
         let indices: Vec<usize> = vec![0];
         let state = PickerState::default();
         let built = build_session_entry_data(&entries, &indices, &state, 80);
@@ -3573,23 +3573,23 @@ mod tests {
     #[test]
     fn extract_user_code_parses_verification_url() {
         assert_eq!(
-            extract_user_code("https://accounts.x.ai/oauth2/device?user_code=ABCD-EFGH"),
+            extract_user_code("https://accounts.blocked.invalid/oauth2/device?user_code=ABCD-EFGH"),
             Some("ABCD-EFGH"),
         );
         // Trailing params after the code are ignored.
         assert_eq!(
-            extract_user_code("https://x.ai/oauth2/device?user_code=WXYZ-1234&foo=bar"),
+            extract_user_code("https://blocked.invalid/oauth2/device?user_code=WXYZ-1234&foo=bar"),
             Some("WXYZ-1234"),
         );
         // A param whose name merely ends in `user_code` must not be matched.
         assert_eq!(
-            extract_user_code("https://x.ai/d?foo_user_code=BAD&user_code=GOOD"),
+            extract_user_code("https://blocked.invalid/d?foo_user_code=BAD&user_code=GOOD"),
             Some("GOOD"),
         );
         // No code param, empty code, and unexpected characters all yield None.
-        assert_eq!(extract_user_code("https://x.ai/oauth2/device"), None);
-        assert_eq!(extract_user_code("https://x.ai/d?user_code="), None);
-        assert_eq!(extract_user_code("https://x.ai/d?user_code=AB%20CD"), None);
+        assert_eq!(extract_user_code("https://blocked.invalid/oauth2/device"), None);
+        assert_eq!(extract_user_code("https://blocked.invalid/d?user_code="), None);
+        assert_eq!(extract_user_code("https://blocked.invalid/d?user_code=AB%20CD"), None);
     }
 
     #[test]
@@ -3597,7 +3597,7 @@ mod tests {
         let area = Rect::new(0, 0, 80, 40);
         let mut buf = Buffer::empty(area);
         let theme = Theme::current();
-        let url = "https://accounts.x.ai/oauth2/device?user_code=ABCD-EFGH";
+        let url = "https://accounts.blocked.invalid/oauth2/device?user_code=ABCD-EFGH";
 
         let (copy_rect, fallback_rect) = render_welcome_authenticating(
             area,
@@ -3652,7 +3652,7 @@ mod tests {
         let area = Rect::new(0, 0, 80, 40);
         let mut buf = Buffer::empty(area);
         let theme = Theme::current();
-        let url = "https://accounts.x.ai/oauth2/device?user_code=WXYZ-1234";
+        let url = "https://accounts.blocked.invalid/oauth2/device?user_code=WXYZ-1234";
 
         render_welcome_authenticating(
             area,
@@ -3679,7 +3679,7 @@ mod tests {
         let area = Rect::new(0, 0, 80, 40);
         let mut buf = Buffer::empty(area);
         let theme = Theme::current();
-        let url = "https://accounts.x.ai/oauth2/device?user_code=WXYZ-1234";
+        let url = "https://accounts.blocked.invalid/oauth2/device?user_code=WXYZ-1234";
 
         render_welcome_authenticating(
             area,
@@ -3717,7 +3717,7 @@ mod tests {
         let theme = Theme::current();
         // 40-col terminal; URL longer than one row must wrap at the exact
         // screen edge with no leading spaces so copy-paste stays intact.
-        let url = "https://accounts.x.ai/oauth2/device?user_code=WXYZ-1234&extra=0123456789";
+        let url = "https://accounts.blocked.invalid/oauth2/device?user_code=WXYZ-1234&extra=0123456789";
 
         render_welcome_authenticating(
             area,
@@ -3757,7 +3757,7 @@ mod tests {
         let area = Rect::new(0, 0, 80, 40);
         let mut buf = Buffer::empty(area);
         let theme = Theme::current();
-        let url = "https://accounts.x.ai/oauth2/authorize?client_id=grok";
+        let url = "https://accounts.blocked.invalid/oauth2/authorize?client_id=axon";
 
         let (copy_rect, fallback_rect) = render_welcome_authenticating(
             area,

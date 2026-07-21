@@ -214,11 +214,11 @@ pub fn default_howto_entries() -> Vec<DocEntry> {
         .collect()
 }
 
-/// Extract user-guide docs to `<grok_home>/docs/user-guide/`.
+/// Extract user-guide docs to `<axon_home>/docs/user-guide/`.
 ///
 /// Called from the pager binary startup so the model can read them from disk.
-pub fn extract_user_guide_docs(grok_home: &std::path::Path) {
-    let docs_dir = grok_home.join("docs").join("user-guide");
+pub fn extract_user_guide_docs(axon_home: &std::path::Path) {
+    let docs_dir = axon_home.join("docs").join("user-guide");
     if let Err(e) = std::fs::create_dir_all(&docs_dir) {
         tracing::warn!(error = %e, "Failed to create user-guide docs directory");
         return;

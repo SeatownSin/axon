@@ -1,4 +1,4 @@
-//! HTTP client for the xAI sampling APIs.
+//! HTTP client for the Axon sampling APIs.
 //!
 //! Owns the `reqwest::Client`, default request headers, and per-method
 //! defaults. Talks to three backend shapes:
@@ -33,15 +33,15 @@ use crate::config::{AuthScheme, OriginClientInfo, SamplerConfig};
 // Re-export ApiBackend from the shared types crate for downstream callers.
 pub use axon_sampling_types::ApiBackend;
 
-/// Process-level fallback for the `x-grok-client-identifier` header.
-const DEFAULT_CLIENT_IDENTIFIER: &str = "grok-shell";
+/// Process-level fallback for the `x-axon-client-identifier` header.
+const DEFAULT_CLIENT_IDENTIFIER: &str = "axon-shell";
 
 /// Product identifier baked into User-Agent strings.
-const AGENT_PRODUCT: &str = "grok-shell";
+const AGENT_PRODUCT: &str = "axon-shell";
 const ANTHROPIC_DEFAULT_MAX_TOKENS: u32 = 128_000;
 
-/// Per-request `x-grok-*` headers. Optional fields are skipped when empty/`None`.
-struct GrokRequestHeaders<'a> {
+/// Per-request `x-axon-*` headers. Optional fields are skipped when empty/`None`.
+struct AxonRequestHeaders<'a> {
     conv_id: &'a str,
     req_id: &'a str,
     model_id: &'a str,
@@ -52,22 +52,22 @@ struct GrokRequestHeaders<'a> {
     user_id: Option<&'a str>,
 }
 
-impl GrokRequestHeaders<'_> {
+impl AxonRequestHeaders<'_> {
     fn apply(&self, builder: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
         let mut b = builder
-            .header("x-grok-conv-id", self.conv_id)
-            .header("x-grok-req-id", self.req_id)
-            .header("x-grok-model-override", self.model_id)
-            .header("x-grok-session-id", self.session_id)
-            .header("x-grok-agent-id", self.agent_id);
+            .header("x-axon-conv-id", self.conv_id)
+            .header("x-axon-req-id", self.req_id)
+            .header("x-axon-model-override", self.model_id)
+            .header("x-axon-session-id", self.session_id)
+            .header("x-axon-agent-id", self.agent_id);
         if let Some(idx) = self.turn_idx {
-            b = b.header("x-grok-turn-idx", idx);
+            b = b.header("x-axon-turn-idx", idx);
         }
         if let Some(id) = self.deployment_id.filter(|s| !s.is_empty()) {
-            b = b.header("x-grok-deployment-id", id);
+            b = b.header("x-axon-deployment-id", id);
         }
         if let Some(id) = self.user_id.filter(|s| !s.is_empty()) {
-            b = b.header("x-grok-user-id", id);
+            b = b.header("x-axon-user-id", id);
         }
         b
     }
@@ -78,7 +78,7 @@ impl GrokRequestHeaders<'_> {
 /// so we only handle that form. HTTP-dates silently return `None` and
 /// the caller falls back to exponential backoff.
 /// Capped at 120s to prevent absurdly long sleeps from a misbehaving upstream.
-/// Deserialize a Responses API SSE event, with a fallback for xAI-specific
+/// Deserialize a Responses API SSE event, with a fallback for Axon-specific
 /// tool types (e.g., `x_search`) that `async_openai` can't parse.
 ///
 /// The API echoes the request's `tools` array in `ResponseCompleted` and
@@ -89,7 +89,7 @@ impl GrokRequestHeaders<'_> {
 /// On `response.completed` / `response.incomplete`, this also rewrites
 /// `response.usage.total_tokens` in place to the live context length
 /// (`context_details.input_tokens + context_details.output_tokens`)
-/// when the API emits the xAI-specific `context_details` field.
+/// when the API emits the Axon-specific `context_details` field.
 /// Async-openai's typed `ResponseUsage` doesn't model `context_details`,
 /// so we peek the raw JSON for it. The cumulative `input_tokens` /
 /// `output_tokens` / `cached_tokens` continue to flow from the typed
@@ -103,7 +103,7 @@ fn deserialize_response_event(data: &str) -> Result<rs::ResponseStreamEvent> {
             // Try sanitizing: parse as Value, strip unknown tools, retry.
             if let Ok(mut value) = serde_json::from_str::<serde_json::Value>(data) {
                 // Strip tools that async_openai's rs::Tool can't deserialize
-                // (e.g., xAI-specific "x_search"). Instead of maintaining a
+                // (e.g., Axon-specific "x_search"). Instead of maintaining a
                 // hardcoded allowlist, try deserializing each tool entry —
                 // if it fails, drop it.
                 if let Some(tools) = value
@@ -181,7 +181,7 @@ fn apply_terminal_event_overrides(event: &mut rs::ResponseStreamEvent, data: &st
 }
 
 /// Metadata key for cost ticks past typed Response events.
-pub(crate) const COST_USD_TICKS_METADATA_KEY: &str = "xai.cost_usd_ticks";
+pub(crate) const COST_USD_TICKS_METADATA_KEY: &str = "axon.cost_usd_ticks";
 
 /// Read `response.usage.context_details.{input_tokens, output_tokens}`
 /// from the parsed terminal-event JSON and return their sum. Returns `None`
@@ -228,12 +228,12 @@ fn extract_should_retry(headers: &reqwest::header::HeaderMap) -> Option<bool> {
 
 fn extract_model_metadata(headers: &reqwest::header::HeaderMap) -> Option<ResponseModelMetadata> {
     let context_window = headers
-        .get("x-grok-context-window")
+        .get("x-axon-context-window")
         .and_then(|v| v.to_str().ok())
         .and_then(|s| s.parse::<u64>().ok());
 
     let max_completion_tokens = headers
-        .get("x-grok-max-completion-tokens")
+        .get("x-axon-max-completion-tokens")
         .and_then(|v| v.to_str().ok())
         .and_then(|s| s.parse::<u32>().ok());
 
@@ -391,20 +391,20 @@ pub fn user_agent_string_for(origin: &OriginClientInfo) -> String {
 // SamplingClient
 // =============================================================================
 
-/// `true` when the URL targets xAI-operated infrastructure (`x.ai`,
-/// `grok.com`, or any subdomain). This build never sends bytes to xAI:
+/// `true` when the URL targets Axon-operated infrastructure (`blocked.invalid`,
+/// `blocked.invalid`, or any subdomain). This build never sends bytes to Axon:
 /// [`SamplingClient::new`] refuses such endpoints outright, so neither
 /// defaults nor user configuration can route inference there. Kept local
 /// to this crate (mirrored in `axon-shell-base::util`) so the sampler
 /// stays dependency-free.
-pub(crate) fn is_xai_infrastructure_url(url: &str) -> bool {
+pub(crate) fn is_axon_infrastructure_url(url: &str) -> bool {
     let Ok(parsed) = reqwest::Url::parse(url) else {
         return false;
     };
     match parsed.host_str() {
         Some(host) => {
             let host = host.to_ascii_lowercase();
-            for blocked in ["x.ai", "grok.com"] {
+            for blocked in ["blocked.invalid", "blocked.invalid"] {
                 if host == blocked || host.ends_with(&format!(".{blocked}")) {
                     return true;
                 }
@@ -423,12 +423,12 @@ impl SamplingClient {
     /// pre-computes the default request headers. This does not perform
     /// any network I/O.
     ///
-    /// Fails for xAI-operated endpoints: this build is local/BYOK-only
-    /// and never contacts xAI infrastructure.
+    /// Fails for Axon-operated endpoints: this build is local/BYOK-only
+    /// and never contacts Axon infrastructure.
     pub fn new(config: SamplerConfig) -> Result<Self> {
-        if is_xai_infrastructure_url(&config.base_url) {
+        if is_axon_infrastructure_url(&config.base_url) {
             return Err(SamplingError::Auth(format!(
-                "endpoint '{}' targets xAI infrastructure, which this build never \
+                "endpoint '{}' targets Axon infrastructure, which this build never \
                  contacts. Configure a local or third-party model (see the \
                  custom-models guide).",
                 config.base_url
@@ -479,12 +479,12 @@ impl SamplingClient {
             headers.insert(header_name, header_value);
         }
 
-        // Add x-grok-client-version header for version gating at the proxy.
+        // Add x-axon-client-version header for version gating at the proxy.
         if let Some(client_version) = config.client_version.as_ref()
             && let Ok(header_value) = HeaderValue::from_str(client_version)
         {
             headers.insert(
-                HeaderName::from_static("x-grok-client-version"),
+                HeaderName::from_static("x-axon-client-version"),
                 header_value,
             );
         }
@@ -493,7 +493,7 @@ impl SamplingClient {
             && let Ok(header_value) = HeaderValue::from_str(deployment_id)
         {
             headers.insert(
-                HeaderName::from_static("x-grok-deployment-id"),
+                HeaderName::from_static("x-axon-deployment-id"),
                 header_value,
             );
         }
@@ -501,7 +501,7 @@ impl SamplingClient {
         if let Some(user_id) = config.user_id.as_ref()
             && let Ok(header_value) = HeaderValue::from_str(user_id)
         {
-            headers.insert(HeaderName::from_static("x-grok-user-id"), header_value);
+            headers.insert(HeaderName::from_static("x-axon-user-id"), header_value);
         }
 
         {
@@ -511,7 +511,7 @@ impl SamplingClient {
                 .unwrap_or_else(|| DEFAULT_CLIENT_IDENTIFIER.to_string());
             if let Ok(header_value) = HeaderValue::from_str(&client_id) {
                 headers.insert(
-                    HeaderName::from_static("x-grok-client-identifier"),
+                    HeaderName::from_static("x-axon-client-identifier"),
                     header_value,
                 );
             }
@@ -807,8 +807,8 @@ impl SamplingClient {
         request: ChatCompletionRequest,
     ) -> Result<ChatCompletionResponse> {
         let payload = self.apply_defaults(request)?;
-        let x_grok_conv_id = &payload.x_grok_conv_id.clone().unwrap_or_default();
-        let x_grok_req_id = &payload.x_grok_req_id.clone().unwrap_or_default();
+        let x_axon_conv_id = &payload.x_axon_conv_id.clone().unwrap_or_default();
+        let x_axon_req_id = &payload.x_axon_req_id.clone().unwrap_or_default();
         let model_id = payload.model.clone().unwrap_or_default();
 
         tracing::debug!(
@@ -817,17 +817,17 @@ impl SamplingClient {
             "Sending chat completion request"
         );
 
-        let grok_headers = GrokRequestHeaders {
-            conv_id: x_grok_conv_id,
-            req_id: x_grok_req_id,
+        let axon_headers = AxonRequestHeaders {
+            conv_id: x_axon_conv_id,
+            req_id: x_axon_req_id,
             model_id: &model_id,
-            session_id: payload.x_grok_session_id.as_deref().unwrap_or_default(),
-            turn_idx: payload.x_grok_turn_idx.as_deref(),
-            agent_id: payload.x_grok_agent_id.as_deref().unwrap_or_default(),
-            deployment_id: payload.x_grok_deployment_id.as_deref(),
-            user_id: payload.x_grok_user_id.as_deref(),
+            session_id: payload.x_axon_session_id.as_deref().unwrap_or_default(),
+            turn_idx: payload.x_axon_turn_idx.as_deref(),
+            agent_id: payload.x_axon_agent_id.as_deref().unwrap_or_default(),
+            deployment_id: payload.x_axon_deployment_id.as_deref(),
+            user_id: payload.x_axon_user_id.as_deref(),
         };
-        let http_request = grok_headers
+        let http_request = axon_headers
             .apply(self.post(self.endpoint("chat/completions")))
             .json(&payload);
 
@@ -860,8 +860,8 @@ impl SamplingClient {
         Option<ResponseModelMetadata>,
     )> {
         let payload = self.apply_defaults(request)?;
-        let x_grok_conv_id = &payload.x_grok_conv_id.clone().unwrap_or_default();
-        let x_grok_req_id = &payload.x_grok_req_id.clone().unwrap_or_default();
+        let x_axon_conv_id = &payload.x_axon_conv_id.clone().unwrap_or_default();
+        let x_axon_req_id = &payload.x_axon_req_id.clone().unwrap_or_default();
         let model_id = payload.model.clone().unwrap_or_default();
 
         // Wrap the request with streaming fields and serialize once.
@@ -875,17 +875,17 @@ impl SamplingClient {
             },
         };
 
-        let grok_headers = GrokRequestHeaders {
-            conv_id: x_grok_conv_id,
-            req_id: x_grok_req_id,
+        let axon_headers = AxonRequestHeaders {
+            conv_id: x_axon_conv_id,
+            req_id: x_axon_req_id,
             model_id: &model_id,
-            session_id: payload.x_grok_session_id.as_deref().unwrap_or_default(),
-            turn_idx: payload.x_grok_turn_idx.as_deref(),
-            agent_id: payload.x_grok_agent_id.as_deref().unwrap_or_default(),
-            deployment_id: payload.x_grok_deployment_id.as_deref(),
-            user_id: payload.x_grok_user_id.as_deref(),
+            session_id: payload.x_axon_session_id.as_deref().unwrap_or_default(),
+            turn_idx: payload.x_axon_turn_idx.as_deref(),
+            agent_id: payload.x_axon_agent_id.as_deref().unwrap_or_default(),
+            deployment_id: payload.x_axon_deployment_id.as_deref(),
+            user_id: payload.x_axon_user_id.as_deref(),
         };
-        let http_request = grok_headers
+        let http_request = axon_headers
             .apply(self.post(self.endpoint("chat/completions")))
             .header(ACCEPT, HeaderValue::from_static("text/event-stream"))
             .json(&streaming_request);
@@ -1067,8 +1067,8 @@ impl SamplingClient {
     ) -> Result<rs::Response> {
         self.apply_response_defaults(&mut request)?;
 
-        let x_grok_conv_id = request.x_grok_conv_id.as_deref().unwrap_or_default();
-        let x_grok_req_id = request.x_grok_req_id.as_deref().unwrap_or_default();
+        let x_axon_conv_id = request.x_axon_conv_id.as_deref().unwrap_or_default();
+        let x_axon_req_id = request.x_axon_req_id.as_deref().unwrap_or_default();
         let model_id = request.inner.model.clone().unwrap_or_default();
 
         // The trace field is process-local: it is consumed by upstream
@@ -1079,15 +1079,15 @@ impl SamplingClient {
         tracing::debug!("create_response: {:?}", &request);
         tracing::debug!("endpoint: {:?}", self.endpoint("responses"));
 
-        let grok_headers = GrokRequestHeaders {
-            conv_id: x_grok_conv_id,
-            req_id: x_grok_req_id,
+        let axon_headers = AxonRequestHeaders {
+            conv_id: x_axon_conv_id,
+            req_id: x_axon_req_id,
             model_id: &model_id,
-            session_id: request.x_grok_session_id.as_deref().unwrap_or_default(),
-            turn_idx: request.x_grok_turn_idx.as_deref(),
-            agent_id: request.x_grok_agent_id.as_deref().unwrap_or_default(),
-            deployment_id: request.x_grok_deployment_id.as_deref(),
-            user_id: request.x_grok_user_id.as_deref(),
+            session_id: request.x_axon_session_id.as_deref().unwrap_or_default(),
+            turn_idx: request.x_axon_turn_idx.as_deref(),
+            agent_id: request.x_axon_agent_id.as_deref().unwrap_or_default(),
+            deployment_id: request.x_axon_deployment_id.as_deref(),
+            user_id: request.x_axon_user_id.as_deref(),
         };
         let mut request_body = serde_json::to_value(&request.inner).map_err(|e| {
             tracing::error!("Failed to serialize responses request: {}", e);
@@ -1098,7 +1098,7 @@ impl SamplingClient {
         // it in post-serialize. This is the last surviving piece of the
         // old raw_output machinery.
         axon_sampling_types::patch_reasoning_text_types(&mut request_body);
-        let http_request = grok_headers
+        let http_request = axon_headers
             .apply(self.post(self.endpoint("responses")))
             .json(&request_body);
 
@@ -1162,7 +1162,7 @@ impl SamplingClient {
     ///
     /// The third tuple element is a per-request doom-loop signal collector,
     /// `Some` only when `SamplerConfig::doom_loop_recovery` is set — the same
-    /// gate that adds the opt-in `x-grok-doom-loop-check` request header, so
+    /// gate that adds the opt-in `x-axon-doom-loop-check` request header, so
     /// header and parse protection cannot drift apart. It is filled by the
     /// SSE decoder as the server reports triggers and is meant to be handed
     /// to `stream_responses` so the signals land on the final
@@ -1192,8 +1192,8 @@ impl SamplingClient {
         // Enable streaming
         request.inner.stream = Some(true);
 
-        let x_grok_conv_id = request.x_grok_conv_id.as_deref().unwrap_or_default();
-        let x_grok_req_id = request.x_grok_req_id.as_deref().unwrap_or_default();
+        let x_axon_conv_id = request.x_axon_conv_id.as_deref().unwrap_or_default();
+        let x_axon_req_id = request.x_axon_req_id.as_deref().unwrap_or_default();
         let model_id = request.inner.model.clone().unwrap_or_default();
 
         // Drop process-local trace data (see note in `create_response`).
@@ -1205,26 +1205,26 @@ impl SamplingClient {
             "Sending responses API stream request"
         );
 
-        let grok_headers = GrokRequestHeaders {
-            conv_id: x_grok_conv_id,
-            req_id: x_grok_req_id,
+        let axon_headers = AxonRequestHeaders {
+            conv_id: x_axon_conv_id,
+            req_id: x_axon_req_id,
             model_id: &model_id,
-            session_id: request.x_grok_session_id.as_deref().unwrap_or_default(),
-            turn_idx: request.x_grok_turn_idx.as_deref(),
-            agent_id: request.x_grok_agent_id.as_deref().unwrap_or_default(),
-            deployment_id: request.x_grok_deployment_id.as_deref(),
-            user_id: request.x_grok_user_id.as_deref(),
+            session_id: request.x_axon_session_id.as_deref().unwrap_or_default(),
+            turn_idx: request.x_axon_turn_idx.as_deref(),
+            agent_id: request.x_axon_agent_id.as_deref().unwrap_or_default(),
+            deployment_id: request.x_axon_deployment_id.as_deref(),
+            user_id: request.x_axon_user_id.as_deref(),
         };
         let extra_raw_tools = std::mem::take(&mut request.extra_raw_tools);
         let mut request_body = serde_json::to_value(&request.inner).map_err(|e| {
             tracing::error!("Failed to serialize responses request: {}", e);
             SamplingError::Serialization(e)
         })?;
-        // Inject xAI-specific fields not in async-openai's CreateResponse type.
+        // Inject Axon-specific fields not in async-openai's CreateResponse type.
         if self.defaults.stream_tool_calls {
             request_body["stream_tool_calls"] = serde_json::json!(true);
         }
-        // Inject xAI-specific tools (e.g., x_search) that can't be expressed
+        // Inject Axon-specific tools (e.g., x_search) that can't be expressed
         // via async_openai's rs::Tool enum.
         if !extra_raw_tools.is_empty() {
             if let Some(tools) = request_body.get_mut("tools").and_then(|v| v.as_array_mut()) {
@@ -1240,7 +1240,7 @@ impl SamplingClient {
             .defaults
             .doom_loop_recovery
             .map(crate::doom_loop::DoomLoopSignalCollector::new);
-        let mut http_request = grok_headers
+        let mut http_request = axon_headers
             .apply(self.post(self.endpoint("responses")))
             .header(ACCEPT, HeaderValue::from_static("text/event-stream"));
         if doom_loop.is_some() {
@@ -1417,8 +1417,8 @@ impl SamplingClient {
     ) -> Result<messages::MessagesResponse> {
         self.apply_message_defaults(&mut request)?;
 
-        let x_grok_conv_id = request.x_grok_conv_id.as_deref().unwrap_or_default();
-        let x_grok_req_id = request.x_grok_req_id.as_deref().unwrap_or_default();
+        let x_axon_conv_id = request.x_axon_conv_id.as_deref().unwrap_or_default();
+        let x_axon_req_id = request.x_axon_req_id.as_deref().unwrap_or_default();
         let model_id = request.inner.model.clone();
 
         // Drop process-local trace data.
@@ -1427,17 +1427,17 @@ impl SamplingClient {
         tracing::debug!("create_message: {:?}", &request.inner);
         tracing::debug!("endpoint: {:?}", self.endpoint("messages"));
 
-        let grok_headers = GrokRequestHeaders {
-            conv_id: x_grok_conv_id,
-            req_id: x_grok_req_id,
+        let axon_headers = AxonRequestHeaders {
+            conv_id: x_axon_conv_id,
+            req_id: x_axon_req_id,
             model_id: &model_id,
-            session_id: request.x_grok_session_id.as_deref().unwrap_or_default(),
-            turn_idx: request.x_grok_turn_idx.as_deref(),
-            agent_id: request.x_grok_agent_id.as_deref().unwrap_or_default(),
-            deployment_id: request.x_grok_deployment_id.as_deref(),
-            user_id: request.x_grok_user_id.as_deref(),
+            session_id: request.x_axon_session_id.as_deref().unwrap_or_default(),
+            turn_idx: request.x_axon_turn_idx.as_deref(),
+            agent_id: request.x_axon_agent_id.as_deref().unwrap_or_default(),
+            deployment_id: request.x_axon_deployment_id.as_deref(),
+            user_id: request.x_axon_user_id.as_deref(),
         };
-        let http_request = grok_headers
+        let http_request = axon_headers
             .apply(self.post(self.endpoint("messages")))
             .json(&request.inner);
 
@@ -1521,8 +1521,8 @@ impl SamplingClient {
         // Enable streaming
         request.inner.stream = Some(true);
 
-        let x_grok_conv_id = request.x_grok_conv_id.as_deref().unwrap_or_default();
-        let x_grok_req_id = request.x_grok_req_id.as_deref().unwrap_or_default();
+        let x_axon_conv_id = request.x_axon_conv_id.as_deref().unwrap_or_default();
+        let x_axon_req_id = request.x_axon_req_id.as_deref().unwrap_or_default();
         let model_id = request.inner.model.clone();
 
         // Drop process-local trace data.
@@ -1534,17 +1534,17 @@ impl SamplingClient {
             "Sending Messages API stream request"
         );
 
-        let grok_headers = GrokRequestHeaders {
-            conv_id: x_grok_conv_id,
-            req_id: x_grok_req_id,
+        let axon_headers = AxonRequestHeaders {
+            conv_id: x_axon_conv_id,
+            req_id: x_axon_req_id,
             model_id: &model_id,
-            session_id: request.x_grok_session_id.as_deref().unwrap_or_default(),
-            turn_idx: request.x_grok_turn_idx.as_deref(),
-            agent_id: request.x_grok_agent_id.as_deref().unwrap_or_default(),
-            deployment_id: request.x_grok_deployment_id.as_deref(),
-            user_id: request.x_grok_user_id.as_deref(),
+            session_id: request.x_axon_session_id.as_deref().unwrap_or_default(),
+            turn_idx: request.x_axon_turn_idx.as_deref(),
+            agent_id: request.x_axon_agent_id.as_deref().unwrap_or_default(),
+            deployment_id: request.x_axon_deployment_id.as_deref(),
+            user_id: request.x_axon_user_id.as_deref(),
         };
-        let http_request = grok_headers
+        let http_request = axon_headers
             .apply(self.post(self.endpoint("messages")))
             .header(ACCEPT, HeaderValue::from_static("text/event-stream"))
             .json(&request.inner);
@@ -1758,24 +1758,24 @@ impl SamplingClient {
         self.apply_conversation_defaults(&mut request)?;
 
         let trace = request.trace.take();
-        let x_grok_conv_id = request.x_grok_conv_id.clone();
-        let x_grok_req_id = request.x_grok_req_id.clone();
-        let x_grok_session_id = request.x_grok_session_id.clone();
-        let x_grok_turn_idx = request.x_grok_turn_idx.clone();
-        let x_grok_agent_id = request.x_grok_agent_id.clone();
+        let x_axon_conv_id = request.x_axon_conv_id.clone();
+        let x_axon_req_id = request.x_axon_req_id.clone();
+        let x_axon_session_id = request.x_axon_session_id.clone();
+        let x_axon_turn_idx = request.x_axon_turn_idx.clone();
+        let x_axon_agent_id = request.x_axon_agent_id.clone();
 
-        // Collect xAI-specific tools that can't be expressed via rs::Tool
+        // Collect Axon-specific tools that can't be expressed via rs::Tool
         // (e.g., x_search). These are injected as raw JSON after serialization.
         let extra_tools = axon_sampling_types::extra_raw_tools(&request.hosted_tools);
 
         let responses_request: rs::CreateResponse = (&request).into();
 
         let mut wrapper = CreateResponseWrapper::new(responses_request);
-        wrapper.x_grok_conv_id = x_grok_conv_id;
-        wrapper.x_grok_req_id = x_grok_req_id;
-        wrapper.x_grok_session_id = x_grok_session_id;
-        wrapper.x_grok_turn_idx = x_grok_turn_idx;
-        wrapper.x_grok_agent_id = x_grok_agent_id;
+        wrapper.x_axon_conv_id = x_axon_conv_id;
+        wrapper.x_axon_req_id = x_axon_req_id;
+        wrapper.x_axon_session_id = x_axon_session_id;
+        wrapper.x_axon_turn_idx = x_axon_turn_idx;
+        wrapper.x_axon_agent_id = x_axon_agent_id;
         wrapper.extra_raw_tools = extra_tools;
 
         if let Some(trace) = trace {
@@ -1795,20 +1795,20 @@ impl SamplingClient {
         self.apply_conversation_defaults(&mut request)?;
 
         let trace = request.trace.take();
-        let x_grok_conv_id = request.x_grok_conv_id.clone();
-        let x_grok_req_id = request.x_grok_req_id.clone();
-        let x_grok_session_id = request.x_grok_session_id.clone();
-        let x_grok_turn_idx = request.x_grok_turn_idx.clone();
-        let x_grok_agent_id = request.x_grok_agent_id.clone();
+        let x_axon_conv_id = request.x_axon_conv_id.clone();
+        let x_axon_req_id = request.x_axon_req_id.clone();
+        let x_axon_session_id = request.x_axon_session_id.clone();
+        let x_axon_turn_idx = request.x_axon_turn_idx.clone();
+        let x_axon_agent_id = request.x_axon_agent_id.clone();
 
         let responses_request: rs::CreateResponse = (&request).into();
 
         let mut wrapper = CreateResponseWrapper::new(responses_request);
-        wrapper.x_grok_conv_id = x_grok_conv_id;
-        wrapper.x_grok_req_id = x_grok_req_id;
-        wrapper.x_grok_session_id = x_grok_session_id;
-        wrapper.x_grok_turn_idx = x_grok_turn_idx;
-        wrapper.x_grok_agent_id = x_grok_agent_id;
+        wrapper.x_axon_conv_id = x_axon_conv_id;
+        wrapper.x_axon_req_id = x_axon_req_id;
+        wrapper.x_axon_session_id = x_axon_session_id;
+        wrapper.x_axon_turn_idx = x_axon_turn_idx;
+        wrapper.x_axon_agent_id = x_axon_agent_id;
 
         if let Some(trace) = trace {
             wrapper.trace = Some(trace);
@@ -1830,20 +1830,20 @@ impl SamplingClient {
         self.apply_conversation_defaults(&mut request)?;
 
         let trace = request.trace.take();
-        let x_grok_conv_id = request.x_grok_conv_id.clone();
-        let x_grok_req_id = request.x_grok_req_id.clone();
-        let x_grok_session_id = request.x_grok_session_id.clone();
-        let x_grok_turn_idx = request.x_grok_turn_idx.clone();
-        let x_grok_agent_id = request.x_grok_agent_id.clone();
+        let x_axon_conv_id = request.x_axon_conv_id.clone();
+        let x_axon_req_id = request.x_axon_req_id.clone();
+        let x_axon_session_id = request.x_axon_session_id.clone();
+        let x_axon_turn_idx = request.x_axon_turn_idx.clone();
+        let x_axon_agent_id = request.x_axon_agent_id.clone();
 
         let messages_request = build_messages_request(&request);
 
         let mut wrapper = MessagesRequestWrapper::new(messages_request);
-        wrapper.x_grok_conv_id = x_grok_conv_id;
-        wrapper.x_grok_req_id = x_grok_req_id;
-        wrapper.x_grok_session_id = x_grok_session_id;
-        wrapper.x_grok_turn_idx = x_grok_turn_idx;
-        wrapper.x_grok_agent_id = x_grok_agent_id;
+        wrapper.x_axon_conv_id = x_axon_conv_id;
+        wrapper.x_axon_req_id = x_axon_req_id;
+        wrapper.x_axon_session_id = x_axon_session_id;
+        wrapper.x_axon_turn_idx = x_axon_turn_idx;
+        wrapper.x_axon_agent_id = x_axon_agent_id;
 
         if let Some(trace) = trace {
             wrapper.trace = Some(trace);
@@ -1862,20 +1862,20 @@ impl SamplingClient {
         self.apply_conversation_defaults(&mut request)?;
 
         let trace = request.trace.take();
-        let x_grok_conv_id = request.x_grok_conv_id.clone();
-        let x_grok_req_id = request.x_grok_req_id.clone();
-        let x_grok_session_id = request.x_grok_session_id.clone();
-        let x_grok_turn_idx = request.x_grok_turn_idx.clone();
-        let x_grok_agent_id = request.x_grok_agent_id.clone();
+        let x_axon_conv_id = request.x_axon_conv_id.clone();
+        let x_axon_req_id = request.x_axon_req_id.clone();
+        let x_axon_session_id = request.x_axon_session_id.clone();
+        let x_axon_turn_idx = request.x_axon_turn_idx.clone();
+        let x_axon_agent_id = request.x_axon_agent_id.clone();
 
         let messages_request = build_messages_request(&request);
 
         let mut wrapper = MessagesRequestWrapper::new(messages_request);
-        wrapper.x_grok_conv_id = x_grok_conv_id;
-        wrapper.x_grok_req_id = x_grok_req_id;
-        wrapper.x_grok_session_id = x_grok_session_id;
-        wrapper.x_grok_turn_idx = x_grok_turn_idx;
-        wrapper.x_grok_agent_id = x_grok_agent_id;
+        wrapper.x_axon_conv_id = x_axon_conv_id;
+        wrapper.x_axon_req_id = x_axon_req_id;
+        wrapper.x_axon_session_id = x_axon_session_id;
+        wrapper.x_axon_turn_idx = x_axon_turn_idx;
+        wrapper.x_axon_agent_id = x_axon_agent_id;
 
         if let Some(trace) = trace {
             wrapper.trace = Some(trace);
@@ -1963,19 +1963,19 @@ mod tests {
         }
     }
 
-    /// The xAI-infrastructure block is absolute: construction fails for
-    /// `x.ai` / `grok.com` and all subdomains, while local and third-party
+    /// The Axon-infrastructure block is absolute: construction fails for
+    /// `blocked.invalid` / `blocked.invalid` and all subdomains, while local and third-party
     /// endpoints (including spoof-shaped hostnames) stay allowed.
     #[test]
-    fn xai_infrastructure_endpoints_are_refused() {
+    fn axon_infrastructure_endpoints_are_refused() {
         for blocked in [
-            "https://api.x.ai/v1",
-            "https://x.ai",
-            "https://cli-chat-proxy.grok.com/v1",
-            "https://grok.com/v1",
+            "https://api.blocked.invalid/v1",
+            "https://blocked.invalid",
+            "https://cli-chat-proxy.blocked.invalid/v1",
+            "https://blocked.invalid/v1",
             "http://API.X.AI/v1",
         ] {
-            assert!(is_xai_infrastructure_url(blocked), "{blocked}");
+            assert!(is_axon_infrastructure_url(blocked), "{blocked}");
             let cfg = SamplerConfig {
                 base_url: blocked.to_string(),
                 ..minimal_config()
@@ -1989,10 +1989,10 @@ mod tests {
             "http://localhost:11434/v1",
             "https://api.openai.com/v1",
             "https://example.test",
-            "https://evil-x.ai.attacker.com/v1", // subdomain spoof: host is attacker.com's
-            "https://notgrok.com/v1",
+            "https://evil-blocked.invalid.attacker.com/v1", // subdomain spoof: host is attacker.com's
+            "https://notblocked.invalid/v1",
         ] {
-            assert!(!is_xai_infrastructure_url(allowed), "{allowed}");
+            assert!(!is_axon_infrastructure_url(allowed), "{allowed}");
             let cfg = SamplerConfig {
                 base_url: allowed.to_string(),
                 ..minimal_config()
@@ -2023,13 +2023,13 @@ mod tests {
             search_parameters: None,
             response_format: None,
             reasoning_effort: None,
-            x_grok_conv_id: None,
-            x_grok_req_id: None,
-            x_grok_session_id: None,
-            x_grok_turn_idx: None,
-            x_grok_agent_id: None,
-            x_grok_deployment_id: None,
-            x_grok_user_id: None,
+            x_axon_conv_id: None,
+            x_axon_req_id: None,
+            x_axon_session_id: None,
+            x_axon_turn_idx: None,
+            x_axon_agent_id: None,
+            x_axon_deployment_id: None,
+            x_axon_user_id: None,
             trace: None,
         };
 
@@ -2151,7 +2151,7 @@ mod tests {
         cfg.extra_headers
             .insert("x-test-header".to_string(), "test-value".to_string());
         cfg.extra_headers
-            .insert("x-XAI-token-auth".to_string(), "xai-grok-cli".to_string());
+            .insert("x-AXON-token-auth".to_string(), "axon-axon-cli".to_string());
         let _client = SamplingClient::new(cfg).expect("client with extra headers should construct");
     }
 
@@ -2243,8 +2243,8 @@ mod tests {
             version: None,
         };
         let ua = user_agent_string_for(&origin);
-        // No slash between product and the grok-shell agent product.
-        assert!(ua.starts_with("my-client grok-shell/"));
+        // No slash between product and the axon-shell agent product.
+        assert!(ua.starts_with("my-client axon-shell/"));
     }
 
     #[test]
@@ -2539,7 +2539,7 @@ mod tests {
                 "id": "resp_1",
                 "object": "response",
                 "created_at": 0,
-                "model": "grok-build",
+                "model": "axon-build",
                 "status": "completed",
                 "output": [],
                 "usage": {
@@ -2579,7 +2579,7 @@ mod tests {
                 "sequence_number": 0,
                 "response": {{
                     "id": "resp_1", "object": "response", "created_at": 0,
-                    "model": "grok-build", "status": "completed", "output": [],
+                    "model": "axon-build", "status": "completed", "output": [],
                     "usage": {{
                         "input_tokens": 10,
                         "input_tokens_details": {{ "cached_tokens": 0 }},
@@ -2625,7 +2625,7 @@ mod tests {
                 "id": "resp_1",
                 "object": "response",
                 "created_at": 0,
-                "model": "grok-build",
+                "model": "axon-build",
                 "status": "completed",
                 "output": [],
                 "usage": {
@@ -2659,7 +2659,7 @@ mod tests {
                 "id": "resp_1",
                 "object": "response",
                 "created_at": 0,
-                "model": "grok-build",
+                "model": "axon-build",
                 "status": "completed",
                 "output": [],
                 "usage": {

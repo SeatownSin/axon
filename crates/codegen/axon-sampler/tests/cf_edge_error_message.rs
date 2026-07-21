@@ -14,7 +14,7 @@ use axon_test_support::{MockInferenceServer, ScriptedResponse};
 
 const CF_524_HTML: &str = r#"<!DOCTYPE html>
 <html lang="en-US">
-<head><title>grok.com | 524: A timeout occurred</title></head>
+<head><title>blocked.invalid | 524: A timeout occurred</title></head>
 <body>
   <h1>A timeout occurred <span>Error code 524</span></h1>
   <div>Visit cloudflare.com for more information.</div>

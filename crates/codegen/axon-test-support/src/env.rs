@@ -63,13 +63,13 @@ fn target_dir() -> PathBuf {
         .unwrap_or_else(|| workspace_root().join("target"))
 }
 
-fn local_grok_binary_path() -> PathBuf {
+fn local_axon_binary_path() -> PathBuf {
     target_dir()
         .join("debug")
         .join(format!("axon-pager{}", std::env::consts::EXE_SUFFIX))
 }
 
-fn ensure_local_grok_binary(binary: &Path) {
+fn ensure_local_axon_binary(binary: &Path) {
     if binary.exists() {
         return;
     }
@@ -95,8 +95,8 @@ fn ensure_local_grok_binary(binary: &Path) {
     );
 }
 
-/// Resolve grok binary: `AXON_BINARY` env (CI) or a locally built `axon-pager` binary.
-pub fn grok_binary() -> PathBuf {
+/// Resolve axon binary: `AXON_BINARY` env (CI) or a locally built `axon-pager` binary.
+pub fn axon_binary() -> PathBuf {
     if let Ok(path) = std::env::var("AXON_BINARY") {
         let p = PathBuf::from(path);
         assert!(p.exists(), "AXON_BINARY does not exist: {}", p.display());
@@ -110,8 +110,8 @@ pub fn grok_binary() -> PathBuf {
         }
     }
 
-    let binary = local_grok_binary_path();
-    ensure_local_grok_binary(&binary);
+    let binary = local_axon_binary_path();
+    ensure_local_axon_binary(&binary);
     binary
 }
 
@@ -149,14 +149,14 @@ pub fn git_workdir() -> TempDir {
     dir
 }
 
-/// Point grok at the mock server with a fake API key and telemetry disabled.
+/// Point axon at the mock server with a fake API key and telemetry disabled.
 pub fn test_env_cmd_tokio(
     cmd: &mut tokio::process::Command,
     mock_url: &str,
     home: &std::path::Path,
 ) {
     cmd.env("HOME", home)
-        // HOME alone does not sandbox grok on Windows: the product resolves
+        // HOME alone does not sandbox axon on Windows: the product resolves
         // `~` via `USERPROFILE`/Known Folders (`std::env::home_dir()`), so
         // without an explicit AXON_HOME every spawned child shares the real
         // `%USERPROFILE%\.axon` — test 1's models_cache.json (which embeds
@@ -165,8 +165,8 @@ pub fn test_env_cmd_tokio(
         // Mirrors `leader.rs` and the pty-harness `env_for_pager`.
         .env("AXON_HOME", home.join(".axon"))
         .env("AXON_CLI_CHAT_PROXY_BASE_URL", mock_url)
-        .env("AXON_XAI_API_BASE_URL", mock_url)
-        .env("XAI_API_KEY", "test-key-for-ci")
+        .env("AXON_AXON_API_BASE_URL", mock_url)
+        .env("AXON_API_KEY", "test-key-for-ci")
         .env("AXON_TELEMETRY_ENABLED", "false")
         .env("AXON_FEEDBACK_ENABLED", "false")
         .env("AXON_TRACE_UPLOAD", "false")

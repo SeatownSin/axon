@@ -5,8 +5,8 @@
 //! actors) plus recently-touched on-disk (`Dormant`) sessions. Clients read it
 //! two ways:
 //!
-//!   - request/response `x.ai/sessions/list` → `{ "sessions": [RosterEntry, …] }`
-//!   - broadcast notification `x.ai/sessions/changed` →
+//!   - request/response `axon/sessions/list` → `{ "sessions": [RosterEntry, …] }`
+//!   - broadcast notification `axon/sessions/changed` →
 //!     `{ "upserted": [RosterEntry, …], "removed": ["sess-abc", …] }`
 //!
 //! The wire shape is intentionally small and current-state only — no event
@@ -76,13 +76,13 @@ pub struct RosterEntry {
     pub origin: RosterOrigin,
 }
 
-/// Response payload for `x.ai/sessions/list`.
+/// Response payload for `axon/sessions/list`.
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct RosterListResponse {
     pub sessions: Vec<RosterEntry>,
 }
 
-/// Params payload for the `x.ai/sessions/changed` broadcast notification.
+/// Params payload for the `axon/sessions/changed` broadcast notification.
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct RosterChanged {
     #[serde(default)]
@@ -92,8 +92,8 @@ pub struct RosterChanged {
 }
 
 /// JSON-RPC method names for the roster API.
-pub const SESSIONS_LIST_METHOD: &str = "x.ai/sessions/list";
-pub const SESSIONS_CHANGED_METHOD: &str = "x.ai/sessions/changed";
+pub const SESSIONS_LIST_METHOD: &str = "axon/sessions/list";
+pub const SESSIONS_CHANGED_METHOD: &str = "axon/sessions/changed";
 
 /// Merge live `resident` rows with on-disk `summaries` into the sorted roster.
 /// Pure, so it is unit-testable without disk or a live actor.
@@ -173,7 +173,7 @@ mod merge_roster_tests {
             title: None,
             cwd: format!("/live/{id}"),
             is_worktree: false,
-            model_id: Some("grok-4".into()),
+            model_id: Some("axon-4".into()),
             reasoning_effort: None,
             yolo: false,
             activity,

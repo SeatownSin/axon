@@ -36,7 +36,7 @@ use std::sync::OnceLock;
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Returns a process-wide test `AXON_HOME`, initialized exactly once per test
-/// binary. Once initialized, `axon_config::grok_home()` will resolve to
+/// binary. Once initialized, `axon_config::axon_home()` will resolve to
 /// this directory for the lifetime of the process.
 ///
 /// Also clears env vars that the auto-update code consults so a parent shell's
@@ -79,7 +79,7 @@ pub fn reset_home() {
     }
 }
 
-/// Override the version reported by `get_installed_grok_version()` for the
+/// Override the version reported by `get_installed_axon_version()` for the
 /// duration of the test (until [`reset_home`] or process exit).
 pub fn set_test_version(v: &str) {
     // SAFETY: tests using this helper must be `#[serial]`.
@@ -91,7 +91,7 @@ pub fn set_test_version(v: &str) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Host `{os}-{arch}` string matching the versioned binary naming scheme
-/// (`grok-{version}-{platform}`).
+/// (`axon-{version}-{platform}`).
 pub fn host_platform() -> String {
     let os = if cfg!(target_os = "macos") {
         "macos"

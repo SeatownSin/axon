@@ -42,7 +42,7 @@ impl OtlpTransport {
 /// Master switch env var. Deliberately *not* `AXON_ENABLE_TELEMETRY`: that
 /// would be a word-order typo away from the long-standing
 /// `AXON_TELEMETRY_ENABLED` (product events/Mixpanel mode), and the two control
-/// opposite-pointing data flows (to xAI vs. to the customer's collector).
+/// opposite-pointing data flows (to Axon vs. to the customer's collector).
 pub const ENV_MASTER_SWITCH: &str = "AXON_EXTERNAL_OTEL";
 
 /// Exporter selection for one signal (`OTEL_METRICS_EXPORTER` /
@@ -79,7 +79,7 @@ impl ExporterSelection {
 /// post-init — a remote policy can force them off, never on.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct ContentGates {
-    /// `OTEL_LOG_USER_PROMPTS=1`: prompt text on `grok_code.user_prompt`
+    /// `OTEL_LOG_USER_PROMPTS=1`: prompt text on `axon_code.user_prompt`
     /// (60 KB cap, secret-scrubbed).
     pub log_user_prompts: bool,
     /// `OTEL_LOG_TOOL_DETAILS=1`: gated tool params / full paths / verbatim

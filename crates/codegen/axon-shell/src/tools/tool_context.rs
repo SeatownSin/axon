@@ -60,7 +60,7 @@ pub struct ToolContext {
     /// `None` if subagent support is not enabled.
     pub subagent_event_tx: Option<
         tokio::sync::mpsc::UnboundedSender<
-            axon_tools::implementations::grok_build::task::types::SubagentEvent,
+            axon_tools::implementations::axon_build::task::types::SubagentEvent,
         >,
     >,
     /// Shared LSP runtime — cloned cheaply (Arc) from parent to child.
@@ -76,7 +76,7 @@ pub struct ToolContext {
     /// (`inject_pending_monitor_events`) and surfaced as ONE hidden
     /// synthetic user message before the next sampling step.
     pub monitor_event_buffer:
-        Option<axon_tools::implementations::grok_build::task::types::MonitorEventBuffer>,
+        Option<axon_tools::implementations::axon_build::task::types::MonitorEventBuffer>,
     pub task_completion_reservations:
         Option<axon_tools::reminders::task_completion::TaskCompletionReservations>,
     pub task_wake_suppressed:

@@ -1,11 +1,11 @@
 //! # axon-hooks
 //!
-//! Runtime hook system for Grok — file-based discovery, command execution,
+//! Runtime hook system for Axon — file-based discovery, command execution,
 //! and policy enforcement.
 //!
 //! ## Overview
 //!
-//! This crate provides a minimal hooks system for Grok. Hooks are discovered
+//! This crate provides a minimal hooks system for Axon. Hooks are discovered
 //! from dedicated directories (`~/.axon/hooks/` and `<git-worktree-root>/.axon/hooks/`),
 //! defined in JSON files (compatible settings format), and executed as child processes.
 //!

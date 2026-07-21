@@ -18,7 +18,7 @@
 //! an explicit child untrust overrides an ancestor's trust. The persisted file
 //! is written atomically with owner-only (`0600`) permissions.
 //!
-//! The store is rooted at [`axon_config::user_grok_home`] — the **Option**
+//! The store is rooted at [`axon_config::user_axon_home`] — the **Option**
 //! home that resolves to `None` (rather than a cwd-relative `./.axon`) when
 //! neither `$AXON_HOME` nor a home directory is set (e.g. a minimal container /
 //! CI). In that no-home environment [`TrustStore::load`] yields an **empty,
@@ -70,7 +70,7 @@ pub struct TrustStore {
 }
 
 impl TrustStore {
-    /// Load the trust store from `<user_grok_home>/trusted_folders.toml`.
+    /// Load the trust store from `<user_axon_home>/trusted_folders.toml`.
     ///
     /// When no user home resolves (see the module-level fail-closed note) the
     /// path is `None` and this returns an [`Self::empty`] store. Otherwise an
@@ -101,23 +101,23 @@ impl TrustStore {
         }
     }
 
-    /// Default on-disk path: `<user_grok_home>/trusted_folders.toml`, or `None`
+    /// Default on-disk path: `<user_axon_home>/trusted_folders.toml`, or `None`
     /// when no user home resolves.
     ///
-    /// Resolves via [`axon_config::user_grok_home`], never
-    /// [`axon_config::grok_home`], so it never falls back to a cwd-relative
+    /// Resolves via [`axon_config::user_axon_home`], never
+    /// [`axon_config::axon_home`], so it never falls back to a cwd-relative
     /// `./.axon` — that fallback would let an untrusted cloned repo's `.axon`
     /// masquerade as the user-global store and self-trust the checkout.
     pub fn default_path() -> Option<PathBuf> {
-        Self::default_path_in(axon_config::user_grok_home())
+        Self::default_path_in(axon_config::user_axon_home())
     }
 
-    /// Map a resolved user-grok-home to the store path, preserving "no home" as
+    /// Map a resolved user-axon-home to the store path, preserving "no home" as
     /// "no path" (never synthesizing a fallback). Split from [`Self::default_path`]
     /// as a pure seam so the no-home branch is unit-testable without the
     /// process-global home cache.
-    fn default_path_in(user_grok_home: Option<PathBuf>) -> Option<PathBuf> {
-        Some(user_grok_home?.join(TRUST_FILE_NAME))
+    fn default_path_in(user_axon_home: Option<PathBuf>) -> Option<PathBuf> {
+        Some(user_axon_home?.join(TRUST_FILE_NAME))
     }
 
     /// Whether `workspace_key` is trusted, per the MOST-SPECIFIC recorded
@@ -252,7 +252,7 @@ impl TrustStore {
             tracing::warn!(
                 path = %canonical.display(),
                 trusted,
-                "folder trust: no user grok home resolved; trust decision not recorded"
+                "folder trust: no user axon home resolved; trust decision not recorded"
             );
             return Ok(());
         };
@@ -351,7 +351,7 @@ impl TrustStore {
 /// The key is the canonicalized git repository root when `cwd` is inside a
 /// repo (trust applies to the whole repo), otherwise the canonicalized `cwd`.
 ///
-/// A grok-managed worktree first collapses onto its recorded source repo's git
+/// A axon-managed worktree first collapses onto its recorded source repo's git
 /// ROOT (via the `~/.axon/worktrees.db` registry), so every `axon -w` worktree
 /// shares one trust key regardless of creation mode — including standalone clones
 /// that git can't link back to their source — and regardless of the subdir
@@ -383,7 +383,7 @@ pub fn workspace_key(cwd: &Path) -> PathBuf {
 /// Git-topology-derived workspace key (pre-safety-guard); see [`workspace_key`],
 /// which rejects an over-broad derived root in favor of the cwd.
 fn git_derived_workspace_key(cwd: &Path) -> PathBuf {
-    // A grok-managed worktree (any creation mode, incl. standalone clones git
+    // A axon-managed worktree (any creation mode, incl. standalone clones git
     // can't link) collapses onto its recorded source repo so trust is shared.
     if let Some(source_repo) = crate::worktree::source_repo_for_cwd(&cwd.to_string_lossy()) {
         // Key on the source repo's git ROOT so every worktree of one repo shares
@@ -490,7 +490,7 @@ impl Drop for ExclusiveLock {
 /// path per line; each becomes a folder-trust grant so the unified gate honors
 /// prior decisions. The legacy file is then renamed to `*.migrated` so it is
 /// read only once. A no-op when the legacy file is absent/already migrated or no
-/// user grok home resolves.
+/// user axon home resolves.
 pub fn migrate_legacy_hook_trust() {
     // Local/dev builds do NO trust-store I/O: skip the load + legacy-file rename.
     if crate::folder_trust::folder_trust_inert() {
@@ -513,7 +513,7 @@ pub fn migrate_legacy_hook_trust() {
 }
 
 /// Seam for [`migrate_legacy_hook_trust`] with explicit paths, so the migration
-/// is testable without the process-global grok-home cache. Returns the number
+/// is testable without the process-global axon-home cache. Returns the number
 /// of grants seeded into `store`.
 fn migrate_legacy_hook_trust_in(legacy_file: &Path, store: &mut TrustStore) -> usize {
     // A read error must NOT be mistaken for "no grants": bail without renaming so
@@ -724,20 +724,20 @@ mod tests {
 
         // With NO resolvable home the path is `None` — never a synthesized
         // fallback. This is the regression guard that keeps the store off the
-        // cwd-relative `./.axon` that grok_home() would invent, which is exactly
+        // cwd-relative `./.axon` that axon_home() would invent, which is exactly
         // how a cloned repo's own `<repo>/.axon/trusted_folders.toml` could
         // masquerade as the user-global store and self-trust the checkout.
         assert_eq!(TrustStore::default_path_in(None), None);
     }
 
     #[test]
-    fn default_path_sources_from_user_grok_home() {
-        // Thin source-pin: the production accessor reads user_grok_home()
-        // (Option, no cwd fallback), not grok_home(). The real regression guard
+    fn default_path_sources_from_user_axon_home() {
+        // Thin source-pin: the production accessor reads user_axon_home()
+        // (Option, no cwd fallback), not axon_home(). The real regression guard
         // is the seam test above (default_path_in(None) == None).
         assert_eq!(
             TrustStore::default_path(),
-            axon_config::user_grok_home().map(|h| h.join(TRUST_FILE_NAME))
+            axon_config::user_axon_home().map(|h| h.join(TRUST_FILE_NAME))
         );
     }
 
@@ -1416,20 +1416,20 @@ mod tests {
         );
     }
 
-    // ── workspace_key registry collapse (grok-managed worktrees) ─────────
+    // ── workspace_key registry collapse (axon-managed worktrees) ─────────
 
     // Crate-shared env lock + env guards bundled as ONE value so the env restores
     // before the lock releases by struct field order (see lib.rs), regardless of
     // how the caller binds the fixture's return.
     use crate::LockedTestEnv;
 
-    /// Point `AXON_HOME` at an isolated tempdir and register one grok-managed
+    /// Point `AXON_HOME` at an isolated tempdir and register one axon-managed
     /// worktree at `<home>/worktrees/repo/<name>` recording `source_repo` and
     /// `creation_mode`. The worktree dir is a PLAIN directory — NOT a git linked
     /// worktree — so only the registry can collapse it. Returns `(env, worktree
     /// dir)`; the [`LockedTestEnv`] holds the lock and restores `AXON_HOME` on
     /// drop (before releasing the lock), so the caller may bind it any way.
-    fn register_grok_worktree(
+    fn register_axon_worktree(
         temp: &tempfile::TempDir,
         name: &str,
         source_repo: &Path,
@@ -1440,7 +1440,7 @@ mod tests {
         // Canonicalize so macOS /var -> /private/var agrees between the stored
         // record path and the canonicalized lookup query.
         let root = dunce::canonicalize(temp.path()).unwrap();
-        let home = root.join("grok-home");
+        let home = root.join("axon-home");
         let wt = home.join("worktrees").join("repo").join(name);
         std::fs::create_dir_all(&wt).unwrap();
 
@@ -1470,7 +1470,7 @@ mod tests {
     }
 
     #[test]
-    fn workspace_key_collapses_standalone_grok_worktree_onto_source_repo() {
+    fn workspace_key_collapses_standalone_axon_worktree_onto_source_repo() {
         // A standalone worktree is a full clone with its OWN `.git`, so git
         // topology can't link it to its source; the registry (worktrees.db) must
         // collapse it onto the recorded source repo so trust is shared. The
@@ -1484,7 +1484,7 @@ mod tests {
         std::fs::create_dir_all(&source_repo).unwrap();
         git2::Repository::init(&source_repo).unwrap();
 
-        let (_env, wt) = register_grok_worktree(&temp, "wt", &source_repo, "standalone");
+        let (_env, wt) = register_axon_worktree(&temp, "wt", &source_repo, "standalone");
 
         let expected = canonicalize_or_owned(&source_repo);
         assert_eq!(
@@ -1517,7 +1517,7 @@ mod tests {
         let subdir = repo.join("crates").join("sub");
         std::fs::create_dir_all(&subdir).unwrap();
 
-        let (_env, wt) = register_grok_worktree(&temp, "wt", &subdir, "standalone");
+        let (_env, wt) = register_axon_worktree(&temp, "wt", &subdir, "standalone");
 
         assert_eq!(
             workspace_key(&wt),
@@ -1529,10 +1529,10 @@ mod tests {
     #[test]
     fn workspace_key_ignores_registry_for_cwd_outside_worktrees_dir() {
         // A populated registry must NOT collapse a cwd OUTSIDE
-        // `<grok_home>/worktrees`: `worktree_record_for_cwd` skips the registry
+        // `<axon_home>/worktrees`: `worktree_record_for_cwd` skips the registry
         // there, so the key falls back to git/cwd. Non-vacuous: the registry IS
         // populated with a real git source repo that WOULD be returned for a
-        // worktree cwd, and `outside` is its OWN git repo (under grok HOME but not
+        // worktree cwd, and `outside` is its OWN git repo (under axon HOME but not
         // under its `worktrees/`) so the fallback is deterministic (no conditional
         // skip) — we assert the key is `outside`'s own root, never the source repo.
         let temp = tempfile::TempDir::new().unwrap();
@@ -1541,10 +1541,10 @@ mod tests {
         std::fs::create_dir_all(&source_repo).unwrap();
         git2::Repository::init(&source_repo).unwrap();
 
-        let (_env, _wt) = register_grok_worktree(&temp, "wt", &source_repo, "standalone");
+        let (_env, _wt) = register_axon_worktree(&temp, "wt", &source_repo, "standalone");
 
-        // Under grok HOME but NOT under `<home>/worktrees`, and its own git repo.
-        let outside = root.join("grok-home").join("not-worktrees").join("proj");
+        // Under axon HOME but NOT under `<home>/worktrees`, and its own git repo.
+        let outside = root.join("axon-home").join("not-worktrees").join("proj");
         std::fs::create_dir_all(&outside).unwrap();
         git2::Repository::init(&outside).unwrap();
 
@@ -1552,7 +1552,7 @@ mod tests {
         assert_eq!(
             key,
             canonicalize_or_owned(&outside),
-            "a cwd outside <grok_home>/worktrees keys on its own repo root"
+            "a cwd outside <axon_home>/worktrees keys on its own repo root"
         );
         assert_ne!(
             key,

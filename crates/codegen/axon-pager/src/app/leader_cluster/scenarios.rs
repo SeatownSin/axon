@@ -12,7 +12,7 @@ const T2: &str = "CLUSTER_SENTINEL_T2";
 /// driver/viewer roles flip for the next turn. In-process port of the
 /// `leader_two_clients_shared_session` PTY case.
 #[test]
-#[ignore = "leader-cluster: needs single-process isolation (process-global env + grok_home OnceLock in the shared lib test binary); run: cargo test -p axon-pager --lib -- app::leader_cluster --ignored --test-threads=1"]
+#[ignore = "leader-cluster: needs single-process isolation (process-global env + axon_home OnceLock in the shared lib test binary); run: cargo test -p axon-pager --lib -- app::leader_cluster --ignored --test-threads=1"]
 #[serial_test::serial(AXON_HOME)]
 fn two_clients_share_session_and_stream_both_ways() {
     let rt = tokio::runtime::Builder::new_current_thread()
@@ -74,7 +74,7 @@ fn two_clients_share_session_and_stream_both_ways() {
 /// every subscriber exactly once; each viewer's attach replay is unicast
 /// (it never duplicates into the already-attached clients).
 #[test]
-#[ignore = "leader-cluster: needs single-process isolation (process-global env + grok_home OnceLock in the shared lib test binary); run: cargo test -p axon-pager --lib -- app::leader_cluster --ignored --test-threads=1"]
+#[ignore = "leader-cluster: needs single-process isolation (process-global env + axon_home OnceLock in the shared lib test binary); run: cargo test -p axon-pager --lib -- app::leader_cluster --ignored --test-threads=1"]
 #[serial_test::serial(AXON_HOME)]
 fn n_client_fan_out_without_replay_duplication() {
     let rt = tokio::runtime::Builder::new_current_thread()
@@ -154,7 +154,7 @@ fn n_client_fan_out_without_replay_duplication() {
 /// lands Idle, and no inference request is re-driven. In-process port of
 /// `leader_reattach_completion_roundtrips_durable_log`.
 #[test]
-#[ignore = "leader-cluster: needs single-process isolation (process-global env + grok_home OnceLock in the shared lib test binary); run: cargo test -p axon-pager --lib -- app::leader_cluster --ignored --test-threads=1"]
+#[ignore = "leader-cluster: needs single-process isolation (process-global env + axon_home OnceLock in the shared lib test binary); run: cargo test -p axon-pager --lib -- app::leader_cluster --ignored --test-threads=1"]
 #[serial_test::serial(AXON_HOME)]
 fn reattach_completion_roundtrips_durable_log() {
     let rt = tokio::runtime::Builder::new_current_thread()
@@ -234,7 +234,7 @@ fn reattach_completion_roundtrips_durable_log() {
 /// (its `plan_reconnect_load` is event_loop-private; the cwd/meta
 /// derivation is replicated inline).
 #[test]
-#[ignore = "leader-cluster: needs single-process isolation (process-global env + grok_home OnceLock in the shared lib test binary); run: cargo test -p axon-pager --lib -- app::leader_cluster --ignored --test-threads=1"]
+#[ignore = "leader-cluster: needs single-process isolation (process-global env + axon_home OnceLock in the shared lib test binary); run: cargo test -p axon-pager --lib -- app::leader_cluster --ignored --test-threads=1"]
 #[serial_test::serial(AXON_HOME)]
 fn leader_kill_reconnect_reloads_without_duplicating_history() {
     let rt = tokio::runtime::Builder::new_current_thread()
@@ -288,7 +288,7 @@ fn leader_kill_reconnect_reloads_without_duplicating_history() {
         let _: acp::AuthenticateResponse = bounded(
             "reconnect re-authenticate",
             acp_send(
-                acp::AuthenticateRequest::new(acp::AuthMethodId::new("xai.api_key"))
+                acp::AuthenticateRequest::new(acp::AuthMethodId::new("axon.api_key"))
                     .meta(serde_json::json!({ "headless": true }).as_object().cloned()),
                 &a.app.acp_tx,
             ),
@@ -375,11 +375,11 @@ fn leader_kill_reconnect_reloads_without_duplicating_history() {
     });
 }
 
-/// Locate `<grok_home>/sessions/<enc-cwd>/<sid>/updates.jsonl` without the
+/// Locate `<axon_home>/sessions/<enc-cwd>/<sid>/updates.jsonl` without the
 /// (internal) cwd encoder: scan one level of cwd dirs (same approach as
 /// session_load_perf's `locate_session_dir`).
 fn find_session_updates_file(sid: &str) -> Option<PathBuf> {
-    let sessions = effective_grok_home().join("sessions");
+    let sessions = effective_axon_home().join("sessions");
     for entry in std::fs::read_dir(&sessions).ok()?.flatten() {
         let candidate = entry.path().join(sid).join("updates.jsonl");
         if candidate.is_file() {

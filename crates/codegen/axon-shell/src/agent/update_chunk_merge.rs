@@ -214,12 +214,12 @@ impl ReplayBuffer {
                     second.map(|s| SessionNotification::Acp(Box::new(s))),
                 )
             }
-            (Some(SessionNotification::Xai(prev)), SessionNotification::Xai(new)) => {
-                let (force, first, second) = merge_xai_chunks(*prev, *new);
+            (Some(SessionNotification::Axon(prev)), SessionNotification::Axon(new)) => {
+                let (force, first, second) = merge_axon_chunks(*prev, *new);
                 (
                     force,
-                    SessionNotification::Xai(Box::new(first)),
-                    second.map(|s| SessionNotification::Xai(Box::new(s))),
+                    SessionNotification::Axon(Box::new(first)),
+                    second.map(|s| SessionNotification::Axon(Box::new(s))),
                 )
             }
             // Different kinds: can't merge. Force-flush prev, return incoming as second.
@@ -451,8 +451,8 @@ fn merge_acp_chunks(
     }
 }
 
-/// Merge two consecutive xAI notifications.
-fn merge_xai_chunks(
+/// Merge two consecutive Axon notifications.
+fn merge_axon_chunks(
     prev: crate::extensions::notification::SessionNotification,
     new: crate::extensions::notification::SessionNotification,
 ) -> (
@@ -545,7 +545,7 @@ fn estimate_payload_bytes(n: &SessionNotification) -> u64 {
             },
             _ => 0,
         },
-        SessionNotification::Xai(n) => match &n.update {
+        SessionNotification::Axon(n) => match &n.update {
             crate::extensions::notification::SessionUpdate::ToolCallDeltaChunk {
                 arguments_delta,
                 name,
@@ -600,7 +600,7 @@ mod tests {
                 },
                 _ => None,
             },
-            SessionNotification::Xai(_) => None,
+            SessionNotification::Axon(_) => None,
         }
     }
 
@@ -975,7 +975,7 @@ mod tests {
         assert!(replay_buffer.flush().is_none());
     }
 
-    // ── Xai / ToolCallDeltaChunk tests ──────────────────────────────
+    // ── Axon / ToolCallDeltaChunk tests ──────────────────────────────
 
     fn delta_chunk(
         session: &str,
@@ -997,7 +997,7 @@ mod tests {
     }
 
     #[test]
-    fn xai_same_id_deltas_merge_args_and_preserve_name() {
+    fn axon_same_id_deltas_merge_args_and_preserve_name() {
         let mut buf = ReplayBuffer::new(Some(settings(100, 1_000_000)));
         let init = delta_chunk("s", Some("call_1"), 0, Some("read_file"), None);
         let d1 = delta_chunk("s", None, 0, None, Some("{\"path\":"));
@@ -1009,8 +1009,8 @@ mod tests {
 
         let flushed = buf.flush().expect("should have pending");
         let n = match flushed {
-            SessionNotification::Xai(n) => *n,
-            _ => panic!("expected Xai"),
+            SessionNotification::Axon(n) => *n,
+            _ => panic!("expected Axon"),
         };
         match n.update {
             crate::extensions::notification::SessionUpdate::ToolCallDeltaChunk {
@@ -1028,7 +1028,7 @@ mod tests {
     }
 
     #[test]
-    fn xai_different_tool_call_id_forces_flush() {
+    fn axon_different_tool_call_id_forces_flush() {
         let mut buf = ReplayBuffer::new(Some(settings(100, 1_000_000)));
         let first = delta_chunk("s", Some("call_a"), 0, Some("grep"), Some("a-args"));
         let second = delta_chunk("s", Some("call_b"), 1, Some("read_file"), Some("b-args"));
@@ -1037,13 +1037,13 @@ mod tests {
         let (flushed, rest) = buf.consume_chunk(second).expect("should force-flush");
 
         // Both emitted immediately to preserve ordering.
-        assert!(matches!(flushed, SessionNotification::Xai(_)));
+        assert!(matches!(flushed, SessionNotification::Axon(_)));
         assert!(rest.is_some());
         assert!(buf.pending.is_none());
     }
 
     #[test]
-    fn xai_tool_call_delta_is_bufferable() {
+    fn axon_tool_call_delta_is_bufferable() {
         let mut buf = ReplayBuffer::new(Some(settings(100, 1_000_000)));
         let chunk = delta_chunk("s", Some("call_1"), 0, Some("bash"), Some("{\"cmd\":"));
 
@@ -1054,17 +1054,17 @@ mod tests {
     }
 
     #[test]
-    fn xai_after_acp_forces_flush() {
+    fn axon_after_acp_forces_flush() {
         let mut buf = ReplayBuffer::new(Some(settings(100, 1_000_000)));
         let acp_chunk = msg_chunk("s", 1, "thinking...");
-        let xai_chunk = delta_chunk("s", Some("call_1"), 0, Some("bash"), Some("args"));
+        let axon_chunk = delta_chunk("s", Some("call_1"), 0, Some("bash"), Some("args"));
 
         assert!(buf.consume_chunk(acp_chunk).is_none());
-        let (flushed, rest) = buf.consume_chunk(xai_chunk).expect("should force-flush");
+        let (flushed, rest) = buf.consume_chunk(axon_chunk).expect("should force-flush");
 
         // Both emitted immediately — different kinds can't merge.
         assert!(matches!(flushed, SessionNotification::Acp(_)));
-        assert!(matches!(rest, Some(SessionNotification::Xai(_))));
+        assert!(matches!(rest, Some(SessionNotification::Axon(_))));
         assert!(buf.pending.is_none());
     }
 }

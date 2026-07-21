@@ -3,7 +3,7 @@
 //! Receives [`axon_mcp::servers::McpClientEvent`]s emitted by:
 //! - per-client transport-liveness watchers
 //!   ([`axon_mcp::liveness`]),
-//! - the [`axon_mcp::servers::GrokClientHandler`] (server-pushed
+//! - the [`axon_mcp::servers::AxonClientHandler`] (server-pushed
 //!   `tools/list_changed` and `resources/list_changed`),
 //! - the `ensure_initialized` success/failure path,
 //! - the session/managed-config diff path.
@@ -16,7 +16,7 @@
 //!
 //! Each surviving entry is emitted as an ACP
 //! [`agent_client_protocol::ExtNotification`] with method
-//! `x.ai/mcp/server_status` and the payload schema defined by
+//! `axon/mcp/server_status` and the payload schema defined by
 //! [`McpServerStatusPayload`].
 //!
 //! ## Doc-comment ↔ implementation contract
@@ -56,7 +56,7 @@ use crate::session::managed_mcp::MANAGED_MCP_PREFIX;
 pub const COALESCE_WINDOW: Duration = Duration::from_millis(50);
 
 /// Method name for the ACP push.
-pub const SERVER_STATUS_METHOD: &str = "x.ai/mcp/server_status";
+pub const SERVER_STATUS_METHOD: &str = "axon/mcp/server_status";
 
 /// JSON payload pushed over ACP. Fields written in camelCase per ACP
 /// convention.
@@ -65,9 +65,9 @@ pub const SERVER_STATUS_METHOD: &str = "x.ai/mcp/server_status";
 pub struct McpServerStatusPayload {
     /// Owning session id.
     pub session_id: String,
-    /// MCP server name (`grok_com_linear`, `github`, ...).
+    /// MCP server name (`axon_com_linear`, `github`, ...).
     pub name: String,
-    /// `managed` (sourced from cli-chat-proxy / `grok_com_` prefix)
+    /// `managed` (sourced from cli-chat-proxy / `axon_com_` prefix)
     /// or `local` (user `.axon/config.toml`).
     pub source: McpServerSource,
     /// Current status — see [`McpServerStatus`].
@@ -393,7 +393,7 @@ pub fn build_payload(
             None,
         ),
         // A managed connector rejected for auth reasons surfaces as
-        // NeedsAuth ("visit grok.com"), not a generic Unavailable, so a
+        // NeedsAuth ("visit blocked.invalid"), not a generic Unavailable, so a
         // client consuming only `server_status` (not the `mcp/list`
         // `auth_required` boolean) shows the correct terminal state. Uses
         // the same `is_auth_rejection_message` classifier the reroute and
@@ -466,7 +466,7 @@ pub fn build_payload(
 /// Per-flush side effects:
 /// - update `shutting_down` for `TransportClosed` /
 ///   `ConfigRemoved` keys,
-/// - emit one ACP `x.ai/mcp/server_status` push per surviving
+/// - emit one ACP `axon/mcp/server_status` push per surviving
 ///   buffer entry, via the provided gateway.
 ///
 /// `gateway` is a [`axon_acp_lib::AcpAgentGatewaySender`] (forwarded
@@ -666,7 +666,7 @@ pub async fn drop_dead_clients(
 ///    gated on client identity (see [`collect_close_candidates`]).
 ///    Stale `TransportClosed` keys are stripped from the window so they
 ///    push no status, emit no disconnect span, and schedule no restart.
-/// 3. `flush_window` — emit ACP `x.ai/mcp/server_status` per
+/// 3. `flush_window` — emit ACP `axon/mcp/server_status` per
 ///    surviving entry.
 /// 4. `maybe_schedule_restart` — for every
 ///    `TransportClosed` / `HandshakeFailed` key, the
@@ -986,16 +986,16 @@ mod tests {
 
     /// Contract: a managed connector whose handshake is rejected for
     /// auth reasons surfaces as `NeedsAuth`/`auth_expired` ("visit
-    /// grok.com"), NOT a generic `Unavailable`. Keys on the shared
+    /// blocked.invalid"), NOT a generic `Unavailable`. Keys on the shared
     /// `is_auth_rejection_message` classifier.
     #[test]
     fn managed_handshake_auth_rejection_maps_to_needs_auth() {
         let key = (
-            "grok_com_notion".to_string(),
+            "axon_com_notion".to_string(),
             McpClientEventKind::HandshakeFailed,
         );
         let ev = McpClientEvent::HandshakeFailed {
-            server: "grok_com_notion".to_string(),
+            server: "axon_com_notion".to_string(),
             reason: "Auth required, when send initialize request".to_string(),
         };
         let payload = build_payload("sess1", &key, &ev);
@@ -1016,11 +1016,11 @@ mod tests {
     fn managed_handshake_non_auth_stays_unavailable() {
         for reason in ["403 Forbidden", "cli-chat-proxy returned 502"] {
             let key = (
-                "grok_com_slack".to_string(),
+                "axon_com_slack".to_string(),
                 McpClientEventKind::HandshakeFailed,
             );
             let ev = McpClientEvent::HandshakeFailed {
-                server: "grok_com_slack".to_string(),
+                server: "axon_com_slack".to_string(),
                 reason: reason.to_string(),
             };
             let payload = build_payload("sess1", &key, &ev);
@@ -1055,7 +1055,7 @@ mod tests {
     fn managed_token_refreshed_reason_serializes() {
         let payload = McpServerStatusPayload {
             session_id: "sess1".to_string(),
-            name: "grok_com_linear".to_string(),
+            name: "axon_com_linear".to_string(),
             source: McpServerSource::Managed,
             status: McpServerStatus::Ready,
             reason: McpServerStatusReason::ManagedTokenRefreshed,
@@ -1067,11 +1067,11 @@ mod tests {
         assert_eq!(json["reason"], "managed_token_refreshed");
     }
 
-    /// Contract: managed server names (starting with `grok_com_`)
+    /// Contract: managed server names (starting with `axon_com_`)
     /// are classified as `Managed`; everything else as `Local`.
     #[test]
     fn classify_source_uses_managed_prefix() {
-        assert_eq!(classify_source("grok_com_linear"), McpServerSource::Managed);
+        assert_eq!(classify_source("axon_com_linear"), McpServerSource::Managed);
         assert_eq!(classify_source("github"), McpServerSource::Local);
     }
 
@@ -1399,7 +1399,7 @@ mod tests {
     fn recoverable_http_servers_excludes_managed_stdio_and_disabled() {
         let configs = vec![
             http_cfg("http-mcp-server"),
-            http_cfg("grok_com_slack"), // managed
+            http_cfg("axon_com_slack"), // managed
             http_cfg("admin_off"),      // disabled
             stdio_cfg("local_stdio"),   // stdio
         ];

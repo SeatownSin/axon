@@ -10,8 +10,8 @@ const ENABLED_PLUGIN: &str = "copy-enabled";
 const DISABLED_PLUGIN: &str = "copy-disabled";
 
 fn seed_plugins_for_copy_hints(content: &ContentController) {
-    let grok_home = content.home().join(".axon");
-    let plugins_dir = grok_home.join("plugins");
+    let axon_home = content.home().join(".axon");
+    let plugins_dir = axon_home.join("plugins");
     for name in [ENABLED_PLUGIN, DISABLED_PLUGIN] {
         let dir = plugins_dir.join(name);
         std::fs::create_dir_all(&dir).expect("create plugin dir");
@@ -23,12 +23,12 @@ fn seed_plugins_for_copy_hints(content: &ContentController) {
         )
         .expect("write plugin.json");
     }
-    std::fs::create_dir_all(&grok_home).expect("create .axon");
+    std::fs::create_dir_all(&axon_home).expect("create .axon");
     // User plugins default to disabled unless listed under enabled.
     let config = format!(
         "[plugins]\nenabled = [\"{ENABLED_PLUGIN}\"]\ndisabled = [\"{DISABLED_PLUGIN}\"]\n"
     );
-    std::fs::write(grok_home.join("config.toml"), config).expect("write config.toml");
+    std::fs::write(axon_home.join("config.toml"), config).expect("write config.toml");
 }
 
 fn dump_screen(label: &str, harness: &PtyHarness) {

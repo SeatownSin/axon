@@ -271,8 +271,8 @@ mod tests {
             return;
         }
         let output = run_static(
-            "alias grok_alias_probe='echo ALIAS_OK'\ngrok_fn_probe() { echo FN_OK; }\n",
-            "grok_alias_probe && grok_fn_probe",
+            "alias axon_alias_probe='echo ALIAS_OK'\naxon_fn_probe() { echo FN_OK; }\n",
+            "axon_alias_probe && axon_fn_probe",
         )
         .await;
         assert!(output.status.success(), "command failed: {output:?}");

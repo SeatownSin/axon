@@ -11,11 +11,11 @@ fn auth_copy_dispatch_preserves_all_delivery_states() {
         app.auth_state = AuthState::Authenticating {
             request_seq: 1,
             handle: None,
-            auth_url: Some("https://grok.com/auth".to_owned()),
+            auth_url: Some("https://blocked.invalid/auth".to_owned()),
             mode: AuthMode::Command,
         };
         let effects = crate::app::dispatch::router::dispatch_copy_auth_url(&mut app, |url| {
-            assert_eq!(url, "https://grok.com/auth");
+            assert_eq!(url, "https://blocked.invalid/auth");
             delivery
         });
         assert_eq!(app.auth_clipboard_delivery, Some(delivery));
@@ -294,7 +294,7 @@ fn promo_announcement(id: &str) -> axon_announcements::RemoteAnnouncement {
         severity: Some("promo".into()),
         cta: Some(axon_announcements::AnnouncementCta {
             label: Some("Go".into()),
-            url: Some(format!("https://x.ai/{id}")),
+            url: Some(format!("https://blocked.invalid/{id}")),
             caption: None,
         }),
         ..Default::default()
@@ -316,7 +316,7 @@ fn shown_banner_id(app: &AppView) -> Option<String> {
 #[test]
 fn announcements_open_cta_opens_promo_and_noops_under_critical() {
     use axon_telemetry::events::AnnouncementCtaSurface;
-    let url_file = std::env::temp_dir().join(format!("grok-cta-open-{}.txt", std::process::id()));
+    let url_file = std::env::temp_dir().join(format!("axon-cta-open-{}.txt", std::process::id()));
     let _ = std::fs::remove_file(&url_file);
     unsafe { std::env::set_var("AXON_TEST_OPEN_URL_FILE", &url_file) };
     let opened = || std::fs::read_to_string(&url_file).unwrap_or_default();
@@ -333,7 +333,7 @@ fn announcements_open_cta_opens_promo_and_noops_under_critical() {
         let effects = dispatch(Action::AnnouncementsOpenCta(surface), &mut app);
         assert!(effects.is_empty(), "open is a side effect, not an Effect");
         assert!(
-            opened().lines().any(|l| l == "https://x.ai/promo-open"),
+            opened().lines().any(|l| l == "https://blocked.invalid/promo-open"),
             "surface {surface:?} must open the promo url; got {:?}",
             opened()
         );
@@ -674,7 +674,7 @@ fn announcements_show_clears_hidden_promo_ids() {
 fn switch_model_dispatch_produces_effect_and_sets_pending() {
     let mut app = test_app_with_agent();
     let id = AgentId(0);
-    let model_id = acp::ModelId::new(std::sync::Arc::from("grok-4.5"));
+    let model_id = acp::ModelId::new(std::sync::Arc::from("axon-4.5"));
     assert!(!app.agents[&id].session.model_switch_pending);
     let effects = dispatch(
         Action::SwitchModel {
@@ -1408,7 +1408,7 @@ fn dispatch_fork_no_flag_always_reopens_modal_after_previous_answer() {
 #[test]
 fn translate_local_submit_skipped_returns_changed_with_no_action() {
     use crate::views::question_view::{LocalQuestionKind, QuestionViewState};
-    use axon_tools::implementations::grok_build::ask_user_question::{
+    use axon_tools::implementations::axon_build::ask_user_question::{
         Question, QuestionOption,
     };
     let q = Question {
@@ -1439,7 +1439,7 @@ fn translate_local_submit_skipped_returns_changed_with_no_action() {
 #[test]
 fn translate_local_submit_no_selection_returns_changed_no_action() {
     use crate::views::question_view::{LocalQuestionKind, QuestionViewState};
-    use axon_tools::implementations::grok_build::ask_user_question::{
+    use axon_tools::implementations::axon_build::ask_user_question::{
         Question, QuestionOption,
     };
     let q = Question {
@@ -1470,7 +1470,7 @@ fn translate_local_submit_no_selection_returns_changed_no_action() {
 #[test]
 fn translate_local_submit_out_of_range_index_returns_changed_no_action() {
     use crate::views::question_view::{LocalQuestionKind, QuestionViewState};
-    use axon_tools::implementations::grok_build::ask_user_question::{
+    use axon_tools::implementations::axon_build::ask_user_question::{
         Question, QuestionOption,
     };
     let q = Question {
@@ -1502,7 +1502,7 @@ fn translate_local_submit_out_of_range_index_returns_changed_no_action() {
 #[test]
 fn handle_ask_user_question_does_not_push_system_block_when_displaced_acp_modal() {
     use crate::views::question_view::QuestionViewState;
-    use axon_tools::implementations::grok_build::ask_user_question::{
+    use axon_tools::implementations::axon_build::ask_user_question::{
         Question, QuestionOption,
     };
     let mut app = fork_test_app();

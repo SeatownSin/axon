@@ -55,7 +55,7 @@ fn write_policy(home: &std::path::Path, p: &SignedPayload) {
 fn server_wire_format_is_client_verifiable() {
     let (kp, pubkey) = test_keypair();
     let signed_payload = serde_json::json!({
-        "typ": "grok.managed_policy.v1",
+        "typ": "axon.managed_policy.v1",
         "deployment_id": serde_json::Value::Null,
         "team_id": "team-007",
         "managed_config": "[cli]\n",
@@ -84,7 +84,7 @@ fn server_wire_format_is_client_verifiable() {
 fn missing_fail_closed_defaults_false() {
     let (kp, pubkey) = test_keypair();
     let signed_payload = serde_json::json!({
-        "typ": "grok.managed_policy.v1",
+        "typ": "axon.managed_policy.v1",
         "team_id": "team-007",
         "expires_at": 4_000_000_000u64,
         "key_id": "v1",

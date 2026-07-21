@@ -1211,10 +1211,10 @@ pub(super) mod paste_key_tests {
     pub(in crate::app::agent_view) fn make_question_view_state_in_input_mode()
     -> crate::views::question_view::QuestionViewState {
         let question =
-            axon_tools::implementations::grok_build::ask_user_question::Question {
+            axon_tools::implementations::axon_build::ask_user_question::Question {
                 question: "Pick one?".to_string(),
                 options: vec![
-                axon_tools::implementations::grok_build::ask_user_question::QuestionOption
+                axon_tools::implementations::axon_build::ask_user_question::QuestionOption
                 { label : "A".to_string(), description : "Option A".to_string(), preview
                 : None, id : None, },
             ],
@@ -2556,7 +2556,7 @@ pub(super) mod paste_key_tests {
         let completion = agent.complete_clipboard_attachment_paste(
             ctx,
             crate::app::actions::ProbedAttachment::NoRaster,
-            Some("file:///definitely/missing/xai-primary-paste.png".to_owned()),
+            Some("file:///definitely/missing/axon-primary-paste.png".to_owned()),
         );
         assert_eq!(
             completion,
@@ -2564,7 +2564,7 @@ pub(super) mod paste_key_tests {
         );
         assert_eq!(
             agent.prompt.text(),
-            "/definitely/missing/xai-primary-paste.png "
+            "/definitely/missing/axon-primary-paste.png "
         );
         assert!(agent.prompt.images.is_empty());
     }

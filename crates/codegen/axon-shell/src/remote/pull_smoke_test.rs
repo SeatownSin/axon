@@ -4,17 +4,17 @@
 
 #[cfg(test)]
 mod tests {
-    use crate::auth::GrokAuth;
+    use crate::auth::AxonAuth;
     use crate::remote::client::BackendClient;
     use crate::session::storage::{JsonlStorageAdapter, StorageAdapter};
     use std::collections::BTreeMap;
     use std::sync::Arc;
 
-    fn load_prod_auth() -> Option<GrokAuth> {
-        let path = crate::util::grok_home::grok_home().join("auth.json");
+    fn load_prod_auth() -> Option<AxonAuth> {
+        let path = crate::util::axon_home::axon_home().join("auth.json");
         let contents = std::fs::read_to_string(&path).ok()?;
-        let store: BTreeMap<String, GrokAuth> = serde_json::from_str(&contents).ok()?;
-        let scope = crate::auth::GrokComConfig::default().auth_scope();
+        let store: BTreeMap<String, AxonAuth> = serde_json::from_str(&contents).ok()?;
+        let scope = crate::auth::AxonComConfig::default().auth_scope();
         crate::auth::lookup_auth(&store, &scope)
     }
 
@@ -32,8 +32,8 @@ mod tests {
 
         let auth = load_prod_auth().expect("No auth.json — run `axon login`");
         let am = Arc::new(crate::auth::AuthManager::new(
-            &crate::util::grok_home::grok_home(),
-            crate::auth::GrokComConfig::default(),
+            &crate::util::axon_home::axon_home(),
+            crate::auth::AxonComConfig::default(),
         ));
         am.hot_swap(auth);
         let client = BackendClient::new().with_auth_manager(am.clone());
@@ -46,7 +46,7 @@ mod tests {
         let metadata = ExportedMetadata {
             title: Some(test_title.into()),
             cwd: test_cwd.clone(),
-            model_id: Some("grok-3".into()),
+            model_id: Some("axon-3".into()),
             created_at: Some(chrono::Utc::now().to_rfc3339()),
             updated_at: Some(chrono::Utc::now().to_rfc3339()),
             total_messages: None,

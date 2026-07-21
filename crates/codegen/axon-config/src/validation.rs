@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use crate::env_bool;
 use crate::loader::{apply_version_overrides_with_registered, load_toml_file};
-use crate::paths::{system_config_dir, user_grok_home};
+use crate::paths::{system_config_dir, user_axon_home};
 use crate::version_overrides::{VersionOverrideError, apply_version_overrides};
 
 use prod_mc_cli_chat_proxy_types::FAIL_CLOSED_KEY;
@@ -40,7 +40,7 @@ pub enum RequirementsSource {
 
 impl RequirementsSource {
     /// Display/provenance label — a file path string, or the synthetic MDM source
-    /// id (`ai.x.grok:…`). For diagnostics and matching only; the MDM layer has no
+    /// id (`ai.x.axon:…`). For diagnostics and matching only; the MDM layer has no
     /// file, so this is a label (`Cow<str>`), never a `Path` to open.
     pub fn label(&self) -> std::borrow::Cow<'_, str> {
         match self {
@@ -65,7 +65,7 @@ pub struct RequirementsLayer {
 /// [`load_merged_requirements`].
 pub fn requirements_layers() -> Vec<RequirementsLayer> {
     let mut out = Vec::new();
-    if let Some(user_path) = user_grok_home().map(|g| g.join("requirements.toml"))
+    if let Some(user_path) = user_axon_home().map(|g| g.join("requirements.toml"))
         && let Some(value) = load_requirements_layer(&user_path)
     {
         out.push(RequirementsLayer {
@@ -109,7 +109,7 @@ pub fn load_merged_requirements() -> Option<toml::Value> {
 }
 
 pub(crate) fn load_requirements() -> Option<toml::Value> {
-    load_user_requirements(user_grok_home().as_deref())
+    load_user_requirements(user_axon_home().as_deref())
 }
 
 /// User requirements layer from `<home>/requirements.toml`, or `None` with no
@@ -218,7 +218,7 @@ fn validate_requirements_value(
 /// Validates all requirements layers (user + system files, and macOS MDM). Call
 /// once at startup from the binary's `main()`; exit on `Err`.
 pub fn validate_requirements() -> Result<(), RequirementsError> {
-    validate_user_requirements(user_grok_home().as_deref())?;
+    validate_user_requirements(user_axon_home().as_deref())?;
     if let Some(dir) = system_config_dir() {
         validate_requirements_layer(&dir.join("requirements.toml"))?;
     }
@@ -253,7 +253,7 @@ mod tests {
     fn load_requirements_layer_soft_fails_on_invalid_version_overrides() {
         use std::io::Write;
 
-        let dir = std::env::temp_dir().join(format!("grok-vo-soft-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("axon-vo-soft-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("requirements.toml");
         let mut f = std::fs::File::create(&path).unwrap();
@@ -277,7 +277,7 @@ telemetry = true
     fn validate_requirements_layer_errs_on_fail_closed_violation() {
         use std::io::Write;
 
-        let dir = std::env::temp_dir().join(format!("grok-vo-validate-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("axon-vo-validate-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("requirements.toml");
         let mut f = std::fs::File::create(&path).unwrap();
@@ -303,7 +303,7 @@ minimum_version = "not-a-version"
     fn validate_requirements_layer_ok_without_fail_closed() {
         use std::io::Write;
 
-        let dir = std::env::temp_dir().join(format!("grok-vo-soft2-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("axon-vo-soft2-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("requirements.toml");
         let mut f = std::fs::File::create(&path).unwrap();
@@ -367,7 +367,7 @@ minimum_version = "not-a-version"
     fn fail_closed_key_is_stripped_from_returned_layer() {
         use std::io::Write;
 
-        let dir = std::env::temp_dir().join(format!("grok-vo-strip-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("axon-vo-strip-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("requirements.toml");
         let mut f = std::fs::File::create(&path).unwrap();
@@ -393,7 +393,7 @@ minimum_version = "not-a-version"
     fn load_user_requirements_reads_layer_when_home_present() {
         use std::io::Write;
 
-        let dir = std::env::temp_dir().join(format!("grok-req-load-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("axon-req-load-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let mut f = std::fs::File::create(dir.join("requirements.toml")).unwrap();
         writeln!(f, "[features]\ntelemetry = true\n").unwrap();
@@ -413,7 +413,7 @@ minimum_version = "not-a-version"
     fn validate_user_requirements_errs_on_fail_closed_violation() {
         use std::io::Write;
 
-        let dir = std::env::temp_dir().join(format!("grok-req-validate-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("axon-req-validate-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let mut f = std::fs::File::create(dir.join("requirements.toml")).unwrap();
         writeln!(

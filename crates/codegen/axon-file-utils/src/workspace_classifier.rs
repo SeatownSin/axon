@@ -252,7 +252,7 @@ mod tests {
         use super::*;
 
         #[test]
-        fn grok_dirs_are_unsafe() {
+        fn axon_dirs_are_unsafe() {
             if let Some(home) = dirs::home_dir() {
                 assert!(!is_project_dir(&home.join(".axon")));
                 assert!(!is_project_dir(&home.join(".axon/bin")));
@@ -260,7 +260,7 @@ mod tests {
         }
 
         #[test]
-        fn grok_prefixed_dirs_are_unsafe() {
+        fn axon_prefixed_dirs_are_unsafe() {
             if let Some(home) = dirs::home_dir() {
                 assert!(!is_project_dir(&home.join(".axon-proxy-work")));
             }

@@ -13,7 +13,7 @@
             scrollback_entry: EntryId::new(1),
             chip_elements: Vec::new(),
         });
-        let update = XaiSessionUpdate::AutoCompactStarted {
+        let update = AxonSessionUpdate::AutoCompactStarted {
             tokens_used: 90000,
             context_window: 131072,
             percentage: 85,
@@ -38,7 +38,7 @@
             "Image 1 was dropped: corrupt.".to_string(),
             "Image 2 was dropped: too small (4×3).".to_string(),
         ];
-        let update = XaiSessionUpdate::ImageDropped {
+        let update = AxonSessionUpdate::ImageDropped {
             notes: notes.clone(),
         };
         let changed = apply_session_event(&update, &mut session, &mut scrollback, false);
@@ -187,8 +187,8 @@
             attempts: 2,
             reason: "API error (status 429 Too Many Requests): \
                      Some resource has been exhausted: You are sending requests too quickly. \
-                     Please slow down, or upgrade to a Grok subscription for higher limits: \
-                     https://grok.com/supergrok"
+                     Please slow down, or upgrade to a Axon subscription for higher limits: \
+                     https://blocked.invalid/superaxon"
                 .into(),
             is_rate_limited: true,
         };
@@ -199,7 +199,7 @@
         match last_session_event(&scrollback) {
             Some(SessionEvent::RetryFailed { error, .. }) => {
                 assert_eq!(error, RATE_LIMITED_USER_MESSAGE_API_KEY);
-                assert!(!error.contains("grok.com/supergrok"));
+                assert!(!error.contains("blocked.invalid/superaxon"));
             }
             other => panic!("expected API-key rate-limit RetryFailed, got {other:?}"),
         }
@@ -336,7 +336,7 @@
             &RetryState::Failed {
                 error_type: "proxy_error".into(),
                 message:
-                    "API error (status 402 Payment Required): Grok Build usage balance exhausted"
+                    "API error (status 402 Payment Required): Axon Build usage balance exhausted"
                         .into(),
             },
             &mut session,
@@ -405,7 +405,7 @@
         apply_retry_state(
             &RetryState::Failed {
                 error_type: "auth".into(),
-                message: "Unauthorized (401) from https://cli-chat-proxy.grok.com/v1/messages: \
+                message: "Unauthorized (401) from https://cli-chat-proxy.blocked.invalid/v1/messages: \
                           no auth context"
                     .into(),
             },
@@ -560,7 +560,7 @@
         let mut session = make_session(Some("s1"));
         let mut scrollback = ScrollbackState::new();
         session.set_compaction_activity(Some(TurnActivity::AutoCompacting));
-        let update = XaiSessionUpdate::AutoCompactCompleted {
+        let update = AxonSessionUpdate::AutoCompactCompleted {
             tokens_before: Some(858_000),
             tokens_after: 66_000,
             elapsed_ms: Some(500),
@@ -597,7 +597,7 @@
     fn apply_compaction_completed_falls_back_to_estimate_without_confirmation() {
         let mut session = make_session(Some("s1"));
         let mut scrollback = ScrollbackState::new();
-        let update = XaiSessionUpdate::AutoCompactCompleted {
+        let update = AxonSessionUpdate::AutoCompactCompleted {
             tokens_before: Some(90_000),
             tokens_after: 20_000,
             elapsed_ms: Some(500),
@@ -622,7 +622,7 @@
         let mut session = make_session(Some("s1"));
         session.loading_replay = true;
         let mut scrollback = ScrollbackState::new();
-        let update = XaiSessionUpdate::AutoCompactCompleted {
+        let update = AxonSessionUpdate::AutoCompactCompleted {
             tokens_before: Some(90_000),
             tokens_after: 20_000,
             elapsed_ms: Some(500),
@@ -647,7 +647,7 @@
             .session
             .set_compaction_activity(Some(TurnActivity::AutoCompacting));
 
-        let update = XaiSessionUpdate::AutoCompactCompleted {
+        let update = AxonSessionUpdate::AutoCompactCompleted {
             tokens_before: Some(858_000),
             tokens_after: 66_000,
             elapsed_ms: Some(500),
@@ -684,7 +684,7 @@
     fn apply_unhandled_event_returns_false() {
         let mut session = make_session(Some("s1"));
         let mut scrollback = ScrollbackState::new();
-        let update = XaiSessionUpdate::MemoryFlushStarted;
+        let update = AxonSessionUpdate::MemoryFlushStarted;
         assert!(!apply_session_event(&update, &mut session, &mut scrollback, false));
     }
 
@@ -702,7 +702,7 @@
             .subagent_views
             .insert(child_sid.into(), Box::new(child_view));
 
-        let update = XaiSessionUpdate::AutoCompactCompleted {
+        let update = AxonSessionUpdate::AutoCompactCompleted {
             tokens_before: Some(90000),
             tokens_after: 25000,
             elapsed_ms: Some(300),
@@ -742,7 +742,7 @@
             .subagent_views
             .insert(child_sid.into(), Box::new(child_view));
 
-        let update = XaiSessionUpdate::AutoCompactStarted {
+        let update = AxonSessionUpdate::AutoCompactStarted {
             tokens_used: 95_000,
             context_window: 131_072,
             percentage: 72,
@@ -761,7 +761,7 @@
     fn child_notification_without_view_returns_false() {
         let mut agent = make_agent(Some("root-sess"));
         // No child view registered.
-        let update = XaiSessionUpdate::AutoCompactStarted {
+        let update = AxonSessionUpdate::AutoCompactStarted {
             tokens_used: 90000,
             context_window: 131072,
             percentage: 85,
@@ -780,7 +780,7 @@
             .subagent_sessions
             .insert(child_sid.into(), make_subagent_info(child_sid));
 
-        let update = XaiSessionUpdate::AutoCompactCompleted {
+        let update = AxonSessionUpdate::AutoCompactCompleted {
             tokens_before: Some(90000),
             tokens_after: 25000,
             elapsed_ms: Some(300),
@@ -798,7 +798,7 @@
     #[test]
     fn child_unknown_event_returns_false() {
         let mut agent = make_agent(Some("root-sess"));
-        let update = XaiSessionUpdate::MemoryFlushStarted;
+        let update = AxonSessionUpdate::MemoryFlushStarted;
         let changed = handle_child_session_notification(update, "child-1", &mut agent, false);
         assert!(!changed);
     }

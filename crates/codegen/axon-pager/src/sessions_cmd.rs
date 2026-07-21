@@ -3,7 +3,7 @@ use clap::Subcommand;
 use axon_shell::agent::config::Config as AgentConfig;
 use axon_shell::auth::{AuthManager, try_ensure_fresh_auth};
 use axon_shell::session::merge::MergedSession;
-use axon_shell::util::grok_home::grok_home;
+use axon_shell::util::axon_home::axon_home;
 #[derive(Debug, clap::Args, Clone)]
 pub struct SessionsArgs {
     #[command(subcommand)]
@@ -35,16 +35,16 @@ enum SessionsCommand {
 
 pub async fn run(args: SessionsArgs, agent_config: &AgentConfig) -> Result<()> {
     // Best-effort only. Do not force an interactive public login for enterprise
-    // deployments that only configure a deployment_key + custom xai_api_base_url.
-    // If the user has previously run the interactive `grok` TUI (which succeeds
+    // deployments that only configure a deployment_key + custom axon_api_base_url.
+    // If the user has previously run the interactive `axon` TUI (which succeeds
     // for these setups), any cached credential will be used. Otherwise we still
     // proceed so the SessionRegistryClient can use the deployment_key when
     // talking to the custom proxy.
-    let auth = try_ensure_fresh_auth(&agent_config.grok_com_config).await;
+    let auth = try_ensure_fresh_auth(&agent_config.axon_com_config).await;
 
     let auth_manager = std::sync::Arc::new(AuthManager::new(
-        &grok_home(),
-        agent_config.grok_com_config.clone(),
+        &axon_home(),
+        agent_config.axon_com_config.clone(),
     ));
 
     let client = axon_shell::agent::session_registry_client::SessionRegistryClient::new(
@@ -80,7 +80,7 @@ pub async fn run(args: SessionsArgs, agent_config: &AgentConfig) -> Result<()> {
                 offset: 0,
                 include_content: true,
             };
-            let root = grok_home();
+            let root = axon_home();
 
             let remote_limit = (limit * 3).max(100) as i64;
             let (local_resp, remote_results) = tokio::join!(execute_search(&root, &req), async {

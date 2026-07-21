@@ -138,7 +138,7 @@ pub(crate) fn tall_response(sentinel: &str, rows: usize) -> String {
 /// Spawn a pager with fake session (OAuth) auth and a 1s announcements poll,
 /// then drive it into a live session (welcome → prompt → mock response).
 /// Session auth matters: the settings poll requires `auth_manager.auth()`, and
-/// the harness's default `XAI_API_KEY` (ApiKey/BYOK mode, no auth.json entry)
+/// the harness's default `AXON_API_KEY` (ApiKey/BYOK mode, no auth.json entry)
 /// would never fetch `/v1/settings`. Spawns WITHOUT `AXON_ANNOUNCEMENTS_OVERRIDE`
 /// (the env override beats pushed lists in the pager and would mask updates).
 /// Call `content.set_response(..)` BEFORE this so the entry prompt streams.
@@ -188,7 +188,7 @@ pub(crate) fn spawn_polling_session_with_env(
 /// Start the mock server with two models that have different agent types,
 /// and return a `ContentController` configured for agent-type-mismatch
 /// testing. The default model is `"default-model"` (no agent type → uses
-/// `grok-build` harness).
+/// `axon-build` harness).
 pub(crate) async fn start_dual_agent_type_content() -> ContentController {
     ContentController::start_with_models(vec![
         MockModel::new("default-model"),
@@ -219,7 +219,7 @@ pub(crate) fn git_repo_with_mcp_json() -> tempfile::TempDir {
 /// point at the isolated temp home, so the trust store starts empty.
 pub(crate) fn trust_env(content: &ContentController, feature_on: bool) -> Vec<(String, String)> {
     let mut env = content.env_for_pager();
-    // A self-built (unstamped) grok auto-trusts and never prompts; simulate a
+    // A self-built (unstamped) axon auto-trusts and never prompts; simulate a
     // release build so the folder-trust feature is actually evaluated here. The
     // feature-off case below then exercises the TRUE feature-off path, not
     // auto-trust.
@@ -261,7 +261,7 @@ pub(crate) fn turn_sentinel(n: u8) -> String {
 /// Seeded server name; it only renders once the MCP list fetch resolves.
 pub(crate) const MCP_TEST_SERVER: &str = "ptytestmcp";
 
-/// Budget for session creation plus the `x.ai/mcp/list` round-trip.
+/// Budget for session creation plus the `axon/mcp/list` round-trip.
 pub(crate) const MCP_MENU_LOAD_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// Configured servers list with a status badge even when never connected.
@@ -271,12 +271,12 @@ pub(crate) fn seed_mcp_server_config(content: &ContentController) {
     #[cfg(windows)]
     let command = "cmd.exe";
 
-    let grok_home = content.home().join(".axon");
-    std::fs::create_dir_all(&grok_home).expect("create fake AXON_HOME");
+    let axon_home = content.home().join(".axon");
+    std::fs::create_dir_all(&axon_home).expect("create fake AXON_HOME");
     let config = format!(
         "[mcp_servers.{MCP_TEST_SERVER}]\ncommand = \"{command}\"\nargs = []\nstartup_timeout_sec = 2\n"
     );
-    std::fs::write(grok_home.join("config.toml"), config).expect("write config.toml");
+    std::fs::write(axon_home.join("config.toml"), config).expect("write config.toml");
 }
 
 /// Spawn the pager in `cwd`, open `/mcps`, wait for the seeded server.
@@ -410,15 +410,15 @@ pub(crate) const MOUSE_OFF_HINT_PROMPT: &str =
 /// `"vim_mode = true"`). Same `{AXON_HOME|HOME}/.axon/config.toml` location
 /// `seed_mouse_reporting_toggle_config` uses; call before spawning the pager.
 pub(crate) fn seed_ui_config(content: &ContentController, ui_body: &str) {
-    let grok_home = content.home().join(".axon");
-    std::fs::create_dir_all(&grok_home).expect("create .axon");
+    let axon_home = content.home().join(".axon");
+    std::fs::create_dir_all(&axon_home).expect("create .axon");
     let config = format!("[ui]\n{ui_body}\n");
-    std::fs::write(grok_home.join("config.toml"), config).expect("write config.toml");
+    std::fs::write(axon_home.join("config.toml"), config).expect("write config.toml");
 }
 
 pub(crate) fn seed_mouse_reporting_toggle_config(content: &ContentController, enabled: bool) {
-    let grok_home = content.home().join(".axon");
-    std::fs::create_dir_all(&grok_home).expect("create .axon");
+    let axon_home = content.home().join(".axon");
+    std::fs::create_dir_all(&axon_home).expect("create .axon");
     // Minimal opt-in only — matches load_config's `{AXON_HOME|HOME}/.axon/config.toml`.
     let config = if enabled {
         "[ui]\nmouse_reporting_toggle = true\n"
@@ -426,15 +426,15 @@ pub(crate) fn seed_mouse_reporting_toggle_config(content: &ContentController, en
         // Minimal config so HOME layout matches the enabled case; toggle stays off.
         "[ui]\n"
     };
-    std::fs::write(grok_home.join("config.toml"), config).expect("write config.toml");
+    std::fs::write(axon_home.join("config.toml"), config).expect("write config.toml");
 }
 
 /// Seed `[ui] keep_text_selection = "hold"` under the content controller's home.
 pub(crate) fn seed_keep_text_selection_config(content: &ContentController) {
-    let grok_home = content.home().join(".axon");
-    std::fs::create_dir_all(&grok_home).expect("create .axon");
+    let axon_home = content.home().join(".axon");
+    std::fs::create_dir_all(&axon_home).expect("create .axon");
     std::fs::write(
-        grok_home.join("config.toml"),
+        axon_home.join("config.toml"),
         "[ui]\nkeep_text_selection = \"hold\"\n",
     )
     .expect("write config.toml");

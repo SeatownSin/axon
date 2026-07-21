@@ -626,12 +626,12 @@ impl SessionActor {
             span.record("error", e.to_string().as_str());
             return Err(e);
         }
-        use crate::extensions::notification::SessionUpdate as XaiSessionUpdate;
+        use crate::extensions::notification::SessionUpdate as AxonSessionUpdate;
         let tokens_after = self.chat_state_handle.get_total_tokens().await;
         let span = tracing::Span::current();
         span.record("post_tokens", tokens_after as i64);
         span.record("success", true);
-        self.send_xai_notification(XaiSessionUpdate::AutoCompactCompleted {
+        self.send_axon_notification(AxonSessionUpdate::AutoCompactCompleted {
             tokens_before: Some(total_tokens),
             tokens_after,
             elapsed_ms: None,
@@ -689,7 +689,7 @@ impl SessionActor {
                     "it'll retry on the next turn, or start a new session using /new."
                 }
             };
-            self.send_xai_notification(
+            self.send_axon_notification(
                 crate::extensions::notification::SessionUpdate::AutoCompactFailed {
                     error: message.to_string(),
                 },
@@ -1270,7 +1270,7 @@ impl SessionActor {
                         self.tool_context.subagent_event_tx
                     {
                         let (tx, rx) = tokio::sync::oneshot::channel();
-                        use axon_tools::implementations::grok_build::task::types::{
+                        use axon_tools::implementations::axon_build::task::types::{
                             SubagentEvent, SubagentListActiveRequest,
                         };
                         let _ =
@@ -1929,7 +1929,7 @@ impl SessionActor {
         self: &Arc<Self>,
         trigger_info: AutoCompactTriggerInfo,
     ) -> Result<(), acp::Error> {
-        use crate::extensions::notification::SessionUpdate as XaiSessionUpdate;
+        use crate::extensions::notification::SessionUpdate as AxonSessionUpdate;
         self.record_compaction_variant();
         let tokens_before = self.chat_state_handle.get_total_tokens().await;
         tracing::Span::current().record("pre_tokens", tokens_before as i64);
@@ -1939,7 +1939,7 @@ impl SessionActor {
         });
         self.signals_handle()
             .record_compaction(trigger_info.tokens_used);
-        self.send_xai_notification(XaiSessionUpdate::AutoCompactStarted {
+        self.send_axon_notification(AxonSessionUpdate::AutoCompactStarted {
             tokens_used: trigger_info.tokens_used,
             context_window: trigger_info.context_window,
             percentage: trigger_info.percentage,
@@ -1967,7 +1967,7 @@ impl SessionActor {
                 let span = tracing::Span::current();
                 span.record("post_tokens", tokens_after as i64);
                 span.record("success", true);
-                self.send_xai_notification(XaiSessionUpdate::AutoCompactCompleted {
+                self.send_axon_notification(AxonSessionUpdate::AutoCompactCompleted {
                     tokens_before: Some(trigger_info.tokens_used),
                     tokens_after,
                     elapsed_ms: Some(elapsed_ms),
@@ -1986,7 +1986,7 @@ impl SessionActor {
                     .load(std::sync::atomic::Ordering::Relaxed)
                     == SUPPRESS_NONE
                 {
-                    self.send_xai_notification(XaiSessionUpdate::AutoCompactFailed {
+                    self.send_axon_notification(AxonSessionUpdate::AutoCompactFailed {
                         error: String::new(),
                     })
                     .await;
@@ -2083,7 +2083,7 @@ impl SessionActor {
         original_user_info: Option<String>,
     ) {
         use crate::extensions::notification::{
-            CompactionCheckpointFile, CompactionCheckpointInfo, SessionUpdate as XaiSessionUpdate,
+            CompactionCheckpointFile, CompactionCheckpointInfo, SessionUpdate as AxonSessionUpdate,
         };
         let checkpoint_id = uuid::Uuid::new_v4().to_string();
         let checkpoint_file = format!("compaction_checkpoints/{checkpoint_id}.json");
@@ -2113,7 +2113,7 @@ impl SessionActor {
             schema_version: 1,
             created_at,
         };
-        self.persist_xai_update_only(XaiSessionUpdate::CompactionCheckpoint(Box::new(info)));
+        self.persist_axon_update_only(AxonSessionUpdate::CompactionCheckpoint(Box::new(info)));
         tracing::info!(
             prompt_index_at_compaction,
             "Persisted compaction checkpoint"
@@ -2622,7 +2622,7 @@ mod inline_auto_compact_flow_tests {
                     let mut text = None;
                     while let Ok(msg) = persistence_rx.try_recv() {
                         if let PersistenceMsg::Update(
-                            crate::session::storage::SessionUpdate::Xai(notif),
+                            crate::session::storage::SessionUpdate::Axon(notif),
                         ) = msg
                             && let crate::extensions::notification::SessionUpdate::AutoCompactFailed {
                                 error,
@@ -2842,7 +2842,7 @@ mod inline_auto_compact_flow_tests {
                 );
                 let mut saw_failure = false;
                 while let Ok(msg) = persistence_rx.try_recv() {
-                    if let PersistenceMsg::Update(crate::session::storage::SessionUpdate::Xai(
+                    if let PersistenceMsg::Update(crate::session::storage::SessionUpdate::Axon(
                         notif,
                     )) = msg
                         && matches!(
@@ -2874,11 +2874,11 @@ mod inline_auto_compact_flow_tests {
             SuppressReason::CreditBlock
         );
         assert_eq!(
-            classify("API error (status 402 Payment Required): Grok Build usage balance exhausted"),
+            classify("API error (status 402 Payment Required): Axon Build usage balance exhausted"),
             SuppressReason::CreditBlock
         );
         assert_eq!(
-            classify("Grok Build usage limit reached"),
+            classify("Axon Build usage limit reached"),
             SuppressReason::CreditBlock
         );
         assert_eq!(

@@ -14,7 +14,7 @@ pub fn channel_name_from_cache() -> Option<&'static str> {
     use std::sync::OnceLock;
     static NAME: OnceLock<Option<&'static str>> = OnceLock::new();
     *NAME.get_or_init(|| {
-        let version_path = crate::util::grok_home::grok_home().join("version.json");
+        let version_path = crate::util::axon_home::axon_home().join("version.json");
         let content = std::fs::read_to_string(&version_path).ok()?;
         let parsed: serde_json::Value = serde_json::from_str(&content).ok()?;
         let stable = parsed.get("stable_version")?.as_str()?;

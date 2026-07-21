@@ -349,7 +349,7 @@ pub fn all_toml_mcp_server_names(cwd: &std::path::Path) -> std::collections::Has
 }
 
 pub fn mcp_preferences_path() -> PathBuf {
-    axon_config::grok_home().join("mcp_preferences.json")
+    axon_config::axon_home().join("mcp_preferences.json")
 }
 
 /// Result of loading prefs. Corrupt files are readable as empty for resolution
@@ -464,7 +464,7 @@ pub struct McpSetupServerEntry {
 }
 
 /// Collect MCP configs that declare a `setup` schema from config and plugins.
-/// Used to surface setup-required rows and drive `x.ai/mcp/setup`.
+/// Used to surface setup-required rows and drive `axon/mcp/setup`.
 pub fn collect_mcp_setup_configs(
     cwd: &std::path::Path,
     plugin_registry: Option<&axon_agent::plugins::PluginRegistry>,
@@ -1308,7 +1308,7 @@ pub fn disabled_mcp_server_names(cwd: &std::path::Path) -> std::collections::Has
 }
 
 fn config_path() -> PathBuf {
-    crate::util::grok_home::grok_home().join("config.toml")
+    crate::util::axon_home::axon_home().join("config.toml")
 }
 
 /// Path to the user-level config file (`~/.axon/config.toml`).
@@ -1507,7 +1507,7 @@ auto_update = true
         // Test with no cli section at all
         let toml_str = r#"
 [models]
-default = "grok-code-fast-1"
+default = "axon-code-fast-1"
 "#;
         let root: TomlValue = toml::from_str(toml_str).unwrap();
         if let TomlValue::Table(ref table) = root {
@@ -1552,7 +1552,7 @@ auto_update = true
     fn test_use_leader_opt_returns_none_when_no_cli_section() {
         let toml_str = r#"
 [models]
-default = "grok-code-fast-1"
+default = "axon-code-fast-1"
 "#;
         let root: TomlValue = toml::from_str(toml_str).unwrap();
         assert_eq!(use_leader_from_toml_opt(&root), None);
@@ -1880,10 +1880,10 @@ expose_image_base64 = true
     #[test]
     fn mcp_json_all_toml_names_includes_disabled() {
         let tmp = tempfile::tempdir().unwrap();
-        let grok_dir = tmp.path().join(".axon");
-        std::fs::create_dir_all(&grok_dir).unwrap();
+        let axon_dir = tmp.path().join(".axon");
+        std::fs::create_dir_all(&axon_dir).unwrap();
         std::fs::write(
-            grok_dir.join("config.toml"),
+            axon_dir.join("config.toml"),
             r#"
 [mcp_servers.enabled_one]
 url = "https://example.com"

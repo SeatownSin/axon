@@ -1,6 +1,6 @@
 //! `axon inspect` — configuration introspection.
 //!
-//! Shows everything Grok discovers in the current directory: project
+//! Shows everything Axon discovers in the current directory: project
 //! instructions, permissions, hooks, skills, agents, plugins, MCP servers,
 //! LSP config, and config.toml sources. Supports `--json` for machine output.
 
@@ -54,7 +54,7 @@ impl std::fmt::Display for Scope {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct InspectReport {
-    pub grok_version: String,
+    pub axon_version: String,
     pub channel: String,
     pub cwd: String,
     pub project_root: Option<String>,
@@ -139,7 +139,7 @@ pub struct SkippedRule {
     pub reason: String,
 }
 
-/// Enterprise login-hardening policy resolved from `[grok_com_config]`
+/// Enterprise login-hardening policy resolved from `[axon_com_config]`
 /// (TOML + env). Surfaced so admins can verify the deployment loaded it.
 /// The team pin is admin policy, not a secret, so it is shown verbatim.
 #[derive(Debug, Serialize)]
@@ -386,7 +386,7 @@ async fn build_report(cwd: &Path) -> InspectReport {
         .unwrap_or_default();
 
     InspectReport {
-        grok_version: axon_version::VERSION.to_string(),
+        axon_version: axon_version::VERSION.to_string(),
         channel: crate::util::config::channel_name_from_cache()
             .unwrap_or("unknown")
             .to_string(),
@@ -442,13 +442,13 @@ fn has_rules_directory(file_path: &str, config_dir: &str) -> bool {
 
 fn instruction_scope(
     file_path: &str,
-    grok_home: &Path,
+    axon_home: &Path,
     vendor_homes: &[(PathBuf, bool)],
     workspace_root: &Path,
 ) -> Scope {
     if crate::util::is_user_instruction_path(
         Path::new(file_path),
-        grok_home,
+        axon_home,
         vendor_homes,
         Some(workspace_root),
     ) {
@@ -460,14 +460,14 @@ fn instruction_scope(
 
 fn instruction_file_type(
     file_path: &str,
-    grok_home: &Path,
+    axon_home: &Path,
     claude_imported: bool,
     extra_rule_prefixes: &[PathBuf],
 ) -> &'static str {
     let path = Path::new(file_path);
     if path
         .parent()
-        .is_some_and(|parent| parent == grok_home.join("rules"))
+        .is_some_and(|parent| parent == axon_home.join("rules"))
         || has_rules_directory(file_path, ".axon")
         || has_rules_directory(file_path, ".cursor")
         || (!claude_imported && has_rules_directory(file_path, ".claude"))
@@ -490,7 +490,7 @@ async fn list_instructions(cwd: &Path) -> Vec<InstructionFile> {
     )
     .await;
 
-    let grok_home = crate::util::grok_home::grok_home();
+    let axon_home = crate::util::axon_home::axon_home();
     let vendor_homes = dirs::home_dir()
         .map(|home_dir| {
             vec![
@@ -529,8 +529,8 @@ async fn list_instructions(cwd: &Path) -> Vec<InstructionFile> {
         .into_iter()
         .map(|c| {
             let file_type =
-                instruction_file_type(&c.file_path, &grok_home, imported, &extra_rule_prefixes);
-            let scope = instruction_scope(&c.file_path, &grok_home, &vendor_homes, &workspace_root);
+                instruction_file_type(&c.file_path, &axon_home, imported, &extra_rule_prefixes);
+            let scope = instruction_scope(&c.file_path, &axon_home, &vendor_homes, &workspace_root);
             let size = c.content.len();
             let vendor = derive_vendor(&c.file_path).map(String::from);
             InstructionFile {
@@ -548,7 +548,7 @@ async fn list_instructions(cwd: &Path) -> Vec<InstructionFile> {
 }
 
 /// Calls the production permission resolver (`resolve_permissions_with_provenance`)
-/// which handles both Grok TOML and vendor settings fallback in one codepath.
+/// which handles both Axon TOML and vendor settings fallback in one codepath.
 async fn list_permissions(cwd: &Path) -> PermissionsReport {
     use axon_workspace::permission::resolution;
 
@@ -644,16 +644,16 @@ async fn list_permissions(cwd: &Path) -> PermissionsReport {
 }
 
 /// Resolves the enterprise login-hardening knobs from the merged config
-/// (`[grok_com_config]`, the `[auth]` alias, and env overrides) so admins can
+/// (`[axon_com_config]`, the `[auth]` alias, and env overrides) so admins can
 /// confirm the deployment's auth policy actually loaded.
 fn login_policy_report(config: Option<&crate::agent::config::Config>) -> LoginPolicyReport {
-    let grok_com_config = config
-        .map(|c| c.grok_com_config.clone())
+    let axon_com_config = config
+        .map(|c| c.axon_com_config.clone())
         .unwrap_or_default();
     LoginPolicyReport {
-        api_key_auth_disabled: grok_com_config.api_key_auth_disabled(),
-        disable_api_key_auth: grok_com_config.disable_api_key_auth,
-        force_login_team_uuid: grok_com_config.force_login_team_uuid,
+        api_key_auth_disabled: axon_com_config.api_key_auth_disabled(),
+        disable_api_key_auth: axon_com_config.disable_api_key_auth,
+        force_login_team_uuid: axon_com_config.force_login_team_uuid,
     }
 }
 
@@ -671,13 +671,13 @@ fn list_hooks(
         axon_hooks::discovery::load_hooks_from_sources(&global_sources, &project_sources);
 
     let home_dir = dirs::home_dir();
-    let grok_home = axon_config::grok_home();
+    let axon_home = axon_config::axon_home();
 
     let mut entries: Vec<HookEntry> = registry
         .all_hooks()
         .into_iter()
         .map(|h| {
-            let is_user_scope = h.source_dir.starts_with(&grok_home)
+            let is_user_scope = h.source_dir.starts_with(&axon_home)
                 || home_dir.as_deref().is_some_and(|home| {
                     h.source_dir.starts_with(home.join(".cursor"))
                         || h.source_dir.starts_with(home.join(".claude"))
@@ -761,11 +761,11 @@ async fn list_skills(
     )
     .await;
 
-    let grok_home = crate::util::grok_home::grok_home();
+    let axon_home = crate::util::axon_home::axon_home();
     skills
         .into_iter()
         .map(|s| {
-            let source = skill_entry_source(&s, &grok_home);
+            let source = skill_entry_source(&s, &axon_home);
             let vendor = derive_vendor(&s.path).map(String::from);
             SkillEntry {
                 name: s.label().to_string(),
@@ -786,19 +786,19 @@ async fn list_skills(
 /// Prefers the discovery-stamped `config_source` (plugin skills,
 /// `[skills].paths` entries), then falls back to a scope mapping. One
 /// display-only fixup: bundled skills are extracted to
-/// `<grok_home>/skills/<name>/SKILL.md` and discovered as user skills, so a
+/// `<axon_home>/skills/<name>/SKILL.md` and discovered as user skills, so a
 /// skill at exactly that path with a bundled name is re-labeled `Bundled`
 /// (`builtin::is_extracted_bundled_skill`) — a same-named skill anywhere else
 /// stays non-bundled. Runtime discovery scopes/precedence are untouched.
 ///
 /// `Bundled`/`Server` sources are constructed only here, never by runtime
-/// discovery: deployed pagers parse `x.ai/skills/list` into a typed
+/// discovery: deployed pagers parse `axon/skills/list` into a typed
 /// `ConfigSource` and reject unknown tags, so runtime stamping must wait
 /// until clients without these variants have aged out. Until then this
 /// mapping is the single owner of the scope→source translation.
 fn skill_entry_source(
     s: &axon_agent::prompt::skills::SkillInfo,
-    grok_home: &Path,
+    axon_home: &Path,
 ) -> ConfigSource {
     use axon_tools::implementations::skills::types::SkillScope;
 
@@ -809,7 +809,7 @@ fn skill_entry_source(
     match s.scope {
         SkillScope::Local | SkillScope::Repo => ConfigSource::Project { path },
         SkillScope::User => {
-            if crate::builtin::is_extracted_bundled_skill(&s.name, &path, grok_home) {
+            if crate::builtin::is_extracted_bundled_skill(&s.name, &path, axon_home) {
                 ConfigSource::Bundled { path }
             } else {
                 ConfigSource::User { path }
@@ -1036,7 +1036,7 @@ fn list_config_sources(cwd: &Path) -> ConfigSources {
     }
 
     // User managed
-    if let Some(home) = crate::config::user_grok_home() {
+    if let Some(home) = crate::config::user_axon_home() {
         let p = home.join("managed_config.toml");
         if let Some((path_s, note)) = describe_config_file(&p) {
             layers.push(ConfigLayer {
@@ -1048,7 +1048,7 @@ fn list_config_sources(cwd: &Path) -> ConfigSources {
     }
 
     // User config.toml (primary user layer; shown as (none) when absent)
-    if let Some(home) = crate::config::user_grok_home() {
+    if let Some(home) = crate::config::user_axon_home() {
         let p = home.join("config.toml");
         if let Some((path_s, note)) = describe_config_file(&p) {
             layers.push(ConfigLayer {
@@ -1060,7 +1060,7 @@ fn list_config_sources(cwd: &Path) -> ConfigSources {
     }
 
     // Requirements: user then system (order they appear in requirements_layers)
-    if let Some(home) = crate::config::user_grok_home() {
+    if let Some(home) = crate::config::user_axon_home() {
         let p = home.join("requirements.toml");
         if let Some((path_s, note)) = describe_requirements_file(&p) {
             layers.push(ConfigLayer {
@@ -1299,7 +1299,7 @@ fn render_harness_compatibility(report: &ExternalCompatReport) -> String {
 fn print_human(r: &InspectReport) {
     println!();
     println!("  Environment");
-    println!("  {TREE} Version: {} [{}]", r.grok_version, r.channel);
+    println!("  {TREE} Version: {} [{}]", r.axon_version, r.channel);
     println!("  {TREE} CWD: {}", r.cwd);
     if let Some(ref root) = r.project_root {
         println!("  {TREE} Git root: {}", root);
@@ -1678,12 +1678,12 @@ mod tests {
     }
 
     #[test]
-    fn grok_home_nested_in_workspace_keeps_direct_surfaces_global() {
-        let grok_home = Path::new("/repo/config");
+    fn axon_home_nested_in_workspace_keeps_direct_surfaces_global() {
+        let axon_home = Path::new("/repo/config");
         let workspace = Path::new("/repo");
         for path in ["/repo/config/AGENTS.md", "/repo/config/rules/global.md"] {
             assert!(matches!(
-                instruction_scope(path, grok_home, &[], workspace),
+                instruction_scope(path, axon_home, &[], workspace),
                 Scope::Global
             ));
         }
@@ -1692,7 +1692,7 @@ mod tests {
             "/repo/config/src/AGENTS.md",
         ] {
             assert!(matches!(
-                instruction_scope(path, grok_home, &[], workspace),
+                instruction_scope(path, axon_home, &[], workspace),
                 Scope::Project
             ));
         }
@@ -1704,7 +1704,7 @@ mod tests {
         let workspace = Path::new("/repo");
         for path in ["/repo/.claude/rules/global.md", "/repo/.claude/CLAUDE.md"] {
             assert!(matches!(
-                instruction_scope(path, Path::new("/other/grok"), &vendor_homes, workspace),
+                instruction_scope(path, Path::new("/other/axon"), &vendor_homes, workspace),
                 Scope::Global
             ));
         }
@@ -1713,33 +1713,33 @@ mod tests {
             "/repo/.claude/src/AGENTS.md",
         ] {
             assert!(matches!(
-                instruction_scope(path, Path::new("/other/grok"), &vendor_homes, workspace),
+                instruction_scope(path, Path::new("/other/axon"), &vendor_homes, workspace),
                 Scope::Project
             ));
         }
     }
 
     #[test]
-    fn workspace_scope_wins_inside_grok_home() {
-        let grok_home = Path::new("/custom/grok");
-        let workspace = Path::new("/custom/grok/worktrees/repo");
+    fn workspace_scope_wins_inside_axon_home() {
+        let axon_home = Path::new("/custom/axon");
+        let workspace = Path::new("/custom/axon/worktrees/repo");
         for path in [
-            "/custom/grok/worktrees/repo/.cursor/rules/project.md",
-            "/custom/grok/worktrees/repo/src/AGENTS.md",
+            "/custom/axon/worktrees/repo/.cursor/rules/project.md",
+            "/custom/axon/worktrees/repo/src/AGENTS.md",
         ] {
             assert!(matches!(
-                instruction_scope(path, grok_home, &[], workspace),
+                instruction_scope(path, axon_home, &[], workspace),
                 Scope::Project
             ));
         }
         assert!(matches!(
-            instruction_scope("/custom/grok/rules/global.md", grok_home, &[], workspace,),
+            instruction_scope("/custom/axon/rules/global.md", axon_home, &[], workspace,),
             Scope::Global
         ));
     }
 
     #[test]
-    fn custom_grok_home_rules_are_classified_as_rules() {
+    fn custom_axon_home_rules_are_classified_as_rules() {
         assert_eq!(
             instruction_file_type(
                 "/custom/config/rules/team.md",
@@ -1848,8 +1848,8 @@ mod tests {
     fn model_override_warnings_inspect_smoke() {
         let effective: toml::Value = toml::from_str(
             r#"
-            [model."grok-4.5"]
-            model = "grok-4.5"
+            [model."axon-4.5"]
+            model = "axon-4.5"
             env_key = "ANTHROPIC_AUTH_TOKEN"
             compactions_remaining = 1
             send_compactions_remaining = true
@@ -1871,16 +1871,16 @@ mod tests {
                 .any(|w| w.field.as_deref() == Some("reasoning_effort")),
             "invalid enum should warn: {warnings:?}"
         );
-        assert!(cfg.config_models.contains_key("grok-4.5"));
+        assert!(cfg.config_models.contains_key("axon-4.5"));
 
         let human = render_model_override_warnings(&warnings);
         assert!(human.contains("Model Overrides"), "{human}");
         assert!(
-            human.contains("[model.\"grok-4.5\"] send_compactions_remaining"),
+            human.contains("[model.\"axon-4.5\"] send_compactions_remaining"),
             "{human}"
         );
         assert!(
-            human.contains("[model.\"grok-4.5\"] reasoning_effort"),
+            human.contains("[model.\"axon-4.5\"] reasoning_effort"),
             "{human}"
         );
         assert_eq!(render_model_override_warnings(&[]), "");
@@ -1892,7 +1892,7 @@ mod tests {
             .iter()
             .find(|w| w["field"] == "send_compactions_remaining")
             .expect("alias warning present in JSON");
-        assert_eq!(alias_warning["modelKey"], "grok-4.5");
+        assert_eq!(alias_warning["modelKey"], "axon-4.5");
         assert_eq!(alias_warning["kind"], "duplicate-alias");
         assert!(
             alias_warning["reason"]
@@ -1953,7 +1953,7 @@ mod tests {
     }
 
     /// Bundled skills are re-labeled `Bundled` only at their exact extraction
-    /// path `<grok_home>/skills/<name>/SKILL.md`; a same-named skill anywhere
+    /// path `<axon_home>/skills/<name>/SKILL.md`; a same-named skill anywhere
     /// else keeps its real source.
     #[test]
     fn skill_entry_source_relabels_extracted_bundled_skills() {
@@ -1976,7 +1976,7 @@ mod tests {
             ConfigSource::Project { .. }
         ));
 
-        // Bundled name in a user dir outside <grok_home>/skills: stays user.
+        // Bundled name in a user dir outside <axon_home>/skills: stays user.
         let s = skill_fixture(
             "help",
             "/home/u/other-skills/help/SKILL.md",
@@ -1987,7 +1987,7 @@ mod tests {
             ConfigSource::User { .. }
         ));
 
-        // Bundled frontmatter name in a different dir under <grok_home>/skills:
+        // Bundled frontmatter name in a different dir under <axon_home>/skills:
         // not the extracted copy — stays user.
         let s = skill_fixture(
             "help",
@@ -1999,7 +1999,7 @@ mod tests {
             ConfigSource::User { .. }
         ));
 
-        // Non-bundled name under <grok_home>/skills: stays user.
+        // Non-bundled name under <axon_home>/skills: stays user.
         let s = skill_fixture(
             "my-skill",
             "/home/u/.axon/skills/my-skill/SKILL.md",

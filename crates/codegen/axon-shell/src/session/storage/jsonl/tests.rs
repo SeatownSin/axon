@@ -121,7 +121,7 @@ async fn test_jsonl_round_trip() {
         .unwrap();
     let plan_state = create_test_plan_state();
     adapter.write_plan_state(&info, &plan_state).await.unwrap();
-    let new_model = acp::ModelId::new("grok-4.3");
+    let new_model = acp::ModelId::new("axon-4.3");
     adapter.update_current_model(&info, &new_model).await.unwrap();
     let loaded = adapter.load_session(&info).await.unwrap();
     assert_eq!(loaded.summary.info.id, info.id);
@@ -297,18 +297,18 @@ async fn delete_session_removes_dir_and_is_idempotent() {
     adapter.delete_session(&info).await.expect("second delete must succeed");
 }
 #[tokio::test]
-async fn test_xai_session_update_round_trip() {
+async fn test_axon_session_update_round_trip() {
     use crate::extensions::notification::{
-        DiffContent, SessionNotification as XaiSessionNotification,
-        SessionUpdate as XaiSessionUpdateType,
+        DiffContent, SessionNotification as AxonSessionNotification,
+        SessionUpdate as AxonSessionUpdateType,
     };
     let temp_dir = TempDir::new().unwrap();
     let adapter = JsonlStorageAdapter::with_root(temp_dir.path().to_path_buf());
     let info = create_test_info();
     adapter.init_session(&info, default_model_id()).await.unwrap();
-    let xai_notification = XaiSessionNotification {
+    let axon_notification = AxonSessionNotification {
         session_id: acp::SessionId::new("test-session-123"),
-        update: XaiSessionUpdateType::DiffReview {
+        update: AxonSessionUpdateType::DiffReview {
             content: vec![
                 DiffContent { diff :
                 acp::Diff::new(std::path::PathBuf::from("/test/file.rs"), "new code"
@@ -318,7 +318,7 @@ async fn test_xai_session_update_round_trip() {
         meta: None,
     };
     adapter
-        .append_update(&info, &SessionUpdate::Xai(Box::new(xai_notification.clone())))
+        .append_update(&info, &SessionUpdate::Axon(Box::new(axon_notification.clone())))
         .await
         .unwrap();
     let acp_notification = create_test_notification();
@@ -327,12 +327,12 @@ async fn test_xai_session_update_round_trip() {
         .await
         .unwrap();
     let loaded = adapter.load_session(&info).await.unwrap();
-    assert_eq!(loaded.updates.len(), 2, "Should have 2 updates (1 xAI + 1 ACP)");
+    assert_eq!(loaded.updates.len(), 2, "Should have 2 updates (1 Axon + 1 ACP)");
     match &loaded.updates[0] {
-        SessionUpdate::Xai(notification) => {
+        SessionUpdate::Axon(notification) => {
             assert_eq!(notification.session_id.0.as_ref(), "test-session-123");
             match &notification.update {
-                XaiSessionUpdateType::DiffReview { content } => {
+                AxonSessionUpdateType::DiffReview { content } => {
                     assert_eq!(content.len(), 1);
                     assert_eq!(
                         content[0].diff.path, std::path::PathBuf::from("/test/file.rs")
@@ -343,7 +343,7 @@ async fn test_xai_session_update_round_trip() {
                 }
             }
         }
-        _ => panic!("Expected xAI update as first item"),
+        _ => panic!("Expected Axon update as first item"),
     }
     match &loaded.updates[1] {
         SessionUpdate::Acp(_) => {}
@@ -355,16 +355,16 @@ async fn test_xai_session_update_round_trip() {
 #[tokio::test]
 async fn test_subagent_notifications_round_trip() {
     use crate::extensions::notification::{
-        SessionNotification as XaiSessionNotification,
-        SessionUpdate as XaiSessionUpdateType,
+        SessionNotification as AxonSessionNotification,
+        SessionUpdate as AxonSessionUpdateType,
     };
     let temp_dir = TempDir::new().unwrap();
     let adapter = JsonlStorageAdapter::with_root(temp_dir.path().to_path_buf());
     let info = create_test_info();
     adapter.init_session(&info, default_model_id()).await.unwrap();
-    let spawned = XaiSessionNotification {
+    let spawned = AxonSessionNotification {
         session_id: acp::SessionId::new("parent-session"),
-        update: XaiSessionUpdateType::SubagentSpawned {
+        update: AxonSessionUpdateType::SubagentSpawned {
             subagent_id: "child-001".to_string(),
             parent_session_id: "parent-session".to_string(),
             parent_prompt_id: Some("turn-123".to_string()),
@@ -381,10 +381,10 @@ async fn test_subagent_notifications_round_trip() {
         },
         meta: None,
     };
-    adapter.append_update(&info, &SessionUpdate::Xai(Box::new(spawned))).await.unwrap();
-    let finished = XaiSessionNotification {
+    adapter.append_update(&info, &SessionUpdate::Axon(Box::new(spawned))).await.unwrap();
+    let finished = AxonSessionNotification {
         session_id: acp::SessionId::new("parent-session"),
-        update: XaiSessionUpdateType::SubagentFinished {
+        update: AxonSessionUpdateType::SubagentFinished {
             subagent_id: "child-001".to_string(),
             child_session_id: "child-001".to_string(),
             status: "completed".to_string(),
@@ -398,13 +398,13 @@ async fn test_subagent_notifications_round_trip() {
         },
         meta: None,
     };
-    adapter.append_update(&info, &SessionUpdate::Xai(Box::new(finished))).await.unwrap();
+    adapter.append_update(&info, &SessionUpdate::Axon(Box::new(finished))).await.unwrap();
     let loaded = adapter.load_session(&info).await.unwrap();
     assert_eq!(loaded.updates.len(), 2);
     match &loaded.updates[0] {
-        SessionUpdate::Xai(notification) => {
+        SessionUpdate::Axon(notification) => {
             match &notification.update {
-                XaiSessionUpdateType::SubagentSpawned {
+                AxonSessionUpdateType::SubagentSpawned {
                     subagent_id,
                     child_session_id,
                     description,
@@ -419,12 +419,12 @@ async fn test_subagent_notifications_round_trip() {
                 other => panic!("Expected SubagentSpawned, got {other:?}"),
             }
         }
-        other => panic!("Expected Xai update, got {other:?}"),
+        other => panic!("Expected Axon update, got {other:?}"),
     }
     match &loaded.updates[1] {
-        SessionUpdate::Xai(notification) => {
+        SessionUpdate::Axon(notification) => {
             match &notification.update {
-                XaiSessionUpdateType::SubagentFinished {
+                AxonSessionUpdateType::SubagentFinished {
                     subagent_id,
                     status,
                     tool_calls,
@@ -443,7 +443,7 @@ async fn test_subagent_notifications_round_trip() {
                 other => panic!("Expected SubagentFinished, got {other:?}"),
             }
         }
-        other => panic!("Expected Xai update, got {other:?}"),
+        other => panic!("Expected Axon update, got {other:?}"),
     }
     let raw_jsonl = tokio::fs::read_to_string(
             adapter.session_dir(&info).join("updates.jsonl"),
@@ -456,12 +456,12 @@ async fn test_subagent_notifications_round_trip() {
         .len()
     );
     let spawned_json: serde_json::Value = serde_json::from_str(lines[0]).unwrap();
-    assert_eq!(spawned_json["method"], "_x.ai/session/update");
+    assert_eq!(spawned_json["method"], "_axon/session/update");
     let spawned_update = &spawned_json["params"]["update"];
     assert_eq!(spawned_update["sessionUpdate"], "subagent_spawned");
     assert_eq!(spawned_update["subagent_id"], "child-001");
     let finished_json: serde_json::Value = serde_json::from_str(lines[1]).unwrap();
-    assert_eq!(finished_json["method"], "_x.ai/session/update");
+    assert_eq!(finished_json["method"], "_axon/session/update");
     let finished_update = &finished_json["params"]["update"];
     assert_eq!(finished_update["sessionUpdate"], "subagent_finished");
     assert_eq!(finished_update["tool_calls"], 5);
@@ -470,16 +470,16 @@ async fn test_subagent_notifications_round_trip() {
 #[tokio::test]
 async fn test_subagent_spawned_resumed_roundtrip() {
     use crate::extensions::notification::{
-        SessionNotification as XaiSessionNotification,
-        SessionUpdate as XaiSessionUpdateType,
+        SessionNotification as AxonSessionNotification,
+        SessionUpdate as AxonSessionUpdateType,
     };
     let temp_dir = TempDir::new().unwrap();
     let adapter = JsonlStorageAdapter::with_root(temp_dir.path().to_path_buf());
     let info = create_test_info();
     adapter.init_session(&info, default_model_id()).await.unwrap();
-    let spawned = XaiSessionNotification {
+    let spawned = AxonSessionNotification {
         session_id: acp::SessionId::new("resume-parent"),
-        update: XaiSessionUpdateType::SubagentSpawned {
+        update: AxonSessionUpdateType::SubagentSpawned {
             subagent_id: "child-resumed".to_string(),
             parent_session_id: "resume-parent".to_string(),
             parent_prompt_id: Some("turn-5".to_string()),
@@ -496,13 +496,13 @@ async fn test_subagent_spawned_resumed_roundtrip() {
         },
         meta: None,
     };
-    adapter.append_update(&info, &SessionUpdate::Xai(Box::new(spawned))).await.unwrap();
+    adapter.append_update(&info, &SessionUpdate::Axon(Box::new(spawned))).await.unwrap();
     let loaded = adapter.load_session(&info).await.unwrap();
     assert_eq!(loaded.updates.len(), 1);
     match &loaded.updates[0] {
-        SessionUpdate::Xai(notification) => {
+        SessionUpdate::Axon(notification) => {
             match &notification.update {
-                XaiSessionUpdateType::SubagentSpawned {
+                AxonSessionUpdateType::SubagentSpawned {
                     subagent_id,
                     effective_context_source,
                     persona,
@@ -520,7 +520,7 @@ async fn test_subagent_spawned_resumed_roundtrip() {
                 other => panic!("Expected SubagentSpawned, got {other:?}"),
             }
         }
-        other => panic!("Expected Xai update, got {other:?}"),
+        other => panic!("Expected Axon update, got {other:?}"),
     }
 }
 #[tokio::test]
@@ -667,21 +667,21 @@ async fn test_copy_session_data_without_plan() {
     assert!(loaded.plan_state.is_none());
 }
 #[tokio::test]
-async fn test_copy_session_data_transforms_xai_updates() {
+async fn test_copy_session_data_transforms_axon_updates() {
     use crate::extensions::notification::{
-        DiffContent, SessionNotification as XaiSessionNotification,
-        SessionUpdate as XaiSessionUpdateType,
+        DiffContent, SessionNotification as AxonSessionNotification,
+        SessionUpdate as AxonSessionUpdateType,
     };
     let temp_dir = TempDir::new().unwrap();
     let adapter = JsonlStorageAdapter::with_root(temp_dir.path().to_path_buf());
     let source_info = Info {
-        id: acp::SessionId::new("source-xai"),
+        id: acp::SessionId::new("source-axon"),
         cwd: "/source".to_string(),
     };
     adapter.init_session(&source_info, default_model_id()).await.unwrap();
-    let xai_notification = XaiSessionNotification {
-        session_id: acp::SessionId::new("source-xai"),
-        update: XaiSessionUpdateType::DiffReview {
+    let axon_notification = AxonSessionNotification {
+        session_id: acp::SessionId::new("source-axon"),
+        update: AxonSessionUpdateType::DiffReview {
             content: vec![
                 DiffContent { diff :
                 acp::Diff::new(std::path::PathBuf::from("/test/file.rs"), "new"
@@ -691,11 +691,11 @@ async fn test_copy_session_data_transforms_xai_updates() {
         meta: None,
     };
     adapter
-        .append_update(&source_info, &SessionUpdate::Xai(Box::new(xai_notification)))
+        .append_update(&source_info, &SessionUpdate::Axon(Box::new(axon_notification)))
         .await
         .unwrap();
     let target_info = Info {
-        id: acp::SessionId::new("fork-source-xai-abcd1234"),
+        id: acp::SessionId::new("fork-source-axon-abcd1234"),
         cwd: "/target".to_string(),
     };
     adapter
@@ -704,10 +704,10 @@ async fn test_copy_session_data_transforms_xai_updates() {
         .unwrap();
     let loaded = adapter.load_session(&target_info).await.unwrap();
     match &loaded.updates[0] {
-        SessionUpdate::Xai(notification) => {
-            assert_eq!(notification.session_id.0.as_ref(), "fork-source-xai-abcd1234");
+        SessionUpdate::Axon(notification) => {
+            assert_eq!(notification.session_id.0.as_ref(), "fork-source-axon-abcd1234");
         }
-        _ => panic!("Expected xAI update"),
+        _ => panic!("Expected Axon update"),
     }
 }
 #[tokio::test]
@@ -742,13 +742,13 @@ async fn test_copy_session_data_with_model_override() {
     };
     let options = CopySessionOptions {
         parent_session_id: Some("source-model-test".to_string()),
-        new_model_id: Some("grok-3".to_string()),
+        new_model_id: Some("axon-3".to_string()),
         target_prompt_index: None,
         ..Default::default()
     };
     adapter.copy_session_data(&source_info, &target_info, options).await.unwrap();
     let loaded = adapter.load_session(&target_info).await.unwrap();
-    assert_eq!(loaded.summary.current_model_id.0.as_ref(), "grok-3");
+    assert_eq!(loaded.summary.current_model_id.0.as_ref(), "axon-3");
     assert_eq!(loaded.summary.parent_session_id, Some("source-model-test".to_string()));
 }
 #[tokio::test]
@@ -874,7 +874,7 @@ async fn test_load_prompts_only_merges_multi_chunk_prompt() {
 #[tokio::test]
 async fn test_load_prompts_only_applies_rewind_truncation() {
     use crate::extensions::notification::{
-        SessionNotification as XaiNotification, SessionUpdate as XaiSessionUpdate,
+        SessionNotification as AxonNotification, SessionUpdate as AxonSessionUpdate,
     };
     let temp_dir = TempDir::new().unwrap();
     let adapter = JsonlStorageAdapter::with_root(temp_dir.path().to_path_buf());
@@ -917,9 +917,9 @@ async fn test_load_prompts_only_applies_rewind_truncation() {
             ),
         ),
     );
-    let rewind = XaiNotification {
+    let rewind = AxonNotification {
         session_id: info.id.clone(),
-        update: XaiSessionUpdate::RewindMarker {
+        update: AxonSessionUpdate::RewindMarker {
             target_prompt_index: 1,
             created_at: "2024-01-01T00:00:00Z".to_string(),
         },
@@ -948,7 +948,7 @@ async fn test_load_prompts_only_applies_rewind_truncation() {
         SessionUpdate::Acp(Box::new(agent1)),
         SessionUpdate::Acp(Box::new(user2)),
         SessionUpdate::Acp(Box::new(agent2)),
-        SessionUpdate::Xai(Box::new(rewind)),
+        SessionUpdate::Axon(Box::new(rewind)),
         SessionUpdate::Acp(Box::new(user3)),
         SessionUpdate::Acp(Box::new(agent3)),
     ] {
@@ -1110,8 +1110,8 @@ async fn test_append_feedback_creates_file_and_persists() {
             feedback_text: None,
             feedback_categories: vec![],
             message_id: None,
-            model_id: Some("grok-3-fast".into()),
-            resolved_model_id: Some("grok-4.5".into()),
+            model_id: Some("axon-3-fast".into()),
+            resolved_model_id: Some("axon-4.5".into()),
             model_fingerprint: None,
             context_type: None,
             feature_name: None,
@@ -1174,7 +1174,7 @@ async fn test_copy_session_data_copies_tool_state() {
         .await
         .unwrap();
     let tool_state_json = serde_json::json!(
-        { "state" : { "grok_build.TodoState" : { "todos" : [] } } }
+        { "state" : { "axon_build.TodoState" : { "todos" : [] } } }
     );
     let source_dir = adapter.session_dir(&source_info);
     std::fs::write(
@@ -1786,7 +1786,7 @@ fn write_test_summary(
         head_commit: None,
         head_branch: None,
         request_id: None,
-        grok_home: None,
+        axon_home: None,
         last_active_at,
         generated_title: None,
         title_is_manual: false,
@@ -1816,7 +1816,7 @@ fn scan_session_dirs_returns_empty_when_no_sessions_dir() {
 fn scan_session_dirs_finds_all_sessions() {
     let tmp = TempDir::new().unwrap();
     let now = chrono::Utc::now();
-    let cwd = crate::util::grok_home::encode_cwd_dirname("/home/user/project");
+    let cwd = crate::util::axon_home::encode_cwd_dirname("/home/user/project");
     write_test_summary(tmp.path(), &cwd, "s1", now, None, None, None);
     write_test_summary(tmp.path(), &cwd, "s2", now, None, None, None);
     let adapter = JsonlStorageAdapter::with_root(tmp.path().to_path_buf());
@@ -1827,8 +1827,8 @@ fn scan_session_dirs_finds_all_sessions() {
 fn scan_session_dirs_filters_by_cwd() {
     let tmp = TempDir::new().unwrap();
     let now = chrono::Utc::now();
-    let cwd_a = crate::util::grok_home::encode_cwd_dirname("/home/user/project-a");
-    let cwd_b = crate::util::grok_home::encode_cwd_dirname("/home/user/project-b");
+    let cwd_a = crate::util::axon_home::encode_cwd_dirname("/home/user/project-a");
+    let cwd_b = crate::util::axon_home::encode_cwd_dirname("/home/user/project-b");
     write_test_summary(tmp.path(), &cwd_a, "s1", now, None, None, None);
     write_test_summary(tmp.path(), &cwd_b, "s2", now, None, None, None);
     let adapter = JsonlStorageAdapter::with_root(tmp.path().to_path_buf());
@@ -1841,7 +1841,7 @@ fn scan_session_dirs_filters_by_cwd() {
 #[test]
 fn scan_session_dirs_skips_non_directory_entries() {
     let tmp = TempDir::new().unwrap();
-    let cwd = crate::util::grok_home::encode_cwd_dirname("/project");
+    let cwd = crate::util::axon_home::encode_cwd_dirname("/project");
     let cwd_dir = tmp.path().join("sessions").join(&cwd);
     std::fs::create_dir_all(&cwd_dir).unwrap();
     std::fs::write(cwd_dir.join("stray-file.txt"), b"oops").unwrap();
@@ -1854,7 +1854,7 @@ fn scan_session_dirs_skips_non_directory_entries() {
 #[tokio::test]
 async fn list_sessions_recent_returns_most_recent_by_mtime() {
     let tmp = TempDir::new().unwrap();
-    let cwd = crate::util::grok_home::encode_cwd_dirname("/workspace");
+    let cwd = crate::util::axon_home::encode_cwd_dirname("/workspace");
     let t1 = chrono::Utc::now() - chrono::Duration::hours(3);
     let t2 = chrono::Utc::now() - chrono::Duration::hours(2);
     let t3 = chrono::Utc::now() - chrono::Duration::hours(1);
@@ -1873,7 +1873,7 @@ async fn list_sessions_recent_returns_most_recent_by_mtime() {
 #[tokio::test]
 async fn list_sessions_recent_excludes_hidden_sessions() {
     let tmp = TempDir::new().unwrap();
-    let cwd = crate::util::grok_home::encode_cwd_dirname("/workspace");
+    let cwd = crate::util::axon_home::encode_cwd_dirname("/workspace");
     let now = chrono::Utc::now();
     write_test_summary(tmp.path(), &cwd, "visible", now, None, None, None);
     write_test_summary(tmp.path(), &cwd, "hidden-explicit", now, None, Some(true), None);
@@ -1902,7 +1902,7 @@ async fn list_sessions_recent_empty_dir() {
 async fn list_sessions_sorts_by_last_active_at_over_updated_at() {
     let tmp = TempDir::new().unwrap();
     let cwd_path = "/ws/resume-sort";
-    let cwd = crate::util::grok_home::encode_cwd_dirname(cwd_path);
+    let cwd = crate::util::axon_home::encode_cwd_dirname(cwd_path);
     let now = chrono::Utc::now();
     write_test_summary(
         tmp.path(),
@@ -1931,7 +1931,7 @@ async fn list_sessions_sorts_by_last_active_at_over_updated_at() {
 #[tokio::test]
 async fn list_sessions_recent_sorts_by_updated_at() {
     let tmp = TempDir::new().unwrap();
-    let cwd = crate::util::grok_home::encode_cwd_dirname("/ws");
+    let cwd = crate::util::axon_home::encode_cwd_dirname("/ws");
     let now = chrono::Utc::now();
     let t_old = now - chrono::Duration::hours(10);
     let t_new = now;
@@ -1946,8 +1946,8 @@ async fn list_sessions_recent_sorts_by_updated_at() {
 #[tokio::test]
 async fn list_sessions_recent_spans_multiple_workspaces() {
     let tmp = TempDir::new().unwrap();
-    let cwd_a = crate::util::grok_home::encode_cwd_dirname("/project-a");
-    let cwd_b = crate::util::grok_home::encode_cwd_dirname("/project-b");
+    let cwd_a = crate::util::axon_home::encode_cwd_dirname("/project-a");
+    let cwd_b = crate::util::axon_home::encode_cwd_dirname("/project-b");
     let now = chrono::Utc::now();
     write_test_summary(
         tmp.path(),
@@ -1968,7 +1968,7 @@ async fn list_sessions_recent_spans_multiple_workspaces() {
 #[tokio::test]
 async fn list_sessions_recent_skips_corrupt_summary() {
     let tmp = TempDir::new().unwrap();
-    let cwd = crate::util::grok_home::encode_cwd_dirname("/ws");
+    let cwd = crate::util::axon_home::encode_cwd_dirname("/ws");
     let now = chrono::Utc::now();
     write_test_summary(tmp.path(), &cwd, "good", now, None, None, None);
     let bad_dir = tmp.path().join("sessions").join(&cwd).join("bad");
@@ -2261,7 +2261,7 @@ fn load_lines(lines: &[&str]) -> Vec<ConversationItem> {
 }
 /// Real-shape legacy fixture from a web-search session.
 /// The assistant carries `reasoning: { text, encrypted, id }` inline —
-/// the legacy grok-build / Opus / chat-completions shape.
+/// the legacy axon-build / Opus / chat-completions shape.
 /// BackendToolCall sits as its own sibling line (it was already a
 /// sibling variant in the legacy shape).
 #[test]
@@ -2271,7 +2271,7 @@ fn read_chat_history_upgrades_legacy_singular_reasoning_to_sibling() {
             r#"{"type":"system","content":"You are helpful."}"#,
             r#"{"type":"user","content":[{"type":"text","text":"cats and dogs"}]}"#,
             r#"{"type":"backend_tool_call","kind":{"tool_type":"web_search","id":"ws_legacy_1","status":"completed","action":{"type":"search","query":"cats and dogs","sources":[]}}}"#,
-            r#"{"type":"assistant","content":"results...","reasoning":{"text":"the results are about cats","encrypted":"enc-blob","id":"rs_legacy"},"model_id":"grok-build"}"#,
+            r#"{"type":"assistant","content":"results...","reasoning":{"text":"the results are about cats","encrypted":"enc-blob","id":"rs_legacy"},"model_id":"axon-build"}"#,
         ],
     );
     assert_eq!(
@@ -2347,11 +2347,11 @@ fn read_chat_history_handles_hybrid_legacy_and_post_pr_lines() {
             r#"{"type":"system","content":"sys"}"#,
             r#"{"type":"user","content":[{"type":"text","text":"q1"}]}"#,
             r#"{"type":"backend_tool_call","kind":{"tool_type":"web_search","id":"ws_legacy_1","status":"completed","action":{"type":"search","query":"q1","sources":[]}}}"#,
-            r#"{"type":"assistant","content":"a1","reasoning":{"text":"legacy thinking","encrypted":"enc","id":"rs_legacy"},"model_id":"grok-build"}"#,
+            r#"{"type":"assistant","content":"a1","reasoning":{"text":"legacy thinking","encrypted":"enc","id":"rs_legacy"},"model_id":"axon-build"}"#,
             r#"{"type":"user","content":[{"type":"text","text":"q2"}]}"#,
             r#"{"type":"reasoning","id":"rs_postpr","summary":[{"type":"summary_text","text":"new thinking"}]}"#,
             r#"{"type":"backend_tool_call","kind":{"tool_type":"web_search","id":"ws_postpr","status":"completed","action":{"type":"search","query":"q2","sources":[]}}}"#,
-            r#"{"type":"assistant","content":"a2","model_id":"grok-build"}"#,
+            r#"{"type":"assistant","content":"a2","model_id":"axon-build"}"#,
         ],
     );
     let kinds: Vec<&'static str> = items
@@ -2392,7 +2392,7 @@ fn read_chat_history_handles_hybrid_legacy_and_post_pr_lines() {
     };
     assert_eq!(legacy_assistant.content.as_ref(), "a1");
     assert_eq!(
-        legacy_assistant.model_id.as_deref(), Some("grok-build"),
+        legacy_assistant.model_id.as_deref(), Some("axon-build"),
         "model_id preserved across the upgrade"
     );
     let ConversationItem::Reasoning(reconstructed) = &items[3] else {
@@ -2413,7 +2413,7 @@ fn read_chat_history_is_idempotent_on_post_pr_sessions() {
             r#"{"type":"system","content":"sys"}"#,
             r#"{"type":"user","content":[{"type":"text","text":"q"}]}"#,
             r#"{"type":"reasoning","id":"rs_x","summary":[{"type":"summary_text","text":"thought"}]}"#,
-            r#"{"type":"assistant","content":"a","model_id":"grok-build"}"#,
+            r#"{"type":"assistant","content":"a","model_id":"axon-build"}"#,
         ],
     );
     let kinds: Vec<&'static str> = items
@@ -2527,7 +2527,7 @@ fn read_chat_history_skips_merged_line_from_interrupted_append() {
     let good_1 = r#"{"type":"user","content":[{"type":"text","text":"kept"}]}"#;
     let partial = r#"{"type":"assistant","content":"cut mid-wri"#;
     let merged_onto = r#"{"type":"user","content":[{"type":"text","text":"lost"}]}"#;
-    let good_2 = r#"{"type":"assistant","content":"after","model_id":"grok-build"}"#;
+    let good_2 = r#"{"type":"assistant","content":"after","model_id":"axon-build"}"#;
     let raw = format!("{good_1}\n{partial}{merged_onto}\n{good_2}\n");
     let temp_dir = TempDir::new().unwrap();
     let (_, _, items) = load_raw_chat(&temp_dir, raw.as_bytes());

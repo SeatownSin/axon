@@ -1,6 +1,6 @@
 use super::support::*;
 use super::*;
-use crate::auth::{AuthManager, AuthMode, GrokAuth, GrokComConfig};
+use crate::auth::{AuthManager, AuthMode, AxonAuth, AxonComConfig};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::sync::mpsc;
@@ -17,12 +17,12 @@ impl crate::auth::refresh::TokenRefresher for AlwaysSucceedRefresher {
         _reason: crate::auth::refresh::RefreshReason,
     ) -> crate::auth::refresh::RefreshOutcome {
         self.called.store(true, Ordering::SeqCst);
-        crate::auth::refresh::RefreshOutcome::Success(Box::new(GrokAuth {
+        crate::auth::refresh::RefreshOutcome::Success(Box::new(AxonAuth {
             key: "refreshed-test-token".to_string(),
             auth_mode: AuthMode::Oidc,
             refresh_token: Some("rt-new".into()),
             expires_at: Some(chrono::Utc::now() + chrono::Duration::hours(1)),
-            ..GrokAuth::test_default()
+            ..AxonAuth::test_default()
         }))
     }
 }
@@ -34,13 +34,13 @@ fn auth_manager_with_refresher(
     refresher: Arc<dyn crate::auth::refresh::TokenRefresher>,
 ) -> (tempfile::TempDir, Arc<AuthManager>) {
     let dir = tempfile::tempdir().expect("tempdir");
-    let am = Arc::new(AuthManager::new(dir.path(), GrokComConfig::default()));
-    am.hot_swap(GrokAuth {
+    let am = Arc::new(AuthManager::new(dir.path(), AxonComConfig::default()));
+    am.hot_swap(AxonAuth {
         key: "initial-test-key".into(),
         auth_mode: AuthMode::Oidc,
         refresh_token: Some("rt".into()),
         expires_at: Some(chrono::Utc::now() - chrono::Duration::hours(1)),
-        ..GrokAuth::test_default()
+        ..AxonAuth::test_default()
     });
     am.set_refresher(refresher);
     (dir, am)
@@ -87,7 +87,7 @@ async fn make_actor_with_auth_and_credentials(
 ) -> (Arc<SessionActor>, mpsc::UnboundedReceiver<PersistenceMsg>) {
     let method_id = match auth_type {
         axon_chat_state::AuthType::SessionToken => "cached_token",
-        axon_chat_state::AuthType::ApiKey => "xai.api_key",
+        axon_chat_state::AuthType::ApiKey => "axon.api_key",
     };
     make_actor_with_method_and_credentials(auth_manager, method_id, auth_type, api_key).await
 }
@@ -95,7 +95,7 @@ async fn make_actor_with_auth_and_credentials(
 /// Pin the ACP `auth_method_id` and credential `auth_type` independently. The
 /// gate keys off the stable `auth_method_id`, so this reproduces the regression:
 /// a session method whose `creds.auth_type` has transiently collapsed to
-/// `ApiKey` (session-token cache miss + `XAI_API_KEY`).
+/// `ApiKey` (session-token cache miss + `AXON_API_KEY`).
 async fn make_actor_with_method_and_credentials(
     auth_manager: Option<Arc<AuthManager>>,
     auth_method_id: &str,
@@ -121,13 +121,13 @@ async fn make_actor_with_method_and_credentials(
 /// cache hit). The tempdir must outlive the manager (auth.json path).
 fn auth_manager_with_valid_token(key: &str) -> (tempfile::TempDir, Arc<AuthManager>) {
     let dir = tempfile::tempdir().expect("tempdir");
-    let am = Arc::new(AuthManager::new(dir.path(), GrokComConfig::default()));
-    am.hot_swap(GrokAuth {
+    let am = Arc::new(AuthManager::new(dir.path(), AxonComConfig::default()));
+    am.hot_swap(AxonAuth {
         key: key.into(),
         auth_mode: AuthMode::Oidc,
         refresh_token: Some("rt".into()),
         expires_at: Some(chrono::Utc::now() + chrono::Duration::hours(1)),
-        ..GrokAuth::test_default()
+        ..AxonAuth::test_default()
     });
     (dir, am)
 }
@@ -163,7 +163,7 @@ async fn no_recovery_without_auth_manager() {
             let (actor, _rx) = make_actor_with_auth_and_credentials(
                 None,
                 axon_chat_state::AuthType::ApiKey,
-                "xai-byok-key".to_string(),
+                "axon-byok-key".to_string(),
             )
             .await;
             crate::auth::attribution::reset_test_emit_count();
@@ -205,7 +205,7 @@ async fn sampler_401_recovery_returns_refresh_and_retry() {
 }
 
 /// Regression: sampler 401 with API-key auth (BYOK `env_key` /
-/// `XAI_API_KEY`) must NOT attempt an OIDC session-token refresh. The
+/// `AXON_API_KEY`) must NOT attempt an OIDC session-token refresh. The
 /// bearer on the wire is the static API key, so refreshing the session
 /// token reports success but the retry re-sends the same rejected key —
 /// an invisible 401 loop that hangs the turn. Recovery is skipped and
@@ -225,7 +225,7 @@ async fn sampler_401_with_api_key_auth_skips_refresh_and_surfaces_error() {
             let (actor, _rx) = make_actor_with_auth_and_credentials(
                 Some(am),
                 axon_chat_state::AuthType::ApiKey,
-                "xai-byok-key".to_string(),
+                "axon-byok-key".to_string(),
             )
             .await;
 
@@ -400,12 +400,12 @@ async fn proactive_refresh_makes_per_turn_refresh_a_cache_hit() {
                         _: crate::auth::refresh::RefreshReason,
                     ) -> crate::auth::refresh::RefreshOutcome {
                         self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-                        crate::auth::refresh::RefreshOutcome::Success(Box::new(GrokAuth {
+                        crate::auth::refresh::RefreshOutcome::Success(Box::new(AxonAuth {
                             key: "proactive-fresh".into(),
                             auth_mode: AuthMode::Oidc,
                             refresh_token: Some("rt-new".into()),
                             expires_at: Some(chrono::Utc::now() + chrono::Duration::hours(1)),
-                            ..GrokAuth::test_default()
+                            ..AxonAuth::test_default()
                         }))
                     }
                 }
@@ -454,7 +454,7 @@ async fn proactive_refresh_makes_per_turn_refresh_a_cache_hit() {
 fn model_not_found_error() -> axon_sampler::SamplingErrorInfo {
     axon_sampler::SamplingErrorInfo {
             kind: axon_sampler::SamplingErrorKind::Api,
-            message: "API error (status 404 Not Found): The model grok-build does not exist or your team does not have access".into(),
+            message: "API error (status 404 Not Found): The model axon-build does not exist or your team does not have access".into(),
             status_code: Some(404),
             is_retryable: false,
             retry_after_secs: None,
@@ -473,11 +473,11 @@ async fn legacy_auth_hint_on_404_model_not_found() {
     local
         .run_until(async {
             let dir = tempfile::tempdir().expect("tempdir");
-            let am = Arc::new(AuthManager::new(dir.path(), GrokComConfig::default()));
-            am.hot_swap(GrokAuth {
+            let am = Arc::new(AuthManager::new(dir.path(), AxonComConfig::default()));
+            am.hot_swap(AxonAuth {
                 key: "legacy-token".into(),
                 auth_mode: AuthMode::WebLogin,
-                ..GrokAuth::test_default()
+                ..AxonAuth::test_default()
             });
 
             let (actor, _rx) = make_actor_with_auth_manager(Some(am)).await;
@@ -521,7 +521,7 @@ async fn legacy_auth_hint_on_404_model_not_found() {
 fn unauthorized_401_error() -> axon_sampler::SamplingErrorInfo {
     axon_sampler::SamplingErrorInfo {
             kind: axon_sampler::SamplingErrorKind::Api,
-            message: "Unauthorized (401) from https://cli-chat-proxy.grok.com/v1/responses: {\"error\":\"Invalid or expired credentials (auth_kind=bearer, x_xai_token_auth=xai-grok-cli, upstream=Unauthenticated, reason=no auth context)\"}".into(),
+            message: "Unauthorized (401) from https://cli-chat-proxy.blocked.invalid/v1/responses: {\"error\":\"Invalid or expired credentials (auth_kind=bearer, x_axon_token_auth=axon-axon-cli, upstream=Unauthenticated, reason=no auth context)\"}".into(),
             status_code: Some(401),
             is_retryable: false,
             retry_after_secs: None,
@@ -540,11 +540,11 @@ async fn legacy_auth_hint_on_401_unauthorized() {
     local
         .run_until(async {
             let dir = tempfile::tempdir().expect("tempdir");
-            let am = Arc::new(AuthManager::new(dir.path(), GrokComConfig::default()));
-            am.hot_swap(GrokAuth {
+            let am = Arc::new(AuthManager::new(dir.path(), AxonComConfig::default()));
+            am.hot_swap(AxonAuth {
                 key: "legacy-token".into(),
                 auth_mode: AuthMode::WebLogin,
-                ..GrokAuth::test_default()
+                ..AxonAuth::test_default()
             });
 
             let (actor, _rx) = make_actor_with_auth_manager(Some(am)).await;
@@ -580,13 +580,13 @@ async fn no_legacy_hint_on_401_for_oidc_auth() {
     local
         .run_until(async {
             let dir = tempfile::tempdir().expect("tempdir");
-            let am = Arc::new(AuthManager::new(dir.path(), GrokComConfig::default()));
-            am.hot_swap(GrokAuth {
+            let am = Arc::new(AuthManager::new(dir.path(), AxonComConfig::default()));
+            am.hot_swap(AxonAuth {
                 key: "oidc-token".into(),
                 auth_mode: AuthMode::Oidc,
                 refresh_token: Some("rt".into()),
                 expires_at: Some(chrono::Utc::now() + chrono::Duration::hours(1)),
-                ..GrokAuth::test_default()
+                ..AxonAuth::test_default()
             });
 
             let (actor, _rx) = make_actor_with_auth_manager(Some(am)).await;
@@ -622,13 +622,13 @@ async fn no_legacy_hint_for_oidc_auth() {
     local
         .run_until(async {
             let dir = tempfile::tempdir().expect("tempdir");
-            let am = Arc::new(AuthManager::new(dir.path(), GrokComConfig::default()));
-            am.hot_swap(GrokAuth {
+            let am = Arc::new(AuthManager::new(dir.path(), AxonComConfig::default()));
+            am.hot_swap(AxonAuth {
                 key: "oidc-token".into(),
                 auth_mode: AuthMode::Oidc,
                 refresh_token: Some("rt".into()),
                 expires_at: Some(chrono::Utc::now() + chrono::Duration::hours(1)),
-                ..GrokAuth::test_default()
+                ..AxonAuth::test_default()
             });
 
             let (actor, _rx) = make_actor_with_auth_manager(Some(am)).await;
@@ -660,7 +660,7 @@ async fn no_legacy_hint_for_oidc_auth() {
 }
 
 // Regression: a live OIDC session whose `creds.auth_type` has
-// transiently collapsed to `ApiKey` (session-token cache miss + `XAI_API_KEY`)
+// transiently collapsed to `ApiKey` (session-token cache miss + `AXON_API_KEY`)
 // must still drive the live bearer resolver, be eligible for 401 retry, and get
 // its stale `api_key` healed — the gate keys off the stable `auth_method_id`,
 // not the collapsible `auth_type`.
@@ -679,7 +679,7 @@ fn session_token_auth_gate_truth_table() {
         assert!(gate(true, ModelByok::NotByok, fp));
         assert!(!gate(true, ModelByok::Byok, fp));
     }
-    // Session method + Unknown BYOK: refresh only against a first-party xAI
+    // Session method + Unknown BYOK: refresh only against a first-party Axon
     // host, so a transiently-unclassifiable config can't demote a live session
     // (the stale-token 401 regression) yet the session token never leaks to a
     // third-party BYOK endpoint. This arm was unconditionally `false` pre-fix.
@@ -783,7 +783,7 @@ async fn reconstruct_full_config_wires_bearer_resolver_for_session_method_despit
         .await;
 }
 
-/// Negative: a genuine `xai.api_key` method keeps its configured key on the
+/// Negative: a genuine `axon.api_key` method keeps its configured key on the
 /// wire (no live resolver).
 #[tokio::test(flavor = "current_thread")]
 async fn reconstruct_full_config_no_bearer_resolver_for_api_key_method() {
@@ -793,9 +793,9 @@ async fn reconstruct_full_config_no_bearer_resolver_for_api_key_method() {
             let (_dir, am) = auth_manager_with_valid_token("session-token");
             let (actor, _rx) = make_actor_with_method_and_credentials(
                 Some(am),
-                "xai.api_key",
+                "axon.api_key",
                 axon_chat_state::AuthType::ApiKey,
-                "xai-static-key".to_string(),
+                "axon-static-key".to_string(),
             )
             .await;
 
@@ -842,7 +842,7 @@ async fn pre_flight_refresh_heals_session_method_with_stale_api_key_auth_type() 
         .await;
 }
 
-/// End-to-end for the frozen-gate bug: a session born on `xai.api_key` (gate
+/// End-to-end for the frozen-gate bug: a session born on `axon.api_key` (gate
 /// inactive) must adopt a later OIDC `/login` on the SAME actor -- the shared
 /// `auth_method_id` handle is flipped in place (no re-spawn), so the next turn
 /// wires the live bearer resolver and heals the stale key.
@@ -854,7 +854,7 @@ async fn session_born_on_api_key_recovers_after_oidc_login_without_restart() {
             let (_dir, am) = auth_manager_with_valid_token("fresh-oidc-token");
             let (actor, _rx) = make_actor_with_method_and_credentials(
                 Some(am),
-                "xai.api_key",
+                "axon.api_key",
                 axon_chat_state::AuthType::ApiKey,
                 "stale-session-jwt".to_string(),
             )

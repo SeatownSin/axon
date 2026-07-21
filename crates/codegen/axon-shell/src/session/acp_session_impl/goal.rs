@@ -22,7 +22,7 @@ impl RoleCapability {
     /// `can_execute` for terminal/bash).
     fn is_satisfied(
         self,
-        summary: &axon_tools::implementations::grok_build::task::types::SubagentTypeSummary,
+        summary: &axon_tools::implementations::axon_build::task::types::SubagentTypeSummary,
     ) -> bool {
         match self {
             Self::Skeptic => summary.can_read && summary.can_search,
@@ -42,7 +42,7 @@ pub(crate) struct PanelResolveCache {
     /// result for the role's `general-purpose` toolset on that harness).
     describe: std::collections::HashMap<
         String,
-        axon_tools::implementations::grok_build::task::types::SubagentDescribeOutcome,
+        axon_tools::implementations::axon_build::task::types::SubagentDescribeOutcome,
     >,
 }
 
@@ -57,7 +57,7 @@ fn role_tool_names_from(
     cache: &PanelResolveCache,
     inherit: &crate::session::goal_role_tools::RoleToolNames,
 ) -> crate::session::goal_role_tools::RoleToolNames {
-    use axon_tools::implementations::grok_build::task::types::SubagentDescribeOutcome;
+    use axon_tools::implementations::axon_build::task::types::SubagentDescribeOutcome;
     // `override_.agent_type` is the committed harness; the cache is keyed on it.
     match override_.agent_type.as_deref() {
         Some(harness) => match cache.describe.get(harness) {
@@ -115,9 +115,9 @@ impl SessionActor {
         &self,
         current_tokens: i64,
         purpose: DrainPurpose,
-        extra: Vec<axon_tools::implementations::grok_build::update_goal::UpdateGoalEnvelope>,
+        extra: Vec<axon_tools::implementations::axon_build::update_goal::UpdateGoalEnvelope>,
     ) {
-        use axon_tools::implementations::grok_build::update_goal::{
+        use axon_tools::implementations::axon_build::update_goal::{
             RejectReason, UpdateGoalAck,
         };
         // The `update_goal` tool and its `GoalUpdateHandle` are always
@@ -652,10 +652,10 @@ impl SessionActor {
         attempt: u32,
         outcome: crate::session::goal_classifier::GoalClassifierOutcome,
         notify: &crate::session::goal_orchestrator::GoalNotifySender,
-    ) -> axon_tools::implementations::grok_build::update_goal::UpdateGoalAck {
+    ) -> axon_tools::implementations::axon_build::update_goal::UpdateGoalAck {
         use crate::session::goal_classifier::GoalClassifierOutcome;
         use crate::session::goal_tracker::GoalClassifierVerdict;
-        use axon_tools::implementations::grok_build::update_goal::UpdateGoalAck;
+        use axon_tools::implementations::axon_build::update_goal::UpdateGoalAck;
 
         let current_tokens = self.chat_state_handle.get_total_tokens().await as i64;
         let (tokens_used, finished_marginal) = self.goal_tokens(current_tokens);
@@ -1311,7 +1311,7 @@ impl SessionActor {
         choice: &crate::agent::config::GoalRoleModelChoice,
         capability: RoleCapability,
         event_tx: &tokio::sync::mpsc::UnboundedSender<
-            axon_tools::implementations::grok_build::task::types::SubagentEvent,
+            axon_tools::implementations::axon_build::task::types::SubagentEvent,
         >,
     ) -> (
         crate::session::goal_planner::RoleSpawnOverride,
@@ -1384,17 +1384,17 @@ impl SessionActor {
         pair: &crate::util::config::GoalRoleModel,
         capability: RoleCapability,
         event_tx: &tokio::sync::mpsc::UnboundedSender<
-            axon_tools::implementations::grok_build::task::types::SubagentEvent,
+            axon_tools::implementations::axon_build::task::types::SubagentEvent,
         >,
         available_models: &indexmap::IndexMap<String, crate::agent::config::ModelEntry>,
         cache: &mut PanelResolveCache,
     ) -> crate::session::goal_planner::RoleSpawnOverride {
         use crate::session::events::{Event, GoalRoleModelFailOpenReason as Reason};
         use crate::session::goal_planner::RoleSpawnOverride;
-        use axon_tools::implementations::grok_build::task::backend::{
+        use axon_tools::implementations::axon_build::task::backend::{
             ChannelBackend, SubagentBackend,
         };
-        use axon_tools::implementations::grok_build::task::types::SubagentDescribeOutcome;
+        use axon_tools::implementations::axon_build::task::types::SubagentDescribeOutcome;
 
         let fail_open = |reason: Reason| {
             self.emit_event(Event::GoalRoleModelFailOpen {
@@ -1420,7 +1420,7 @@ impl SessionActor {
         }
         // 2b. Reject a STRICT harness whose flavor isn't representable (e.g.
         //    `codex`): it resolves, but `resolve_subagent_toolset` would
-        //    silently run grok-build flavor. Non-strict names (grok-build
+        //    silently run axon-build flavor. Non-strict names (axon-build
         //    family) run the default flavor and pass; unresolvable names fall
         //    through to the describe `Unknown` arm below.
         if axon_agent::config::is_strict_harness_agent_type(&pair.agent_type)
@@ -1523,9 +1523,9 @@ impl SessionActor {
     /// toolset; [`RoleToolNames::from_parent`] applies the literal fallback for
     /// any kind the bridge lacks, and resolves `{WRITE_TOOL}` from the parent
     /// `Edit` tool when the bridge has no `Write` (so the inherit / retry render
-    /// agrees with `from_summary` — `search_replace` on the default grok-build
+    /// agrees with `from_summary` — `search_replace` on the default axon-build
     /// host, not the literal `write`). The `{TOOLSET_TOOLS}` block is empty on
-    /// this path (no per-role toolset enumeration); on the default grok-build
+    /// this path (no per-role toolset enumeration); on the default axon-build
     /// host the bridge resolves the parent's real tool ids (`read_file`, …).
     pub(crate) async fn resolve_inherit_role_tool_names(
         &self,
@@ -2356,7 +2356,7 @@ impl SessionActor {
 #[cfg(test)]
 mod role_capability_tests {
     use super::RoleCapability;
-    use axon_tools::implementations::grok_build::task::types::SubagentTypeSummary;
+    use axon_tools::implementations::axon_build::task::types::SubagentTypeSummary;
 
     fn summary(can_read: bool, can_search: bool, can_execute: bool) -> SubagentTypeSummary {
         SubagentTypeSummary {
@@ -2387,7 +2387,7 @@ mod role_tool_names_tests {
     use super::{PanelResolveCache, role_tool_names_from};
     use crate::session::goal_planner::RoleSpawnOverride;
     use crate::session::goal_role_tools::RoleToolNames;
-    use axon_tools::implementations::grok_build::task::types::{
+    use axon_tools::implementations::axon_build::task::types::{
         SubagentDescribeOutcome, SubagentTypeSummary,
     };
     use axon_tools::types::tool::ToolKind;

@@ -176,7 +176,7 @@ pub struct WorkspaceBindMetadata {
         skip_serializing_if = "Option::is_none"
     )]
     pub capability_mode: Option<String>,
-    /// Explicit toolset in the grok-tools gRPC wire shape. Empty = unset.
+    /// Explicit toolset in the axon-tools gRPC wire shape. Empty = unset.
     #[serde(
         default,
         deserialize_with = "ok_or_default",
@@ -253,7 +253,7 @@ mod bind_metadata_tests {
             preset: Some("explore".to_owned()),
             capability_mode: Some("read_only".to_owned()),
             tools: vec![axon_tools_api::ToolConfigEntry {
-                id: "GrokBuild:grep".to_owned(),
+                id: "AxonBuild:grep".to_owned(),
                 ..Default::default()
             }],
             viewer_ctx: Some(super::WorkspaceViewerContext {

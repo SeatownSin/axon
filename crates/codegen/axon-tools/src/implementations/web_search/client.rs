@@ -346,7 +346,7 @@ mod tests {
     fn test_new_client_uses_configured_model() {
         let config = WebSearchConfig::Enabled {
             api_key: "test-key".to_string(),
-            base_url: "https://api.x.ai/v1".to_string(),
+            base_url: "https://api.blocked.invalid/v1".to_string(),
             model: "custom-enterprise-model".to_string(),
             extra_headers: IndexMap::new(),
             alpha_test_key: None,
@@ -376,7 +376,7 @@ mod tests {
         let cb_dyn: crate::attribution::SharedAttributionCallback = cb.clone();
         let config = WebSearchConfig::Enabled {
             api_key: "ignored".to_string(),
-            base_url: "https://api.x.ai/v1".to_string(),
+            base_url: "https://api.blocked.invalid/v1".to_string(),
             model: "test-model".to_string(),
             extra_headers: IndexMap::new(),
             alpha_test_key: None,
@@ -400,7 +400,7 @@ mod tests {
     fn record_401_attribution_is_noop_without_callback() {
         let config = WebSearchConfig::Enabled {
             api_key: "test-key".to_string(),
-            base_url: "https://api.x.ai/v1".to_string(),
+            base_url: "https://api.blocked.invalid/v1".to_string(),
             model: "test-model".to_string(),
             extra_headers: IndexMap::new(),
             alpha_test_key: None,

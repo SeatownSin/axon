@@ -11,11 +11,11 @@ use indicatif::{ProgressBar, ProgressStyle};
 use tokio::io::AsyncWriteExt;
 
 use crate::version::{
-    UpdateConfig, fetch_latest_version, get_installed_grok_version, get_latest_version,
+    UpdateConfig, fetch_latest_version, get_installed_axon_version, get_latest_version,
     is_version_cache_fresh, try_fetch_stable_pointer, write_version_cache,
 };
 use axon_shell::util::config;
-use axon_shell::util::grok_home::{grok_application, grok_home};
+use axon_shell::util::axon_home::{axon_application, axon_home};
 
 #[derive(Clone, Copy, Debug)]
 pub enum UpdateRunMode {
@@ -28,7 +28,7 @@ const MSG_AUTO_UPDATE_BACKGROUND: &str = "Auto-update running in background.";
 const MSG_RUN_UPDATE_MANUAL: &str = "Run `axon update` to get the latest version.";
 /// Manual-install one-liner for this platform's bootstrap installer.
 fn manual_install_cmd() -> String {
-    // The x.ai install scripts are gone with the internal channel; point
+    // The blocked.invalid install scripts are gone with the internal channel; point
     // at this build's GitHub repo instead.
     format!(
         "gh release download --repo {} --pattern 'axon-*'",
@@ -39,7 +39,7 @@ fn manual_install_cmd() -> String {
 /// Build a reinstall hint for a known installer type.
 fn reinstall_hint(installer: &str) -> String {
     match installer {
-        "npm" => "Please reinstall via npm:\n  npm i -g @xai-official/grok".to_string(),
+        "npm" => "Please reinstall via npm:\n  npm i -g @axon-official/axon".to_string(),
         "gh-release" => format!(
             "Please reinstall via GitHub Releases:\n  gh release download --repo {} --pattern 'axon-*' --output axon && chmod +x axon",
             crate::version::GH_RELEASE_REPO
@@ -70,7 +70,7 @@ pub fn print_update_status(status: &UpdateStatus, json: bool) -> anyhow::Result<
 
     if let Some(error) = status.error.as_deref() {
         println!(
-            "Grok Build - v{} [{}]",
+            "Axon Build - v{} [{}]",
             status.current_version, status.channel
         );
         println!("Update check failed: {error}");
@@ -82,30 +82,30 @@ pub fn print_update_status(status: &UpdateStatus, json: bool) -> anyhow::Result<
     if status.update_available {
         if let Some(latest_version) = status.latest_version.as_deref() {
             println!(
-                "A new version of Grok Build is available: {} -> {}{}",
+                "A new version of Axon Build is available: {} -> {}{}",
                 status.current_version, latest_version, channel_label
             );
         } else {
-            println!("A new version of Grok Build is available.");
+            println!("A new version of Axon Build is available.");
         }
         return Ok(());
     }
 
     if let Some(latest_version) = status.latest_version.as_deref() {
         println!(
-            "Grok Build - v{} (latest: {}){}",
+            "Axon Build - v{} (latest: {}){}",
             status.current_version, latest_version, channel_label
         );
         return Ok(());
     }
 
-    println!("Grok Build - v{}{}", status.current_version, channel_label);
+    println!("Axon Build - v{}{}", status.current_version, channel_label);
     Ok(())
 }
 
 pub async fn check_update_status(update_config: &UpdateConfig) -> UpdateStatus {
     let installer = get_installer().await.map(|value| value.to_string());
-    let current_version = get_installed_grok_version();
+    let current_version = get_installed_axon_version();
     let current_config = config::load_config().await;
     let auto_update = current_config.cli.auto_update;
     let channel = update_config.channel.clone();
@@ -178,7 +178,7 @@ pub async fn check_update_status(update_config: &UpdateConfig) -> UpdateStatus {
 /// downgraded — the decision depends on the installer, never the caller.
 pub async fn auto_update_target(update_config: &UpdateConfig) -> Option<(&'static str, String)> {
     let installer = get_installer().await?;
-    let current = get_installed_grok_version();
+    let current = get_installed_axon_version();
     let latest = fetch_latest_version(installer, update_config).await.ok()?;
     needs_update(
         &current,
@@ -231,7 +231,7 @@ pub async fn ensure_latest_on_disk(update_config: &UpdateConfig) -> Result<Ensur
     let latest = fetch_latest_version(installer, update_config).await?;
 
     let effective_current =
-        disk_version_for_installer(installer).unwrap_or_else(get_installed_grok_version);
+        disk_version_for_installer(installer).unwrap_or_else(get_installed_axon_version);
     if needs_update(
         &effective_current,
         &latest,
@@ -247,7 +247,7 @@ pub async fn ensure_latest_on_disk(update_config: &UpdateConfig) -> Result<Ensur
     // Relaunch when the running binary differs from what's on disk in the
     // channel's update direction — covers binaries installed by other
     // processes, not just the install above.
-    let running = get_installed_grok_version();
+    let running = get_installed_axon_version();
     if let Some(disk_now) =
         disk_version_for_installer(installer).or_else(|| outcome.installed.clone())
     {
@@ -259,7 +259,7 @@ pub async fn ensure_latest_on_disk(update_config: &UpdateConfig) -> Result<Ensur
 }
 
 /// Disk-version probe gated on the installer actually maintaining the
-/// managed `~/.axon/bin/grok` symlink.
+/// managed `~/.axon/bin/axon` symlink.
 ///
 /// Only the internal (install.sh / CDN) and gh-release installers write that
 /// symlink. npm manages its own global install, so for npm a symlink left
@@ -276,8 +276,8 @@ fn disk_version_for_installer(installer: &str) -> Option<String> {
 }
 
 fn env_installer() -> Option<&'static str> {
-    // The "internal" channel (x.ai CDN + GCS mirror) is removed: this
-    // build never contacts xAI infrastructure, so both the env override
+    // The "internal" channel (blocked.invalid CDN + GCS mirror) is removed: this
+    // build never contacts Axon infrastructure, so both the env override
     // and the managed-by marker map to GitHub Releases instead.
     if let Ok(v) = std::env::var("AXON_INSTALLER") {
         return match v.to_ascii_lowercase().as_str() {
@@ -306,7 +306,7 @@ pub async fn get_installer() -> Option<&'static str> {
     let cfg = config::load_config().await;
     match cfg.cli.installer.as_deref() {
         Some("npm") => Some("npm"),
-        // Everything else (including the removed "internal" x.ai channel)
+        // Everything else (including the removed "internal" blocked.invalid channel)
         // resolves to GitHub Releases against GH_RELEASE_REPO.
         _ => Some("gh-release"),
     }
@@ -343,7 +343,7 @@ fn needs_update(current: &str, target: &str, channel: &str, allow_downgrade: boo
 }
 
 /// Returns `true` for installer backends whose version source is authoritative
-/// (managed by xAI directly), meaning a pointer rollback is intentional and
+/// (managed by Axon directly), meaning a pointer rollback is intentional and
 /// should trigger a client downgrade. Returns `false` for backends like npm
 /// where stale corporate registries/proxies can return arbitrarily old versions.
 ///
@@ -410,7 +410,7 @@ pub async fn check_update_background(update_config: &UpdateConfig) -> Background
         return BackgroundUpdateCheck::none();
     }
 
-    let current_version = get_installed_grok_version();
+    let current_version = get_installed_axon_version();
     let latest_version = match fetch_latest_version(installer, update_config).await {
         Ok(v) => v,
         Err(_) => return BackgroundUpdateCheck::none(),
@@ -509,7 +509,7 @@ pub async fn run_update_if_available(
         tracing::warn!("Failed to save auto-update setting: {}", e);
     }
 
-    let current_version = get_installed_grok_version();
+    let current_version = get_installed_axon_version();
     // Fetch without writing version.json — we only cache after confirming the
     // update is not needed or after a successful blocking install. This prevents
     // a failed background download from suppressing retries for the TTL window.
@@ -533,7 +533,7 @@ pub async fn run_update_if_available(
     let channel_label = format!(" [{}]", update_config.channel);
     if auto_update {
         eprintln!(
-            "A new version of Grok Build is available: {} -> {}{}",
+            "A new version of Axon Build is available: {} -> {}{}",
             current_version, latest_version, channel_label
         );
         if interactive {
@@ -561,7 +561,7 @@ pub async fn run_update_if_available(
             return Ok(false);
         }
         eprintln!(
-            "A new version of Grok Build is available: {} -> {}{}",
+            "A new version of Axon Build is available: {} -> {}{}",
             current_version, latest_version, channel_label
         );
         if interactive {
@@ -644,21 +644,21 @@ async fn run_update_subcommand(run_mode: UpdateRunMode) -> Result<Option<tokio::
     }
 }
 
-/// Resolve the grok binary path for re-execution after an update.
+/// Resolve the axon binary path for re-execution after an update.
 ///
 /// `current_exe()` resolves symlinks via `/proc/self/exe` (see proc(5)),
 /// so it returns the old versioned target after a symlink swap.
-/// Prefer `~/.axon/bin/grok` which always points to the latest version.
+/// Prefer `~/.axon/bin/axon` which always points to the latest version.
 fn resolve_restart_exe() -> Result<std::path::PathBuf> {
-    let canonical = grok_application();
+    let canonical = axon_application();
     if canonical.exists() {
         return Ok(canonical);
     }
     Ok(std::env::current_exe()?)
 }
 
-/// Restart grok with the original command-line arguments to pick up the update.
-pub fn restart_grok() -> Result<()> {
+/// Restart axon with the original command-line arguments to pick up the update.
+pub fn restart_axon() -> Result<()> {
     let exe = resolve_restart_exe()?;
     let mut cmd = Command::new(exe);
     for arg in std::env::args_os().skip(1) {
@@ -666,7 +666,7 @@ pub fn restart_grok() -> Result<()> {
     }
     cmd.env_clear();
     cmd.envs(std::env::vars_os().filter(|(k, _)| k != "AXON_AUTO_UPDATE"));
-    eprintln!("Restarting Grok...");
+    eprintln!("Restarting Axon...");
 
     // Use exec on Unix to replace the current process, avoiding stdio issues
     // when the parent exits. On Windows, fall back to spawn + exit.
@@ -758,8 +758,8 @@ const DOWNLOAD_REQUEST_TIMEOUT: Duration = Duration::from_secs(20 * 60);
 ///
 /// Appends `.{pid}-{seq}.tmp` to the FULL file name instead of using
 /// `Path::with_extension`, which treats everything after the last dot of the
-/// versioned name as the extension (`grok-0.1.181-linux-x86_64` →
-/// `grok-0.1.tmp`) and therefore collides for every `0.1.x` version. The PID
+/// versioned name as the extension (`axon-0.1.181-linux-x86_64` →
+/// `axon-0.1.tmp`) and therefore collides for every `0.1.x` version. The PID
 /// plus a per-process counter makes the name unique per download attempt —
 /// across processes (two updaters racing in the same instant, the accepted
 /// lock-free residual race) and within one process — so no racer can ever
@@ -770,7 +770,7 @@ fn tmp_download_path(dest: &std::path::Path) -> std::path::PathBuf {
 }
 
 /// Unique temp path `<base>.{pid}-{seq}.{ext}`, appended to the full name so a
-/// versioned base like `grok-0.1.181` doesn't collide via `with_extension`.
+/// versioned base like `axon-0.1.181` doesn't collide via `with_extension`.
 /// PID + per-process counter keep racing updaters from clobbering each other.
 fn unique_temp_sibling(base: &std::path::Path, ext: &str) -> std::path::PathBuf {
     use std::sync::atomic::{AtomicU64, Ordering};
@@ -1045,7 +1045,7 @@ pub async fn download_silent(url: &str, dest: &std::path::Path) -> Result<()> {
 /// new binary anyway, but removing it eagerly avoids a wasted disk read +
 /// deserialize on first launch.
 async fn remove_stale_models_cache() {
-    let cache = grok_home().join("models_cache.json");
+    let cache = axon_home().join("models_cache.json");
     match tokio::fs::remove_file(&cache).await {
         Ok(()) => tracing::debug!("removed stale models_cache.json after update"),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
@@ -1168,7 +1168,7 @@ pub async fn install_internal_from_base(
 }
 
 /// A downloaded and smoke-tested binary in `~/.axon/downloads/`, not yet
-/// activated as the managed `grok`/`agent`.
+/// activated as the managed `axon`/`agent`.
 struct VerifiedDownload {
     version: String,
     binary_path: std::path::PathBuf,
@@ -1197,20 +1197,20 @@ async fn download_verified_from_base(
         }
     };
 
-    let grok_home = grok_home();
-    let download_dir = grok_home.join("downloads");
+    let axon_home = axon_home();
+    let download_dir = axon_home.join("downloads");
     tokio::fs::create_dir_all(&download_dir).await?;
 
     let binary_name = format!("axon-{}-{}", version, platform);
     let binary_path = download_dir.join(&binary_name);
 
-    eprintln!("  Downloading grok v{} ({})...", version, platform);
+    eprintln!("  Downloading axon v{} ({})...", version, platform);
 
     // Published already +x (see `publish_downloaded_artifact`).
     download_cli_artifact_from_gcs(gcs_base_url, &binary_name, &binary_path, true).await?;
 
     // Smoke-test: run the binary before activating it. A truncated or
-    // corrupt download is caught here and never becomes the active grok.
+    // corrupt download is caught here and never becomes the active axon.
     if !smoke_test_binary(&binary_path).await {
         let _ = tokio::fs::remove_file(&binary_path).await;
         // No prefix: run_install_script's wrap adds "Auto-update failed:".
@@ -1232,12 +1232,12 @@ async fn download_verified_from_base(
 /// binary and finish bookkeeping. Nothing here depends on which base URL
 /// served the download, so callers must not retry another base on failure.
 async fn activate_verified_download(download: &VerifiedDownload) -> Result<()> {
-    let grok_home = grok_home();
-    let download_dir = grok_home.join("downloads");
-    let bin_dir = grok_home.join("bin");
+    let axon_home = axon_home();
+    let download_dir = axon_home.join("downloads");
+    let bin_dir = axon_home.join("bin");
     tokio::fs::create_dir_all(&bin_dir).await?;
 
-    // Atomic swap of ~/.axon/bin/{grok,agent} -> downloaded binary.
+    // Atomic swap of ~/.axon/bin/{axon,agent} -> downloaded binary.
     let link_path = swap_managed_bin_links(&download.binary_path, &bin_dir).await?;
 
     remove_stale_pager(&bin_dir).await;
@@ -1256,7 +1256,7 @@ async fn activate_verified_download(download: &VerifiedDownload) -> Result<()> {
 
     // Regenerate shell completions so they reflect the new binary's CLI surface.
     // Best-effort: failures are silently ignored (same as the installer).
-    regenerate_completions(&link_path, &grok_home).await;
+    regenerate_completions(&link_path, &axon_home).await;
 
     Ok(())
 }
@@ -1267,16 +1267,16 @@ async fn activate_verified_download(download: &VerifiedDownload) -> Result<()> {
 /// supported shell and writes the output to the standard completion paths.
 /// Failures are silently ignored — completions are a nice-to-have, not a
 /// requirement for a successful update.
-async fn regenerate_completions(binary: &std::path::Path, grok_home: &std::path::Path) {
-    // Derive $HOME independently — grok_home may be overridden via AXON_HOME
-    // env var, so grok_home.parent() isn't necessarily the user's home dir.
+async fn regenerate_completions(binary: &std::path::Path, axon_home: &std::path::Path) {
+    // Derive $HOME independently — axon_home may be overridden via AXON_HOME
+    // env var, so axon_home.parent() isn't necessarily the user's home dir.
     #[allow(deprecated)]
     let user_home = std::env::home_dir().unwrap_or_default();
 
     let completions: &[(&str, std::path::PathBuf)] = &[
-        ("bash", grok_home.join("completions/bash/grok.bash")),
-        ("zsh", grok_home.join("completions/zsh/_grok")),
-        ("fish", user_home.join(".config/fish/completions/grok.fish")),
+        ("bash", axon_home.join("completions/bash/axon.bash")),
+        ("zsh", axon_home.join("completions/zsh/_axon")),
+        ("fish", user_home.join(".config/fish/completions/axon.fish")),
     ];
 
     for (shell, dest) in completions {
@@ -1300,9 +1300,9 @@ async fn regenerate_completions(binary: &std::path::Path, grok_home: &std::path:
 
 /// Compute a relative symlink target from `link` to `target`.
 ///
-/// When both paths share a grandparent (e.g. `~/.axon/bin/grok` and
-/// `~/.axon/downloads/grok-0.1.203-linux-x86_64`), returns a relative path
-/// like `../downloads/grok-0.1.203-linux-x86_64`.  When they share the same
+/// When both paths share a grandparent (e.g. `~/.axon/bin/axon` and
+/// `~/.axon/downloads/axon-0.1.203-linux-x86_64`), returns a relative path
+/// like `../downloads/axon-0.1.203-linux-x86_64`.  When they share the same
 /// parent directory, returns just the filename.  Falls back to the absolute
 /// `target` path for any other layout.
 ///
@@ -1314,13 +1314,13 @@ fn relative_symlink_target(target: &std::path::Path, link: &std::path::Path) -> 
     let (Some(target_parent), Some(link_parent)) = (target.parent(), link.parent()) else {
         return target.to_path_buf();
     };
-    // Same directory — just the filename (e.g. axon-latest -> grok-0.1.203-…)
+    // Same directory — just the filename (e.g. axon-latest -> axon-0.1.203-…)
     if target_parent == link_parent
         && let Some(name) = target.file_name()
     {
         return std::path::PathBuf::from(name);
     }
-    // Sibling directories — ../target_dir/filename (e.g. bin/grok -> ../downloads/grok-…)
+    // Sibling directories — ../target_dir/filename (e.g. bin/axon -> ../downloads/axon-…)
     if let (Some(tp), Some(lp)) = (target_parent.parent(), link_parent.parent())
         && tp == lp
         && let (Some(dir_name), Some(file_name)) = (target_parent.file_name(), target.file_name())
@@ -1330,10 +1330,10 @@ fn relative_symlink_target(target: &std::path::Path, link: &std::path::Path) -> 
     target.to_path_buf()
 }
 
-/// Swap `~/.axon/bin/{grok,agent}` to point at `binary_path`. Returns the
-/// `grok` link path (for [`regenerate_completions`]).
+/// Swap `~/.axon/bin/{axon,agent}` to point at `binary_path`. Returns the
+/// `axon` link path (for [`regenerate_completions`]).
 ///
-/// `grok` and `agent` are first-class entry points that the bootstrap
+/// `axon` and `agent` are first-class entry points that the bootstrap
 /// installers (`install.sh`, `install.ps1`, `install-enterprise.sh`)
 /// maintain in lockstep, and so must the updater — otherwise `axon update`
 /// leaves `agent` pinned at the previous version.
@@ -1352,11 +1352,11 @@ async fn swap_managed_bin_links(
     binary_path: &std::path::Path,
     bin_dir: &std::path::Path,
 ) -> Result<std::path::PathBuf> {
-    let grok_name = if cfg!(windows) { "axon.exe" } else { "axon" };
+    let axon_name = if cfg!(windows) { "axon.exe" } else { "axon" };
     let agent_name = if cfg!(windows) { "agent.exe" } else { "agent" };
-    let grok_link = bin_dir.join(grok_name);
+    let axon_link = bin_dir.join(axon_name);
     let agent_link = bin_dir.join(agent_name);
-    let link_paths: [std::path::PathBuf; 2] = [grok_link.clone(), agent_link];
+    let link_paths: [std::path::PathBuf; 2] = [axon_link.clone(), agent_link];
 
     // Capture every link up-front so a 2nd-link capture failure can't
     // strand the 1st mid-swap.
@@ -1425,7 +1425,7 @@ async fn swap_managed_bin_links(
     for cap in &captured {
         cap.cleanup().await;
     }
-    Ok(grok_link)
+    Ok(axon_link)
 }
 
 /// Snapshot of a managed-bin link's prior state for rollback in
@@ -1695,7 +1695,7 @@ async fn windows_replace_exe(src: &std::path::Path, dest: &std::path::Path) -> R
     rename_result.map_err(|e| {
         anyhow::anyhow!(
             "cannot rename locked executable {}: {e}\n\
-             Close all running grok sessions and retry.",
+             Close all running axon sessions and retry.",
             dest.display(),
         )
     })?;
@@ -1753,7 +1753,7 @@ async fn sweep_old_exe_backups(old: &std::path::Path) {
 ///
 /// `bin_prefix` is the binary name prefix, e.g. `"axon"` or `"axon-pager"`.
 /// Files must match `{bin_prefix}-{digit}*` to be considered versioned binaries
-/// (this avoids `grok-*` matching `axon-pager-*` or `axon-latest`).
+/// (this avoids `axon-*` matching `axon-pager-*` or `axon-latest`).
 ///
 /// Temporary/partial files (containing `.tmp`) are deleted only once they
 /// are **stale** (mtime older than [`STALE_TMP_AGE`]). A fresh `.tmp` may be
@@ -1818,14 +1818,14 @@ async fn cleanup_old_downloads(dir: &std::path::Path, bin_prefix: &str, current_
             continue;
         }
         // The suffix after the prefix must start with a digit to be a versioned
-        // binary (avoids `axon-latest`, `axon-pager-*` when prefix is `grok`).
+        // binary (avoids `axon-latest`, `axon-pager-*` when prefix is `axon`).
         let suffix = &name[prefix.len()..];
         if !suffix.starts_with(|c: char| c.is_ascii_digit()) {
             continue;
         }
         // Extract the version portion via the shared parser (handles the
-        // internal `grok-0.1.150-macos-aarch64`, pre-release, and npm
-        // `grok-0.1.150` layouts — see `version_from_versioned_binary_name`).
+        // internal `axon-0.1.150-macos-aarch64`, pre-release, and npm
+        // `axon-0.1.150` layouts — see `version_from_versioned_binary_name`).
         let Some(ver_str) = crate::version::version_from_versioned_binary_name(&name, bin_prefix)
         else {
             continue;
@@ -1878,50 +1878,50 @@ async fn heal_managed_install(installer: &str) {
 
     #[cfg(any(unix, windows))]
     {
-        let bin_dir = grok_home().join("bin");
+        let bin_dir = axon_home().join("bin");
 
         #[cfg(unix)]
-        reconcile_agent_to_grok(&bin_dir).await;
+        reconcile_agent_to_axon(&bin_dir).await;
 
         #[cfg(windows)]
-        reconcile_agent_exe_to_grok(&bin_dir).await;
+        reconcile_agent_exe_to_axon(&bin_dir).await;
     }
 }
 
 #[cfg(unix)]
-async fn reconcile_agent_to_grok(bin_dir: &std::path::Path) {
-    let grok_link = bin_dir.join("axon");
+async fn reconcile_agent_to_axon(bin_dir: &std::path::Path) {
+    let axon_link = bin_dir.join("axon");
     let agent_link = bin_dir.join("agent");
 
-    let Ok(grok_target) = tokio::fs::read_link(&grok_link).await else {
+    let Ok(axon_target) = tokio::fs::read_link(&axon_link).await else {
         return;
     };
-    if tokio::fs::metadata(&grok_link).await.is_err() {
+    if tokio::fs::metadata(&axon_link).await.is_err() {
         return;
     }
     if let Ok(agent_target) = tokio::fs::read_link(&agent_link).await
-        && agent_target == grok_target
+        && agent_target == axon_target
     {
         return;
     }
-    match atomic_symlink_swap(&grok_target, &agent_link).await {
+    match atomic_symlink_swap(&axon_target, &agent_link).await {
         Ok(()) => tracing::info!(
-            grok_target = %grok_target.display(),
-            "reconciled agent bin symlink to grok target"
+            axon_target = %axon_target.display(),
+            "reconciled agent bin symlink to axon target"
         ),
         Err(e) => tracing::warn!("failed to reconcile agent bin symlink: {e:#}"),
     }
 }
 
 #[cfg(windows)]
-async fn reconcile_agent_exe_to_grok(bin_dir: &std::path::Path) {
-    let grok_exe = bin_dir.join("axon.exe");
+async fn reconcile_agent_exe_to_axon(bin_dir: &std::path::Path) {
+    let axon_exe = bin_dir.join("axon.exe");
     let agent_exe = bin_dir.join("agent.exe");
 
-    if tokio::fs::metadata(&grok_exe).await.is_err() {
+    if tokio::fs::metadata(&axon_exe).await.is_err() {
         return;
     }
-    match agent_exe_differs(&grok_exe, &agent_exe).await {
+    match agent_exe_differs(&axon_exe, &agent_exe).await {
         Ok(true) => {}
         Ok(false) => return,
         Err(e) => {
@@ -1929,26 +1929,26 @@ async fn reconcile_agent_exe_to_grok(bin_dir: &std::path::Path) {
             return;
         }
     }
-    match windows_replace_exe(&grok_exe, &agent_exe).await {
-        Ok(()) => tracing::info!("reconciled agent.exe to grok.exe"),
-        Err(e) => tracing::warn!("failed to reconcile agent.exe to grok.exe: {e:#}"),
+    match windows_replace_exe(&axon_exe, &agent_exe).await {
+        Ok(()) => tracing::info!("reconciled agent.exe to axon.exe"),
+        Err(e) => tracing::warn!("failed to reconcile agent.exe to axon.exe: {e:#}"),
     }
 }
 
 #[cfg(windows)]
 async fn agent_exe_differs(
-    grok: &std::path::Path,
+    axon: &std::path::Path,
     agent: &std::path::Path,
 ) -> std::io::Result<bool> {
     use tokio::io::{AsyncReadExt, BufReader};
-    let grok_len = tokio::fs::metadata(grok).await?.len();
+    let axon_len = tokio::fs::metadata(axon).await?.len();
     match tokio::fs::metadata(agent).await {
-        Ok(m) if m.len() != grok_len => return Ok(true),
+        Ok(m) if m.len() != axon_len => return Ok(true),
         Ok(_) => {}
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(true),
         Err(e) => return Err(e),
     }
-    let mut rg = BufReader::new(tokio::fs::File::open(grok).await?);
+    let mut rg = BufReader::new(tokio::fs::File::open(axon).await?);
     let mut ra = BufReader::new(tokio::fs::File::open(agent).await?);
     let mut bg = [0u8; 64 * 1024];
     let mut ba = [0u8; 64 * 1024];
@@ -2009,7 +2009,7 @@ async fn gh_release_download(tag: &str, pattern: &str, dest: &std::path::Path) -
     Ok(())
 }
 
-/// Download and install grok from GitHub Releases ([`crate::version::GH_RELEASE_REPO`]).
+/// Download and install axon from GitHub Releases ([`crate::version::GH_RELEASE_REPO`]).
 ///
 /// Uses `gh release download` to fetch the binary matching the current platform.
 /// This works anywhere the `gh` CLI is authenticated, without needing npm or
@@ -2023,9 +2023,9 @@ async fn install_gh_release(target: Option<&str>) -> Result<()> {
         None => crate::version::fetch_gh_release_version("stable").await?,
     };
 
-    let grok_home = grok_home();
-    let download_dir = grok_home.join("downloads");
-    let bin_dir = grok_home.join("bin");
+    let axon_home = axon_home();
+    let download_dir = axon_home.join("downloads");
+    let bin_dir = axon_home.join("bin");
     tokio::fs::create_dir_all(&download_dir).await?;
     tokio::fs::create_dir_all(&bin_dir).await?;
 
@@ -2034,7 +2034,7 @@ async fn install_gh_release(target: Option<&str>) -> Result<()> {
     let tag = format!("v{}", version);
 
     eprintln!(
-        "  Downloading grok v{} ({}) from GitHub Releases...",
+        "  Downloading axon v{} ({}) from GitHub Releases...",
         version, platform
     );
 
@@ -2060,11 +2060,11 @@ async fn install_gh_release(target: Option<&str>) -> Result<()> {
         tokio::fs::set_permissions(&binary_path, std::fs::Permissions::from_mode(0o755)).await?;
     }
 
-    // Atomic swap of ~/.axon/bin/{grok,agent} -> downloaded binary.
+    // Atomic swap of ~/.axon/bin/{axon,agent} -> downloaded binary.
     swap_managed_bin_links(&binary_path, &bin_dir).await?;
 
     // Update axon-latest -> versioned binary so any existing symlinks that route
-    // through it (e.g. /usr/local/bin/grok -> ~/.axon/downloads/axon-latest)
+    // through it (e.g. /usr/local/bin/axon -> ~/.axon/downloads/axon-latest)
     // resolve to the newly installed version.
     #[cfg(unix)]
     {
@@ -2075,7 +2075,7 @@ async fn install_gh_release(target: Option<&str>) -> Result<()> {
         }
     }
 
-    // Also update /usr/local/bin/{grok,agent} if either points directly into
+    // Also update /usr/local/bin/{axon,agent} if either points directly into
     // ~/.axon/downloads/ (legacy layout — skips the axon-latest indirection).
     // Permission errors ignored.
     #[cfg(unix)]
@@ -2136,10 +2136,10 @@ fn create_temp_npmrc(npm_registry: Option<&str>) -> Result<Option<std::path::Pat
     Ok(None)
 }
 
-/// Check if other grok processes are running (macOS only).
+/// Check if other axon processes are running (macOS only).
 ///
 /// On macOS, `npm i -g` replaces the vendored binary in node_modules in-place.
-/// Any grok process running from that vendored path will be SIGKILL'd by the
+/// Any axon process running from that vendored path will be SIGKILL'd by the
 /// kernel because macOS (Apple Silicon in particular) can no longer verify
 /// the code signature of the mmap'd executable pages once the backing file
 /// inode is unlinked.
@@ -2148,7 +2148,7 @@ fn create_temp_npmrc(npm_registry: Option<&str>) -> Result<Option<std::path::Pat
 /// (so processes launched from there are safe), older installations or npx
 /// invocations may still be running the vendored binary directly.
 #[cfg(target_os = "macos")]
-fn warn_if_other_grok_processes_running() {
+fn warn_if_other_axon_processes_running() {
     let my_pid = std::process::id().to_string();
     let mut cmd = Command::new("pgrep");
     cmd.args(["-f", "axon"])
@@ -2165,12 +2165,12 @@ fn warn_if_other_grok_processes_running() {
             .collect();
         if !other_pids.is_empty() {
             eprintln!(
-                "  ⚠ Warning: {} other grok process(es) detected.",
+                "  ⚠ Warning: {} other axon process(es) detected.",
                 other_pids.len()
             );
             eprintln!("    Processes running from the npm vendored binary path may be");
             eprintln!("    killed by macOS when npm replaces the package files.");
-            eprintln!("    Consider closing other grok sessions before updating.");
+            eprintln!("    Consider closing other axon sessions before updating.");
             eprintln!();
         }
     }
@@ -2190,10 +2190,10 @@ pub fn install_npm_for_test(
 fn install_npm(target: Option<&str>, channel: &str, npm_registry: Option<&str>) -> Result<()> {
     // Warn on macOS about potential impact on other running processes.
     #[cfg(target_os = "macos")]
-    warn_if_other_grok_processes_running();
+    warn_if_other_axon_processes_running();
 
     let version_arg = match target {
-        Some(ver) => format!("@xai-official/grok@{ver}"),
+        Some(ver) => format!("@axon-official/axon@{ver}"),
         None => {
             // All current callers resolve the version via get_latest_version
             // (which applies max(stable, alpha) for the alpha channel) before
@@ -2204,7 +2204,7 @@ fn install_npm(target: Option<&str>, channel: &str, npm_registry: Option<&str>) 
                 "install_npm called without a resolved version, falling back to dist-tag"
             );
             format!(
-                "@xai-official/grok@{}",
+                "@axon-official/axon@{}",
                 if channel == "alpha" {
                     "alpha"
                 } else {
@@ -2303,7 +2303,7 @@ pub async fn run_update(
 
     heal_managed_install(installer).await;
 
-    let current_version = get_installed_grok_version();
+    let current_version = get_installed_axon_version();
 
     // When --version is given, skip the latest-version check and install directly
     if let Some(version) = pinned_version {
@@ -2311,7 +2311,7 @@ pub async fn run_update(
             anyhow::bail!("{e}");
         }
         eprintln!(
-            "Installing Grok {} (current: {})...",
+            "Installing Axon {} (current: {})...",
             version, current_version
         );
         eprintln!();
@@ -2324,8 +2324,8 @@ pub async fn run_update(
         {
             tracing::warn!("Failed to persist auto_update=false for pinned install: {e}");
         }
-        eprintln!("  ✓ grok v{} installed successfully!", version);
-        eprintln!("  Please restart Grok.");
+        eprintln!("  ✓ axon v{} installed successfully!", version);
+        eprintln!("  Please restart Axon.");
         return Ok(Some(version.to_string()));
     }
 
@@ -2422,12 +2422,12 @@ pub async fn run_update(
         .unwrap_or(true)
     {
         eprintln!(
-            "Forcing reinstall of Grok {} (already up to date)",
+            "Forcing reinstall of Axon {} (already up to date)",
             effective_current
         );
         &effective_current
     } else {
-        eprintln!("Updating Grok {} → {}", effective_current, install_target);
+        eprintln!("Updating Axon {} → {}", effective_current, install_target);
         &install_target
     };
 
@@ -2439,10 +2439,10 @@ pub async fn run_update(
     let stable_ptr = try_fetch_stable_pointer().await;
     write_version_cache(target_version, stable_ptr.as_deref()).await;
     refresh_deployment_config().await;
-    eprintln!("  ✓ grok v{} installed successfully!", target_version);
+    eprintln!("  ✓ axon v{} installed successfully!", target_version);
 
     if !force && std::env::var_os("AXON_AUTO_UPDATE").is_none() {
-        eprintln!("  Please restart Grok.");
+        eprintln!("  Please restart Axon.");
     }
     Ok(Some(target_version.to_string()))
 }
@@ -2483,11 +2483,11 @@ mod tests {
     #[test]
     fn test_tmp_download_path_is_unique_per_version_and_per_attempt() {
         // The old `with_extension("tmp")` collapsed every 0.1.x versioned
-        // name onto a single `grok-0.1.tmp`; the helper must keep distinct
+        // name onto a single `axon-0.1.tmp`; the helper must keep distinct
         // versions distinct AND make repeated attempts (same process, e.g.
         // concurrent tokio tasks) unique.
-        let dest_181 = std::path::Path::new("/home/u/.axon/downloads/grok-0.1.181-linux-x86_64");
-        let dest_182 = std::path::Path::new("/home/u/.axon/downloads/grok-0.1.182-linux-x86_64");
+        let dest_181 = std::path::Path::new("/home/u/.axon/downloads/axon-0.1.181-linux-x86_64");
+        let dest_182 = std::path::Path::new("/home/u/.axon/downloads/axon-0.1.182-linux-x86_64");
 
         let a = tmp_download_path(dest_181);
         let b = tmp_download_path(dest_182);
@@ -2665,7 +2665,7 @@ mod tests {
         std::fs::write(&target, "v2").unwrap();
 
         let link = dir.path().join("axon");
-        // Simulate an old installation where grok is a regular file.
+        // Simulate an old installation where axon is a regular file.
         std::fs::write(&link, "old-binary").unwrap();
 
         atomic_symlink_swap(&target, &link).await.unwrap();
@@ -2720,16 +2720,16 @@ mod tests {
         std::fs::write(downloads.join("axon-0.2.101-macos-aarch64"), "new").unwrap();
         std::fs::write(downloads.join("axon-0.1.199-macos-aarch64"), "old").unwrap();
 
-        std::os::unix::fs::symlink("../downloads/grok-0.2.101-macos-aarch64", bin.join("axon"))
+        std::os::unix::fs::symlink("../downloads/axon-0.2.101-macos-aarch64", bin.join("axon"))
             .unwrap();
-        std::os::unix::fs::symlink("../downloads/grok-0.1.199-macos-aarch64", bin.join("agent"))
+        std::os::unix::fs::symlink("../downloads/axon-0.1.199-macos-aarch64", bin.join("agent"))
             .unwrap();
 
-        reconcile_agent_to_grok(&bin).await;
+        reconcile_agent_to_axon(&bin).await;
 
         assert_eq!(
             std::fs::read_link(bin.join("agent")).unwrap(),
-            std::path::PathBuf::from("../downloads/grok-0.2.101-macos-aarch64"),
+            std::path::PathBuf::from("../downloads/axon-0.2.101-macos-aarch64"),
         );
         assert_eq!(std::fs::read_to_string(bin.join("agent")).unwrap(), "new");
         assert!(downloads.join("axon-0.1.199-macos-aarch64").exists());
@@ -2742,15 +2742,15 @@ mod tests {
         std::fs::write(downloads.join("axon-0.2.101-macos-aarch64"), "new").unwrap();
         std::fs::write(downloads.join("axon-macos-aarch64"), "legacy").unwrap();
 
-        std::os::unix::fs::symlink("../downloads/grok-0.2.101-macos-aarch64", bin.join("axon"))
+        std::os::unix::fs::symlink("../downloads/axon-0.2.101-macos-aarch64", bin.join("axon"))
             .unwrap();
-        std::os::unix::fs::symlink("../downloads/grok-macos-aarch64", bin.join("agent")).unwrap();
+        std::os::unix::fs::symlink("../downloads/axon-macos-aarch64", bin.join("agent")).unwrap();
 
-        reconcile_agent_to_grok(&bin).await;
+        reconcile_agent_to_axon(&bin).await;
 
         assert_eq!(
             std::fs::read_link(bin.join("agent")).unwrap(),
-            std::path::PathBuf::from("../downloads/grok-0.2.101-macos-aarch64"),
+            std::path::PathBuf::from("../downloads/axon-0.2.101-macos-aarch64"),
         );
         assert_eq!(std::fs::read_to_string(bin.join("agent")).unwrap(), "new");
     }
@@ -2760,10 +2760,10 @@ mod tests {
     async fn test_reconcile_agent_creates_missing_agent() {
         let (_dir, bin, downloads) = managed_layout();
         std::fs::write(downloads.join("axon-0.2.101-macos-aarch64"), "new").unwrap();
-        std::os::unix::fs::symlink("../downloads/grok-0.2.101-macos-aarch64", bin.join("axon"))
+        std::os::unix::fs::symlink("../downloads/axon-0.2.101-macos-aarch64", bin.join("axon"))
             .unwrap();
 
-        reconcile_agent_to_grok(&bin).await;
+        reconcile_agent_to_axon(&bin).await;
 
         assert!(bin.join("agent").is_symlink());
         assert_eq!(std::fs::read_to_string(bin.join("agent")).unwrap(), "new");
@@ -2774,11 +2774,11 @@ mod tests {
     async fn test_reconcile_agent_noop_when_consistent() {
         let (_dir, bin, downloads) = managed_layout();
         std::fs::write(downloads.join("axon-0.2.101-macos-aarch64"), "new").unwrap();
-        let target = "../downloads/grok-0.2.101-macos-aarch64";
+        let target = "../downloads/axon-0.2.101-macos-aarch64";
         std::os::unix::fs::symlink(target, bin.join("axon")).unwrap();
         std::os::unix::fs::symlink(target, bin.join("agent")).unwrap();
 
-        reconcile_agent_to_grok(&bin).await;
+        reconcile_agent_to_axon(&bin).await;
 
         assert_eq!(
             std::fs::read_link(bin.join("agent")).unwrap(),
@@ -2794,36 +2794,36 @@ mod tests {
 
     #[cfg(unix)]
     #[tokio::test]
-    async fn test_reconcile_agent_skips_when_grok_dangling() {
+    async fn test_reconcile_agent_skips_when_axon_dangling() {
         let (_dir, bin, downloads) = managed_layout();
-        std::os::unix::fs::symlink("../downloads/grok-0.2.101-macos-aarch64", bin.join("axon"))
+        std::os::unix::fs::symlink("../downloads/axon-0.2.101-macos-aarch64", bin.join("axon"))
             .unwrap();
         std::fs::write(downloads.join("axon-0.1.199-macos-aarch64"), "old").unwrap();
-        std::os::unix::fs::symlink("../downloads/grok-0.1.199-macos-aarch64", bin.join("agent"))
+        std::os::unix::fs::symlink("../downloads/axon-0.1.199-macos-aarch64", bin.join("agent"))
             .unwrap();
 
-        reconcile_agent_to_grok(&bin).await;
+        reconcile_agent_to_axon(&bin).await;
 
         assert_eq!(
             std::fs::read_link(bin.join("agent")).unwrap(),
-            std::path::PathBuf::from("../downloads/grok-0.1.199-macos-aarch64"),
+            std::path::PathBuf::from("../downloads/axon-0.1.199-macos-aarch64"),
         );
     }
 
     #[cfg(unix)]
     #[tokio::test]
-    async fn test_reconcile_agent_skips_when_grok_not_symlink() {
+    async fn test_reconcile_agent_skips_when_axon_not_symlink() {
         let (_dir, bin, downloads) = managed_layout();
         std::fs::write(bin.join("axon"), "copy-binary").unwrap();
         std::fs::write(downloads.join("axon-0.1.199-macos-aarch64"), "old").unwrap();
-        std::os::unix::fs::symlink("../downloads/grok-0.1.199-macos-aarch64", bin.join("agent"))
+        std::os::unix::fs::symlink("../downloads/axon-0.1.199-macos-aarch64", bin.join("agent"))
             .unwrap();
 
-        reconcile_agent_to_grok(&bin).await;
+        reconcile_agent_to_axon(&bin).await;
 
         assert_eq!(
             std::fs::read_link(bin.join("agent")).unwrap(),
-            std::path::PathBuf::from("../downloads/grok-0.1.199-macos-aarch64"),
+            std::path::PathBuf::from("../downloads/axon-0.1.199-macos-aarch64"),
         );
     }
 
@@ -2837,20 +2837,20 @@ mod tests {
         std::os::unix::fs::symlink(&target, &link).unwrap();
 
         // Old- and new-style leftover temp links.
-        let leftover_old = dir.path().join("grok.tmp-link");
-        let leftover_new = dir.path().join("grok.123-0.tmp-link");
+        let leftover_old = dir.path().join("axon.tmp-link");
+        let leftover_new = dir.path().join("axon.123-0.tmp-link");
         std::os::unix::fs::symlink(&target, &leftover_old).unwrap();
         std::os::unix::fs::symlink(&target, &leftover_new).unwrap();
 
         // max_age = ZERO: every leftover is stale and removed; the active
-        // `grok` link (no `.tmp-link` suffix) is untouched.
+        // `axon` link (no `.tmp-link` suffix) is untouched.
         sweep_stale_tmp_links(&link, Duration::ZERO).await;
         assert!(!leftover_old.exists() && !leftover_new.exists());
         assert!(link.is_symlink(), "active link must be preserved");
 
         // A fresh leftover under a real max_age is preserved — it could be a
         // concurrent racer's in-flight link.
-        let fresh = dir.path().join("grok.999-9.tmp-link");
+        let fresh = dir.path().join("axon.999-9.tmp-link");
         std::os::unix::fs::symlink(&target, &fresh).unwrap();
         sweep_stale_tmp_links(&link, Duration::from_secs(3600)).await;
         assert!(fresh.exists(), "fresh tmp-link must be preserved");
@@ -2917,14 +2917,14 @@ mod tests {
 
         std::fs::write(downloads.join("axon-0.1.203"), "v203").unwrap();
 
-        let rel_target = std::path::Path::new("../downloads/grok-0.1.203");
+        let rel_target = std::path::Path::new("../downloads/axon-0.1.203");
         let link = bin.join("axon");
         atomic_symlink_swap(rel_target, &link).await.unwrap();
 
         assert!(link.is_symlink());
         assert_eq!(
             std::fs::read_link(&link).unwrap(),
-            std::path::PathBuf::from("../downloads/grok-0.1.203")
+            std::path::PathBuf::from("../downloads/axon-0.1.203")
         );
         assert_eq!(std::fs::read_to_string(&link).unwrap(), "v203");
     }
@@ -2932,21 +2932,21 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn test_relative_symlink_target_sibling_dirs() {
-        // bin/grok -> ../downloads/grok-0.1.203
-        let target = std::path::Path::new("/home/alice/.axon/downloads/grok-0.1.203");
-        let link = std::path::Path::new("/home/alice/.axon/bin/grok");
+        // bin/axon -> ../downloads/axon-0.1.203
+        let target = std::path::Path::new("/home/alice/.axon/downloads/axon-0.1.203");
+        let link = std::path::Path::new("/home/alice/.axon/bin/axon");
         let result = relative_symlink_target(target, link);
         assert_eq!(
             result,
-            std::path::PathBuf::from("../downloads/grok-0.1.203")
+            std::path::PathBuf::from("../downloads/axon-0.1.203")
         );
     }
 
     #[cfg(unix)]
     #[test]
     fn test_relative_symlink_target_same_dir() {
-        // downloads/axon-latest -> grok-0.1.203 (same directory)
-        let target = std::path::Path::new("/home/alice/.axon/downloads/grok-0.1.203");
+        // downloads/axon-latest -> axon-0.1.203 (same directory)
+        let target = std::path::Path::new("/home/alice/.axon/downloads/axon-0.1.203");
         let link = std::path::Path::new("/home/alice/.axon/downloads/axon-latest");
         let result = relative_symlink_target(target, link);
         assert_eq!(result, std::path::PathBuf::from("axon-0.1.203"));
@@ -2955,14 +2955,14 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn test_relative_symlink_target_cross_tree_stays_absolute() {
-        // /usr/local/bin/grok -> /home/alice/.axon/downloads/grok-0.1.203
+        // /usr/local/bin/axon -> /home/alice/.axon/downloads/axon-0.1.203
         // Different grandparents — should stay absolute.
-        let target = std::path::Path::new("/home/alice/.axon/downloads/grok-0.1.203");
-        let link = std::path::Path::new("/usr/local/bin/grok");
+        let target = std::path::Path::new("/home/alice/.axon/downloads/axon-0.1.203");
+        let link = std::path::Path::new("/usr/local/bin/axon");
         let result = relative_symlink_target(target, link);
         assert_eq!(
             result,
-            std::path::PathBuf::from("/home/alice/.axon/downloads/grok-0.1.203")
+            std::path::PathBuf::from("/home/alice/.axon/downloads/axon-0.1.203")
         );
     }
 
@@ -2982,7 +2982,7 @@ mod tests {
         std::fs::write(alice_downloads.join("axon-0.1.203"), "binary-content").unwrap();
 
         // Create a relative symlink (what the fix produces)
-        let rel_target = std::path::Path::new("../downloads/grok-0.1.203");
+        let rel_target = std::path::Path::new("../downloads/axon-0.1.203");
         let link = alice_bin.join("axon");
         atomic_symlink_swap(rel_target, &link).await.unwrap();
 
@@ -3004,7 +3004,7 @@ mod tests {
         assert!(bob_link.is_symlink());
         assert_eq!(
             std::fs::read_link(&bob_link).unwrap(),
-            std::path::PathBuf::from("../downloads/grok-0.1.203"),
+            std::path::PathBuf::from("../downloads/axon-0.1.203"),
             "symlink target should be relative"
         );
         assert_eq!(
@@ -3127,7 +3127,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let d = dir.path();
 
-        // Simulate 5 old grok binaries in downloads dir.
+        // Simulate 5 old axon binaries in downloads dir.
         for v in ["0.1.140", "0.1.141", "0.1.142", "0.1.143", "0.1.144"] {
             std::fs::write(d.join(format!("axon-{}-macos-aarch64", v)), v).unwrap();
         }
@@ -3166,13 +3166,13 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let d = dir.path();
 
-        // grok and axon-pager should not interfere with each other.
-        std::fs::write(d.join("axon-0.1.140-macos-aarch64"), "old-grok").unwrap();
-        std::fs::write(d.join("axon-0.1.141-macos-aarch64"), "current-grok").unwrap();
+        // axon and axon-pager should not interfere with each other.
+        std::fs::write(d.join("axon-0.1.140-macos-aarch64"), "old-axon").unwrap();
+        std::fs::write(d.join("axon-0.1.141-macos-aarch64"), "current-axon").unwrap();
         std::fs::write(d.join("axon-pager-0.1.140-macos-aarch64"), "old-pager").unwrap();
         std::fs::write(d.join("axon-pager-0.1.141-macos-aarch64"), "current-pager").unwrap();
 
-        // Cleanup only grok — pager files must be untouched.
+        // Cleanup only axon — pager files must be untouched.
         make_all_stale(d);
 
         cleanup_old_downloads(d, "axon", "0.1.141").await;
@@ -3369,7 +3369,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_cleanup_old_downloads_npm_layout() {
-        // npm layout: files are just `grok-{version}` (no platform suffix).
+        // npm layout: files are just `axon-{version}` (no platform suffix).
         let dir = tempfile::tempdir().unwrap();
         let d = dir.path();
 
@@ -3391,7 +3391,7 @@ mod tests {
     #[tokio::test]
     async fn test_cleanup_old_downloads_alpha_versions() {
         // Alpha version filenames include pre-release tags:
-        //   grok-0.1.150-alpha.1-macos-aarch64
+        //   axon-0.1.150-alpha.1-macos-aarch64
         let dir = tempfile::tempdir().unwrap();
         let d = dir.path();
 
@@ -3469,7 +3469,7 @@ mod tests {
         let hint = reinstall_hint("npm");
         assert!(hint.contains("npm i -g"), "should suggest npm i -g: {hint}");
         assert!(
-            hint.contains("@xai-official/grok"),
+            hint.contains("@axon-official/axon"),
             "should name the package: {hint}"
         );
     }
@@ -3489,7 +3489,7 @@ mod tests {
 
     #[test]
     fn test_reinstall_hint_internal_mentions_gh_repo() {
-        // The x.ai install scripts are gone; the fallback hint points at
+        // The blocked.invalid install scripts are gone; the fallback hint points at
         // this build's GitHub repo.
         let hint = reinstall_hint("internal");
         assert!(
@@ -4016,7 +4016,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let d = dir.path();
         // Files matching prefix but with a non-digit-leading suffix must be
-        // ignored (e.g. axon-latest, axon-pager-* when prefix is grok).
+        // ignored (e.g. axon-latest, axon-pager-* when prefix is axon).
         std::fs::write(d.join("axon-latest"), "alias").unwrap();
         std::fs::write(d.join("axon-pager-0.1.141-macos-aarch64"), "pager").unwrap();
         std::fs::write(d.join("axon-0.1.140-macos-aarch64"), "v140").unwrap();
@@ -4169,7 +4169,7 @@ mod tests {
     #[tokio::test]
     async fn test_cleanup_old_downloads_darwin_platform_recognized() {
         // The `darwin` alias for macOS is in PLATFORM_OS — versions on
-        // grok-X.Y.Z-darwin-* layouts must split correctly.
+        // axon-X.Y.Z-darwin-* layouts must split correctly.
         let dir = tempfile::tempdir().unwrap();
         let d = dir.path();
         std::fs::write(d.join("axon-0.1.140-darwin-arm64"), "v140").unwrap();
@@ -4288,7 +4288,7 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_env_installer_explicit_internal_maps_to_gh_release() {
-        // The internal (x.ai CDN) channel is removed; the legacy env value
+        // The internal (blocked.invalid CDN) channel is removed; the legacy env value
         // resolves to GitHub Releases so stale environments keep updating.
         let _g = InstallerEnvGuard::isolate();
         unsafe { std::env::set_var("AXON_INSTALLER", "internal") };
@@ -4630,7 +4630,7 @@ mod tests {
         std::fs::write(&src, "new").unwrap();
         let dest = dir.path().join("axon.exe");
         std::fs::write(&dest, "current").unwrap();
-        let old = dir.path().join("grok.exe.old");
+        let old = dir.path().join("axon.exe.old");
         std::fs::write(&old, "stale-from-prior-update").unwrap();
 
         windows_replace_exe(&src, &dest).await.unwrap();
@@ -4675,7 +4675,7 @@ mod tests {
 
         assert_eq!(std::fs::read_to_string(&dest).unwrap(), "updated binary");
 
-        let old = dir.path().join("grok.exe.old");
+        let old = dir.path().join("axon.exe.old");
         assert!(old.exists(), ".old must exist after rename fallback");
         drop(_lock);
         assert_eq!(std::fs::read_to_string(&old).unwrap(), "running binary");
@@ -4684,7 +4684,7 @@ mod tests {
     #[cfg(windows)]
     #[tokio::test]
     async fn test_windows_replace_exe_rollback_on_copy_failure() {
-        // No stale .old: the aside IS grok.exe.old, so this pins the
+        // No stale .old: the aside IS axon.exe.old, so this pins the
         // non-diverted rollback branch (rename .old back onto dest).
         use std::os::windows::fs::OpenOptionsExt;
         const FILE_SHARE_READ: u32 = 0x00000001;
@@ -4720,7 +4720,7 @@ mod tests {
             "original",
             "rollback must restore the original binary"
         );
-        let old = dir.path().join("grok.exe.old");
+        let old = dir.path().join("axon.exe.old");
         assert!(!old.exists(), "rollback must consume the .old aside");
     }
 
@@ -4767,7 +4767,7 @@ mod tests {
         std::fs::write(&src, "updated binary").unwrap();
         let dest = dir.path().join("axon.exe");
         std::fs::write(&dest, "running binary").unwrap();
-        let old = dir.path().join("grok.exe.old");
+        let old = dir.path().join("axon.exe.old");
         std::fs::write(&old, "previous binary").unwrap();
 
         // No FILE_SHARE_DELETE: .old cannot be deleted or rename-replaced.
@@ -4797,7 +4797,7 @@ mod tests {
             .filter(|p| {
                 p.file_name()
                     .and_then(|n| n.to_str())
-                    .is_some_and(|n| n.starts_with("grok.exe.old.") && n.ends_with(".old"))
+                    .is_some_and(|n| n.starts_with("axon.exe.old.") && n.ends_with(".old"))
             })
             .collect();
         assert_eq!(
@@ -4825,7 +4825,7 @@ mod tests {
         std::fs::write(&src, "updated binary").unwrap();
         let dest = dir.path().join("axon.exe");
         std::fs::write(&dest, "running binary").unwrap();
-        let old = dir.path().join("grok.exe.old");
+        let old = dir.path().join("axon.exe.old");
         std::fs::write(&old, "previous binary").unwrap();
 
         // No FILE_SHARE_DELETE: .old survives the sweep and forces a divert.
@@ -4863,7 +4863,7 @@ mod tests {
             .filter(|e| {
                 let name = e.file_name();
                 let name = name.to_string_lossy();
-                name.starts_with("grok.exe.old.") && name.ends_with(".old")
+                name.starts_with("axon.exe.old.") && name.ends_with(".old")
             })
             .count();
         assert_eq!(leftover_asides, 0, "rollback must consume the aside");
@@ -4880,10 +4880,10 @@ mod tests {
         std::fs::write(&src, "new").unwrap();
         let dest = dir.path().join("axon.exe");
         std::fs::write(&dest, "current").unwrap();
-        let old = dir.path().join("grok.exe.old");
+        let old = dir.path().join("axon.exe.old");
         std::fs::write(&old, "stale").unwrap();
-        let aside_a = dir.path().join("grok.exe.old.1234-0.old");
-        let aside_b = dir.path().join("grok.exe.old.1234-1.old");
+        let aside_a = dir.path().join("axon.exe.old.1234-0.old");
+        let aside_b = dir.path().join("axon.exe.old.1234-1.old");
         std::fs::write(&aside_a, "aside-a").unwrap();
         std::fs::write(&aside_b, "aside-b").unwrap();
         let agent_old = dir.path().join("agent.exe.old");

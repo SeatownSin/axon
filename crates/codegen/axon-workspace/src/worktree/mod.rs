@@ -34,7 +34,7 @@ pub use axon_workspace_types::rpc::worktree::{
     RemoveWorktreeRequest, RemoveWorktreeResponse, WorktreeCopyMode, WorktreeType,
 };
 
-const WORKTREE_LOG: &str = "xai_worktree";
+const WORKTREE_LOG: &str = "axon_worktree";
 
 /// Map a [`WorktreeType`] to the fast-worktree crate's `CreationMode`.
 pub(crate) fn to_creation_mode(t: WorktreeType) -> axon_fast_worktree::CreationMode {
@@ -618,13 +618,13 @@ pub fn resolve_label_collision(base_dir: &Path, label: &str) -> String {
 // Worktree Base Directory Resolution
 // ============================================================================
 
-/// Resolve the grok home for worktree paths via the **same** resolver used for
-/// `worktrees.db` (`axon_fast_worktree::resolve_grok_home`), so checkout dirs and
+/// Resolve the axon home for worktree paths via the **same** resolver used for
+/// `worktrees.db` (`axon_fast_worktree::resolve_axon_home`), so checkout dirs and
 /// the metadata DB always live under the same `.axon` tree. That resolver
-/// canonicalizes its `$HOME` fallback to match `axon_config::grok_home()`,
-/// so worktree paths also agree with trust/hooks and other grok-home paths.
-fn grok_home() -> std::path::PathBuf {
-    axon_fast_worktree::resolve_grok_home().unwrap_or_else(|_| {
+/// canonicalizes its `$HOME` fallback to match `axon_config::axon_home()`,
+/// so worktree paths also agree with trust/hooks and other axon-home paths.
+fn axon_home() -> std::path::PathBuf {
+    axon_fast_worktree::resolve_axon_home().unwrap_or_else(|_| {
         dirs::home_dir()
             .unwrap_or_else(|| std::path::PathBuf::from("/tmp"))
             .join(".axon")
@@ -637,11 +637,11 @@ fn grok_home() -> std::path::PathBuf {
 /// the last two meaningful path components.
 pub fn worktree_base_dir(git_root: &Path) -> std::path::PathBuf {
     let slug = repo_slug(git_root);
-    grok_home().join("worktrees").join(slug)
+    axon_home().join("worktrees").join(slug)
 }
 
 /// Resolves the worktree base directory (`~/.axon/worktrees/<repo_name>`)
-/// for a given source path, correctly handling grok-managed worktrees.
+/// for a given source path, correctly handling axon-managed worktrees.
 ///
 /// When `source_path` is already under `~/.axon/worktrees/<repo>/...`, the
 /// repo name is derived from the directory structure directly. This avoids
@@ -652,7 +652,7 @@ pub fn worktree_base_dir(git_root: &Path) -> std::path::PathBuf {
 /// For paths outside the axon worktree directory, falls back to
 /// `find_main_repo_root_from_path` + `worktree_base_dir`.
 pub fn worktree_base_dir_for_source(source_path: &Path) -> Result<std::path::PathBuf> {
-    let worktrees_dir = grok_home().join("worktrees");
+    let worktrees_dir = axon_home().join("worktrees");
 
     if let Ok(suffix) = source_path.strip_prefix(&worktrees_dir) {
         if let Some(component) = suffix.components().next() {
@@ -701,7 +701,7 @@ pub fn label_from_path(worktree_path: &str) -> String {
 /// queries. Returns `None` for non-worktree paths (without opening the DB) or
 /// when the DB is unavailable.
 fn worktree_record_for_cwd(cwd: &str) -> Option<(WorktreeDb, WorktreeRecord)> {
-    let worktrees_dir = grok_home().join("worktrees");
+    let worktrees_dir = axon_home().join("worktrees");
     let mut path = Path::new(cwd);
     if !path.starts_with(&worktrees_dir) {
         return None;
@@ -724,7 +724,7 @@ fn worktree_record_for_cwd(cwd: &str) -> Option<(WorktreeDb, WorktreeRecord)> {
     None
 }
 
-/// The recorded source repo of the grok-managed worktree containing `cwd`, if any.
+/// The recorded source repo of the axon-managed worktree containing `cwd`, if any.
 ///
 /// Thin wrapper over [`worktree_record_for_cwd`] that drops the DB handle;
 /// returns `None` (without DB I/O) for paths outside `~/.axon/worktrees/`.
@@ -2296,7 +2296,7 @@ pub struct ResumeSessionInWorktreeRequest {
     pub git_ref: Option<String>,
 }
 
-/// Response from `x.ai/git/worktree/resume_session`.
+/// Response from `axon/git/worktree/resume_session`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ResumeSessionInWorktreeResponse {
@@ -2339,7 +2339,7 @@ pub struct RehydrateSessionRequest {
     pub worktree_path: Option<String>,
 }
 
-/// Response from `x.ai/session/rehydrate`.
+/// Response from `axon/session/rehydrate`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RehydrateSessionResponse {
@@ -2361,7 +2361,7 @@ pub struct RehydrateSessionResponse {
 
 use axon_fast_worktree::{
     DbStats, GcOptions, GcReport, ListFilter, WorktreeDb, WorktreeKind, WorktreeRecord,
-    gc_worktrees as fw_gc_worktrees, rebuild_worktree_db, resolve_grok_home,
+    gc_worktrees as fw_gc_worktrees, rebuild_worktree_db, resolve_axon_home,
 };
 
 pub fn open_db() -> Result<WorktreeDb> {
@@ -2424,13 +2424,13 @@ pub fn worktree_db_stats() -> Result<DbStats> {
 }
 
 pub fn worktree_db_rebuild() -> Result<axon_fast_worktree::RebuildReport> {
-    let home = resolve_grok_home()?;
+    let home = resolve_axon_home()?;
     let db = WorktreeDb::open(&home)?;
     rebuild_worktree_db(&db, &home)
 }
 
 pub fn worktree_db_path() -> Result<std::path::PathBuf> {
-    let home = resolve_grok_home()?;
+    let home = resolve_axon_home()?;
     Ok(home.join("worktrees.db"))
 }
 
@@ -2596,7 +2596,7 @@ mod tests {
         std::fs::write(wt.join("tracked.txt"), "edited").unwrap();
         std::fs::write(wt.join("untracked.txt"), "brand new").unwrap();
 
-        let ref_name = "refs/grok/subagents/dispose-1";
+        let ref_name = "refs/axon/subagents/dispose-1";
         let returned = snapshot_and_remove_subagent_worktree(&wt, &repo, ref_name)
             .await
             .unwrap();
@@ -2622,7 +2622,7 @@ mod tests {
         std::fs::write(wt.join("tracked.txt"), "edited").unwrap();
         std::fs::write(wt.join("untracked.txt"), "brand new").unwrap();
 
-        let ref_name = "refs/grok/subagents/dispose-2";
+        let ref_name = "refs/axon/subagents/dispose-2";
         snapshot_and_remove_subagent_worktree(&wt, &repo, ref_name)
             .await
             .unwrap();
@@ -2669,7 +2669,7 @@ mod tests {
         std::fs::write(wt.join("tracked.txt"), "edited").unwrap();
         std::fs::write(wt.join("untracked.txt"), "brand new").unwrap();
 
-        let ref_name = "refs/grok/subagents/standalone-1";
+        let ref_name = "refs/axon/subagents/standalone-1";
         let returned = snapshot_subagent_worktree(&wt, &repo, ref_name)
             .await
             .unwrap();
@@ -2719,7 +2719,7 @@ mod tests {
         let result = snapshot_and_remove_subagent_worktree(
             &not_a_worktree,
             &not_a_worktree,
-            "refs/grok/subagents/dispose-3",
+            "refs/axon/subagents/dispose-3",
         )
         .await;
 
@@ -2737,7 +2737,7 @@ mod tests {
     // regardless of how the caller binds the fixture's return.
     use crate::LockedTestEnv;
 
-    /// Point `AXON_HOME` at an isolated tempdir (`resolve_grok_home` re-reads
+    /// Point `AXON_HOME` at an isolated tempdir (`resolve_axon_home` re-reads
     /// the env per call by design) and register one worktree record at
     /// `<home>/worktrees/repo/wt` with no `last_accessed_at`.
     ///
@@ -2750,7 +2750,7 @@ mod tests {
         // Canonicalize so macOS /var -> /private/var agrees between the stored
         // record path and `db.get`'s canonicalized query path.
         let root = dunce::canonicalize(temp.path()).unwrap();
-        let home = root.join("grok-home");
+        let home = root.join("axon-home");
         let wt = home.join("worktrees").join("repo").join("wt");
         std::fs::create_dir_all(&wt).unwrap();
         // Acquire the lock, then set the env under it (LockedTestEnv restores the
@@ -2849,7 +2849,7 @@ mod tests {
         git_commit_all(&repo, "initial");
 
         // Unique basename → unique DB id, so a concurrent open_default writer
-        // can't clobber this row (GrokHomeFixture is not visible across crates).
+        // can't clobber this row (AxonHomeFixture is not visible across crates).
         let wt = temp.path().join("fork-cancel-wt");
         WorktreeBuilder::new(&repo, &wt).create().unwrap();
 

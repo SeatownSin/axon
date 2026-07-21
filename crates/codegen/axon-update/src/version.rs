@@ -6,23 +6,23 @@ use serde_json::Value;
 use tokio::fs;
 use tokio::process::Command;
 
-use axon_shell::env::GrokBuildEnvironment;
-use axon_shell::util::grok_home::grok_home;
+use axon_shell::env::AxonBuildEnvironment;
+use axon_shell::util::axon_home::axon_home;
 
 const TTL_SECONDS_BEFORE_AUTO_UPDATE: Duration = Duration::from_secs(60 * 30);
-const NPM_PACKAGE: &str = "@xai-official/grok";
+const NPM_PACKAGE: &str = "@axon-official/axon";
 /// GitHub repo `axon update` checks and installs from. This local build
-/// tracks the user's fork, not xAI's distribution repo.
-pub const GH_RELEASE_REPO: &str = "SeatownSin/grok-build-local";
+/// tracks the user's fork, not Axon's distribution repo.
+pub const GH_RELEASE_REPO: &str = "SeatownSin/axon-build-local";
 
-/// Primary CLI base URL: Cloudflare-fronted x.ai endpoint with edge caching
+/// Primary CLI base URL: Cloudflare-fronted blocked.invalid endpoint with edge caching
 /// for binaries and origin-respecting no-cache for channel pointers.
-pub(crate) const CLI_BASE_URL_PRIMARY: &str = "https://x.ai/cli";
+pub(crate) const CLI_BASE_URL_PRIMARY: &str = "https://blocked.invalid/cli";
 
 /// Fallback CLI base URL: direct GCS, used when the primary is unreachable
 /// (Cloudflare outage, regional CF egress issue, DNS hijack, etc.).
 pub(crate) const CLI_BASE_URL_FALLBACK: &str =
-    "https://storage.googleapis.com/grok-build-public-artifacts/cli";
+    "https://storage.googleapis.com/axon-build-public-artifacts/cli";
 
 /// CLI base URLs in preference order. Callers (channel-pointer fetch, binary
 /// download, in-app updater) try each in turn and stop at the first success.
@@ -30,12 +30,12 @@ pub(crate) const CLI_BASE_URLS: &[&str] = &[CLI_BASE_URL_PRIMARY, CLI_BASE_URL_F
 
 /// Minimal configuration the update system needs from the environment.
 ///
-/// Constructed once from `GrokBuildEnvironment` at startup and threaded through the
+/// Constructed once from `AxonBuildEnvironment` at startup and threaded through the
 /// update call chain so that `auto_update` and `version` never need to know
-/// about the `GrokBuildEnvironment` enum directly.
+/// about the `AxonBuildEnvironment` enum directly.
 #[derive(Debug, Clone)]
 pub struct UpdateConfig {
-    /// Chat API proxy base URL (versioned `https://cli-chat-proxy.grok.com/v1` endpoint).
+    /// Chat API proxy base URL (versioned `https://cli-chat-proxy.blocked.invalid/v1` endpoint).
     pub proxy_base_url: String,
     /// Auth scope key for `~/.axon/auth.json`.
     pub auth_scope: String,
@@ -50,10 +50,10 @@ pub struct UpdateConfig {
 }
 
 impl UpdateConfig {
-    pub fn from_environment(env: &GrokBuildEnvironment) -> Self {
+    pub fn from_environment(env: &AxonBuildEnvironment) -> Self {
         Self {
             proxy_base_url: env.cli_chat_proxy_base_url(),
-            auth_scope: axon_shell::auth::GrokComConfig::default().auth_scope(),
+            auth_scope: axon_shell::auth::AxonComConfig::default().auth_scope(),
             deployment_key: None,
             alpha_test_key: None,
             channel: "stable".to_string(),
@@ -63,14 +63,14 @@ impl UpdateConfig {
 }
 
 #[derive(Debug, serde::Serialize, Deserialize)]
-struct GrokVersion {
+struct AxonVersion {
     version: String,
     #[serde(default)]
     stable_version: Option<String>,
     checked_at: String,
 }
 
-impl GrokVersion {
+impl AxonVersion {
     fn is_fresh(&self, now: time::OffsetDateTime, ttl: Duration) -> bool {
         if let Ok(dt) = time::OffsetDateTime::parse(
             &self.checked_at,
@@ -359,9 +359,9 @@ pub async fn fetch_latest_version(installer: &str, config: &UpdateConfig) -> Res
 /// `stable_version` records the current stable channel pointer so that
 /// `channel_label()` can derive `[alpha]` vs `[stable]` without network I/O.
 pub async fn write_version_cache(version: &str, stable_version: Option<&str>) {
-    let version_path = grok_home().join("version.json");
+    let version_path = axon_home().join("version.json");
     let now = time::OffsetDateTime::now_utc();
-    let json = GrokVersion::new(
+    let json = AxonVersion::new(
         version.to_string(),
         stable_version.map(|s| s.to_string()),
         now,
@@ -405,10 +405,10 @@ pub async fn get_latest_version(installer: &str, config: &UpdateConfig) -> Resul
 
 /// True if `version.json` exists and is within TTL.
 pub async fn is_version_cache_fresh() -> bool {
-    let version_path = grok_home().join("version.json");
+    let version_path = axon_home().join("version.json");
     let now = time::OffsetDateTime::now_utc();
     if let Ok(version_str) = fs::read_to_string(&version_path).await
-        && let Ok(version) = serde_json::from_str::<GrokVersion>(&version_str)
+        && let Ok(version) = serde_json::from_str::<AxonVersion>(&version_str)
         && version.is_fresh(now, TTL_SECONDS_BEFORE_AUTO_UPDATE)
     {
         return true;
@@ -416,10 +416,10 @@ pub async fn is_version_cache_fresh() -> bool {
     false
 }
 
-pub use axon_version::installed as get_installed_grok_version;
+pub use axon_version::installed as get_installed_axon_version;
 
-/// Version of the managed grok binary currently on disk, read from the
-/// `~/.axon/bin/grok` symlink target (`../downloads/grok-<version>-<platform>`)
+/// Version of the managed axon binary currently on disk, read from the
+/// `~/.axon/bin/axon` symlink target (`../downloads/axon-<version>-<platform>`)
 /// without exec'ing anything.
 ///
 /// Concurrent updaters (TUI background download, leader hourly checker,
@@ -440,7 +440,7 @@ pub use axon_version::installed as get_installed_grok_version;
 pub fn installed_on_disk_version() -> Option<String> {
     #[cfg(unix)]
     {
-        let app = axon_shell::util::grok_home::grok_application();
+        let app = axon_shell::util::axon_home::axon_application();
         let target = std::fs::read_link(&app).ok()?;
         // metadata() follows the symlink: Err means the target is gone
         // (dangling link) and the version it names is not actually on disk.
@@ -455,13 +455,13 @@ pub fn installed_on_disk_version() -> Option<String> {
 
 /// Extract the `<version>` portion of a versioned binary file name.
 ///
-/// Handles the internal layout (`grok-0.1.150-macos-aarch64`, including
-/// pre-releases: `grok-0.1.150-alpha.1-linux-x86_64` → `0.1.150-alpha.1`)
-/// and the npm layout without a platform suffix (`grok-0.1.150`,
-/// `grok-0.1.150-alpha.1`): everything between the `{bin_prefix}-` prefix
+/// Handles the internal layout (`axon-0.1.150-macos-aarch64`, including
+/// pre-releases: `axon-0.1.150-alpha.1-linux-x86_64` → `0.1.150-alpha.1`)
+/// and the npm layout without a platform suffix (`axon-0.1.150`,
+/// `axon-0.1.150-alpha.1`): everything between the `{bin_prefix}-` prefix
 /// and the first platform-OS component is the version, validated as semver
 /// so unknown layouts (`axon-latest`, `axon-pager-*` when `bin_prefix` is
-/// `grok`) return `None` instead of garbage.
+/// `axon`) return `None` instead of garbage.
 ///
 /// Shared by the disk-version probe above and `cleanup_old_downloads` in
 /// `auto_update` — keep it the single place that understands this naming.
@@ -508,9 +508,9 @@ pub(crate) async fn try_fetch_stable_pointer() -> Option<String> {
 /// Returns `None` if the file doesn't exist, can't be parsed, or has no
 /// `stable_version` field (e.g. written by an older binary).
 pub fn cached_stable_version() -> Option<String> {
-    let version_path = grok_home().join("version.json");
+    let version_path = axon_home().join("version.json");
     let content = std::fs::read_to_string(&version_path).ok()?;
-    let gv: GrokVersion = serde_json::from_str(&content).ok()?;
+    let gv: AxonVersion = serde_json::from_str(&content).ok()?;
     gv.stable_version
 }
 
@@ -580,7 +580,7 @@ mod tests {
     fn test_is_fresh_rejects_future_timestamp() {
         let now = time::OffsetDateTime::now_utc();
         let future = now + Duration::from_secs(600);
-        let v = GrokVersion::new("0.1.200".to_string(), None, future);
+        let v = AxonVersion::new("0.1.200".to_string(), None, future);
         assert!(
             !v.is_fresh(now, Duration::from_secs(30)),
             "Future timestamp must not be considered fresh (clock-skew guard)."
@@ -588,7 +588,7 @@ mod tests {
     }
 
     /// Disk-version probe: parsing the version out of the managed install's
-    /// symlink-target file name (`grok-<version>-<platform>`).
+    /// symlink-target file name (`axon-<version>-<platform>`).
     #[test]
     fn test_version_from_versioned_binary_name() {
         let cases: &[(&str, Option<&str>)] = &[
@@ -705,22 +705,22 @@ mod tests {
     }
 
     // ──────────────────────────────────────────────────────────────────────
-    // GrokVersion JSON shape — backward compatibility invariants
+    // AxonVersion JSON shape — backward compatibility invariants
     // ──────────────────────────────────────────────────────────────────────
 
     #[test]
     fn test_version_json_backward_compat() {
         // Old format (no stable_version) must parse — serde(default) fills None.
         let old = r#"{"version":"0.1.180","checked_at":"2026-04-22T10:30:00Z"}"#;
-        let v: GrokVersion = serde_json::from_str(old).unwrap();
+        let v: AxonVersion = serde_json::from_str(old).unwrap();
         assert_eq!(v.version, "0.1.180");
         assert!(v.stable_version.is_none());
 
         // New format with stable_version round-trips correctly.
         let now = time::OffsetDateTime::now_utc();
-        let new = GrokVersion::new("0.2.5".to_string(), Some("0.2.3".to_string()), now);
+        let new = AxonVersion::new("0.2.5".to_string(), Some("0.2.3".to_string()), now);
         let json = serde_json::to_string(&new).unwrap();
-        let parsed: GrokVersion = serde_json::from_str(&json).unwrap();
+        let parsed: AxonVersion = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed.version, "0.2.5");
         assert_eq!(parsed.stable_version.as_deref(), Some("0.2.3"));
 
@@ -735,11 +735,11 @@ mod tests {
 
         // Unknown fields are ignored (forward-compat).
         let future = r#"{"version":"0.1.180","checked_at":"2026-04-22T10:30:00Z","future":"ok"}"#;
-        assert!(serde_json::from_str::<GrokVersion>(future).is_ok());
+        assert!(serde_json::from_str::<AxonVersion>(future).is_ok());
 
         // Missing required field (checked_at) is rejected.
         let missing = r#"{"version":"0.1.180"}"#;
-        assert!(serde_json::from_str::<GrokVersion>(missing).is_err());
+        assert!(serde_json::from_str::<AxonVersion>(missing).is_err());
     }
 
     // ──────────────────────────────────────────────────────────────────────
@@ -749,7 +749,7 @@ mod tests {
     #[test]
     fn test_is_fresh_ttl_boundaries() {
         let now = time::OffsetDateTime::now_utc();
-        let v = GrokVersion::new("0.1.200".to_string(), None, now);
+        let v = AxonVersion::new("0.1.200".to_string(), None, now);
 
         // Within TTL → fresh
         assert!(v.is_fresh(now, Duration::from_secs(60)));
@@ -765,7 +765,7 @@ mod tests {
         assert!(!v.is_fresh(now, Duration::ZERO));
 
         // Malformed timestamp → not fresh
-        let bad = GrokVersion {
+        let bad = AxonVersion {
             version: "0.1.200".to_string(),
             stable_version: None,
             checked_at: "not-rfc3339".to_string(),
@@ -779,8 +779,8 @@ mod tests {
 
     #[test]
     fn test_update_config_default_channel_is_stable() {
-        use axon_shell::env::GrokBuildEnvironment;
-        let cfg = UpdateConfig::from_environment(&GrokBuildEnvironment::Production);
+        use axon_shell::env::AxonBuildEnvironment;
+        let cfg = UpdateConfig::from_environment(&AxonBuildEnvironment::Production);
         assert_eq!(cfg.channel, "stable");
     }
 }

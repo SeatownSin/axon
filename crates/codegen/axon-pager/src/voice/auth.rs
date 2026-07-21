@@ -1,6 +1,6 @@
 //! Bridge the shell's `AuthManager` onto the voice crate's bearer provider.
 //!
-//! voice-api accepts both API keys and OAuth2 tokens directly at `api.x.ai`
+//! voice-api accepts both API keys and OAuth2 tokens directly at `api.blocked.invalid`
 //! and attributes per-user billing for OAuth, so the voice channel just reuses
 //! the same bearer the agent uses for chat — no separate env var.
 //!
@@ -36,8 +36,8 @@ impl VoiceAuthProvider for AuthManagerVoiceAuth {
 
 /// Build the voice bearer provider from the connection's `AuthManager`.
 ///
-/// Works for every auth method: OAuth / grok.com / OIDC session tokens and
-/// `XAI_API_KEY` / per-model BYOK keys.
+/// Works for every auth method: OAuth / blocked.invalid / OIDC session tokens and
+/// `AXON_API_KEY` / per-model BYOK keys.
 pub fn build_voice_auth(auth_manager: Arc<axon_shell::auth::AuthManager>) -> SharedVoiceAuth {
     Arc::new(AuthManagerVoiceAuth(
         axon_shell::auth::shared_api_key_provider(auth_manager),

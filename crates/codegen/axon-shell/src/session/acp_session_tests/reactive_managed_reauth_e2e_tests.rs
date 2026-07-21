@@ -3,7 +3,7 @@
 //! level (owner-scope + cooldown). Here we drive the full
 //! `invalidate_cache → get_or_fetch → refresh_managed_clients → re-handshake`
 //! loop against a real in-process HTTP MCP server and assert the wire-visible
-//! `x.ai/mcp/server_status` pushes that clients consuming only `server_status`
+//! `axon/mcp/server_status` pushes that clients consuming only `server_status`
 //! (not the `mcp/list` snapshot) depend on.
 //!
 //! Unlike the unit harness, these tests KEEP `gw_rx` so the forwarded
@@ -35,7 +35,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use axon_mcp::servers::{ClientStateKind, HttpConfig, McpClient};
 
-const MANAGED: &str = "grok_com_testconnector";
+const MANAGED: &str = "axon_com_testconnector";
 
 // ── Mock cli-chat-proxy + MCP server ──────────────────────────────────────
 
@@ -156,12 +156,12 @@ async fn actor_with_proxy(
     let home = tempfile::tempdir().expect("tempdir");
     let auth_manager = Arc::new(crate::auth::AuthManager::new(
         home.path(),
-        crate::auth::GrokComConfig::default(),
+        crate::auth::AxonComConfig::default(),
     ));
     // Valid (1h) token in-memory only — `auth()` fast-paths it without network.
-    auth_manager.hot_swap(crate::auth::GrokAuth {
+    auth_manager.hot_swap(crate::auth::AxonAuth {
         expires_at: Some(Utc::now() + chrono::Duration::hours(1)),
-        ..crate::auth::GrokAuth::test_default()
+        ..crate::auth::AxonAuth::test_default()
     });
 
     let cfg = crate::agent::config::Config {
@@ -224,7 +224,7 @@ async fn seed_managed(actor: &SessionActor, mcp_url: &str) {
     );
 }
 
-/// Drain all `x.ai/mcp/server_status` pushes currently queued on `gw_rx`.
+/// Drain all `axon/mcp/server_status` pushes currently queued on `gw_rx`.
 fn drain_status_pushes(
     gw_rx: &mut tokio::sync::mpsc::UnboundedReceiver<axon_acp_lib::AcpClientMessage>,
 ) -> Vec<McpServerStatusPayload> {
@@ -411,7 +411,7 @@ async fn terminal_after_three_failures_pushes_needsauth_then_gates() {
 async fn entry_b_routes_auth_rejection_but_not_policy_denial() {
     use axon_mcp::servers::{is_auth_rejection_message, parse_mcp_tool_name};
 
-    // Managed-prefix gate: only `grok_com_*` tools enter entry-B.
+    // Managed-prefix gate: only `axon_com_*` tools enter entry-B.
     let (managed_server, _) =
         parse_mcp_tool_name(&format!("{MANAGED}__create_issue")).expect("qualified name");
     assert!(managed_server.starts_with(MANAGED_MCP_PREFIX));

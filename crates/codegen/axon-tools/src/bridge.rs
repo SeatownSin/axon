@@ -105,7 +105,7 @@ impl ToolBridge {
     /// rather than by namespaced id.
     ///
     /// Example: `tool_for_kind(ToolKind::BackgroundTaskAction)` returns
-    /// `Some("get_task_output")` for the grok_build agent and `None` for
+    /// `Some("get_task_output")` for the axon_build agent and `None` for
     /// agents that do not register a tool of that kind.
     pub async fn tool_for_kind(&self, kind: ToolKind) -> Option<String> {
         self.registry
@@ -547,7 +547,7 @@ impl ToolBridge {
         &self,
         task_id: &str,
     ) -> Result<bool, axon_tool_runtime::ToolError> {
-        use crate::implementations::grok_build::scheduler::types::{
+        use crate::implementations::axon_build::scheduler::types::{
             SchedulerCommand, SchedulerHandle,
         };
         let sender = {
@@ -710,7 +710,7 @@ mod tests {
         let bridge = ToolBridge::for_test();
         let toolset = bridge.toolset();
 
-        // PascalCase + grok_build's snake_case in one registry
+        // PascalCase + axon_build's snake_case in one registry
         // to exercise the lookup on the literal name strings each
         // namespace ships.
         register_fixture(&toolset, "Write", ToolKind::Write, "fixture_write");

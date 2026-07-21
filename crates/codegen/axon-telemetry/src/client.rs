@@ -1,7 +1,7 @@
 //! Core telemetry tracking — stubbed out.
 //!
 //! This build has all first-party analytics egress removed: the Mixpanel
-//! client, the xAI product-events endpoint, and the people-profile sync are
+//! client, the Axon product-events endpoint, and the people-profile sync are
 //! gone. [`track`] is a no-op. The [`TelemetryMode`] plumbing is kept so
 //! configuration still parses and mode queries keep their semantics, but no
 //! event ever leaves the machine.

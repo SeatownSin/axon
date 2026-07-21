@@ -73,9 +73,9 @@ struct AuthEntry {
 }
 
 fn default_auth_path() -> anyhow::Result<PathBuf> {
-    let grok = axon_config::user_grok_home()
-        .ok_or_else(|| anyhow::anyhow!("no user grok home (set $AXON_HOME or $HOME)"))?;
-    Ok(grok.join("auth.json"))
+    let axon = axon_config::user_axon_home()
+        .ok_or_else(|| anyhow::anyhow!("no user axon home (set $AXON_HOME or $HOME)"))?;
+    Ok(axon.join("auth.json"))
 }
 
 /// Read the active OIDC entry and its scope key. The key is threaded to the
@@ -250,7 +250,7 @@ mod tests {
         let path = write_auth_json(
             dir.path(),
             r#"{
-            "legacy": { "key": "xai-plainkey", "user_id": "u1" },
+            "legacy": { "key": "axon-plainkey", "user_id": "u1" },
             "oidc": {
                 "key": "eyJhbGciOiJFUzI1NiJ9.test",
                 "user_id": "u2",
@@ -276,7 +276,7 @@ mod tests {
         let path = write_auth_json(
             dir.path(),
             r#"{
-            "api_key": { "key": "xai-plainkey", "user_id": "u1" }
+            "api_key": { "key": "axon-plainkey", "user_id": "u1" }
         }"#,
         );
 
@@ -302,10 +302,10 @@ mod tests {
                 "user_id": "u1",
                 "auth_mode": "oidc",
                 "create_time": "2026-01-01T00:00:00Z",
-                "email": "test@x.ai",
+                "email": "test@blocked.invalid",
                 "first_name": "Test",
                 "refresh_token": "rt1",
-                "oidc_issuer": "https://auth.x.ai",
+                "oidc_issuer": "https://auth.blocked.invalid",
                 "oidc_client_id": "c1",
                 "some_future_field": true
             }
@@ -322,7 +322,7 @@ mod tests {
             key: "eyJ.tok".into(),
             user_id: "u1".into(),
             refresh_token: None,
-            oidc_issuer: Some("https://auth.x.ai".into()),
+            oidc_issuer: Some("https://auth.blocked.invalid".into()),
             oidc_client_id: Some("c1".into()),
             principal_type: None,
             principal_id: None,
@@ -354,7 +354,7 @@ mod tests {
             key: "eyJ.tok".into(),
             user_id: "u1".into(),
             refresh_token: Some("rt".into()),
-            oidc_issuer: Some("https://auth.x.ai".into()),
+            oidc_issuer: Some("https://auth.blocked.invalid".into()),
             oidc_client_id: None,
             principal_type: None,
             principal_id: None,
@@ -370,7 +370,7 @@ mod tests {
             key: "eyJ.tok".into(),
             user_id: "u1".into(),
             refresh_token: Some("rt".into()),
-            oidc_issuer: Some("https://auth.x.ai".into()),
+            oidc_issuer: Some("https://auth.blocked.invalid".into()),
             oidc_client_id: Some("c1".into()),
             principal_type: Some("Team".into()),
             principal_id: Some("t1".into()),
@@ -397,8 +397,8 @@ mod tests {
         let path = write_auth_json(
             dir.path(),
             r#"{
-            "legacy": { "key": "xai-old", "user_id": "u1" },
-            "oidc": { "key": "eyJ.old", "user_id": "u2", "refresh_token": "rt-old", "oidc_issuer": "https://auth.x.ai" }
+            "legacy": { "key": "axon-old", "user_id": "u1" },
+            "oidc": { "key": "eyJ.old", "user_id": "u2", "refresh_token": "rt-old", "oidc_issuer": "https://auth.blocked.invalid" }
         }"#,
         );
 
@@ -413,7 +413,7 @@ mod tests {
             serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
         assert_eq!(updated["oidc"]["key"], "eyJ.new");
         assert_eq!(updated["oidc"]["refresh_token"], "rt-new");
-        assert_eq!(updated["legacy"]["key"], "xai-old"); // untouched
+        assert_eq!(updated["legacy"]["key"], "axon-old"); // untouched
     }
 
     #[test]
@@ -424,8 +424,8 @@ mod tests {
         let path = write_auth_json(
             dir.path(),
             r#"{
-            "zzz": { "key": "eyJ.z", "refresh_token": "rt-z", "oidc_issuer": "https://auth.x.ai" },
-            "aaa": { "key": "eyJ.a", "refresh_token": "rt-a", "oidc_issuer": "https://auth.x.ai" }
+            "zzz": { "key": "eyJ.z", "refresh_token": "rt-z", "oidc_issuer": "https://auth.blocked.invalid" },
+            "aaa": { "key": "eyJ.a", "refresh_token": "rt-a", "oidc_issuer": "https://auth.blocked.invalid" }
         }"#,
         );
 
@@ -453,7 +453,7 @@ mod tests {
         let path = write_auth_json(
             dir.path(),
             r#"{
-            "oidc": { "key": "eyJ.old", "user_id": "u1", "refresh_token": "rt-keep", "oidc_issuer": "https://auth.x.ai" }
+            "oidc": { "key": "eyJ.old", "user_id": "u1", "refresh_token": "rt-keep", "oidc_issuer": "https://auth.blocked.invalid" }
         }"#,
         );
 
@@ -475,7 +475,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = write_auth_json(
             dir.path(),
-            r#"{ "oidc": { "key": "eyJ.tok", "user_id": "u1", "refresh_token": "rt", "oidc_issuer": "https://auth.x.ai", "oidc_client_id": "c1" } }"#,
+            r#"{ "oidc": { "key": "eyJ.tok", "user_id": "u1", "refresh_token": "rt", "oidc_issuer": "https://auth.blocked.invalid", "oidc_client_id": "c1" } }"#,
         );
         let url = Url::parse("ws://localhost:9988/v1/tools").unwrap();
         let auth = provider(&url, Some(&path)).unwrap();

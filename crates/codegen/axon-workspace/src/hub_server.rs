@@ -14,8 +14,8 @@ use prometheus::{HistogramVec, IntCounterVec, register_histogram_vec, register_i
 use serde_json::Value;
 use axon_computer_hub_sdk::ToolServerHandler;
 use axon_tools::computer::types::TaskKind;
-use axon_tools::implementations::grok_build::scheduler::interval::interval_to_human;
-use axon_tools::implementations::grok_build::scheduler::types::{
+use axon_tools::implementations::axon_build::scheduler::interval::interval_to_human;
+use axon_tools::implementations::axon_build::scheduler::types::{
     SchedulerCommand, SchedulerHandle,
 };
 use axon_tools::registry::types::FinalizedToolset;
@@ -36,7 +36,7 @@ use axon_tool_types::ToolDescription;
 static WORKSPACE_RPC_CALLER_MISMATCH_TOTAL: std::sync::LazyLock<IntCounterVec> =
     std::sync::LazyLock::new(|| {
         register_int_counter_vec!(
-            "grok_workspace_rpc_caller_mismatch_total",
+            "axon_workspace_rpc_caller_mismatch_total",
             "Mutation RPCs whose caller_session_id param was not backed by a matching \
              server-bound envelope session, by method and kind",
             &["method", "kind"]
@@ -48,7 +48,7 @@ static WORKSPACE_RPC_CALLER_MISMATCH_TOTAL: std::sync::LazyLock<IntCounterVec> =
 static WORKSPACE_RPC_MUTATION_TOTAL: std::sync::LazyLock<IntCounterVec> =
     std::sync::LazyLock::new(|| {
         register_int_counter_vec!(
-            "grok_workspace_rpc_mutation_total",
+            "axon_workspace_rpc_mutation_total",
             "Session-mutating workspace RPC calls, by method and outcome",
             &["method", "outcome"]
         )
@@ -59,7 +59,7 @@ static WORKSPACE_RPC_MUTATION_TOTAL: std::sync::LazyLock<IntCounterVec> =
 static WORKSPACE_RPC_REQUESTS_TOTAL: std::sync::LazyLock<IntCounterVec> =
     std::sync::LazyLock::new(|| {
         register_int_counter_vec!(
-            "grok_workspace_rpc_requests_total",
+            "axon_workspace_rpc_requests_total",
             "Workspace RPC dispatches, by method and result",
             &["method", "result"]
         )
@@ -69,7 +69,7 @@ static WORKSPACE_RPC_REQUESTS_TOTAL: std::sync::LazyLock<IntCounterVec> =
 static WORKSPACE_RPC_DURATION_SECONDS: std::sync::LazyLock<HistogramVec> =
     std::sync::LazyLock::new(|| {
         register_histogram_vec!(
-            "grok_workspace_rpc_duration_seconds",
+            "axon_workspace_rpc_duration_seconds",
             "Workspace RPC dispatch duration",
             &["method"],
             vec![
@@ -300,7 +300,7 @@ async fn tasks_snapshot(toolset: &FinalizedToolset) -> TasksSnapshotResponse {
 async fn list_session_todos(
     toolset: &axon_tools::registry::types::FinalizedToolset,
 ) -> Vec<axon_workspace_types::rpc::workspace::TodoSummaryWire> {
-    use axon_tools::implementations::grok_build::todo::{TodoState, TodoStatus};
+    use axon_tools::implementations::axon_build::todo::{TodoState, TodoStatus};
     use axon_tools::types::resources::State;
     use axon_workspace_types::rpc::workspace::TodoSummaryWire;
     let res = toolset.resources.lock().await;
@@ -1126,7 +1126,7 @@ mod tests {
     use super::*;
     use crate::capability::CapabilityMode;
     use crate::handle::tests::{background_capable_cfg, make_handle, start_background_sleep};
-    use axon_tools::implementations::grok_build::scheduler::types::ScheduledTask;
+    use axon_tools::implementations::axon_build::scheduler::types::ScheduledTask;
     use axon_tool_protocol::turn_hook;
     /// Helper: consume the first item from a ToolStream.
     async fn next_item(
@@ -1148,7 +1148,7 @@ mod tests {
         let handler = WorkspaceRpcHandler::new(make_handle());
         let req = turn_hook::TurnHookRequest::Before(turn_hook::BeforeTurnPayload {
             turn_number: 1,
-            model_id: "grok-3".to_owned(),
+            model_id: "axon-3".to_owned(),
             yolo_mode: false,
             conversation_message_count: 0,
             session_relationship: "primary".to_owned(),
@@ -1185,7 +1185,7 @@ mod tests {
         let handler = WorkspaceRpcHandler::new(make_handle());
         let req = turn_hook::TurnHookRequest::Before(turn_hook::BeforeTurnPayload {
             turn_number: 1,
-            model_id: "grok-3".to_owned(),
+            model_id: "axon-3".to_owned(),
             yolo_mode: false,
             conversation_message_count: 0,
             session_relationship: "primary".to_owned(),
@@ -1324,7 +1324,7 @@ mod tests {
         assert_eq!(tasks.len(), 1, "the task must survive a reused rebind");
         let read_only = ToolServerConfig {
             tools: vec![tc(
-                "GrokBuild:read_file",
+                "AxonBuild:read_file",
                 Some(axon_tools::types::tool::ToolKind::Read),
             )],
             behavior_preset: None,
@@ -2149,7 +2149,7 @@ mod tests {
         );
         let has_bogus_series = prometheus::gather()
             .iter()
-            .filter(|mf| mf.name() == "grok_workspace_rpc_requests_total")
+            .filter(|mf| mf.name() == "axon_workspace_rpc_requests_total")
             .flat_map(|mf| mf.get_metric())
             .any(|m| {
                 m.get_label()
@@ -2212,7 +2212,7 @@ mod tests {
         let handler = WorkspaceRpcHandler::new(handle.clone());
         let payload = turn_hook::BeforeTurnPayload {
             turn_number: 1,
-            model_id: "grok-3".to_string(),
+            model_id: "axon-3".to_string(),
             yolo_mode: false,
             conversation_message_count: 0,
             session_relationship: "primary".to_string(),
@@ -2248,7 +2248,7 @@ mod tests {
             outcome: turn_hook::TurnHookOutcome::Completed,
             duration_ms: 500,
             tool_call_count: 3,
-            model_id: "grok-3".to_string(),
+            model_id: "axon-3".to_string(),
             written_repo_paths: Vec::new(),
             cancellation_category: None,
             cancellation_context: None,

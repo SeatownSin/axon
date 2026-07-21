@@ -42,7 +42,7 @@ pub(super) const CLIPBOARD_PROBE_TIMEOUT_SECS: u64 = 10;
 /// Picker search debounce ([`Effect::DebounceSessionSearch`]):
 /// long enough to coalesce a typing burst, short enough to feel live.
 pub(super) const SESSION_SEARCH_DEBOUNCE_MS: u64 = 250;
-/// Run the post-CTA-install `x.ai/mcp/list` read (uncached, which also nudges
+/// Run the post-CTA-install `axon/mcp/list` read (uncached, which also nudges
 /// the shell to retry auth-required servers) and map it into a
 /// `TaskResult::PluginCtaMcpsLoaded`. Shared by the immediate fetch and the
 /// delayed re-probe.
@@ -56,7 +56,7 @@ pub(super) async fn fetch_plugin_cta_mcps(
         { "sessionId" : session_id.0.to_string(), "cache" : false, }
     );
     let req = acp::ExtRequest::new(
-        "x.ai/mcp/list",
+        "axon/mcp/list",
         serde_json::value::to_raw_value(&params)
             .expect("serialize mcp/list params")
             .into(),
@@ -82,7 +82,7 @@ pub(super) async fn fetch_plugin_cta_mcps(
 }
 /// Convert an ACP error to a user-friendly string for display.
 /// Rate-limit errors: free-usage paywall, else server detail (with API-key
-/// rewrite when the body pushes personal SuperGrok), else auth-aware fallback
+/// rewrite when the body pushes personal SuperAxon), else auth-aware fallback
 /// (see [`format_rate_limited_user_message`]).
 /// All other errors are sanitized to remove internal service names and jargon.
 pub(super) fn format_acp_error(err: &acp::Error, is_api_key_auth: bool) -> String {
@@ -149,7 +149,7 @@ pub(super) fn parse_session_load_restore_meta(
         .and_then(|v| serde_json::from_value(v).ok());
     (code_restored, restore_summary, restore_degree)
 }
-/// CANONICAL wire parser for `LoadSessionResponse._meta["x.ai/runningPromptId"]`.
+/// CANONICAL wire parser for `LoadSessionResponse._meta["axon/runningPromptId"]`.
 ///
 /// Returns the session's in-flight running prompt id when the session was
 /// loaded MID-turn (some other client is driving), otherwise `None`. The
@@ -160,7 +160,7 @@ pub(crate) fn parse_session_load_running_prompt_id(
     resp_meta: Option<&acp::Meta>,
 ) -> Option<String> {
     resp_meta
-        .and_then(|m| m.get("x.ai/runningPromptId"))
+        .and_then(|m| m.get("axon/runningPromptId"))
         .and_then(|v| v.as_str())
         .map(String::from)
 }
@@ -181,7 +181,7 @@ pub(crate) fn sanitize_user_error(raw: &str) -> String {
         ("inference_api", "server"),
         ("research-api", "server"),
         ("research_api", "server"),
-        ("grok-code-backend", "server"),
+        ("axon-code-backend", "server"),
         ("ACP error:", "error:"),
         ("ACP request failed:", "request failed:"),
         ("JSON-RPC error", "request error"),
@@ -213,17 +213,17 @@ pub(crate) fn sanitize_user_error(raw: &str) -> String {
 ///
 /// | plan  | subagents | ask-user | agentProfile                   | askUserQuestion    |
 /// |-------|-----------|----------|--------------------------------|--------------------|
-/// | false | false     | false    | `grok-build` (default)         | `false`            |
-/// | false | true      | false    | `grok-build` (default)         | `false`            |
-/// | false | false     | true     | `grok-build-ask-user`          | omitted (shell gate) |
-/// | false | true      | true     | `grok-build-ask-user`          | omitted (shell gate) |
-/// | true  | false     | false    | `grok-build-plan-no-subagents` | `false`            |
-/// | true  | true      | false    | `grok-build-plan`              | `false`            |
-/// | true  | false     | true     | `grok-build-plan-no-subagents` | omitted (shell gate) |
-/// | true  | true      | true     | `grok-build-plan`              | omitted (shell gate) |
+/// | false | false     | false    | `axon-build` (default)         | `false`            |
+/// | false | true      | false    | `axon-build` (default)         | `false`            |
+/// | false | false     | true     | `axon-build-ask-user`          | omitted (shell gate) |
+/// | false | true      | true     | `axon-build-ask-user`          | omitted (shell gate) |
+/// | true  | false     | false    | `axon-build-plan-no-subagents` | `false`            |
+/// | true  | true      | false    | `axon-build-plan`              | `false`            |
+/// | true  | false     | true     | `axon-build-plan-no-subagents` | omitted (shell gate) |
+/// | true  | true      | true     | `axon-build-plan`              | omitted (shell gate) |
 ///
 /// When [`Self::chat_mode`] is set (gateway light-frontend / `--chat`), Build
-/// `agentProfile` injection is omitted (K12) and `_meta["x.ai/session"].kind`
+/// `agentProfile` injection is omitted (K12) and `_meta["axon/session"].kind`
 /// is stamped `"chat"` so the shell takes `require_gateway` / thin profile.
 #[derive(Debug, Clone, Default)]
 pub(crate) struct SessionFlags {
@@ -231,7 +231,7 @@ pub(crate) struct SessionFlags {
     pub subagents: bool,
     pub ask_user: bool,
     /// Restore code state on resume (`--restore-code`).
-    /// Injected as `x.ai/restore_code` into `LoadSession` meta, or passed
+    /// Injected as `axon/restore_code` into `LoadSession` meta, or passed
     /// as `restoreCode` in the `resume_session` ACP payload for worktrees.
     pub restore_code: Option<bool>,
     pub agent_override: Option<serde_json::Value>,
@@ -256,7 +256,7 @@ pub(crate) struct SessionFlags {
 impl SessionFlags {
     /// Resolve the agent profile name from the flags.
     ///
-    /// Returns `None` for the default `grok-build` profile (no `_meta`
+    /// Returns `None` for the default `axon-build` profile (no `_meta`
     /// needed; it already includes TaskTool). Chat mode never injects a
     /// Build profile (remote owns agent behavior).
     pub(super) fn agent_profile(&self) -> Option<&'static str> {
@@ -264,9 +264,9 @@ impl SessionFlags {
             return None;
         }
         match (self.plan_mode, self.subagents, self.ask_user) {
-            (true, true, _) => Some("grok-build-plan"),
-            (true, false, _) => Some("grok-build-plan-no-subagents"),
-            (false, _, true) => Some("grok-build-ask-user"),
+            (true, true, _) => Some("axon-build-plan"),
+            (true, false, _) => Some("axon-build-plan-no-subagents"),
+            (false, _, true) => Some("axon-build-ask-user"),
             (false, _, false) => None,
         }
     }
@@ -277,7 +277,7 @@ impl SessionFlags {
     /// emit-site comment below). `--no-ask-user` always forces
     /// `askUserQuestion: false` into the meta, even when paired with
     /// `AXON_AGENT` — the env var chooses the *agent*, but the tool-strip is
-    /// independent. Chat mode additionally stamps `x.ai/session.kind`.
+    /// independent. Chat mode additionally stamps `axon/session.kind`.
     pub(super) fn to_meta(&self) -> Option<acp::Meta> {
         let mut meta = serde_json::Map::new();
         if self.chat_mode {
@@ -295,7 +295,7 @@ impl SessionFlags {
             meta.insert("agentProfile".into(), serde_json::json!(profile));
         }
         if self.chat_mode {
-            meta.insert("x.ai/session".into(), serde_json::json!({ "kind" : "chat" }));
+            meta.insert("axon/session".into(), serde_json::json!({ "kind" : "chat" }));
         }
         if !self.ask_user {
             meta.insert("askUserQuestion".into(), serde_json::json!(false));
@@ -314,13 +314,13 @@ impl SessionFlags {
 /// workspace for `kind=chat`; the client must not bind Direct/envId/attach.
 pub(super) const CHAT_FORBIDDEN_WORKSPACE_BIND_KEYS: &[&str] = &[
     "envId",
-    "x.ai/cloud_server_id",
-    "x.ai/cloud_existing_workspace",
+    "axon/cloud_server_id",
+    "axon/cloud_existing_workspace",
 ];
-/// Stamp `_meta["x.ai/session"].kind = "chat"` and strip Build `agentProfile` (K12).
+/// Stamp `_meta["axon/session"].kind = "chat"` and strip Build `agentProfile` (K12).
 pub(super) fn apply_chat_kind_meta(meta: &mut Option<acp::Meta>) {
     let obj = meta.get_or_insert_with(acp::Meta::new);
-    obj.insert("x.ai/session".into(), serde_json::json!({ "kind" : "chat" }));
+    obj.insert("axon/session".into(), serde_json::json!({ "kind" : "chat" }));
     obj.remove("agentProfile");
 }
 /// Remove client workspace-bind keys from chat create/load meta (defense in depth).
@@ -411,8 +411,8 @@ pub(super) fn count_chat_history_stats(history_path: &Path) -> (usize, usize) {
     }
     (turn_count, tool_call_count)
 }
-/// Degraded conversations lane on `x.ai/session/list`, parsed from the
-/// response's `_meta["x.ai/partial"]` envelope.
+/// Degraded conversations lane on `axon/session/list`, parsed from the
+/// response's `_meta["axon/partial"]` envelope.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConversationsPartial {
     NoOauth,
@@ -428,13 +428,13 @@ impl ConversationsPartial {
         }
     }
 }
-/// Read `_meta["x.ai/partial"]` from a session-list payload. `None` when the
+/// Read `_meta["axon/partial"]` from a session-list payload. `None` when the
 /// conversations lane completed (or was skipped); unknown reasons degrade to
 /// [`ConversationsPartial::Error`].
 pub(super) fn parse_session_list_partial(
     payload: &serde_json::Value,
 ) -> Option<ConversationsPartial> {
-    let partial = payload.get("_meta")?.get("x.ai/partial")?;
+    let partial = payload.get("_meta")?.get("axon/partial")?;
     if partial.get("conversations").and_then(|v| v.as_bool()) != Some(true) {
         return None;
     }
@@ -446,7 +446,7 @@ pub(super) fn parse_session_list_partial(
         },
     )
 }
-/// Parse the `x.ai/session/list` response payload (the unwrapped
+/// Parse the `axon/session/list` response payload (the unwrapped
 /// `{ "sessions": [...] }` object) into [`SessionPickerEntry`] rows.
 ///
 /// Shared by the resume picker ([`Effect::FetchSessionList`]) and the
@@ -485,7 +485,7 @@ pub(super) fn parse_session_picker_entries(
                 .map(String::from);
             let is_conversation = v
                 .get("_meta")
-                .and_then(|m| m.get("x.ai/session"))
+                .and_then(|m| m.get("axon/session"))
                 .and_then(|s| s.get("kind"))
                 .and_then(|k| k.as_str()) == Some("chat");
             let parsed_updated: Option<chrono::DateTime<chrono::Utc>> = v
@@ -634,7 +634,7 @@ pub(super) fn session_picker_entry_to_roster(
 }
 pub(super) async fn send_logout(tx: &AcpAgentTx) {
     let req = acp::ExtRequest::new(
-        "x.ai/auth/logout",
+        "axon/auth/logout",
         serde_json::value::to_raw_value(&serde_json::json!({}))
             .expect("serialize auth/logout params")
             .into(),
@@ -643,12 +643,12 @@ pub(super) async fn send_logout(tx: &AcpAgentTx) {
         tracing::warn!(error = % e, "logout failed");
     }
 }
-/// Best-effort `x.ai/auth/cancel`: stops the shell's device/loopback wait so a
+/// Best-effort `axon/auth/cancel`: stops the shell's device/loopback wait so a
 /// later login is single-flight. Errors are ignored — UI already left
 /// `Authenticating`. `request_seq` scopes the cancel to the abandoned attempt.
 pub(super) async fn send_auth_cancel(tx: &AcpAgentTx, request_seq: u64) -> TaskResult {
     let req = acp::ExtRequest::new(
-        "x.ai/auth/cancel",
+        "axon/auth/cancel",
         serde_json::value::to_raw_value(
                 &serde_json::json!({ "request_seq" : request_seq }),
             )
@@ -665,7 +665,7 @@ pub(super) async fn send_check_subscription(
     verify: Option<u64>,
 ) -> TaskResult {
     let req = acp::ExtRequest::new(
-        "x.ai/auth/check_subscription",
+        "axon/auth/check_subscription",
         serde_json::value::to_raw_value(&serde_json::json!({}))
             .expect("serialize check_subscription params")
             .into(),
@@ -703,7 +703,7 @@ pub(super) async fn send_credit_limit_recheck(
     agent_id: AgentId,
 ) -> TaskResult {
     let req = acp::ExtRequest::new(
-        "x.ai/auth/check_subscription",
+        "axon/auth/check_subscription",
         serde_json::value::to_raw_value(&serde_json::json!({}))
             .expect("serialize check_subscription params")
             .into(),
@@ -1131,7 +1131,7 @@ pub(crate) async fn persist_setting(
 /// Body for `Effect::PersistPermissionMode`. Factored out for testability.
 ///
 /// 1. Persist `ui.permission_mode` to disk.
-/// 2. Fire ACP `x.ai/yolo_mode_changed` (gated on disk success for
+/// 2. Fire ACP `axon/yolo_mode_changed` (gated on disk success for
 ///    `WithRollback`; always for `BestEffort`).
 /// 3. Return the matching `TaskResult`.
 pub(crate) async fn persist_permission_mode_and_notify(
@@ -1155,7 +1155,7 @@ pub(crate) async fn persist_permission_mode_and_notify(
             config_str, }
         );
         let notification = acp::ExtNotification::new(
-            "x.ai/yolo_mode_changed",
+            "axon/yolo_mode_changed",
             serde_json::value::to_raw_value(&params)
                 .expect("serialize yolo_mode_changed params")
                 .into(),
@@ -1166,7 +1166,7 @@ pub(crate) async fn persist_permission_mode_and_notify(
     }
     route_permission_mode_result(disk_outcome, persist, config_str)
 }
-/// Whether to fire the ACP `x.ai/yolo_mode_changed` notification.
+/// Whether to fire the ACP `axon/yolo_mode_changed` notification.
 /// `WithRollback` suppresses on disk failure (agent must not see the
 /// optimistic value). `BestEffort` always fires.
 pub(super) fn should_send_yolo_acp_notification(
@@ -1184,7 +1184,7 @@ pub(super) fn marketplace_outcome_succeeded(
 ) -> bool {
     outcome.status == axon_hooks_plugins_types::OutcomeStatus::Success
 }
-/// Extract the typed kill outcome from an `x.ai/task/kill` ext response.
+/// Extract the typed kill outcome from an `axon/task/kill` ext response.
 ///
 /// The agent serializes `ExtMethodResult<KillTaskResponse>`, so the outcome
 /// lives at `result.outcome` (`{"result":{"taskId":..,"outcome":
@@ -1206,7 +1206,7 @@ pub(super) fn parse_kill_outcome(
         .and_then(|envelope| envelope.result)
         .map(|payload| payload.outcome)
 }
-/// Map an `x.ai/subagent/cancel` response (payload under `result`) to a kill
+/// Map an `axon/subagent/cancel` response (payload under `result`) to a kill
 /// outcome. Prefers the typed `outcome`; falls back to the legacy `cancelled`
 /// bool for an older shell or an unknown future `kind`. An error/unparseable
 /// body is `RpcFailed` (subagent may still be running — leave the row alone).
@@ -1373,7 +1373,7 @@ pub(super) fn has_prepaid_credits(
 ) -> bool {
     balance.and_then(|b| b.prepaid_balance_cents).map(i64::abs).is_some_and(|c| c > 0)
 }
-/// Fetch the user's auto top-up rule via the `x.ai/auto-topup-rule` extension.
+/// Fetch the user's auto top-up rule via the `axon/auto-topup-rule` extension.
 /// A transport failure yields [`AutoTopupFetch::Unchanged`] so the caller keeps
 /// any cached rule rather than treating the blip as "no auto top-up".
 pub(super) async fn fetch_auto_topup_info(
@@ -1381,7 +1381,7 @@ pub(super) async fn fetch_auto_topup_info(
 ) -> crate::views::credit_bar::AutoTopupFetch {
     use crate::views::credit_bar::AutoTopupFetch;
     let req = acp::ExtRequest::new(
-        "x.ai/auto-topup-rule",
+        "axon/auto-topup-rule",
         serde_json::value::to_raw_value(&serde_json::json!({}))
             .expect("serialize auto-topup params")
             .into(),
@@ -1394,7 +1394,7 @@ pub(super) async fn fetch_auto_topup_info(
     let result = wrapper.get("result").unwrap_or(&wrapper);
     parse_auto_topup_response(result)
 }
-/// Map an `x.ai/auto-topup-rule` payload to an [`AutoTopupFetch`]. A body that
+/// Map an `axon/auto-topup-rule` payload to an [`AutoTopupFetch`]. A body that
 /// fails to deserialize is a fetch error (→ `Unchanged`, keep the cached rule),
 /// not a definitive "no rule", so a malformed response can't silently flip the
 /// credits warning.
@@ -1426,7 +1426,7 @@ pub(super) fn parse_auto_topup_response(
 /// is best-effort, so skip on contention.
 pub(super) fn unregister_active_session_best_effort(session_id: &acp::SessionId) {
     unregister_active_session_best_effort_in(
-        &axon_shell::util::grok_home::grok_home(),
+        &axon_shell::util::axon_home::axon_home(),
         session_id,
     );
 }

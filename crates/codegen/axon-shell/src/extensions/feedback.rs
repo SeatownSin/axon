@@ -1,4 +1,4 @@
-//! `x.ai/feedback`, `x.ai/feedback/dismiss`, `x.ai/btw`, and `x.ai/review/*`
+//! `axon/feedback`, `axon/feedback/dismiss`, `axon/btw`, and `axon/review/*`
 //! extension handlers.
 //!
 //! - `feedback`/`feedback/dismiss`: persist user ratings/text locally and
@@ -27,15 +27,15 @@ use axon_telemetry::id::agent_id;
 #[tracing::instrument(skip_all, fields(method = %args.method))]
 pub async fn handle(agent: &MvpAgent, args: &acp::ExtRequest) -> ExtResult {
     match args.method.as_ref() {
-        "x.ai/btw" => {
+        "axon/btw" => {
             tracing::info!("handling /btw side question");
             handle_btw(agent, args).await
         }
-        "x.ai/feedback" | "x.ai/feedback/dismiss" => {
+        "axon/feedback" | "axon/feedback/dismiss" => {
             tracing::info!("handling user feedback");
             handle_feedback(agent, args).await
         }
-        m if m.starts_with("x.ai/review") => {
+        m if m.starts_with("axon/review") => {
             tracing::info!("handling review comment");
             handle_review(agent, args).await
         }
@@ -43,7 +43,7 @@ pub async fn handle(agent: &MvpAgent, args: &acp::ExtRequest) -> ExtResult {
     }
 }
 
-/// Handle `x.ai/btw` -- a side question that doesn't interrupt the current turn.
+/// Handle `axon/btw` -- a side question that doesn't interrupt the current turn.
 async fn handle_btw(agent: &MvpAgent, args: &acp::ExtRequest) -> ExtResult {
     #[derive(serde::Deserialize)]
     #[serde(rename_all = "camelCase")]
@@ -88,7 +88,7 @@ async fn handle_feedback(agent: &MvpAgent, args: &acp::ExtRequest) -> ExtResult 
     }
 
     match args.method.as_ref() {
-        "x.ai/feedback" => {
+        "axon/feedback" => {
             // Parse the input -- try the full ClientFeedbackInput first,
             // then fall back to the simple FeedbackRequest (from /feedback slash command)
             // which only has {session_id, feedback_text} and no client_type.
@@ -269,7 +269,7 @@ async fn handle_feedback(agent: &MvpAgent, args: &acp::ExtRequest) -> ExtResult 
                 .expect("to work");
             Ok(acp::ExtResponse::new(value))
         }
-        "x.ai/feedback/dismiss" => {
+        "axon/feedback/dismiss" => {
             let dismiss_input: FeedbackRequestDismiss = parse_params(args)?;
 
             tracing::info!(
@@ -357,11 +357,11 @@ async fn handle_feedback(agent: &MvpAgent, args: &acp::ExtRequest) -> ExtResult 
 /// Record inline code review events.
 ///
 /// Methods:
-/// - `x.ai/review/comment`: record a new inline code comment to cloud storage
-/// - `x.ai/review/comment/delete`: record a tombstone event for a deleted comment
+/// - `axon/review/comment`: record a new inline code comment to cloud storage
+/// - `axon/review/comment/delete`: record a tombstone event for a deleted comment
 async fn handle_review(agent: &MvpAgent, args: &acp::ExtRequest) -> ExtResult {
     match args.method.as_ref() {
-        "x.ai/review/comment" => {
+        "axon/review/comment" => {
             let request: CommentRequest = parse_params(args)?;
 
             let comment_id = uuid::Uuid::now_v7().to_string();
@@ -428,7 +428,7 @@ async fn handle_review(agent: &MvpAgent, args: &acp::ExtRequest) -> ExtResult {
             .expect("to work");
             Ok(acp::ExtResponse::new(value))
         }
-        "x.ai/review/comment/delete" => {
+        "axon/review/comment/delete" => {
             let request: CommentDeleteRequest = parse_params(args)?;
 
             tracing::info!(

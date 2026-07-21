@@ -1,4 +1,4 @@
-//! xAI Computer Hub — transport + registry + resolver core.
+//! Axon Computer Hub — transport + registry + resolver core.
 //!
 //! Object-safe abstractions used by every router build: a [`Transport`]
 //! that authorises and dispatches calls, a [`ToolRegistry`] trait shared

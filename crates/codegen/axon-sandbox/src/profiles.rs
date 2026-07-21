@@ -14,7 +14,7 @@ use crate::deny::{
     apply_deny_globs_to_capability_set, apply_deny_paths_to_capability_set, effective_deny_paths,
     partition_deny_entries,
 };
-use crate::paths::grok_home;
+use crate::paths::axon_home;
 #[cfg(all(feature = "enforce", unix))]
 use crate::paths::{DEVICE_DIRS, DEVICE_FILES};
 use crate::paths::{essential_writable_paths, essential_writable_paths_minimal};
@@ -112,7 +112,7 @@ pub fn load_sandbox_config(workspace: &Path) -> SandboxConfig {
     let mut config = SandboxConfig::default();
 
     // Global config: ~/.axon/sandbox.toml
-    let global_path = grok_home().join("sandbox.toml");
+    let global_path = axon_home().join("sandbox.toml");
     if let Some(global) = load_config_file(&global_path) {
         config = global;
     }
@@ -127,7 +127,7 @@ pub fn load_sandbox_config(workspace: &Path) -> SandboxConfig {
 }
 
 pub fn sandbox_profile_conflicts(workspace: &Path) -> Vec<String> {
-    let global = load_config_file(&grok_home().join("sandbox.toml")).unwrap_or_default();
+    let global = load_config_file(&axon_home().join("sandbox.toml")).unwrap_or_default();
     let project =
         load_config_file(&workspace.join(".axon").join("sandbox.toml")).unwrap_or_default();
     mismatched_profile_names(&global, &project)

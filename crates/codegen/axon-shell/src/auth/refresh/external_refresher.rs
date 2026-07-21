@@ -98,14 +98,14 @@ impl TokenRefresher for ExternalBinaryRefresher {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::auth::GrokAuth;
+    use crate::auth::AxonAuth;
 
     /// Minimal runner whose external command returns a fixed result.
     struct FakeRunner {
-        external_result: Option<GrokAuth>,
+        external_result: Option<AxonAuth>,
     }
     impl ExternalCommandRunner for FakeRunner {
-        fn run_external_command(&self, _command: &str) -> Option<GrokAuth> {
+        fn run_external_command(&self, _command: &str) -> Option<AxonAuth> {
             self.external_result.clone()
         }
     }
@@ -138,9 +138,9 @@ mod tests {
     async fn external_binary_timeout_is_transient() {
         struct SlowRunner;
         impl ExternalCommandRunner for SlowRunner {
-            fn run_external_command(&self, _command: &str) -> Option<GrokAuth> {
+            fn run_external_command(&self, _command: &str) -> Option<AxonAuth> {
                 std::thread::sleep(std::time::Duration::from_millis(50));
-                Some(GrokAuth::test_default())
+                Some(AxonAuth::test_default())
             }
         }
         let refresher = ExternalBinaryRefresher::new(Arc::new(SlowRunner), "auth-binary".into())
@@ -158,9 +158,9 @@ mod tests {
 
     #[tokio::test]
     async fn external_binary_success_returns_fresh_token() {
-        let token = GrokAuth {
+        let token = AxonAuth {
             key: "ext-fresh".into(),
-            ..GrokAuth::test_default()
+            ..AxonAuth::test_default()
         };
         let refresher = ExternalBinaryRefresher::new(
             Arc::new(FakeRunner {

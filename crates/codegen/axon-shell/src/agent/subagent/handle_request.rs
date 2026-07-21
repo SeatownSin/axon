@@ -21,7 +21,7 @@ use crate::upload::trace::{
 };
 use crate::upload::turn::{PromptTraceContext, complete_prompt_trace};
 use axon_acp_lib::AcpAgentGatewaySender as GatewaySender;
-use axon_tools::implementations::grok_build::task::types::*;
+use axon_tools::implementations::axon_build::task::types::*;
 use axon_workspace::file_system::AsyncFileSystem;
 use axon_hunk_tracker::HunkTrackerHandle;
 use super::*;
@@ -312,7 +312,7 @@ pub(crate) async fn handle_subagent_request(
                     subagent_id = % request.id, error = % e,
                     "Could not resolve worktree base dir, using temp dir for subagent worktree"
                 );
-                std::env::temp_dir().join("grok-subagent-worktrees").join(&request.id)
+                std::env::temp_dir().join("axon-subagent-worktrees").join(&request.id)
             }
         };
         let source_clone = source_cwd;
@@ -402,7 +402,7 @@ pub(crate) async fn handle_subagent_request(
         );
     }
     {
-        use axon_tools::implementations::grok_build::task::MAX_SUBAGENT_DEPTH;
+        use axon_tools::implementations::axon_build::task::MAX_SUBAGENT_DEPTH;
         use axon_tools::types::tool::ToolKind;
         let child_depth = ctx.parent_depth + 1;
         if child_depth >= MAX_SUBAGENT_DEPTH {
@@ -814,10 +814,10 @@ pub(crate) async fn handle_subagent_request(
         }
     }
     if let Some(scope) = agent_memory_scope {
-        use axon_tools::implementations::grok_build;
+        use axon_tools::implementations::axon_build;
         use axon_tools::implementations::opencode;
         let memory_tools: Vec<axon_tools::registry::types::ToolConfig> = vec![
-            (& grok_build::ReadFileTool).into(), (& grok_build::SearchReplaceTool)
+            (& axon_build::ReadFileTool).into(), (& axon_build::SearchReplaceTool)
             .into(), (& opencode::OpenCodeWriteTool).into(),
         ];
         for tc in memory_tools {
@@ -1896,7 +1896,7 @@ pub(crate) async fn handle_subagent_request(
     let mut worktree_removed = false;
     if let Some(ref wt_path) = worktree_path {
         if snapshot_dispose_enabled {
-            let ref_name = format!("refs/grok/subagents/{}", request.id);
+            let ref_name = format!("refs/axon/subagents/{}", request.id);
             let source_repo = resolve_subagent_source_repo(&ctx);
             match crate::session::worktree::snapshot_subagent_worktree(
                     wt_path,

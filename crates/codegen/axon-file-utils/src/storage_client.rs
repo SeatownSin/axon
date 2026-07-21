@@ -1,6 +1,6 @@
 //! REST client for uploading files to GCS via cli-chat-proxy.
 //!
-//! Routes requests through cli-chat-proxy using user's grok.com auth token.
+//! Routes requests through cli-chat-proxy using user's blocked.invalid auth token.
 //! The proxy handles GCS authentication server-side.
 //!
 //! For large files that exceed Cloudflare's body size limit, use the multipart
@@ -347,16 +347,16 @@ fn is_retryable_status(status: u16) -> bool {
 /// is available (bins, tests, bare `TraceExportConfig` with no auth wrap).
 ///
 /// SAFETY: only hit by bins/tests/no-AuthManager paths; the refresh-aware
-/// path uses the obfuscated shell impl (`GrokAuthCredentials::apply` via
+/// path uses the obfuscated shell impl (`AxonAuthCredentials::apply` via
 /// `ShellAuthCredentialProvider`). A future reader should not innocently
 /// make the static provider the production default -- the obfuscated
 /// routing + obfstr-protected literals only live in the shell impl.
-pub struct StaticGrokAuth {
+pub struct StaticAxonAuth {
     pub user_token: Option<String>,
     pub deployment_key: Option<String>,
 }
 
-impl StaticGrokAuth {
+impl StaticAxonAuth {
     pub fn new(user_token: Option<String>) -> Self {
         Self {
             user_token,
@@ -374,14 +374,14 @@ impl StaticGrokAuth {
     }
 }
 
-impl axon_auth::HttpAuth for StaticGrokAuth {
+impl axon_auth::HttpAuth for StaticAxonAuth {
     fn apply(&self, builder: reqwest::RequestBuilder, _base_url: &str) -> reqwest::RequestBuilder {
         if let Some(ref key) = self.deployment_key {
             builder.header("Authorization", format!("Bearer {}", key))
         } else if let Some(ref token) = self.user_token {
             builder
                 .header("Authorization", format!("Bearer {}", token))
-                .header("X-XAI-Token-Auth", "xai-grok-cli")
+                .header("X-AXON-Token-Auth", "axon-axon-cli")
         } else {
             builder
         }
@@ -389,18 +389,18 @@ impl axon_auth::HttpAuth for StaticGrokAuth {
 }
 
 #[cfg(test)]
-mod static_grok_auth_tests {
-    use super::StaticGrokAuth;
+mod static_axon_auth_tests {
+    use super::StaticAxonAuth;
 
     /// Deployment key must win over the user token (incl. the empty one the
     /// deployment-key path supplies); falls back to the user token otherwise.
     #[test]
     fn wire_bearer_prefers_deployment_key_then_falls_back_to_user_token() {
-        let mut deployment = StaticGrokAuth::new(Some(String::new()));
+        let mut deployment = StaticAxonAuth::new(Some(String::new()));
         deployment.deployment_key = Some("deploy-key".to_string());
         assert_eq!(deployment.wire_bearer().as_deref(), Some("deploy-key"));
 
-        let oauth = StaticGrokAuth::new(Some("oauth-token".to_string()));
+        let oauth = StaticAxonAuth::new(Some("oauth-token".to_string()));
         assert_eq!(oauth.wire_bearer().as_deref(), Some("oauth-token"));
     }
 }
@@ -420,7 +420,7 @@ pub struct StorageClient {
     /// auth middleware (direct GCS uploads via signed URLs, signed-URL
     /// downloads, etc.).
     raw_http_client: Client,
-    /// Base URL for the proxy (e.g., "https://cli-chat-proxy.grok.com/v1")
+    /// Base URL for the proxy (e.g., "https://cli-chat-proxy.blocked.invalid/v1")
     base_url: String,
     /// Retry configuration for handling transient failures (especially 429 errors)
     retry_config: RetryConfig,
@@ -453,10 +453,10 @@ impl StorageClient {
     /// Production code with refresh-aware auth should use [`Self::with_provider`].
     ///
     /// # Arguments
-    /// * `proxy_base_url` - Base URL for the proxy (e.g., "https://cli-chat-proxy.grok.com/v1")
-    /// * `user_token` - User's grok.com auth token
+    /// * `proxy_base_url` - Base URL for the proxy (e.g., "https://cli-chat-proxy.blocked.invalid/v1")
+    /// * `user_token` - User's blocked.invalid auth token
     pub fn new(proxy_base_url: &str, user_token: &str) -> Self {
-        let creds = StaticGrokAuth::new(Some(user_token.to_owned()));
+        let creds = StaticAxonAuth::new(Some(user_token.to_owned()));
         let bearer = creds.wire_bearer();
         let provider = Arc::new(axon_auth::StaticAuthCredentialProvider::new(
             Box::new(creds),
@@ -473,26 +473,26 @@ impl StorageClient {
         http_client: Client,
         credentials: Arc<dyn AuthCredentialProvider>,
     ) -> Self {
-        // This build never contacts xAI infrastructure (the stock storage
+        // This build never contacts Axon infrastructure (the stock storage
         // backend is the cli-chat-proxy). Rather than thread a Result
-        // through every constructor, an xAI base URL is replaced with an
+        // through every constructor, an Axon base URL is replaced with an
         // unroutable loopback sentinel: every request fails locally and
-        // instantly, with zero DNS traffic and zero bytes to xAI.
+        // instantly, with zero DNS traffic and zero bytes to Axon.
         let base_url = {
-            let is_xai = reqwest::Url::parse(proxy_base_url)
+            let is_axon = reqwest::Url::parse(proxy_base_url)
                 .ok()
                 .and_then(|u| u.host_str().map(|h| h.to_ascii_lowercase()))
                 .is_some_and(|host| {
-                    ["x.ai", "grok.com"]
+                    ["blocked.invalid", "blocked.invalid"]
                         .iter()
                         .any(|b| host == *b || host.ends_with(&format!(".{b}")))
                 });
-            if is_xai {
+            if is_axon {
                 tracing::warn!(
                     proxy_base_url,
-                    "storage backend targets xAI infrastructure; requests will fail locally"
+                    "storage backend targets Axon infrastructure; requests will fail locally"
                 );
-                "http://127.0.0.1:0/xai-blocked".to_owned()
+                "http://127.0.0.1:0/axon-blocked".to_owned()
             } else {
                 proxy_base_url.to_owned()
             }
@@ -568,15 +568,15 @@ impl StorageClient {
     /// storage requests (including the high-traffic `batch_upload`).
     ///
     /// These become the headers:
-    ///   - `x-grok-client-version`
-    ///   - `x-grok-client-identifier` (one of "grok-shell", "grok-pager",
-    ///     "grok-desktop", "grok-extension")
+    ///   - `x-axon-client-version`
+    ///   - `x-axon-client-identifier` (one of "axon-shell", "axon-pager",
+    ///     "axon-desktop", "axon-extension")
     ///
     /// Server-side logs in `cli-chat-proxy` and analytics queries now
     /// surface these values, making it easy to attribute 400/403 errors to
     /// specific client versions and products.
     ///
-    /// Preferred way to construct the client from the Grok shell/pager:
+    /// Preferred way to construct the client from the Axon shell/pager:
     ///   `build_storage_client_for_proxy(..., client_identifier)`
     /// (see `axon-shell/src/auth/credential_provider.rs`).
     ///
@@ -592,7 +592,7 @@ impl StorageClient {
         self
     }
 
-    /// Sets the `x-grok-client-mode` value forwarded to cli-chat-proxy
+    /// Sets the `x-axon-client-mode` value forwarded to cli-chat-proxy
     /// (`headless` / `interactive`), for the `client_mode` metric label.
     pub fn with_client_mode(mut self, mode: impl Into<String>) -> Self {
         self.client_mode = Some(mode.into());
@@ -1121,20 +1121,20 @@ impl StorageClient {
     ) -> reqwest_middleware::RequestBuilder {
         // Prefer caller-provided identity (from shell/pager/etc.) so that
         // cli-chat-proxy logs and metrics see the real end-user client
-        // (e.g. "0.1.210-alpha.5", "grok-shell" / "grok-pager").
+        // (e.g. "0.1.210-alpha.5", "axon-shell" / "axon-pager").
         // Falls back to the library's own version for bins/tests.
         let version = self
             .client_version
             .as_deref()
             .unwrap_or(axon_version::VERSION);
-        let mut builder = builder.header("x-grok-client-version", version);
+        let mut builder = builder.header("x-axon-client-version", version);
 
         if let Some(id) = &self.client_identifier {
-            builder = builder.header("x-grok-client-identifier", id);
+            builder = builder.header("x-axon-client-identifier", id);
         }
 
         if let Some(mode) = &self.client_mode {
-            builder = builder.header("x-grok-client-mode", mode);
+            builder = builder.header("x-axon-client-mode", mode);
         }
 
         for (name, value) in crate::trace_context::trace_context_headers().iter() {
@@ -2002,7 +2002,7 @@ async fn upload_part_streaming(
         let mut request = client
             .post(&url)
             .header("Content-Type", "application/octet-stream")
-            .header("x-grok-client-version", axon_version::VERSION)
+            .header("x-axon-client-version", axon_version::VERSION)
             .header("Content-Length", length.to_string());
         for (name, value) in crate::trace_context::trace_context_headers().iter() {
             request = request.header(name.clone(), value.clone());

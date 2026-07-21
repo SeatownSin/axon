@@ -6,12 +6,12 @@
 //!   cargo run --bin trace_classify -- \
 //!       --trace /path/to/trace-<id>-all-turns.json \
 //!       [--output out.jsonl] \
-//!       [--model grok-4.5] \
-//!       [--api-base-url https://api.x.ai/v1] \
-//!       [--api-key <key> | $XAI_API_KEY | <grok-home>/auth.json] \
+//!       [--model axon-4.5] \
+//!       [--api-base-url https://api.blocked.invalid/v1] \
+//!       [--api-key <key> | $AXON_API_KEY | <axon-home>/auth.json] \
 //!       [--min-confidence 0.7] \
 //!       [--include-reasoning true] \
-//!       [--grok-home <path>]
+//!       [--axon-home <path>]
 //!
 //! The binary name is `trace_classify` (underscore) — that's the file
 //! name in `src/bin/`, which cargo's auto-discovery uses verbatim.
@@ -44,15 +44,15 @@ struct Cli {
 
     /// Model the classifier sampler calls. Must be a model the API key
     /// has access to.
-    #[arg(long, default_value = "grok-4.5")]
+    #[arg(long, default_value = "axon-4.5")]
     model: String,
 
     /// Sampler base URL.
-    #[arg(long, default_value = "https://api.x.ai/v1")]
+    #[arg(long, default_value = "https://api.blocked.invalid/v1")]
     api_base_url: String,
 
-    /// API key. Overrides `$XAI_API_KEY` when set; falls back to
-    /// `$XAI_API_KEY`, then `<grok-home>/auth.json` (`xai::api_key`
+    /// API key. Overrides `$AXON_API_KEY` when set; falls back to
+    /// `$AXON_API_KEY`, then `<axon-home>/auth.json` (`axon::api_key`
     /// scope) when absent or empty.
     #[arg(long)]
     api_key: Option<String>,
@@ -78,7 +78,7 @@ struct Cli {
     /// shell uses (`$AXON_HOME` or `~/.axon`). Exposed primarily for
     /// tests / sandboxed invocations.
     #[arg(long)]
-    grok_home: Option<PathBuf>,
+    axon_home: Option<PathBuf>,
 }
 
 /// `current_thread` flavour: the replay is strictly sequential
@@ -97,7 +97,7 @@ async fn main() -> anyhow::Result<()> {
         api_key: cli.api_key,
         min_confidence: cli.min_confidence,
         include_reasoning: cli.include_reasoning,
-        grok_home: cli.grok_home,
+        axon_home: cli.axon_home,
     };
     let summary = run(args).await?;
     eprintln!("{}", summary.render());
@@ -115,12 +115,12 @@ mod tests {
             .expect("parse");
         assert_eq!(cli.trace, PathBuf::from("foo.json"));
         assert_eq!(cli.model, "bar");
-        assert_eq!(cli.api_base_url, "https://api.x.ai/v1");
+        assert_eq!(cli.api_base_url, "https://api.blocked.invalid/v1");
         assert!(cli.output.is_none());
         assert!(cli.api_key.is_none());
         assert!(cli.min_confidence.is_none());
         assert!(cli.include_reasoning.is_none());
-        assert!(cli.grok_home.is_none());
+        assert!(cli.axon_home.is_none());
     }
 
     /// Per-model knob (mirrored as a CLI override on the offline tool):
@@ -154,16 +154,16 @@ mod tests {
     }
 
     #[test]
-    fn cli_grok_home_override_parses() {
+    fn cli_axon_home_override_parses() {
         let cli = Cli::try_parse_from([
             "trace_classify",
             "--trace",
             "foo.json",
-            "--grok-home",
-            "/tmp/scratch-grok",
+            "--axon-home",
+            "/tmp/scratch-axon",
         ])
         .expect("parse");
-        assert_eq!(cli.grok_home, Some(PathBuf::from("/tmp/scratch-grok")));
+        assert_eq!(cli.axon_home, Some(PathBuf::from("/tmp/scratch-axon")));
     }
 
     #[test]
@@ -186,8 +186,8 @@ mod tests {
                 .map(|v| v.to_string_lossy().into_owned())
                 .collect::<Vec<_>>()
         };
-        assert_eq!(by_id("model"), vec!["grok-4.5"]);
-        assert_eq!(by_id("api_base_url"), vec!["https://api.x.ai/v1"]);
+        assert_eq!(by_id("model"), vec!["axon-4.5"]);
+        assert_eq!(by_id("api_base_url"), vec!["https://api.blocked.invalid/v1"]);
         assert!(by_id("min_confidence").is_empty(), "no default");
         assert!(by_id("include_reasoning").is_empty(), "no default");
     }

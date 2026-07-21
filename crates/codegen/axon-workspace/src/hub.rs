@@ -832,10 +832,10 @@ mod tests {
             "dropping the stream must run the RAII completion guard"
         );
     }
-    use axon_tools::types::tool_metadata::ToolMetadata as XaiToolMetadata;
+    use axon_tools::types::tool_metadata::ToolMetadata as AxonToolMetadata;
     #[derive(Debug)]
     struct GateStreamingStub;
-    impl XaiToolMetadata for GateStreamingStub {
+    impl AxonToolMetadata for GateStreamingStub {
         fn kind(&self) -> ToolKind {
             ToolKind::Other
         }
@@ -944,13 +944,13 @@ mod tests {
     fn bg_config() -> ToolServerConfig {
         ToolServerConfig {
             tools: vec![
-                tc("GrokBuild:run_terminal_cmd", Some(ToolKind::Execute)),
+                tc("AxonBuild:run_terminal_cmd", Some(ToolKind::Execute)),
                 tc(
-                    "GrokBuild:get_task_output",
+                    "AxonBuild:get_task_output",
                     Some(ToolKind::BackgroundTaskAction),
                 ),
-                tc("GrokBuild:kill_task", Some(ToolKind::KillTaskAction)),
-                tc("GrokBuild:monitor", Some(ToolKind::Monitor)),
+                tc("AxonBuild:kill_task", Some(ToolKind::KillTaskAction)),
+                tc("AxonBuild:monitor", Some(ToolKind::Monitor)),
             ],
             behavior_preset: None,
         }

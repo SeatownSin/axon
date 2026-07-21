@@ -36,7 +36,7 @@ impl Listener {
         let signals = proxy.receive_signal("PrepareForSleep").ok()?;
 
         thread::Builder::new()
-            .name("xai-power-listener".into())
+            .name("axon-power-listener".into())
             .spawn(move || run_thread(proxy, signals, callback))
             .ok()?;
 
@@ -50,7 +50,7 @@ fn take_inhibitor(proxy: &zbus::blocking::Proxy<'_>) -> Option<zbus::zvariant::O
     proxy
         .call(
             "Inhibit",
-            &("sleep", "grok", "Pause token refresh across sleep", "delay"),
+            &("sleep", "axon", "Pause token refresh across sleep", "delay"),
         )
         .ok()
 }

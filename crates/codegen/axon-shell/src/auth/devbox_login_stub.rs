@@ -8,7 +8,7 @@
 //! descriptive error.
 
 use super::manager::AuthManager;
-use super::model::GrokAuth;
+use super::model::AxonAuth;
 
 const UNAVAILABLE: &str =
     "devbox login is not available in this build (compiled without the `devbox-login` feature)";
@@ -21,17 +21,17 @@ pub(crate) fn is_devbox_environment() -> bool {
 
 /// Unreachable in practice (guarded by [`is_devbox_environment`]); errors
 /// defensively if called.
-pub(crate) async fn mint_devbox_auth(_auth_manager: &AuthManager) -> anyhow::Result<GrokAuth> {
+pub(crate) async fn mint_devbox_auth(_auth_manager: &AuthManager) -> anyhow::Result<AxonAuth> {
     anyhow::bail!(UNAVAILABLE)
 }
 
 /// Unreachable in practice (guarded by [`is_devbox_environment`]); errors
 /// defensively if called.
-pub(super) async fn mint_devbox_auth_raw() -> anyhow::Result<GrokAuth> {
+pub(super) async fn mint_devbox_auth_raw() -> anyhow::Result<AxonAuth> {
     anyhow::bail!(UNAVAILABLE)
 }
 
 /// `axon login --devbox` entry point: always errors in this build.
-pub async fn run_devbox_login(_config: &crate::agent::config::Config) -> anyhow::Result<GrokAuth> {
+pub async fn run_devbox_login(_config: &crate::agent::config::Config) -> anyhow::Result<AxonAuth> {
     anyhow::bail!(UNAVAILABLE)
 }

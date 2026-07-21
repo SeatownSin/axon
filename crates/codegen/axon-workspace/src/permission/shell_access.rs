@@ -905,7 +905,7 @@ mod tests {
         for path in [
             "/home/user/.zshrc",
             "/etc",
-            "/etc/grok-test",
+            "/etc/axon-test",
             "/work/subdir/../.git/hooks/pre-commit",
         ] {
             assert!(
@@ -990,11 +990,11 @@ mod tests {
     fn resolved_root_alias_matches_physical_destination() {
         let resolved_root = resolve_following_symlinks(Path::new("/etc"), 0).unwrap();
         assert!(resolved_path_is_within_root(
-            &resolved_root.join("grok-test"),
+            &resolved_root.join("axon-test"),
             Path::new("/etc")
         ));
         assert!(!resolved_path_is_within_root(
-            Path::new("/tmp/grok-test"),
+            Path::new("/tmp/axon-test"),
             Path::new("/etc")
         ));
     }

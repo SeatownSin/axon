@@ -21,10 +21,10 @@ use serial_test::serial;
 use std::collections::VecDeque;
 use std::sync::Arc as StdArc;
 use std::sync::atomic::{AtomicUsize, Ordering as SeqOrd};
-use axon_tools::implementations::grok_build::task::types::{
+use axon_tools::implementations::axon_build::task::types::{
     SubagentCancelOutcome, SubagentEvent, SubagentResult,
 };
-use axon_tools::implementations::grok_build::update_goal::UpdateGoalInput;
+use axon_tools::implementations::axon_build::update_goal::UpdateGoalInput;
 
 const ENV_FLAG: &str = "AXON_GOAL_CLASSIFIER";
 
@@ -98,7 +98,7 @@ fn spawn_coordinator(
 
 async fn answer_summarizer(
     behaviour: SummarizerBehaviour,
-    req: Box<axon_tools::implementations::grok_build::task::types::SubagentRequest>,
+    req: Box<axon_tools::implementations::axon_build::task::types::SubagentRequest>,
 ) {
     match behaviour {
         SummarizerBehaviour::ReturnSummary => {
@@ -127,7 +127,7 @@ async fn answer_summarizer(
 async fn answer_skeptic(
     verdict: SkepticVerdict,
     spawn_idx: usize,
-    req: Box<axon_tools::implementations::grok_build::task::types::SubagentRequest>,
+    req: Box<axon_tools::implementations::axon_build::task::types::SubagentRequest>,
 ) {
     if let Some(p) =
         crate::session::goal_classifier::parse_skeptic_details_path_from_prompt(&req.prompt)
@@ -268,7 +268,7 @@ fn seed_channel(actor: &SessionActor, cmds: Vec<UpdateGoalInput>) {
     let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
     *actor.goal_update_rx.borrow_mut() = Some(rx);
     for cmd in cmds {
-        tx.send(axon_tools::implementations::grok_build::update_goal::envelope_for_test(cmd))
+        tx.send(axon_tools::implementations::axon_build::update_goal::envelope_for_test(cmd))
             .unwrap();
     }
     drop(tx);

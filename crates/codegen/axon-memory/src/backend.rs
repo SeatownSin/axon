@@ -146,21 +146,21 @@ async fn build_embedding_provider(
     if config.model.as_ref().is_none_or(|m| m.is_empty()) {
         return None;
     }
-    // This build never contacts xAI infrastructure; the stock embedding
-    // endpoint is the cli-chat-proxy / api.x.ai. Memory falls back to
+    // This build never contacts Axon infrastructure; the stock embedding
+    // endpoint is the cli-chat-proxy / api.blocked.invalid. Memory falls back to
     // non-vector (text) search. Local/BYOK embedding endpoints still work.
     {
         let host = reqwest::Url::parse(base_url)
             .ok()
             .and_then(|u| u.host_str().map(|h| h.to_ascii_lowercase()));
         if let Some(host) = host
-            && ["x.ai", "grok.com"]
+            && ["blocked.invalid", "blocked.invalid"]
                 .iter()
                 .any(|b| host == *b || host.ends_with(&format!(".{b}")))
         {
             tracing::debug!(
                 base_url,
-                "memory embeddings disabled: endpoint targets xAI infrastructure"
+                "memory embeddings disabled: endpoint targets Axon infrastructure"
             );
             return None;
         }
@@ -1331,7 +1331,7 @@ mod tests {
         let session: axon_tools::types::SharedApiKeyProvider = Arc::new(PanicKey);
 
         let scoped = EndpointScopedCredentials::for_endpoint(
-            "https://api.x.ai/v1",
+            "https://api.blocked.invalid/v1",
             |_| true,
             None,
             Some(session),
@@ -1382,8 +1382,8 @@ mod tests {
 
         let auth: Arc<dyn axon_auth::AuthCredentialProvider> = Arc::new(StubAuth);
         let api_key: axon_tools::types::SharedApiKeyProvider = Arc::new(PanicKey);
-        // Non-xAI trusted endpoint (this build never contacts xAI, so the
-        // former `api.x.ai` fixture would be refused — see the dedicated
+        // Non-Axon trusted endpoint (this build never contacts Axon, so the
+        // former `api.blocked.invalid` fixture would be refused — see the dedicated
         // test below).
         let endpoint = "https://embeddings.example.com/v1";
         let scoped = EndpointScopedCredentials::for_endpoint(
@@ -1405,11 +1405,11 @@ mod tests {
         );
     }
 
-    /// Axiom: this build never contacts xAI. An xAI embedding endpoint must
+    /// Axiom: this build never contacts Axon. An Axon embedding endpoint must
     /// yield no provider (memory degrades to text search) even with a valid
     /// scoped credential.
     #[tokio::test]
-    async fn xai_embedding_endpoint_builds_no_provider() {
+    async fn axon_embedding_endpoint_builds_no_provider() {
         struct AnyKey;
         impl axon_tools::types::ApiKeyProvider for AnyKey {
             fn current_api_key(&self) -> Option<String> {
@@ -1421,11 +1421,11 @@ mod tests {
             model: Some("test-embedding-model".to_string()),
             ..Default::default()
         };
-        for endpoint in ["https://api.x.ai/v1", "https://cli-chat-proxy.grok.com/v1"] {
+        for endpoint in ["https://api.blocked.invalid/v1", "https://cli-chat-proxy.blocked.invalid/v1"] {
             let scoped =
                 EndpointScopedCredentials::for_endpoint(endpoint, |_| true, None, Some(api_key.clone()));
             let provider = build_embedding_provider(Some(&config), &scoped, None, endpoint).await;
-            assert!(provider.is_none(), "xAI endpoint {endpoint} must be refused");
+            assert!(provider.is_none(), "Axon endpoint {endpoint} must be refused");
         }
     }
 
@@ -1448,18 +1448,18 @@ mod tests {
         assert!(denied.is_empty(), "untrusted endpoint drops the credential");
 
         let scoped = EndpointScopedCredentials::for_endpoint(
-            "https://api.x.ai/v1",
+            "https://api.blocked.invalid/v1",
             |_| true,
             None,
             Some(key()),
         );
         assert!(!scoped.is_empty(), "trusted endpoint keeps the credential");
         assert!(
-            scoped.approved_for("https://API.x.ai/v1"),
+            scoped.approved_for("https://API.blocked.invalid/v1"),
             "host casing normalizes"
         );
         assert!(
-            !scoped.approved_for("https://api.x.ai/v2"),
+            !scoped.approved_for("https://api.blocked.invalid/v2"),
             "different path rejected"
         );
         assert!(

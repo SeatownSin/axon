@@ -378,7 +378,7 @@ pub(crate) fn record_auth_401(
 /// This function performs **exactly one** read-side acquisition of
 /// [`AuthManager`]'s internal `RwLock` -- it calls
 /// [`AuthManager::current`] once and derives both `current_key_prefix`
-/// and the mint/expiry fields from the resulting `GrokAuth`.
+/// and the mint/expiry fields from the resulting `AxonAuth`.
 ///
 /// `is_stale_snapshot` is `true` only when the live `current()` token
 /// differs from the bearer the client sent. When `current()` returns
@@ -398,7 +398,7 @@ fn compute_attribution_payload(
     // query can break down on this).
     let sent_prefix = sent_bearer.map(token_suffix).unwrap_or("");
 
-    // Single read-lock acquisition: pull the live `GrokAuth` (or
+    // Single read-lock acquisition: pull the live `AxonAuth` (or
     // `None`) once and derive every other field from it.
     let current_auth = auth_manager.current();
     let current_prefix_owned: Option<String> = current_auth
@@ -419,7 +419,7 @@ fn compute_attribution_payload(
     //
     // TODO: mirror the full External-with-ttl branch from
     // `AuthManager::is_token_expired` (uses
-    // `grok_com_config.auth_token_ttl` when `expires_at` is `None`
+    // `axon_com_config.auth_token_ttl` when `expires_at` is `None`
     // and `auth_mode == External`). The current 2-branch fallback
     // (`expires_at` if Some else `create_time + TOKEN_TTL`) is good
     // enough for diagnostic metadata; the External-ttl branch is
@@ -449,7 +449,7 @@ mod tests {
 
     use chrono::{Duration, Utc};
 
-    use crate::auth::{AuthManager, GrokAuth, GrokComConfig};
+    use crate::auth::{AuthManager, AxonAuth, AxonComConfig};
 
     use super::*;
 
@@ -457,17 +457,17 @@ mod tests {
     /// nothing from a developer's actual `~/.axon/auth.json` leaks in.
     fn empty_auth_manager() -> (tempfile::TempDir, AuthManager) {
         let dir = tempfile::tempdir().expect("tempdir");
-        let cfg = GrokComConfig::default();
+        let cfg = AxonComConfig::default();
         let am = AuthManager::new(dir.path(), cfg);
         (dir, am)
     }
 
-    fn fresh_auth(key: &str) -> GrokAuth {
-        GrokAuth {
+    fn fresh_auth(key: &str) -> AxonAuth {
+        AxonAuth {
             key: key.to_string(),
             create_time: Utc::now(),
             expires_at: Some(Utc::now() + Duration::hours(1)),
-            ..GrokAuth::test_default()
+            ..AxonAuth::test_default()
         }
     }
 
@@ -561,12 +561,12 @@ mod tests {
     #[test]
     fn legacy_token_uses_two_branch_fallback() {
         let (_dir, am) = empty_auth_manager();
-        let auth = GrokAuth {
+        let auth = AxonAuth {
             key: "k".into(),
             create_time: Utc::now() - Duration::seconds(60),
             // No expires_at => falls through to create_time + TOKEN_TTL
             // (= 30 days).
-            ..GrokAuth::test_default()
+            ..AxonAuth::test_default()
         };
         am.hot_swap(auth);
 

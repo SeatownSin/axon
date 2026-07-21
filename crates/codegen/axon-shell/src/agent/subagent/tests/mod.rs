@@ -86,7 +86,7 @@ async fn emit_subagent_notification_stamps_one_event_id_on_both_paths() {
         Some(&cmd_tx),
     );
     let persisted_id = match cmd_rx.try_recv().expect("persist hop must fire") {
-        SessionCommand::XaiSessionNotification { notification } => {
+        SessionCommand::AxonSessionNotification { notification } => {
             notification
                 .meta
                 .as_ref()
@@ -95,7 +95,7 @@ async fn emit_subagent_notification_stamps_one_event_id_on_both_paths() {
                 .expect("persisted subagent lines must carry an eventId")
                 .to_string()
         }
-        _ => panic!("expected XaiSessionNotification"),
+        _ => panic!("expected AxonSessionNotification"),
     };
     assert!(persisted_id.starts_with("parent-sess-"));
     let broadcast_id = match gateway_rx.try_recv().expect("broadcast must fire") {
@@ -119,11 +119,11 @@ fn subagent_max_turns_definition_wins_else_inherits_parent() {
 fn resume_worktree_action_covers_three_outcomes() {
     use super::{ResumeWorktreeAction, resume_worktree_action};
     assert_eq!(
-        resume_worktree_action(true, Some("refs/grok/subagents/x")),
+        resume_worktree_action(true, Some("refs/axon/subagents/x")),
         ResumeWorktreeAction::Rehydrate
     );
     assert_eq!(
-        resume_worktree_action(false, Some("refs/grok/subagents/x")),
+        resume_worktree_action(false, Some("refs/axon/subagents/x")),
         ResumeWorktreeAction::Rehydrate
     );
     assert_eq!(resume_worktree_action(true, None), ResumeWorktreeAction::Reuse);
@@ -1279,7 +1279,7 @@ fn dummy_tracker(
         force_compact: Arc::new(AtomicBool::new(false)),
         permission_handle: axon_workspace::permission::PermissionHandle::allow_all(),
         attribution_callback: None,
-        agent_name: "grok-build".to_string(),
+        agent_name: "axon-build".to_string(),
         managed_mcp_proxy_base_url: String::new(),
         session_default_agent_profile: None,
         allowed_subagent_types: None,
@@ -2119,7 +2119,7 @@ async fn bootstrap_fork_live_parent_chat_state_is_forked_with_marker() {
     const MARKER: &str = "UNIQUE_LIVE_FORK_MARKER_xyz789";
     let req = bootstrap_test_request(true);
     let mut ctx = ctx_with_toggle(HashMap::new());
-    let chat = spawn_test_parent_chat_state("grok-4.5");
+    let chat = spawn_test_parent_chat_state("axon-4.5");
     chat.replace_conversation(
         vec![
             ConversationItem::system("parent system"),
@@ -2308,7 +2308,7 @@ async fn handle_subagent_request_rejects_nonexistent_cwd() {
 #[tokio::test]
 async fn handle_subagent_request_rejects_file_as_cwd() {
     let tmp_dir = tempfile::TempDir::new().unwrap();
-    let tmp_file = tmp_dir.path().join("grok-test-cwd-file");
+    let tmp_file = tmp_dir.path().join("axon-test-cwd-file");
     std::fs::write(&tmp_file, b"not a directory").unwrap();
     let ctx = ctx_with_toggle(HashMap::new());
     let coordinator = std::cell::RefCell::new(SubagentCoordinator::new());
@@ -2540,7 +2540,7 @@ fn subagent_await_budget_default_and_override() {
 fn summarize_tool_config_uses_name_override_and_strips_namespace() {
     use axon_tools::registry::types::{ToolConfig, ToolServerConfig};
     use axon_tools::types::tool::ToolKind;
-    let mut read = ToolConfig::from_id("GrokBuild:read_file");
+    let mut read = ToolConfig::from_id("AxonBuild:read_file");
     read.kind = Some(ToolKind::Read);
     let mut read_dup = ToolConfig::from_id("Codex:read_file");
     read_dup.kind = Some(ToolKind::Read);
@@ -2591,7 +2591,7 @@ fn describe_subagent_type_not_allowed_outside_allow_list() {
         other => panic!("expected NotAllowed, got {other:?}"),
     }
 }
-/// Regression: on the DEFAULT grok-build host —
+/// Regression: on the DEFAULT axon-build host —
 /// the primary `/goal` host — the `general-purpose` toolset's only
 /// file-mutator is `search_replace` (`ToolKind::Edit`); the `write`
 /// tool (`ToolKind::Write`) is injection-only and absent from the
@@ -2646,7 +2646,7 @@ fn subagent_keeps_default_flavor_when_parent_model_is_non_strict() {
     let mut ctx = ctx_with_toggle(HashMap::new());
     ctx.parent_agent_name = Some("ai-oncall-bot".to_string());
     ctx.parent_model_agent_type = Some(
-        BuiltinAgentName::GrokBuildPlan.as_ref().to_string(),
+        BuiltinAgentName::AxonBuildPlan.as_ref().to_string(),
     );
     let mut def = resolve_agent_definition("general-purpose", &ctx).expect("resolves");
     resolve_subagent_toolset("general-purpose", None, &ctx, &mut def);
@@ -2856,7 +2856,7 @@ async fn background_unknown_type_emits_subagent_finished_notification() {
         .await;
     let mut found_persisted = false;
     while let Ok(cmd) = cmd_rx.try_recv() {
-        if let SessionCommand::XaiSessionNotification { notification } = cmd
+        if let SessionCommand::AxonSessionNotification { notification } = cmd
             && let SessionUpdate::SubagentFinished {
                 subagent_id: id,
                 status,
@@ -2877,7 +2877,7 @@ async fn background_unknown_type_emits_subagent_finished_notification() {
     while let Ok(msg) = gateway_rx.try_recv() {
         if let axon_acp_lib::AcpClientMessage::ExtNotification(args) = msg {
             let req: &acp::ExtNotification = &args.request;
-            assert_eq!(req.method.as_ref(), "x.ai/session_notification");
+            assert_eq!(req.method.as_ref(), "axon/session_notification");
             let body = req.params.get();
             assert!(body.contains("subagent_finished"));
             assert!(body.contains(& subagent_id));
@@ -2954,7 +2954,7 @@ async fn cancel_pending_subagent_at_promote_emits_exactly_one_cancelled_finish()
         .await;
     let mut persisted = 0;
     while let Ok(cmd) = cmd_rx.try_recv() {
-        if let SessionCommand::XaiSessionNotification { notification } = cmd
+        if let SessionCommand::AxonSessionNotification { notification } = cmd
             && let SessionUpdate::SubagentFinished { subagent_id: id, status, .. } = &notification
                 .update
         {
@@ -3054,7 +3054,7 @@ async fn run_promote_cancel_with_worktree(
         .await;
     let mut persisted = 0;
     while let Ok(cmd) = cmd_rx.try_recv() {
-        if let SessionCommand::XaiSessionNotification { notification } = cmd
+        if let SessionCommand::AxonSessionNotification { notification } = cmd
             && matches!(notification.update, SessionUpdate::SubagentFinished { .. })
         {
             persisted += 1;
@@ -3295,12 +3295,12 @@ fn byok_model_entry(model_id: &str) -> crate::agent::config::ModelEntry {
 }
 #[test]
 fn subagent_auth_type_rule() {
-    use crate::agent::auth_method::{CACHED_TOKEN_AUTH_METHOD_ID, XAI_API_KEY_METHOD_ID};
+    use crate::agent::auth_method::{CACHED_TOKEN_AUTH_METHOD_ID, AXON_API_KEY_METHOD_ID};
     use axon_chat_state::AuthType;
     let session = acp::AuthMethodId::new(CACHED_TOKEN_AUTH_METHOD_ID);
-    let api_key = acp::AuthMethodId::new(XAI_API_KEY_METHOD_ID);
-    let byok = byok_model_entry("grok-byok");
-    let plain = test_model_entry("grok-plain");
+    let api_key = acp::AuthMethodId::new(AXON_API_KEY_METHOD_ID);
+    let byok = byok_model_entry("axon-byok");
+    let plain = test_model_entry("axon-plain");
     assert_eq!(super::subagent_auth_type(Some(& byok), & session), AuthType::ApiKey);
     assert_eq!(super::subagent_auth_type(Some(& byok), & api_key), AuthType::ApiKey);
     assert_eq!(
@@ -3313,14 +3313,14 @@ fn subagent_auth_type_rule() {
 #[test]
 fn fresh_tool_model_accepts_visible_key_and_internal_id() {
     let mut models = indexmap::IndexMap::new();
-    models.insert("grok-3".to_string(), test_model_entry("grok-3-2025-02-15"));
+    models.insert("axon-3".to_string(), test_model_entry("axon-3-2025-02-15"));
     assert!(
-        super::handle_request::task_model_override_error(Some("grok-3"),
+        super::handle_request::task_model_override_error(Some("axon-3"),
         ModelOverrideProvenance::Tool, false, & models, false,).is_none(),
         "key lookup should succeed"
     );
     assert!(
-        super::handle_request::task_model_override_error(Some("grok-3-2025-02-15"),
+        super::handle_request::task_model_override_error(Some("axon-3-2025-02-15"),
         ModelOverrideProvenance::Tool, false, & models, false,).is_none(),
         "info().model lookup should succeed"
     );
@@ -3391,7 +3391,7 @@ fn fresh_tool_model_rejects_unknown_and_nonavailable_entries() {
             format!("Unknown Task.model slug '{requested}'. Valid model slugs: alpha, zeta. \
                      Omit `model` to inherit the parent model.")
         );
-        assert!(! error.contains("grok models"));
+        assert!(! error.contains("axon models"));
     }
     assert!(
         super::handle_request::task_model_override_error(Some("oauth-only"),

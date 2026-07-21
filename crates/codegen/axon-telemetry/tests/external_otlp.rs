@@ -52,9 +52,9 @@ fn external_stream_end_to_end() {
     });
     axon_telemetry::log_event(axon_telemetry::events::SessionHarness {
         session_id: "sess-int-1".into(),
-        client_identifier: Some("grok-pager".into()),
-        model_id: "grok-4".into(),
-        agent_name: "grok-build-plan".into(),
+        client_identifier: Some("axon-pager".into()),
+        model_id: "axon-4".into(),
+        agent_name: "axon-build-plan".into(),
         permission_mode: axon_telemetry::enums::PermissionMode::Ask,
         mcp_server_names: vec![CANARY_MCP.into()],
         plugin_names: vec![],
@@ -68,7 +68,7 @@ fn external_stream_end_to_end() {
     });
     axon_telemetry::log_event(axon_telemetry::events::PromptSubmitted {
         prompt_length: CANARY_PROMPT.len(),
-        model_id: "grok-4".into(),
+        model_id: "axon-4".into(),
         client_identifier: None,
         screen_mode: None,
         prompt_text: Some(CANARY_PROMPT.into()),
@@ -111,7 +111,7 @@ fn external_stream_end_to_end() {
             for sl in &rl.scope_logs {
                 assert_eq!(
                     sl.scope.as_ref().map(|s| s.name.as_str()),
-                    Some("ai.xai.grok_code")
+                    Some("ai.axon.axon_code")
                 );
                 for record in &sl.log_records {
                     event_names.push(record.event_name.clone());
@@ -122,13 +122,13 @@ fn external_stream_end_to_end() {
     assert!(
         resource_service_name
             .as_deref()
-            .is_some_and(|s| s.contains("grok-cli")),
-        "service.name=grok-cli is a wire commitment: {resource_service_name:?}"
+            .is_some_and(|s| s.contains("axon-cli")),
+        "service.name=axon-cli is a wire commitment: {resource_service_name:?}"
     );
     for expected in [
-        "grok_code.session_start",
-        "grok_code.user_prompt",
-        "grok_code.api_request",
+        "axon_code.session_start",
+        "axon_code.user_prompt",
+        "axon_code.api_request",
     ] {
         assert!(
             event_names.iter().any(|n| n == expected),
@@ -140,7 +140,7 @@ fn external_stream_end_to_end() {
     assert_eq!(
         event_names
             .iter()
-            .filter(|n| *n == "grok_code.session_start")
+            .filter(|n| *n == "axon_code.session_start")
             .count(),
         1
     );
@@ -162,7 +162,7 @@ fn external_stream_end_to_end() {
                                 as i32,
                             "default temporality must be Delta (CC parity)"
                         );
-                        if metric.name == "grok_code.session.count" {
+                        if metric.name == "axon_code.session.count" {
                             for dp in &sum.data_points {
                                 if let Some(
                                     opentelemetry_proto::tonic::metrics::v1::number_data_point::Value::AsInt(v),
@@ -178,10 +178,10 @@ fn external_stream_end_to_end() {
         }
     }
     assert!(
-        metric_names.iter().any(|n| n == "grok_code.session.count"),
+        metric_names.iter().any(|n| n == "axon_code.session.count"),
         "missing session.count in {metric_names:?}"
     );
-    assert!(metric_names.iter().any(|n| n == "grok_code.token.usage"));
+    assert!(metric_names.iter().any(|n| n == "axon_code.token.usage"));
     assert_eq!(
         session_count_total, 1,
         "session.count must increment exactly once per SessionNew"
@@ -216,7 +216,7 @@ fn external_stream_end_to_end() {
     let logs_before = collected.logs_len();
     axon_telemetry::log_event(axon_telemetry::events::PromptSubmitted {
         prompt_length: 1,
-        model_id: "grok-4".into(),
+        model_id: "axon-4".into(),
         client_identifier: None,
         screen_mode: None,
         prompt_text: None,

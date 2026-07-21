@@ -160,11 +160,11 @@ pub(in crate::app::dispatch) fn dispatch_fetch_session_list(app: &mut AppView) -
         app.foreign_scan_coordinator.begin_request(foreign_seq);
         None
     } else {
-        let grok_home = axon_tools::util::grok_home::grok_home();
+        let axon_home = axon_tools::util::axon_home::axon_home();
         crate::app::foreign_sessions::scan_effect(
             &app.cwd,
             app.foreign_session_compat,
-            &grok_home,
+            &axon_home,
             app.foreign_scan_coordinator.clone(),
             foreign_seq,
         )

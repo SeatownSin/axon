@@ -1,5 +1,5 @@
 use agent_client_protocol as acp;
-use axon_tools::implementations::grok_build::{
+use axon_tools::implementations::axon_build::{
     IMAGE_GEN_TOOL_NAME, IMAGINE_COMMAND_NAME, imagine_instruction, imagine_usage_message,
 };
 

@@ -1,6 +1,6 @@
 use super::*;
 
-/// Handle `x.ai/ask_user_question` ext-method.
+/// Handle `axon/ask_user_question` ext-method.
 ///
 /// Parses the typed request, creates a `QuestionViewState` with the
 /// `response_tx` stashed, and opens the question overlay. The pager does
@@ -14,7 +14,7 @@ pub(crate) fn handle_ask_user_question(
     app: &mut AppView,
 ) -> bool {
     use crate::views::question_view::QuestionViewState;
-    use axon_tools::implementations::grok_build::ask_user_question::{
+    use axon_tools::implementations::axon_build::ask_user_question::{
         AskUserQuestionExtRequest, AskUserQuestionExtResponse,
     };
 
@@ -81,7 +81,7 @@ pub(crate) fn handle_ask_user_question(
                 LocalQuestionKind::Fork { .. } => "/fork",
                 LocalQuestionKind::NewSession => "/new",
                 LocalQuestionKind::CreditLimitUpsell { .. } => "credit-limit upsell",
-                LocalQuestionKind::FreeUsageUpsell { .. } => "SuperGrok upsell",
+                LocalQuestionKind::FreeUsageUpsell { .. } => "SuperAxon upsell",
                 LocalQuestionKind::AgentTypeMismatch { .. } => "model switch",
                 LocalQuestionKind::ProjectSelect { .. } => "project select",
             };
@@ -121,7 +121,7 @@ pub(crate) fn handle_ask_user_question(
     is_active
 }
 
-/// Handle an `x.ai/exit_plan_mode` ext_method request.
+/// Handle an `axon/exit_plan_mode` ext_method request.
 ///
 /// Creates a `PlanApprovalViewState` overlay for interactive approval.
 ///

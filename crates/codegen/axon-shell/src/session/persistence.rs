@@ -15,7 +15,7 @@ use axon_workspace::session::file_state::RewindPoint;
 use crate::session::signals::SessionSignals;
 use crate::session::storage::{JsonlStorageAdapter, StorageAdapter};
 use crate::tools::todo::TodoState;
-use crate::util::grok_home::grok_home;
+use crate::util::axon_home::axon_home;
 use agent_client_protocol as acp;
 use axon_acp_lib::AcpAgentGatewaySender as GatewaySender;
 use axon_sampling_types::ReasoningEffort;
@@ -140,8 +140,8 @@ mod feedback_tests {
             },
             feedback_categories: vec![],
             message_id: None,
-            model_id: Some("grok-3-fast".into()),
-            resolved_model_id: Some("grok-4.5".into()),
+            model_id: Some("axon-3-fast".into()),
+            resolved_model_id: Some("axon-4.5".into()),
             model_fingerprint: None,
             context_type: None,
             feature_name: None,
@@ -304,7 +304,7 @@ pub struct SessionStateCopy {
 #[derive(Debug)]
 #[allow(clippy::large_enum_variant)]
 pub enum PersistenceMsg {
-    /// A session update (ACP update or xAI extension update)
+    /// A session update (ACP update or Axon extension update)
     Update(SessionUpdate),
     AppendUpdateDurablyAndAck {
         update: SessionUpdate,
@@ -316,7 +316,7 @@ pub enum PersistenceMsg {
     ReplaceChatHistory(Vec<ConversationItem>),
     CurrentModel {
         model_id: acp::ModelId,
-        /// The active agent definition name (e.g. `"grok-build"`).
+        /// The active agent definition name (e.g. `"axon-build"`).
         /// Persisted in `summary.agent_name` so session resume doesn't depend
         /// on the mutable model catalog.
         agent_name: Option<String>,
@@ -403,7 +403,7 @@ pub use axon_shared::session::session_dir;
 /// A session stored under a different cwd does NOT satisfy this check — the
 /// caller must still run the remote restore into the requested cwd.
 pub fn session_exists_for_cwd(session_id: &str, cwd: &str) -> bool {
-    let sessions_root = crate::util::grok_home::grok_home().join("sessions");
+    let sessions_root = crate::util::axon_home::axon_home().join("sessions");
     session_exists_for_cwd_in_root(session_id, cwd, &sessions_root)
 }
 
@@ -418,7 +418,7 @@ fn is_persisted_session_dir(session_path: &Path) -> bool {
 /// Inner implementation of `session_exists_for_cwd` with an injectable root.
 /// Separated for deterministic tempdir-based tests.
 fn session_exists_for_cwd_in_root(session_id: &str, cwd: &str, sessions_root: &Path) -> bool {
-    let encoded = crate::util::grok_home::encode_cwd_dirname(cwd);
+    let encoded = crate::util::axon_home::encode_cwd_dirname(cwd);
     let session_path = sessions_root.join(&encoded).join(session_id);
     is_persisted_session_dir(&session_path)
 }
@@ -440,7 +440,7 @@ fn session_exists_for_cwd_in_root(session_id: &str, cwd: &str, sessions_root: &P
 /// Returns `Some(local_child_id)` when at least one matching child is found.
 /// Returns `None` when no child with `parent_session_id == remote_session_id` exists.
 pub fn find_local_child_for_remote(remote_session_id: &str, cwd: &str) -> Option<String> {
-    let sessions_root = crate::util::grok_home::grok_home().join("sessions");
+    let sessions_root = crate::util::axon_home::axon_home().join("sessions");
     find_local_child_for_remote_in_root(remote_session_id, cwd, &sessions_root)
 }
 
@@ -487,7 +487,7 @@ pub fn resolve_local_session_for_repo(
     session_id: &str,
     candidate_cwds: &[&str],
 ) -> Option<ResolvedLocalSession> {
-    let sessions_root = crate::util::grok_home::grok_home().join("sessions");
+    let sessions_root = crate::util::axon_home::axon_home().join("sessions");
     resolve_local_session_for_repo_in_root(session_id, candidate_cwds, &sessions_root)
 }
 
@@ -531,7 +531,7 @@ fn find_local_child_for_remote_in_root(
     cwd: &str,
     sessions_root: &Path,
 ) -> Option<String> {
-    let encoded = crate::util::grok_home::encode_cwd_dirname(cwd);
+    let encoded = crate::util::axon_home::encode_cwd_dirname(cwd);
     let cwd_dir = sessions_root.join(&encoded);
     if !cwd_dir.exists() {
         return None;
@@ -596,7 +596,7 @@ fn find_local_child_for_remote_in_root(
 /// This is used by the pager's `--resume` to find sessions that were created
 /// in a different CWD (e.g., a worktree) than the one the user is currently in.
 pub fn resolve_local_session_any_cwd(session_id: &str) -> Option<String> {
-    let sessions_root = crate::util::grok_home::grok_home().join("sessions");
+    let sessions_root = crate::util::axon_home::axon_home().join("sessions");
     resolve_local_session_any_cwd_in_root(session_id, &sessions_root)
 }
 
@@ -615,7 +615,7 @@ fn resolve_local_session_any_cwd_in_root(session_id: &str, sessions_root: &Path)
             // Decode the CWD from the directory name. Skip entries whose
             // names cannot be decoded — a raw URL-encoded string is not a
             // usable CWD and returning it would confuse callers.
-            if let Some(decoded) = crate::util::grok_home::decode_cwd_from_dirname(&path) {
+            if let Some(decoded) = crate::util::axon_home::decode_cwd_from_dirname(&path) {
                 return Some(decoded);
             }
         }
@@ -625,7 +625,7 @@ fn resolve_local_session_any_cwd_in_root(session_id: &str, sessions_root: &Path)
 
 /// Scan all CWD directories for a session and return its directory path.
 pub fn find_session_dir_by_id(session_id: &str) -> Option<PathBuf> {
-    let sessions_root = grok_home().join("sessions");
+    let sessions_root = axon_home().join("sessions");
     find_session_dir_by_id_in_root(session_id, &sessions_root)
 }
 
@@ -644,12 +644,12 @@ pub fn find_session_dir_by_id_in_root(session_id: &str, sessions_root: &Path) ->
 }
 
 pub fn session_exists_by_id(session_id: &str) -> bool {
-    let sessions_root = crate::util::grok_home::grok_home().join("sessions");
+    let sessions_root = crate::util::axon_home::axon_home().join("sessions");
     session_exists_in_root(session_id, &sessions_root)
 }
 
 /// Inner implementation of `session_exists_by_id` that accepts a custom root.
-/// Separated so tests can use a tempdir without touching the real grok home.
+/// Separated so tests can use a tempdir without touching the real axon home.
 fn session_exists_in_root(session_id: &str, sessions_root: &Path) -> bool {
     if !sessions_root.exists() {
         return false;
@@ -670,7 +670,7 @@ fn session_exists_in_root(session_id: &str, sessions_root: &Path) -> bool {
 
 /// Find and read a session summary given only its ID (scans all CWD directories).
 pub fn find_summary_by_session_id(session_id: &str) -> Option<Summary> {
-    find_summary_by_session_id_in_root(session_id, &grok_home().join("sessions"))
+    find_summary_by_session_id_in_root(session_id, &axon_home().join("sessions"))
 }
 
 /// Inner implementation with injectable root for testing.
@@ -702,7 +702,7 @@ pub(crate) fn find_summary_by_session_id_in_root(
 /// for that cwd. Sync and local-only — suitable for the startup path that must
 /// resolve the sandbox profile before the (irreversible) OS sandbox is applied.
 fn most_recent_local_summary_for_cwd_in_root(cwd: &str, sessions_root: &Path) -> Option<Summary> {
-    let encoded = crate::util::grok_home::encode_cwd_dirname(cwd);
+    let encoded = crate::util::axon_home::encode_cwd_dirname(cwd);
     let cwd_dir = sessions_root.join(&encoded);
     let mut best: Option<Summary> = None;
     for entry in std::fs::read_dir(&cwd_dir).ok()?.flatten() {
@@ -747,7 +747,7 @@ pub fn resumed_session_sandbox_profile(
     session_id: Option<&str>,
     cwd: Option<&str>,
 ) -> Option<String> {
-    resumed_session_sandbox_profile_in_root(session_id, cwd, &grok_home().join("sessions"))
+    resumed_session_sandbox_profile_in_root(session_id, cwd, &axon_home().join("sessions"))
 }
 
 fn resumed_session_sandbox_profile_in_root(
@@ -859,7 +859,7 @@ pub struct Summary {
     pub request_id: Option<String>,
     /// Absolute path to the `.axon` directory, used by reconstruction.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub grok_home: Option<String>,
+    pub axon_home: Option<String>,
     /// When the session last had content added (user or model messages).
     /// Only advanced locally by `append_update` / `append_chat_message`;
     /// never touched by remote registry operations or metadata-only writes.
@@ -896,9 +896,9 @@ pub struct Summary {
     pub reasoning_effort: Option<ReasoningEffort>,
 }
 
-/// Current `grok_home` as a UTF-8 string, or `None` if the path isn't valid UTF-8.
-pub fn grok_home_string() -> Option<String> {
-    crate::util::grok_home::grok_home()
+/// Current `axon_home` as a UTF-8 string, or `None` if the path isn't valid UTF-8.
+pub fn axon_home_string() -> Option<String> {
+    crate::util::axon_home::axon_home()
         .to_str()
         .map(String::from)
 }
@@ -938,7 +938,7 @@ impl Summary {
             head_commit: git_metadata.head_commit,
             head_branch: git_metadata.head_branch,
             request_id: None,
-            grok_home: grok_home_string(),
+            axon_home: axon_home_string(),
             last_active_at: None,
             generated_title: None,
             title_is_manual: false,
@@ -1615,8 +1615,8 @@ impl SessionPersistence {
                                 }
                             }
                         }
-                        SessionUpdate::Xai(_) => {
-                            // xAI notifications are written directly without merging
+                        SessionUpdate::Axon(_) => {
+                            // Axon notifications are written directly without merging
                             if let Err(error) = self.write_update(&update).await {
                                 tracing::warn!(%error, "failed to write update");
                             }
@@ -1915,7 +1915,7 @@ impl SessionPersistence {
 
 /// Collect MCP server stderr logs from `~/.axon/logs/mcp/` for inclusion in the session archive.
 fn collect_mcp_stderr_logs(files: &mut Vec<CopiedSessionFile>) {
-    let mcp_log_dir = axon_config::grok_home().join("logs").join("mcp");
+    let mcp_log_dir = axon_config::axon_home().join("logs").join("mcp");
     let Ok(entries) = std::fs::read_dir(&mcp_log_dir) else {
         return;
     };
@@ -2127,7 +2127,7 @@ pub(crate) async fn new(
     session_summary_model: String,
     registry_title_sync: Option<RegistryGeneratedTitleSync>,
 ) -> io::Result<PersistenceHandle> {
-    let root_dir = grok_home();
+    let root_dir = axon_home();
     let storage: Box<dyn StorageAdapter> = Box::new(JsonlStorageAdapter::with_root(root_dir));
 
     // Initialize session in storage
@@ -2247,7 +2247,7 @@ pub async fn new_with_explicit_dir(
 pub struct PersistedInfo {
     pub summary: Summary,
     pub chat_history: Vec<ConversationItem>,
-    /// All session updates (ACP updates and xAI extension updates) in chronological order
+    /// All session updates (ACP updates and Axon extension updates) in chronological order
     pub updates: Vec<SessionUpdate>,
     pub plan_state: Option<TodoState>,
     pub rewind_points: Vec<RewindPoint>,
@@ -2299,7 +2299,7 @@ pub(crate) async fn load(
     session_summary_model: String,
     registry_title_sync: Option<RegistryGeneratedTitleSync>,
 ) -> io::Result<(PersistedInfo, PersistenceHandle)> {
-    let root_dir = grok_home();
+    let root_dir = axon_home();
     let storage: Box<dyn StorageAdapter> = Box::new(JsonlStorageAdapter::with_root(root_dir));
 
     let (persisted, loaded_info) = match storage.load_session(info).await {
@@ -2377,7 +2377,7 @@ pub(crate) async fn load_light(
     session_summary_model: String,
     registry_title_sync: Option<RegistryGeneratedTitleSync>,
 ) -> io::Result<(PersistedInfoLight, PersistenceHandle)> {
-    let root_dir = grok_home();
+    let root_dir = axon_home();
     let storage: Box<dyn StorageAdapter> =
         Box::new(JsonlStorageAdapter::with_root(root_dir.clone()));
 
@@ -2451,7 +2451,7 @@ pub(crate) async fn load_light(
 /// List session summaries, optionally filtered by cwd (absolute path string).
 /// Returns summaries sorted by `last_active_at` (else `updated_at`) descending.
 pub async fn list_summaries(cwd: Option<&str>) -> io::Result<Vec<Summary>> {
-    let root_dir = crate::util::grok_home::grok_home();
+    let root_dir = crate::util::axon_home::axon_home();
     let storage: Box<dyn StorageAdapter> = Box::new(JsonlStorageAdapter::with_root(root_dir));
     storage.list_sessions(cwd).await
 }
@@ -2655,7 +2655,7 @@ mod delete_session_history_tests {
 /// workspaces. Uses stat-based mtime sorting to avoid reading every
 /// summary file on disk; final order uses `last_active_at` else `updated_at`.
 pub async fn list_recent_summaries(limit: usize) -> io::Result<Vec<Summary>> {
-    let root_dir = crate::util::grok_home::grok_home();
+    let root_dir = crate::util::axon_home::axon_home();
     let storage = JsonlStorageAdapter::with_root(root_dir);
     storage.list_sessions_recent(limit).await
 }
@@ -2678,7 +2678,7 @@ const DEFAULT_CLEANUP_TTL_DAYS: u32 = 30;
 pub fn cleanup_stale_sessions(skip_session_dir: Option<&Path>) {
     CLEANUP_SESSIONS_ONCE.call_once(|| {
         let ttl_days = resolve_cleanup_ttl_days();
-        let sessions_root = grok_home().join("sessions");
+        let sessions_root = axon_home().join("sessions");
 
         tracing::info!(
             target: "axon_shell::session::persistence",
@@ -2880,8 +2880,8 @@ mod agent_name_persistence_tests {
     fn summary_round_trips_various_agent_names() {
         for name in [
             "cursor",
-            "grok-build",
-            "grok-build-plan",
+            "axon-build",
+            "axon-build-plan",
             "codex",
             "browser-use",
         ] {
@@ -3034,7 +3034,7 @@ mod session_exists_tests {
 
     #[test]
     fn returns_false_when_root_does_not_exist() {
-        let root = std::path::PathBuf::from("/nonexistent/grok/sessions");
+        let root = std::path::PathBuf::from("/nonexistent/axon/sessions");
         assert!(!session_exists_in_root("any-id", &root));
     }
 
@@ -3111,7 +3111,7 @@ mod find_summary_by_session_id_tests {
             "created_at": "2026-01-01T00:00:00Z",
             "updated_at": "2026-01-01T00:00:00Z",
             "num_messages": 0,
-            "current_model_id": "grok-3",
+            "current_model_id": "axon-3",
             "head_commit": head_commit,
             "head_branch": head_branch
         })
@@ -3182,7 +3182,7 @@ mod resumed_sandbox_profile_tests {
         sandbox_profile: Option<&str>,
         hidden: bool,
     ) {
-        let encoded = crate::util::grok_home::encode_cwd_dirname(cwd);
+        let encoded = crate::util::axon_home::encode_cwd_dirname(cwd);
         let dir = root.join(&encoded).join(session_id);
         fs::create_dir_all(&dir).unwrap();
         let mut summary = serde_json::json!({
@@ -3191,7 +3191,7 @@ mod resumed_sandbox_profile_tests {
             "created_at": "2026-01-01T00:00:00Z",
             "updated_at": updated_at,
             "num_messages": 0,
-            "current_model_id": "grok-3",
+            "current_model_id": "axon-3",
         });
         if let Some(la) = last_active_at {
             summary["last_active_at"] = serde_json::Value::String(la.to_string());
@@ -3253,7 +3253,7 @@ mod resumed_sandbox_profile_tests {
         let cwd = "/work/remote";
         // A remote session restored into a local child: the child has a fresh
         // id and records `parent_session_id` = the remote id.
-        let encoded = crate::util::grok_home::encode_cwd_dirname(cwd);
+        let encoded = crate::util::axon_home::encode_cwd_dirname(cwd);
         let dir = root.join(&encoded).join("local-child");
         fs::create_dir_all(&dir).unwrap();
         let summary = serde_json::json!({
@@ -3262,7 +3262,7 @@ mod resumed_sandbox_profile_tests {
             "created_at": "2026-01-01T00:00:00Z",
             "updated_at": "2026-01-01T00:00:00Z",
             "num_messages": 0,
-            "current_model_id": "grok-3",
+            "current_model_id": "axon-3",
             "parent_session_id": "remote-xyz",
             "sandbox_profile": "workspace",
         });
@@ -3434,7 +3434,7 @@ mod session_exists_for_cwd_tests {
         let cwd = "/project/alpha";
         let session_id = "my-session";
 
-        let encoded = crate::util::grok_home::encode_cwd_dirname(cwd);
+        let encoded = crate::util::axon_home::encode_cwd_dirname(cwd);
         let dir = root.join(&encoded).join(session_id);
         fs::create_dir_all(&dir).unwrap();
         fs::write(dir.join("summary.json"), b"{}").unwrap();
@@ -3472,7 +3472,7 @@ mod session_exists_for_cwd_tests {
         let session_id = "cross-cwd-session";
 
         // Create the session only under cwd-A (a real session has a summary.json).
-        let encoded_a = crate::util::grok_home::encode_cwd_dirname("/project/alpha");
+        let encoded_a = crate::util::axon_home::encode_cwd_dirname("/project/alpha");
         let dir_a = root.join(&encoded_a).join(session_id);
         fs::create_dir_all(&dir_a).unwrap();
         fs::write(dir_a.join("summary.json"), b"{}").unwrap();
@@ -3504,7 +3504,7 @@ mod session_exists_for_cwd_tests {
         let cwd = "/project/alpha";
         let session_id = "stub-session";
 
-        let encoded = crate::util::grok_home::encode_cwd_dirname(cwd);
+        let encoded = crate::util::axon_home::encode_cwd_dirname(cwd);
         let images = root.join(&encoded).join(session_id).join("images");
         fs::create_dir_all(&images).unwrap();
         fs::write(images.join("image-1.png"), b"png").unwrap();
@@ -3524,14 +3524,14 @@ mod session_exists_for_cwd_tests {
 
         // Real session under cwd-A.
         let cwd_a = "/project/alpha";
-        let encoded_a = crate::util::grok_home::encode_cwd_dirname(cwd_a);
+        let encoded_a = crate::util::axon_home::encode_cwd_dirname(cwd_a);
         let dir_a = root.join(&encoded_a).join(session_id);
         fs::create_dir_all(&dir_a).unwrap();
         fs::write(dir_a.join("summary.json"), b"{}").unwrap();
 
         // Images-only stub for the SAME id under cwd-B.
         let cwd_b = "/project/beta";
-        let encoded_b = crate::util::grok_home::encode_cwd_dirname(cwd_b);
+        let encoded_b = crate::util::axon_home::encode_cwd_dirname(cwd_b);
         let images_b = root.join(&encoded_b).join(session_id).join("images");
         fs::create_dir_all(&images_b).unwrap();
         fs::write(images_b.join("image-1.png"), b"png").unwrap();
@@ -3557,7 +3557,7 @@ mod find_local_child_tests {
         session_id: &str,
         parent_id: &str,
     ) {
-        let encoded = crate::util::grok_home::encode_cwd_dirname(cwd);
+        let encoded = crate::util::axon_home::encode_cwd_dirname(cwd);
         let dir = root.join(&encoded).join(session_id);
         fs::create_dir_all(&dir).unwrap();
         let summary = serde_json::json!({ "parent_session_id": parent_id });
@@ -3578,7 +3578,7 @@ mod find_local_child_tests {
     fn returns_none_when_no_child_exists() {
         let tmp = TempDir::new().unwrap();
         let root = tmp.path().join("sessions");
-        let encoded = crate::util::grok_home::encode_cwd_dirname("/work");
+        let encoded = crate::util::axon_home::encode_cwd_dirname("/work");
         fs::create_dir_all(root.join(&encoded)).unwrap();
 
         let found = find_local_child_for_remote_in_root("remote-abc", "/work", &root);
@@ -3616,7 +3616,7 @@ mod find_local_child_tests {
         let tmp = TempDir::new().unwrap();
         let root = tmp.path().join("sessions");
         let cwd = "/project";
-        let encoded = crate::util::grok_home::encode_cwd_dirname(cwd);
+        let encoded = crate::util::axon_home::encode_cwd_dirname(cwd);
 
         // Older child — earlier timestamp.
         let old_dir = root.join(&encoded).join("old-child");
@@ -3652,7 +3652,7 @@ mod find_local_child_tests {
         let tmp = TempDir::new().unwrap();
         let root = tmp.path().join("sessions");
         let cwd = "/project-tie";
-        let encoded = crate::util::grok_home::encode_cwd_dirname(cwd);
+        let encoded = crate::util::axon_home::encode_cwd_dirname(cwd);
         let same_ts = "2026-03-15T12:00:00Z";
 
         let mut dirs = Vec::new();
@@ -3694,18 +3694,18 @@ mod resolve_local_session_tests {
 
     // resolve_local_session delegates to the same _in_root helpers tested above,
     // so we test the composition logic via the public function indirectly by
-    // setting up the on-disk structures under a fake grok home.
+    // setting up the on-disk structures under a fake axon home.
     // For unit isolation, we test the equivalent logic via the inner helpers.
 
     fn setup_session(root: &std::path::Path, cwd: &str, session_id: &str) {
-        let encoded = crate::util::grok_home::encode_cwd_dirname(cwd);
+        let encoded = crate::util::axon_home::encode_cwd_dirname(cwd);
         let dir = root.join(&encoded).join(session_id);
         fs::create_dir_all(&dir).unwrap();
         fs::write(dir.join("summary.json"), b"{}").unwrap();
     }
 
     fn setup_child_session(root: &std::path::Path, cwd: &str, child_id: &str, parent_id: &str) {
-        let encoded = crate::util::grok_home::encode_cwd_dirname(cwd);
+        let encoded = crate::util::axon_home::encode_cwd_dirname(cwd);
         let dir = root.join(&encoded).join(child_id);
         fs::create_dir_all(&dir).unwrap();
         let summary = serde_json::json!({ "parent_session_id": parent_id });
@@ -3724,7 +3724,7 @@ mod resolve_local_session_tests {
         // Exact match: session_exists_for_cwd → true
         assert!(session_exists_for_cwd_in_root(sid, cwd, &root));
         // The composed function should return the original id.
-        // (We can't call resolve_local_session directly because it uses grok_home(),
+        // (We can't call resolve_local_session directly because it uses axon_home(),
         //  but the logic is: if session_exists → Some(session_id.to_string()),
         //  else find_local_child → child_id. Tested via inner helpers.)
         assert_eq!(
@@ -3759,7 +3759,7 @@ mod resolve_local_session_tests {
         let tmp = TempDir::new().unwrap();
         let root = tmp.path().join("sessions");
         let cwd = "/project/gamma";
-        fs::create_dir_all(root.join(crate::util::grok_home::encode_cwd_dirname(cwd))).unwrap();
+        fs::create_dir_all(root.join(crate::util::axon_home::encode_cwd_dirname(cwd))).unwrap();
 
         assert!(!session_exists_for_cwd_in_root("missing", cwd, &root));
         assert_eq!(
@@ -3790,14 +3790,14 @@ mod repo_wide_resolution_tests {
     use std::fs;
 
     fn setup_session(root: &Path, cwd: &str, session_id: &str) {
-        let encoded = crate::util::grok_home::encode_cwd_dirname(cwd);
+        let encoded = crate::util::axon_home::encode_cwd_dirname(cwd);
         let dir = root.join(&encoded).join(session_id);
         fs::create_dir_all(&dir).unwrap();
         fs::write(dir.join("summary.json"), b"{}").unwrap();
     }
 
     fn setup_child_session(root: &Path, cwd: &str, child_id: &str, parent_id: &str) {
-        let encoded = crate::util::grok_home::encode_cwd_dirname(cwd);
+        let encoded = crate::util::axon_home::encode_cwd_dirname(cwd);
         let dir = root.join(&encoded).join(child_id);
         fs::create_dir_all(&dir).unwrap();
         let summary = format!(
@@ -3833,7 +3833,7 @@ mod repo_wide_resolution_tests {
         let exact_cwd = "/repo/main";
         let sibling_cwd = "/repo/worktree-1";
 
-        let encoded = crate::util::grok_home::encode_cwd_dirname(exact_cwd);
+        let encoded = crate::util::axon_home::encode_cwd_dirname(exact_cwd);
         let images = root.join(&encoded).join("sess-A").join("images");
         fs::create_dir_all(&images).unwrap();
         fs::write(images.join("image-1.png"), b"png").unwrap();

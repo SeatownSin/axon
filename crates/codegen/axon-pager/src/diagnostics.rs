@@ -367,7 +367,7 @@ fn sandbox_profile_conflict_warning_from(conflicts: Vec<String>) -> Option<Termi
 ///
 /// Gates (all must hold):
 /// - `is_ssh` — the session runs over SSH ([`TerminalContext::is_ssh`]);
-/// - `!osc52_sink_active` — no wrap is already capturing our output. `grok
+/// - `!osc52_sink_active` — no wrap is already capturing our output. `axon
 ///   wrap` advertises its OSC 52 sink through the SSH hop via an env var
 ///   (see `clipboard::osc52_sink_active`), so once a user adopts wrap the
 ///   hint silences itself with no further bookkeeping. Env-based, so stale
@@ -2409,7 +2409,7 @@ mod tests {
     #[test]
     fn notification_none_protocol_no_warnings() {
         let ctx = TerminalContext {
-            brand: TerminalName::GrokDesktop,
+            brand: TerminalName::AxonDesktop,
             ..Default::default()
         };
         let query = FakeTmuxQuery::healthy_modern();
@@ -2433,7 +2433,7 @@ mod tests {
         assert!(supports_focus_tracking(TerminalName::Terminator));
         assert!(supports_focus_tracking(TerminalName::WarpTerminal));
         assert!(supports_focus_tracking(TerminalName::VsCode));
-        assert!(supports_focus_tracking(TerminalName::GrokDesktop));
+        assert!(supports_focus_tracking(TerminalName::AxonDesktop));
         assert!(!supports_focus_tracking(TerminalName::AppleTerminal));
         assert!(!supports_focus_tracking(TerminalName::Unknown));
         assert!(!supports_focus_tracking(TerminalName::Otty));

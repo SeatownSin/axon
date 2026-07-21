@@ -19,7 +19,7 @@ use super::system_appearance;
 /// In-memory theme kind, encoded as a `u8` matching the
 /// `ThemeKind` discriminants. Loaded from disk once at startup via
 /// `load_from_disk()`, then kept in sync by `set()`.
-static CURRENT: AtomicU8 = AtomicU8::new(ThemeKind::GrokNight as u8);
+static CURRENT: AtomicU8 = AtomicU8::new(ThemeKind::AxonNight as u8);
 static LOADED: AtomicBool = AtomicBool::new(false);
 #[cfg(any(test, feature = "test-support"))]
 static TEST_LOCK: Mutex<()> = Mutex::new(());
@@ -36,19 +36,19 @@ static AUTO_MODE: AtomicBool = AtomicBool::new(false);
 static TERMINAL_NATIVE_LOCK: AtomicBool = AtomicBool::new(false);
 
 /// Decode the u8 stored in `CURRENT` back to a `ThemeKind`. Falls
-/// back to `GrokNight` if the byte is somehow out of range (which
+/// back to `AxonNight` if the byte is somehow out of range (which
 /// can't happen via `set` — the discriminant is always a valid
 /// variant — but defends against a future variant addition that
 /// forgot to extend this match).
 fn theme_kind_from_u8(byte: u8) -> ThemeKind {
     match byte {
-        x if x == ThemeKind::GrokNight as u8 => ThemeKind::GrokNight,
-        x if x == ThemeKind::GrokDay as u8 => ThemeKind::GrokDay,
+        x if x == ThemeKind::AxonNight as u8 => ThemeKind::AxonNight,
+        x if x == ThemeKind::AxonDay as u8 => ThemeKind::AxonDay,
         x if x == ThemeKind::TokyoNight as u8 => ThemeKind::TokyoNight,
         x if x == ThemeKind::RosePineMoon as u8 => ThemeKind::RosePineMoon,
         x if x == ThemeKind::OscuraMidnight as u8 => ThemeKind::OscuraMidnight,
         x if x == ThemeKind::Auto as u8 => ThemeKind::Auto,
-        _ => ThemeKind::GrokNight,
+        _ => ThemeKind::AxonNight,
     }
 }
 
@@ -63,7 +63,7 @@ static AUTO_THEME_CONFIG: Mutex<Option<AutoThemeConfig>> = Mutex::new(None);
 ///
 /// `dark_theme` and `light_theme` are the user-configured overrides read
 /// from `[ui].auto_dark_theme` and `[ui].auto_light_theme` in `config.toml`.
-/// When `None`, `to_theme_kind()` defaults to `GrokNight` / `GrokDay`.
+/// When `None`, `to_theme_kind()` defaults to `AxonNight` / `AxonDay`.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct AutoThemeConfig {
     pub dark_theme: Option<ThemeKind>,
@@ -78,7 +78,7 @@ pub struct AutoThemeConfig {
 pub fn current_kind() -> ThemeKind {
     // Locked: return a constant nominal kind without seeding from disk.
     if terminal_native_locked() {
-        return ThemeKind::GrokNight;
+        return ThemeKind::AxonNight;
     }
     if !LOADED.load(Ordering::Acquire) {
         // Two threads racing into the seed path is harmless — the
@@ -161,7 +161,7 @@ pub fn invalidate_auto_theme_config() {
 /// Precedence:
 /// 1. Environment variable (`AXON_THEME`)
 /// 2. Config file (`[ui].theme`)
-/// 3. Default: `GrokNight`
+/// 3. Default: `AxonNight`
 #[must_use]
 pub fn resolve_initial_theme() -> ThemeKind {
     // 1. Environment variable (for desktop app integration)
@@ -185,8 +185,8 @@ fn resolve_from_config(config_theme: Option<ThemeKind>, osc11_fallback: bool) ->
         return kind;
     }
 
-    // Default: GrokNight
-    ThemeKind::GrokNight
+    // Default: AxonNight
+    ThemeKind::AxonNight
 }
 
 /// Map an optional appearance detection result to a concrete `ThemeKind`.
@@ -194,13 +194,13 @@ fn resolve_from_appearance(appearance: Option<system_appearance::SystemAppearanc
     let config = auto_theme_config();
     appearance
         .map(|a| system_appearance::to_theme_kind(a, config.dark_theme, config.light_theme))
-        .unwrap_or(ThemeKind::GrokNight)
+        .unwrap_or(ThemeKind::AxonNight)
 }
 
 /// Resolve "auto" by detecting system appearance and mapping via config.
 ///
 /// Returns the concrete `ThemeKind` based on the current system appearance
-/// and the user's dark/light theme mapping. Falls back to `GrokNight`
+/// and the user's dark/light theme mapping. Falls back to `AxonNight`
 /// when detection fails.
 ///
 /// Uses desktop APIs only (no OSC 11) — safe to call at runtime while
@@ -274,7 +274,7 @@ fn load_auto_theme_config() -> AutoThemeConfig {
 pub fn reset_for_test() {
     // Tests are serialized via TEST_LOCK so the AtomicU8/AtomicBool
     // pair is safe to reset without any cross-thread coordination.
-    CURRENT.store(ThemeKind::GrokNight as u8, Ordering::Relaxed);
+    CURRENT.store(ThemeKind::AxonNight as u8, Ordering::Relaxed);
     LOADED.store(false, Ordering::Release);
     AUTO_MODE.store(false, Ordering::Relaxed);
     set_terminal_native_lock(false);
@@ -303,7 +303,7 @@ pub fn test_lock() -> &'static Mutex<()> {
 #[cfg(any(test, feature = "test-support"))]
 pub fn pin_theme() -> std::sync::MutexGuard<'static, ()> {
     let guard = test_lock().lock().unwrap_or_else(|e| e.into_inner());
-    set(ThemeKind::GrokNight);
+    set(ThemeKind::AxonNight);
     // Color level is a write-once `OnceLock`; tests run without a TTY so it
     // resolves to `TrueColor` anyway. Pin it explicitly (best-effort: ignore the
     // already-initialized `Err`) so the measure path that reads it stays fixed.
@@ -322,7 +322,7 @@ mod tests {
         reset_for_test();
         seed_auto_theme_defaults_for_test();
         // Set LOADED=true so current_kind() doesn't read from disk.
-        set(ThemeKind::GrokNight);
+        set(ThemeKind::AxonNight);
         system_appearance::clear_mock();
         f();
         system_appearance::clear_mock();
@@ -339,19 +339,19 @@ mod tests {
     #[test]
     fn terminal_native_lock_pins_kind_and_blocks_apply_kind() {
         with_test_env(|| {
-            set(ThemeKind::GrokDay);
+            set(ThemeKind::AxonDay);
             set_terminal_native_lock(true);
             assert!(terminal_native_locked());
-            assert_eq!(current_kind(), ThemeKind::GrokNight, "nominal kind");
+            assert_eq!(current_kind(), ThemeKind::AxonNight, "nominal kind");
 
-            let applied = super::super::Theme::apply_kind(ThemeKind::GrokDay);
-            assert_eq!(applied, ThemeKind::GrokNight, "apply_kind must no-op");
-            assert_eq!(current_kind(), ThemeKind::GrokNight);
+            let applied = super::super::Theme::apply_kind(ThemeKind::AxonDay);
+            assert_eq!(applied, ThemeKind::AxonNight, "apply_kind must no-op");
+            assert_eq!(current_kind(), ThemeKind::AxonNight);
 
             set_terminal_native_lock(false);
             assert_eq!(
                 current_kind(),
-                ThemeKind::GrokDay,
+                ThemeKind::AxonDay,
                 "unlocking restores the cached kind"
             );
         });
@@ -360,7 +360,7 @@ mod tests {
     #[test]
     fn terminal_native_lock_serves_terminal_default_palette() {
         with_test_env(|| {
-            set(ThemeKind::GrokDay);
+            set(ThemeKind::AxonDay);
             set_terminal_native_lock(true);
             let theme = super::super::Theme::current();
             let native = super::super::Theme::terminal_default();
@@ -369,8 +369,8 @@ mod tests {
             assert_eq!(theme.accent_user, native.accent_user);
             assert_ne!(
                 theme.text_primary,
-                super::super::Theme::grokday().text_primary,
-                "must not serve the cached (GrokDay) theme"
+                super::super::Theme::axonday().text_primary,
+                "must not serve the cached (AxonDay) theme"
             );
         });
     }
@@ -393,7 +393,7 @@ mod tests {
             set_terminal_native_lock(true);
             assert!(color_support::detect() <= color_support::ColorLevel::Basic);
             for input in [
-                Color::Rgb(0x26, 0x26, 0x26), // grokday text_primary
+                Color::Rgb(0x26, 0x26, 0x26), // axonday text_primary
                 Color::Rgb(122, 162, 247),
                 Color::Indexed(141),
             ] {
@@ -411,19 +411,19 @@ mod tests {
     fn resolve_no_osc11_explicit_auto_and_default() {
         with_test_env(|| {
             assert_eq!(
-                resolve_from_config(Some(ThemeKind::GrokDay), false),
-                ThemeKind::GrokDay
+                resolve_from_config(Some(ThemeKind::AxonDay), false),
+                ThemeKind::AxonDay
             );
             assert!(!is_auto_mode());
 
             system_appearance::set_mock(Some(system_appearance::SystemAppearance::Light));
             assert_eq!(
                 resolve_from_config(Some(ThemeKind::Auto), false),
-                ThemeKind::GrokDay
+                ThemeKind::AxonDay
             );
             assert!(is_auto_mode(), "auto must arm the appearance watcher");
 
-            assert_eq!(resolve_from_config(None, false), ThemeKind::GrokNight);
+            assert_eq!(resolve_from_config(None, false), ThemeKind::AxonNight);
         });
     }
 
@@ -458,29 +458,29 @@ mod tests {
     // -- resolve_auto --------------------------------------------------------
 
     #[test]
-    fn resolve_auto_dark_system_returns_groknight() {
+    fn resolve_auto_dark_system_returns_axonnight() {
         with_test_env(|| {
             system_appearance::set_mock(Some(system_appearance::SystemAppearance::Dark));
             let result = resolve_auto();
-            assert_eq!(result, ThemeKind::GrokNight);
+            assert_eq!(result, ThemeKind::AxonNight);
         });
     }
 
     #[test]
-    fn resolve_auto_light_system_returns_grokday() {
+    fn resolve_auto_light_system_returns_axonday() {
         with_test_env(|| {
             system_appearance::set_mock(Some(system_appearance::SystemAppearance::Light));
             let result = resolve_auto();
-            assert_eq!(result, ThemeKind::GrokDay);
+            assert_eq!(result, ThemeKind::AxonDay);
         });
     }
 
     #[test]
-    fn resolve_auto_detection_failure_returns_groknight() {
+    fn resolve_auto_detection_failure_returns_axonnight() {
         with_test_env(|| {
             system_appearance::set_mock(None);
             let result = resolve_auto();
-            assert_eq!(result, ThemeKind::GrokNight);
+            assert_eq!(result, ThemeKind::AxonNight);
         });
     }
 
@@ -509,10 +509,10 @@ mod tests {
     // -- resolve_from_config (resolve_initial_theme inner logic) ---------------
 
     #[test]
-    fn resolve_from_config_no_config_returns_groknight() {
+    fn resolve_from_config_no_config_returns_axonnight() {
         with_test_env(|| {
             let result = resolve_from_config(None, true);
-            assert_eq!(result, ThemeKind::GrokNight);
+            assert_eq!(result, ThemeKind::AxonNight);
             assert!(!is_auto_mode());
         });
     }
@@ -520,8 +520,8 @@ mod tests {
     #[test]
     fn resolve_from_config_explicit_theme_returns_it() {
         with_test_env(|| {
-            let result = resolve_from_config(Some(ThemeKind::GrokDay), true);
-            assert_eq!(result, ThemeKind::GrokDay);
+            let result = resolve_from_config(Some(ThemeKind::AxonDay), true);
+            assert_eq!(result, ThemeKind::AxonDay);
             assert!(
                 !is_auto_mode(),
                 "explicit theme should not enable auto mode"
@@ -534,7 +534,7 @@ mod tests {
         with_test_env(|| {
             system_appearance::set_mock(Some(system_appearance::SystemAppearance::Dark));
             let result = resolve_from_config(Some(ThemeKind::Auto), true);
-            assert_eq!(result, ThemeKind::GrokNight);
+            assert_eq!(result, ThemeKind::AxonNight);
             assert!(is_auto_mode(), "auto config must enable auto mode");
         });
     }
@@ -544,7 +544,7 @@ mod tests {
         with_test_env(|| {
             system_appearance::set_mock(Some(system_appearance::SystemAppearance::Light));
             let result = resolve_from_config(Some(ThemeKind::Auto), true);
-            assert_eq!(result, ThemeKind::GrokDay);
+            assert_eq!(result, ThemeKind::AxonDay);
             assert!(is_auto_mode());
         });
     }
@@ -554,7 +554,7 @@ mod tests {
         with_test_env(|| {
             system_appearance::set_mock(None);
             let result = resolve_from_config(Some(ThemeKind::Auto), true);
-            assert_eq!(result, ThemeKind::GrokNight);
+            assert_eq!(result, ThemeKind::AxonNight);
             assert!(is_auto_mode(), "auto mode is set before detection");
         });
     }
@@ -617,8 +617,8 @@ mod tests {
         with_test_env(|| {
             set(ThemeKind::TokyoNight);
             assert_eq!(current_kind(), ThemeKind::TokyoNight);
-            set(ThemeKind::GrokDay);
-            assert_eq!(current_kind(), ThemeKind::GrokDay);
+            set(ThemeKind::AxonDay);
+            assert_eq!(current_kind(), ThemeKind::AxonDay);
         });
     }
 
@@ -638,14 +638,14 @@ mod tests {
                 !LOADED.load(Ordering::Acquire),
                 "LOADED must be false for this test"
             );
-            set(ThemeKind::GrokDay);
+            set(ThemeKind::AxonDay);
             assert!(
                 LOADED.load(Ordering::Acquire),
                 "set must flip LOADED to true"
             );
             // Subsequent current_kind read returns the set value (no
             // disk re-seed).
-            assert_eq!(current_kind(), ThemeKind::GrokDay);
+            assert_eq!(current_kind(), ThemeKind::AxonDay);
             assert!(
                 LOADED.load(Ordering::Acquire),
                 "current_kind must NOT flip LOADED back to false"

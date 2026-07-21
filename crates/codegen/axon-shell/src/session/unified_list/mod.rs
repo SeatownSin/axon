@@ -51,7 +51,7 @@ pub fn conversations_lane_enabled() -> bool {
 pub fn conversations_lane_active() -> bool {
     conversations_lane_enabled() || crate::agent::chat_modes::process_chat_mode_enabled()
 }
-/// Parse `x.ai/session/list` params and, under process-wide chat mode, force
+/// Parse `axon/session/list` params and, under process-wide chat mode, force
 /// the conversations-only `kind` facet (see [`force_kind_chat`]).
 pub fn parse_list_req(raw: &str) -> Result<ListReq, serde_json::Error> {
     let mut req: ListReq = serde_json::from_str(raw)?;
@@ -92,7 +92,7 @@ impl ParsedMeta {
             return Self::default();
         };
         let facet_filters = meta
-            .get("x.ai/facetFilters")
+            .get("axon/facetFilters")
             .and_then(|v| v.as_object())
             .map(|obj| {
                 obj.iter()
@@ -101,11 +101,11 @@ impl ParsedMeta {
             })
             .unwrap_or_default();
         let query = meta
-            .get("x.ai/query")
+            .get("axon/query")
             .and_then(|v| v.as_str())
             .map(str::to_owned);
         let limit = meta
-            .get("x.ai/limit")
+            .get("axon/limit")
             .and_then(serde_json::Value::as_u64)
             .map(|n| n as usize);
         Self {
@@ -131,7 +131,7 @@ pub fn force_kind_chat(req: &mut ListReq) {
         Some(serde_json::Value::Object(map)) => map,
         _ => serde_json::Map::new(),
     };
-    let mut filters = match meta.remove("x.ai/facetFilters") {
+    let mut filters = match meta.remove("axon/facetFilters") {
         Some(serde_json::Value::Object(map)) => map,
         _ => serde_json::Map::new(),
     };
@@ -140,7 +140,7 @@ pub fn force_kind_chat(req: &mut ListReq) {
         serde_json::json!([SessionKind::Chat.as_str()]),
     );
     meta.insert(
-        "x.ai/facetFilters".to_owned(),
+        "axon/facetFilters".to_owned(),
         serde_json::Value::Object(filters),
     );
     req.meta = Some(serde_json::Value::Object(meta));
@@ -295,9 +295,9 @@ pub struct ExtListResponse {
 }
 #[derive(Debug, Clone, Serialize)]
 pub struct ExtListResponseMeta {
-    #[serde(rename = "x.ai/facets")]
+    #[serde(rename = "axon/facets")]
     pub facets: FacetSummary,
-    #[serde(rename = "x.ai/partial")]
+    #[serde(rename = "axon/partial")]
     pub partial: PartialInfo,
 }
 #[derive(Debug, Clone, Serialize)]
@@ -339,18 +339,18 @@ mod tests {
             first_prompt: Some("first prompt".into()),
             updated_at: updated_at.into(),
             created_at: "2026-01-01T00:00:00Z".into(),
-            cwd: "/Users/me/xai".into(),
+            cwd: "/Users/me/axon".into(),
             hostname: Some("devbox".into()),
             source: "local".into(),
-            model_id: Some("grok-build".into()),
+            model_id: Some("axon-build".into()),
             num_messages: 7,
             last_active_at: Some(updated_at.into()),
             branch: Some("main".into()),
-            repo_name: Some("xai".into()),
+            repo_name: Some("axon".into()),
             worktree_label: Some("wt".into()),
-            git_root_dir: Some("/Users/me/xai".into()),
+            git_root_dir: Some("/Users/me/axon".into()),
             git_remotes: vec!["git@github.com:example/repo.git".into()],
-            source_workspace_dir: Some("/Users/me/xai-src".into()),
+            source_workspace_dir: Some("/Users/me/axon-src".into()),
             session_kind: Some("worktree".into()),
         }
     }
@@ -383,10 +383,10 @@ mod tests {
         assert_eq!(value["source"], "local");
         assert_eq!(value["numMessages"], 7);
         assert_eq!(value["title"], "a summary");
-        assert_eq!(value["_meta"]["x.ai/session"]["kind"], "build");
-        assert_eq!(value["gitRootDir"], "/Users/me/xai");
+        assert_eq!(value["_meta"]["axon/session"]["kind"], "build");
+        assert_eq!(value["gitRootDir"], "/Users/me/axon");
         assert_eq!(value["gitRemotes"][0], "git@github.com:example/repo.git");
-        assert_eq!(value["sourceWorkspaceDir"], "/Users/me/xai-src");
+        assert_eq!(value["sourceWorkspaceDir"], "/Users/me/axon-src");
         assert_eq!(value["sessionKind"], "worktree");
     }
     #[test]
@@ -395,16 +395,16 @@ mod tests {
         assert!(matches!(r.facets.get(KIND_FACET_KEY),
             Some(FacetValue::One(serde_json::Value::String(k))) if k == "build"));
         assert!(matches!(r.facets.get(CWD_FACET_KEY),
-            Some(FacetValue::One(serde_json::Value::String(c))) if c == "/Users/me/xai"));
+            Some(FacetValue::One(serde_json::Value::String(c))) if c == "/Users/me/axon"));
     }
     #[test]
     fn bare_session_info_is_minimal_plus_meta() {
         let value =
             serde_json::to_value(row("s1", "2026-06-18T20:10:00Z").into_session_info()).unwrap();
         assert_eq!(value["sessionId"], "s1");
-        assert_eq!(value["cwd"], "/Users/me/xai");
+        assert_eq!(value["cwd"], "/Users/me/axon");
         assert_eq!(value["title"], "a summary");
-        assert_eq!(value["_meta"]["x.ai/session"]["kind"], "build");
+        assert_eq!(value["_meta"]["axon/session"]["kind"], "build");
         assert!(value.get("summary").is_none());
         assert!(value.get("source").is_none());
     }
@@ -461,8 +461,8 @@ mod tests {
     #[test]
     fn parsed_meta_reads_facet_filters_query_and_limit() {
         let meta = serde_json::json!(
-            { "x.ai/facetFilters" : { "kind" : ["build"], "starred" : true },
-            "x.ai/query" : "antelope", "x.ai/limit" : 5, }
+            { "axon/facetFilters" : { "kind" : ["build"], "starred" : true },
+            "axon/query" : "antelope", "axon/limit" : 5, }
         );
         let parsed = ParsedMeta::parse(Some(&meta));
         assert_eq!(parsed.query.as_deref(), Some("antelope"));
@@ -502,7 +502,7 @@ mod tests {
     #[test]
     fn forced_kind_replaces_client_build_filter() {
         let mut req = ListReq {
-            meta: Some(serde_json::json!({ "x.ai/facetFilters" : { "kind" : ["build"] }, })),
+            meta: Some(serde_json::json!({ "axon/facetFilters" : { "kind" : ["build"] }, })),
             ..ListReq::default()
         };
         force_kind_chat(&mut req);
@@ -519,8 +519,8 @@ mod tests {
     fn forced_kind_preserves_other_facets() {
         let mut req = ListReq {
             meta: Some(serde_json::json!(
-                { "x.ai/facetFilters" : { "kind" : ["build"], "starred" : [true],
-                "workspace" : ["w1"] }, "x.ai/query" : "antelope", "x.ai/limit" : 5,
+                { "axon/facetFilters" : { "kind" : ["build"], "starred" : [true],
+                "workspace" : ["w1"] }, "axon/query" : "antelope", "axon/limit" : 5,
                 }
             )),
             ..ListReq::default()
@@ -552,16 +552,16 @@ mod tests {
             Some(&vec![serde_json::json!("chat")])
         );
     }
-    fn xai_auth_manager(dir: &std::path::Path) -> std::sync::Arc<crate::auth::AuthManager> {
+    fn axon_auth_manager(dir: &std::path::Path) -> std::sync::Arc<crate::auth::AuthManager> {
         let am = std::sync::Arc::new(crate::auth::AuthManager::new(
             dir,
-            crate::auth::GrokComConfig::default(),
+            crate::auth::AxonComConfig::default(),
         ));
-        am.hot_swap(crate::auth::GrokAuth {
+        am.hot_swap(crate::auth::AxonAuth {
             auth_mode: crate::auth::AuthMode::Oidc,
-            oidc_issuer: Some(crate::auth::xai_oauth2_issuer().to_owned()),
+            oidc_issuer: Some(crate::auth::axon_oauth2_issuer().to_owned()),
             expires_at: Some(chrono::Utc::now() + chrono::Duration::hours(1)),
-            ..crate::auth::GrokAuth::test_default()
+            ..crate::auth::AxonAuth::test_default()
         });
         am
     }
@@ -608,9 +608,9 @@ mod tests {
             format!("http://{addr}"),
         );
         let home = tempfile::tempdir().expect("tempdir");
-        let client = ConversationsClient::new(xai_auth_manager(home.path()));
+        let client = ConversationsClient::new(axon_auth_manager(home.path()));
         let mut req = ListReq {
-            meta: Some(serde_json::json!({ "x.ai/facetFilters" : { "kind" : ["build"] }, })),
+            meta: Some(serde_json::json!({ "axon/facetFilters" : { "kind" : ["build"] }, })),
             ..ListReq::default()
         };
         force_kind_chat(&mut req);
@@ -638,7 +638,7 @@ mod tests {
         let home = tempfile::tempdir().expect("tempdir");
         let auth = std::sync::Arc::new(crate::auth::AuthManager::new(
             home.path(),
-            crate::auth::GrokComConfig::default(),
+            crate::auth::AxonComConfig::default(),
         ));
         auth.set_devbox_env_for_test(false);
         let client = ConversationsClient::new(auth);
@@ -714,7 +714,7 @@ mod tests {
     fn parse_list_req_forces_kind_under_process_chat_mode_only() {
         use crate::agent::chat_modes::AXON_CHAT_MODE_ENV;
         let raw = serde_json::json!(
-            { "_meta" : { "x.ai/facetFilters" : { "kind" : ["build"], "starred" : [true]
+            { "_meta" : { "axon/facetFilters" : { "kind" : ["build"], "starred" : [true]
             } }, }
         )
         .to_string();
@@ -744,7 +744,7 @@ mod tests {
             );
         }
     }
-    /// Wire pin for the cross-crate `x.ai/partial` envelope the pager parses:
+    /// Wire pin for the cross-crate `axon/partial` envelope the pager parses:
     /// the serialized reason strings must not drift (the pager maps unknown
     /// reasons to a generic retry notice, masking a rename).
     #[test]
@@ -762,7 +762,7 @@ mod tests {
             }))
             .expect("serialize");
             assert_eq!(
-                value["_meta"]["x.ai/partial"],
+                value["_meta"]["axon/partial"],
                 serde_json::json!({ "conversations" :
                 true, "reason" : wire })
             );
@@ -775,7 +775,7 @@ mod tests {
         }))
         .expect("serialize");
         assert_eq!(
-            healthy["_meta"]["x.ai/partial"],
+            healthy["_meta"]["axon/partial"],
             serde_json::json!({ "conversations" :
             false })
         );

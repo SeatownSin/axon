@@ -5,26 +5,26 @@
     unreachable_code,
     dead_code
 )]
-//! Backend environment presets for the Grok CLI crate family: endpoint URL
+//! Backend environment presets for the Axon CLI crate family: endpoint URL
 //! defaults, environment selection, and env-var test support.
 //!
-//! Public builds expose production endpoints. Values resolve as a `GROK_*`
+//! Public builds expose production endpoints. Values resolve as a `AXON_*`
 //! env-var override when set, else the compiled production default.
 /// The endpoint set for one backend environment.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct GrokBuildEndpoints {
+pub struct AxonBuildEndpoints {
     pub cli_chat_proxy_base_url: &'static str,
     pub asset_server_url: &'static str,
     pub relay_ws_url: &'static str,
     pub gateway_ws_url: &'static str,
     pub ws_origin: &'static str,
 }
-const PRODUCTION_ENDPOINTS: GrokBuildEndpoints = GrokBuildEndpoints {
-    cli_chat_proxy_base_url: "https://cli-chat-proxy.grok.com/v1",
-    asset_server_url: "https://assets.grok.com",
-    relay_ws_url: "wss://code.grok.com/ws/code-agent",
-    gateway_ws_url: "wss://grok.com/ws/gw/",
-    ws_origin: "https://grok.com",
+const PRODUCTION_ENDPOINTS: AxonBuildEndpoints = AxonBuildEndpoints {
+    cli_chat_proxy_base_url: "https://cli-chat-proxy.blocked.invalid/v1",
+    asset_server_url: "https://assets.blocked.invalid",
+    relay_ws_url: "wss://code.blocked.invalid/ws/code-agent",
+    gateway_ws_url: "wss://blocked.invalid/ws/gw/",
+    ws_origin: "https://blocked.invalid",
 };
 pub const PROD_CLI_CHAT_PROXY_BASE_URL: &str = PRODUCTION_ENDPOINTS.cli_chat_proxy_base_url;
 pub const PROD_ASSET_SERVER_URL: &str = PRODUCTION_ENDPOINTS.asset_server_url;
@@ -32,32 +32,32 @@ pub const PROD_RELAY_WS_URL: &str = PRODUCTION_ENDPOINTS.relay_ws_url;
 pub const PROD_GATEWAY_WS_URL: &str = PRODUCTION_ENDPOINTS.gateway_ws_url;
 pub const PROD_WS_ORIGIN: &str = PRODUCTION_ENDPOINTS.ws_origin;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum GrokBuildEnvironment {
+pub enum AxonBuildEnvironment {
     #[default]
     Production,
 }
-impl GrokBuildEnvironment {
+impl AxonBuildEnvironment {
     pub fn from_flags(_dev: bool, _staging: bool) -> Self {
-        GrokBuildEnvironment::Production
+        AxonBuildEnvironment::Production
     }
     /// Indicator string for display; `None` for Production.
     pub fn indicator(&self) -> Option<&'static str> {
         match self {
-            GrokBuildEnvironment::Production => None,
+            AxonBuildEnvironment::Production => None,
         }
     }
     pub fn is_production(&self) -> bool {
-        matches!(self, GrokBuildEnvironment::Production)
+        matches!(self, AxonBuildEnvironment::Production)
     }
     fn env_prefix(&self) -> &'static str {
         match self {
-            GrokBuildEnvironment::Production => "AXON_PRODUCTION",
+            AxonBuildEnvironment::Production => "AXON_PRODUCTION",
         }
     }
     /// Compiled endpoint set for this environment (production by default).
-    pub fn endpoints(&self) -> GrokBuildEndpoints {
+    pub fn endpoints(&self) -> AxonBuildEndpoints {
         match self {
-            GrokBuildEnvironment::Production => PRODUCTION_ENDPOINTS,
+            AxonBuildEnvironment::Production => PRODUCTION_ENDPOINTS,
         }
     }
     /// Env-var override when set, else the compiled endpoint.
@@ -77,7 +77,7 @@ impl GrokBuildEnvironment {
     pub fn asset_server_url(&self) -> String {
         self.resolve("_ASSET_SERVER_URL", self.endpoints().asset_server_url)
     }
-    /// The relay WebSocket URL (Web Frontend at `grok.com/code` driving a
+    /// The relay WebSocket URL (Web Frontend at `blocked.invalid/code` driving a
     /// local agent). Not the cloud-sandbox gateway ([`Self::gateway_ws_url`]);
     /// the two speak different protocols.
     pub fn relay_ws_url(&self) -> String {
@@ -89,10 +89,10 @@ impl GrokBuildEnvironment {
         self.resolve("_GATEWAY_WS_URL", self.endpoints().gateway_ws_url)
     }
 }
-impl std::fmt::Display for GrokBuildEnvironment {
+impl std::fmt::Display for AxonBuildEnvironment {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            GrokBuildEnvironment::Production => write!(f, "production"),
+            AxonBuildEnvironment::Production => write!(f, "production"),
         }
     }
 }
@@ -154,7 +154,7 @@ mod tests {
     #[test]
     fn test_env_prefix() {
         assert_eq!(
-            GrokBuildEnvironment::Production.env_prefix(),
+            AxonBuildEnvironment::Production.env_prefix(),
             "AXON_PRODUCTION"
         );
     }
@@ -179,19 +179,19 @@ mod tests {
         );
     }
     /// Guards against conflating the relay and gateway endpoints (a relay
-    /// loop mistakenly connecting to `wss://grok.com/ws/gw/`).
+    /// loop mistakenly connecting to `wss://blocked.invalid/ws/gw/`).
     #[test]
     fn relay_and_gateway_urls_are_distinct() {
         assert_ne!(
-            GrokBuildEnvironment::Production.relay_ws_url(),
-            GrokBuildEnvironment::Production.gateway_ws_url(),
+            AxonBuildEnvironment::Production.relay_ws_url(),
+            AxonBuildEnvironment::Production.gateway_ws_url(),
         );
     }
     #[test]
     fn test_from_flags() {
         assert_eq!(
-            GrokBuildEnvironment::from_flags(false, false),
-            GrokBuildEnvironment::Production
+            AxonBuildEnvironment::from_flags(false, false),
+            AxonBuildEnvironment::Production
         );
     }
 }

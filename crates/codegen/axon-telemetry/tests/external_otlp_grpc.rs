@@ -48,9 +48,9 @@ fn external_stream_grpc_end_to_end() {
     });
     axon_telemetry::log_event(axon_telemetry::events::SessionHarness {
         session_id: "sess-grpc-1".into(),
-        client_identifier: Some("grok-pager".into()),
-        model_id: "grok-4".into(),
-        agent_name: "grok-build-plan".into(),
+        client_identifier: Some("axon-pager".into()),
+        model_id: "axon-4".into(),
+        agent_name: "axon-build-plan".into(),
         permission_mode: axon_telemetry::enums::PermissionMode::Ask,
         mcp_server_names: vec![CANARY_MCP.into()],
         plugin_names: vec![],
@@ -64,7 +64,7 @@ fn external_stream_grpc_end_to_end() {
     });
     axon_telemetry::log_event(axon_telemetry::events::PromptSubmitted {
         prompt_length: CANARY_PROMPT.len(),
-        model_id: "grok-4".into(),
+        model_id: "axon-4".into(),
         client_identifier: None,
         screen_mode: None,
         prompt_text: Some(CANARY_PROMPT.into()),
@@ -89,9 +89,9 @@ fn external_stream_grpc_end_to_end() {
 
     let event_names = col::event_names(&collected);
     for expected in [
-        "grok_code.session_start",
-        "grok_code.user_prompt",
-        "grok_code.api_request",
+        "axon_code.session_start",
+        "axon_code.user_prompt",
+        "axon_code.api_request",
     ] {
         assert!(
             event_names.iter().any(|n| n == expected),
@@ -101,11 +101,11 @@ fn external_stream_grpc_end_to_end() {
 
     let metrics = col::metric_points(&collected);
     assert!(
-        metrics.iter().any(|p| p.name == "grok_code.session.count"),
+        metrics.iter().any(|p| p.name == "axon_code.session.count"),
         "missing session.count in {metrics:?}"
     );
     assert!(
-        metrics.iter().any(|p| p.name == "grok_code.token.usage"),
+        metrics.iter().any(|p| p.name == "axon_code.token.usage"),
         "missing token.usage in {metrics:?}"
     );
     for point in metrics {

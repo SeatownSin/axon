@@ -17,13 +17,13 @@ struct TipState {
     cursor: u64,
 }
 
-fn cursor_path(grok_home: &Path) -> PathBuf {
-    grok_home.join(CURSOR_FILE)
+fn cursor_path(axon_home: &Path) -> PathBuf {
+    axon_home.join(CURSOR_FILE)
 }
 
 /// Load the cursor from `~/.axon/tip_cursor.json`. Returns 0 on any error.
-fn load_cursor(grok_home: &Path) -> u64 {
-    let text = match std::fs::read_to_string(cursor_path(grok_home)) {
+fn load_cursor(axon_home: &Path) -> u64 {
+    let text = match std::fs::read_to_string(cursor_path(axon_home)) {
         Ok(t) => t,
         Err(_) => return 0,
     };
@@ -33,9 +33,9 @@ fn load_cursor(grok_home: &Path) -> u64 {
 }
 
 /// Save the cursor to `~/.axon/tip_cursor.json`. Silently ignores write errors.
-fn save_cursor(grok_home: &Path, cursor: u64) {
+fn save_cursor(axon_home: &Path, cursor: u64) {
     if let Ok(text) = serde_json::to_string(&TipState { cursor }) {
-        let _ = std::fs::write(cursor_path(grok_home), text);
+        let _ = std::fs::write(cursor_path(axon_home), text);
     }
 }
 
@@ -46,13 +46,13 @@ fn save_cursor(grok_home: &Path, cursor: u64) {
 /// in sequence. After all tips have been shown, the cycle repeats.
 ///
 /// Returns `None` if `tips` is empty (cursor is not advanced in that case).
-pub fn pick_and_advance(tips: &[String], grok_home: &Path) -> Option<String> {
+pub fn pick_and_advance(tips: &[String], axon_home: &Path) -> Option<String> {
     if tips.is_empty() {
         return None;
     }
-    let cursor = load_cursor(grok_home);
+    let cursor = load_cursor(axon_home);
     let tip = tips[cursor as usize % tips.len()].clone();
-    save_cursor(grok_home, cursor + 1);
+    save_cursor(axon_home, cursor + 1);
     Some(tip)
 }
 

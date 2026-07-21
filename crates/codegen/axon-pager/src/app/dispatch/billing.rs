@@ -7,14 +7,14 @@ use crate::app::agent_view::AgentView;
 use crate::app::app_view::AppView;
 use crate::scrollback::block::RenderBlock;
 use std::time::Duration;
-use axon_telemetry::events::{SuperGrokUpsell, SuperGrokUpsellClicked};
+use axon_telemetry::events::{SuperAxonUpsell, SuperAxonUpsellClicked};
 use axon_telemetry::session_ctx::log_event;
 
 /// How long the pager auto-checks subscription status before stopping.
 /// After this, the user can still manually check via the [Refresh] button.
 pub(super) const PAYWALL_AUTO_CHECK_TIMEOUT: Duration = Duration::from_secs(10 * 60);
 
-/// Whether the user is at the highest subscription tier (SuperGrok Heavy).
+/// Whether the user is at the highest subscription tier (SuperAxon Heavy).
 ///
 /// Returns `true` only when `subscription_tier` **positively matches** a
 /// known max-tier identifier. When the tier is unknown (`None`) or any
@@ -25,15 +25,15 @@ pub(super) fn is_max_tier(subscription_tier: Option<&str>) -> bool {
         return false; // Unknown — default to Q&A.
     };
     // Normalize: lowercase + spaces→underscores to match both JWT-derived
-    // keys ("supergrok_heavy") and CCP display names ("SuperGrok Heavy").
-    t.to_ascii_lowercase().replace(' ', "_") == "supergrok_heavy"
+    // keys ("superaxon_heavy") and CCP display names ("SuperAxon Heavy").
+    t.to_ascii_lowercase().replace(' ', "_") == "superaxon_heavy"
 }
 
 /// URL for upgrading the subscription tier.
-pub(crate) const UPSELL_URL_UPGRADE: &str = "https://grok.com/supergrok?referrer=grok-build";
+pub(crate) const UPSELL_URL_UPGRADE: &str = "https://blocked.invalid/superaxon?referrer=axon-build";
 
 /// URL for managing pay-as-you-go / on-demand spending / purchasing credits.
-pub(crate) const UPSELL_URL_PAYG: &str = "https://grok.com?_s=usage";
+pub(crate) const UPSELL_URL_PAYG: &str = "https://blocked.invalid?_s=usage";
 
 /// Billing mode for credit-limit upsell copy.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -89,7 +89,7 @@ pub(crate) fn is_credit_limit_error(http_status: Option<u16>, message: &str) -> 
 /// two options ("Upgrade tier" + buy-credits or PAYG). Each option's `id`
 /// carries the target URL so the submit handler is position-independent.
 ///
-/// **`max_tier = true`** (positively identified as SuperGrok Heavy):
+/// **`max_tier = true`** (positively identified as SuperAxon Heavy):
 /// pushes an inline scrollback card (`CreditLimitBlock`) with a single
 /// continue action. No Q&A modal — the user can't upgrade further.
 pub(super) fn open_credit_limit_upsell(
@@ -120,7 +120,7 @@ pub(super) fn open_credit_limit_upsell(
             "You hit your weekly limit.",
             "Upgrade to a higher tier for more usage",
             "Buy more credits",
-            "Purchase credits to keep using Grok Build",
+            "Purchase credits to keep using Axon Build",
             CreditLimitCardAction::PurchaseCredits,
             axon_telemetry::events::CreditLimitChoice::PurchaseCredits,
             false,
@@ -172,7 +172,7 @@ pub(super) fn open_credit_limit_upsell(
 
     // ── Default: Q&A question modal with two options ────────────────
     use crate::views::question_view::{LocalQuestionKind, QuestionViewState};
-    use axon_tools::implementations::grok_build::ask_user_question::{
+    use axon_tools::implementations::axon_build::ask_user_question::{
         Question, QuestionOption,
     };
 
@@ -224,12 +224,12 @@ pub(super) fn open_credit_limit_upsell(
 ///
 /// Driver-only by construction (called from the PromptResponse handler,
 /// which viewers never receive). `auth_method` feeds the
-/// `SuperGrokUpsellShown` funnel event.
+/// `SuperAxonUpsellShown` funnel event.
 pub(super) fn open_free_usage_upsell(agent: &mut AgentView, auth_method: Option<String>) {
-    open_supergrok_upsell(agent, UpsellReason::FreeUsageLimit, auth_method);
+    open_superaxon_upsell(agent, UpsellReason::FreeUsageLimit, auth_method);
 }
 
-/// Open the SuperGrok upsell for a tier-restricted slash command
+/// Open the SuperAxon upsell for a tier-restricted slash command
 /// (`/usage`, `/imagine`, …). Returns whether the modal opened (`false`
 /// when another question modal is already up) so the caller can decide
 /// whether to consume the input that triggered it.
@@ -237,10 +237,10 @@ pub(super) fn open_restricted_command_upsell(
     agent: &mut AgentView,
     auth_method: Option<String>,
 ) -> bool {
-    open_supergrok_upsell(agent, UpsellReason::RestrictedCommand, auth_method)
+    open_superaxon_upsell(agent, UpsellReason::RestrictedCommand, auth_method)
 }
 
-/// Which situation opened the SuperGrok upsell modal. Controls the heading
+/// Which situation opened the SuperAxon upsell modal. Controls the heading
 /// and the telemetry source.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum UpsellReason {
@@ -254,13 +254,13 @@ pub(super) enum UpsellReason {
 /// [`open_restricted_command_upsell`]: a Q&A modal in the
 /// [`open_credit_limit_upsell`] style. Upgrade options carry their target
 /// URL in the option `id` (position-independent submit handling).
-fn open_supergrok_upsell(
+fn open_superaxon_upsell(
     agent: &mut AgentView,
     reason: UpsellReason,
     auth_method: Option<String>,
 ) -> bool {
     use crate::views::question_view::{LocalQuestionKind, QuestionViewState};
-    use axon_tools::implementations::grok_build::ask_user_question::{
+    use axon_tools::implementations::axon_build::ask_user_question::{
         Question, QuestionOption,
     };
 
@@ -273,33 +273,33 @@ fn open_supergrok_upsell(
     let (heading, source, modal_id_prefix) = match reason {
         UpsellReason::FreeUsageLimit => (
             "You hit your free usage limit.",
-            SuperGrokUpsell::FreeUsagePaywall,
+            SuperAxonUpsell::FreeUsagePaywall,
             "free-usage-upsell",
         ),
         UpsellReason::RestrictedCommand => (
-            "Unlock all features with SuperGrok.",
-            SuperGrokUpsell::RestrictedCommand,
+            "Unlock all features with SuperAxon.",
+            SuperAxonUpsell::RestrictedCommand,
             "restricted-command-upsell",
         ),
     };
 
-    log_event(axon_telemetry::events::SuperGrokUpsellShown {
+    log_event(axon_telemetry::events::SuperAxonUpsellShown {
         source,
         auth_method,
     });
 
     let options = vec![
         QuestionOption {
-            label: "Upgrade to SuperGrok".into(),
+            label: "Upgrade to SuperAxon".into(),
             description: "For everyday coding and productivity tasks".into(),
             preview: None,
             id: Some(UPSELL_URL_UPGRADE.into()),
         },
         QuestionOption {
-            label: "Upgrade to SuperGrok Heavy".into(),
-            description: "Get the most out of Grok Build. Highest usage limits.".into(),
+            label: "Upgrade to SuperAxon Heavy".into(),
+            description: "Get the most out of Axon Build. Highest usage limits.".into(),
             preview: None,
-            // No Heavy-specific URL exists; the /supergrok page lists
+            // No Heavy-specific URL exists; the /superaxon page lists
             // both plans, so both upgrade options land there.
             id: Some(UPSELL_URL_UPGRADE.into()),
         },
@@ -404,7 +404,7 @@ pub(super) fn handle_gate_refreshed(
     }
 }
 
-/// `x.ai/auth/check_subscription` completed. Meta is authoritative
+/// `axon/auth/check_subscription` completed. Meta is authoritative
 /// (`apply_auth_meta` also drops any deferred gate). A failed check only
 /// promotes the deferred gate it was verifying (`verify` generation);
 /// generic watch/focus/paywall-chain failures never touch it.
@@ -531,23 +531,23 @@ pub(super) fn handle_credit_limit_recheck_complete(
 
 // Action handlers.
 
-pub(super) fn dispatch_open_supergrok_url(app: &mut AppView) -> Vec<Effect> {
-    log_event(SuperGrokUpsellClicked {
-        source: SuperGrokUpsell::WelcomeScreen,
+pub(super) fn dispatch_open_superaxon_url(app: &mut AppView) -> Vec<Effect> {
+    log_event(SuperAxonUpsellClicked {
+        source: SuperAxonUpsell::WelcomeScreen,
         auth_method: app.login_method_id.as_ref().map(|id| id.0.to_string()),
     });
     let url = app
         .gate
         .as_ref()
         .and_then(|g| g.url.as_deref())
-        .unwrap_or("https://grok.com/supergrok?referrer=grok-build");
-    // Funnel attribution: tag CLI-originated SuperGrok upsell clicks
-    // with `referrer=grok-build`, matching the OAuth consent flow and
-    // x.ai/cli marketing links. Applied even when the URL came from
+        .unwrap_or("https://blocked.invalid/superaxon?referrer=axon-build");
+    // Funnel attribution: tag CLI-originated SuperAxon upsell clicks
+    // with `referrer=axon-build`, matching the OAuth consent flow and
+    // blocked.invalid/cli marketing links. Applied even when the URL came from
     // remote settings's `gate_url`, so we don't depend on the remote flag
     // being correctly configured. If the URL already specifies a
     // referrer it's left alone.
-    let url = crate::app::link_opener::ensure_query_param(url, "referrer", "grok-build");
+    let url = crate::app::link_opener::ensure_query_param(url, "referrer", "axon-build");
     super::ctx::open_url_or_show(app, &url);
     vec![]
 }

@@ -57,7 +57,7 @@ async fn resume_reconciles_orphaned_running_subagent() {
         let workdir = git_workdir();
 
         // Phase 1: create a real session, then take its home so we can seed it.
-        let mut writer = GrokStdioClient::spawn(&server, workdir.path()).await;
+        let mut writer = AxonStdioClient::spawn(&server, workdir.path()).await;
         writer.initialize_with_timeout().await;
         let session_id = writer.create_session_with_timeout(workdir.path()).await;
         let shared_home = writer.take_home();
@@ -66,9 +66,9 @@ async fn resume_reconciles_orphaned_running_subagent() {
         // Simulate a crash: inject a subagent meta left `running` on disk (no
         // terminal write, no SubagentFinished) — exactly what a dead process
         // leaves behind.
-        // GrokStdioClient sets HOME=<temp>; the binary uses <HOME>/.axon as AXON_HOME.
-        let grok_home = shared_home.path().join(".axon");
-        let session_dir = locate_session_dir(&grok_home, session_id.0.as_ref());
+        // AxonStdioClient sets HOME=<temp>; the binary uses <HOME>/.axon as AXON_HOME.
+        let axon_home = shared_home.path().join(".axon");
+        let session_dir = locate_session_dir(&axon_home, session_id.0.as_ref());
         let sub_id = "sa-orphan";
         let meta_path = session_dir.join("subagents").join(sub_id).join("meta.json");
         std::fs::create_dir_all(meta_path.parent().unwrap()).unwrap();
@@ -89,7 +89,7 @@ async fn resume_reconciles_orphaned_running_subagent() {
         .unwrap();
 
         // Phase 2: resume in a fresh process. `load_session` runs the reconcile.
-        let reader = GrokStdioClient::spawn_with_home(&server, workdir.path(), shared_home).await;
+        let reader = AxonStdioClient::spawn_with_home(&server, workdir.path(), shared_home).await;
         reader.initialize_with_timeout().await;
         let _ = reader
             .load_session_with_timeout(&session_id, workdir.path())

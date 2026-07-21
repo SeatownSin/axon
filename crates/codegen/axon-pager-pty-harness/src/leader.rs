@@ -37,9 +37,9 @@ impl LeaderCluster {
             .context("start content controller")?;
         // One shared AXON_HOME => one leader; the socket lives beneath it so
         // every client (sharing the same env) elects/attaches to the same one.
-        let grok_home = content.home().join(".axon");
-        std::fs::create_dir_all(&grok_home).context("create grok home")?;
-        let socket = grok_home.join("leader-e2e.sock");
+        let axon_home = content.home().join(".axon");
+        std::fs::create_dir_all(&axon_home).context("create axon home")?;
+        let socket = axon_home.join("leader-e2e.sock");
         let binary = pager_binary().context("resolve pager binary")?;
         Ok(Self {
             content,
@@ -194,14 +194,14 @@ mod tests {
     /// Wrap a session update as the envelope stored in `updates.jsonl`.
     fn envelope(update_json: &str) -> String {
         format!(
-            r#"{{"timestamp":1,"method":"_x.ai/session/update","params":{{"sessionId":"s","update":{update_json}}}}}"#
+            r#"{{"timestamp":1,"method":"_axon/session/update","params":{{"sessionId":"s","update":{update_json}}}}}"#
         )
     }
 
     #[test]
     fn parse_update_payloads_unwraps_and_tolerates_torn_trailing_line() {
         let body = format!(
-            "{}\n{}\n{{\"timestamp\":2,\"method\":\"_x.ai/sess",
+            "{}\n{}\n{{\"timestamp\":2,\"method\":\"_axon/sess",
             envelope(
                 r#"{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"hi"}}"#
             ),

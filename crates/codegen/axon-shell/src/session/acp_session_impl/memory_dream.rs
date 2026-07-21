@@ -303,7 +303,7 @@ impl SessionActor {
             DreamStatus::Skipped(reason) => format!("skipped: {reason}"),
             DreamStatus::Failed(err) => format!("failed: {err}"),
         };
-        self.send_xai_notification(XaiSessionUpdate::MemoryDreamCompleted {
+        self.send_axon_notification(AxonSessionUpdate::MemoryDreamCompleted {
             result: dream_result_str,
             path: dream_path,
         })
@@ -334,10 +334,10 @@ impl SessionActor {
                 ConversationItem::user(user_message),
             ],
             model: Some(model),
-            x_grok_conv_id: Some(session_id.clone()),
-            x_grok_req_id: Some(format!("xai-dream-{}", uuid::Uuid::new_v4())),
-            x_grok_session_id: Some(session_id),
-            x_grok_agent_id: Some(axon_telemetry::id::agent_id()),
+            x_axon_conv_id: Some(session_id.clone()),
+            x_axon_req_id: Some(format!("axon-dream-{}", uuid::Uuid::new_v4())),
+            x_axon_session_id: Some(session_id),
+            x_axon_agent_id: Some(axon_telemetry::id::agent_id()),
             ..Default::default()
         };
         let response = sampling_client
@@ -376,7 +376,7 @@ impl SessionActor {
         tracing::info!(target: axon_telemetry::memory_log::TARGET, "MEMORY_FLUSH: starting");
         let flush_start = std::time::Instant::now();
 
-        self.send_xai_notification(XaiSessionUpdate::MemoryFlushStarted)
+        self.send_axon_notification(AxonSessionUpdate::MemoryFlushStarted)
             .await;
 
         let result = async {
@@ -441,10 +441,10 @@ impl SessionActor {
             let request = ConversationRequest {
                 items,
                 model: Some(model),
-                x_grok_conv_id: Some(session_id.clone()),
-                x_grok_req_id: Some(format!("xai-flush-{}", uuid::Uuid::new_v4())),
-                x_grok_session_id: Some(session_id.clone()),
-                x_grok_agent_id: Some(axon_telemetry::id::agent_id()),
+                x_axon_conv_id: Some(session_id.clone()),
+                x_axon_req_id: Some(format!("axon-flush-{}", uuid::Uuid::new_v4())),
+                x_axon_session_id: Some(session_id.clone()),
+                x_axon_agent_id: Some(axon_telemetry::id::agent_id()),
                 ..Default::default()
             };
 
@@ -636,7 +636,7 @@ impl SessionActor {
         });
 
         self.memory.release_flush_lock();
-        self.send_xai_notification(XaiSessionUpdate::MemoryFlushCompleted {
+        self.send_axon_notification(AxonSessionUpdate::MemoryFlushCompleted {
             result: outcome,
             path: flush_path,
         })
@@ -660,7 +660,7 @@ impl SessionActor {
     }
 
     /// Rewrite a raw memory note into well-structured markdown via a one-shot
-    /// LLM call using the `grok-build` model.
+    /// LLM call using the `axon-build` model.
     ///
     /// Follows the same streaming pattern as [`handle_ai_suggest`]: prepares
     /// a sampling client, builds a system+user prompt, streams the response,
@@ -707,7 +707,7 @@ impl SessionActor {
         let request = ConversationRequest {
             items,
             tools: vec![],
-            model: Some("grok-build".to_owned()),
+            model: Some("axon-build".to_owned()),
             temperature: Some(0.3),
             max_output_tokens: Some(1024),
             ..Default::default()

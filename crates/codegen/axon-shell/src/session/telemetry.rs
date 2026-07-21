@@ -68,7 +68,7 @@ pub(crate) fn skill_source_label(skill_path: &str, cwd: &str) -> &'static str {
     let depth_if_under =
         |base: std::path::PathBuf| p.starts_with(&base).then(|| base.components().count());
     let project = depth_if_under(canon(std::path::Path::new(cwd)));
-    let user = crate::util::grok_home::grok_home()
+    let user = crate::util::axon_home::axon_home()
         .parent()
         .and_then(|home| depth_if_under(canon(home)));
     match (project, user) {

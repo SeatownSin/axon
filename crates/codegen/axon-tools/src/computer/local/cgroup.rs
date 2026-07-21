@@ -20,7 +20,7 @@
 //!    receives an event it kills the offending process group with SIGKILL and
 //!    reports exit-code **137** (128 + SIGKILL) with signal `"oom"`.
 //!
-//! The grok-tools process itself is **never** inside this cgroup — only spawned
+//! The axon-tools process itself is **never** inside this cgroup — only spawned
 //! child commands are.  After the child exits the cgroup is empty until the next
 //! command.
 //!
@@ -198,7 +198,7 @@ mod linux {
         /// configure memory limits.
         pub(crate) async fn create(config: &CgroupMemoryConfig) -> std::io::Result<Self> {
             let self_cgroup = read_self_cgroup()?;
-            let name = format!("grok-tools-{}", uuid::Uuid::now_v7());
+            let name = format!("axon-tools-{}", uuid::Uuid::now_v7());
             let fs_path = PathBuf::from(format!("/sys/fs/cgroup{}/{}", self_cgroup, name));
 
             tokio::fs::create_dir_all(&fs_path).await?;

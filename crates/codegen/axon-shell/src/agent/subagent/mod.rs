@@ -35,7 +35,7 @@ use std::sync::OnceLock;
 use tokio::sync::{Notify, mpsc, oneshot};
 use tokio_util::sync::CancellationToken;
 use axon_acp_lib::AcpAgentGatewaySender as GatewaySender;
-use axon_tools::implementations::grok_build::task::types::*;
+use axon_tools::implementations::axon_build::task::types::*;
 use axon_workspace::file_system::AsyncFileSystem;
 use axon_hunk_tracker::HunkTrackerHandle;
 mod coordinator_lifecycle;
@@ -162,7 +162,7 @@ pub(crate) struct SubagentSpawnContext {
         reason = "unused in production; remove expect when wired or delete the item"
     )]
     pub storage_mode: crate::config::StorageMode,
-    pub auth: Option<crate::auth::GrokAuth>,
+    pub auth: Option<crate::auth::AxonAuth>,
     pub parent_cwd: PathBuf,
     pub parent_session_id: String,
     pub yolo_mode: bool,
@@ -205,7 +205,7 @@ pub(crate) struct SubagentSpawnContext {
     /// Parent's scheduler handle. When `Some`, the subagent reuses the
     /// parent's scheduler actor so scheduled tasks survive subagent exit.
     pub parent_scheduler_handle:
-        Option<axon_tools::implementations::grok_build::scheduler::types::SchedulerHandle>,
+        Option<axon_tools::implementations::axon_build::scheduler::types::SchedulerHandle>,
     /// Parent's session environment variables (.envrc + color settings).
     /// Shared so the child inherits the same env without re-loading.
     pub session_env: Arc<HashMap<String, String>>,
@@ -215,14 +215,14 @@ pub(crate) struct SubagentSpawnContext {
     /// Resolved sampling config for web_search.
     pub web_search_sampling_config: Option<axon_sampler::SamplerConfig>,
     /// Resolved config for web fetch.
-    pub web_fetch_config: axon_tools::implementations::grok_build::web_fetch::WebFetchConfig,
+    pub web_fetch_config: axon_tools::implementations::axon_build::web_fetch::WebFetchConfig,
     /// Image generation config (parent-inherited).
-    pub image_gen_config: axon_tools::implementations::grok_build::image_gen::ImageGenConfig,
+    pub image_gen_config: axon_tools::implementations::axon_build::image_gen::ImageGenConfig,
     /// Resolved config for video generation.
-    pub video_gen_config: axon_tools::implementations::grok_build::video_gen::VideoGenConfig,
+    pub video_gen_config: axon_tools::implementations::axon_build::video_gen::VideoGenConfig,
     /// Resolved config for the deploy service.
     pub app_builder_deployer_config:
-        axon_tools::implementations::grok_build::deploy_app::AppBuilderDeployerConfig,
+        axon_tools::implementations::axon_build::deploy_app::AppBuilderDeployerConfig,
     /// Whether the write_file tool is enabled.
     pub write_file_enabled: bool,
     /// Whether goal mode (`/goal`) is enabled.
@@ -316,7 +316,7 @@ pub(crate) struct SubagentSpawnContext {
     /// goes through `agent/config.rs::sampling_config_for_model`
     /// which always sets that field to `None`.
     pub attribution_callback: Option<axon_sampler::SharedAttributionCallback>,
-    /// Parent session's agent name (e.g. "grok-build").
+    /// Parent session's agent name (e.g. "axon-build").
     pub parent_agent_name: Option<String>,
     /// `agent_type` of the parent's current model — the harness-flavor fallback
     /// when `parent_agent_name` is not a recognized harness, e.g. a custom
@@ -1290,7 +1290,7 @@ async fn bootstrap_initial_context(
             cwd: source.child_cwd.clone(),
         };
         let storage = crate::session::storage::jsonl::JsonlStorageAdapter::with_root(
-            crate::util::grok_home::grok_home(),
+            crate::util::axon_home::axon_home(),
         );
         let copy_options = crate::session::storage::CopySessionOptions {
             parent_session_id: Some(source.child_session_id.clone()),
@@ -1397,7 +1397,7 @@ async fn bootstrap_initial_context(
     }
     if let Some(ref parent_info) = ctx.parent_session_info {
         let storage = crate::session::storage::jsonl::JsonlStorageAdapter::with_root(
-            crate::util::grok_home::grok_home(),
+            crate::util::axon_home::axon_home(),
         );
         let copy_options = crate::session::storage::CopySessionOptions {
             parent_session_id: Some(ctx.parent_session_id.clone()),
@@ -1699,12 +1699,12 @@ pub(crate) fn subagent_harness_flavor_is_representable(_agent_type: &str) -> boo
 /// Apply the harness-dependent toolset/prompt re-selection to a resolved
 /// agent definition.
 ///
-/// The harness flavor (alternate vs grok-build) normally follows the PARENT
-/// agent: `GrokBuildOrchestrator` parents give children
+/// The harness flavor (alternate vs axon-build) normally follows the PARENT
+/// agent: `AxonBuildOrchestrator` parents give children
 /// the alternate harness; the orchestrator keeps children lean, and other parents
 /// inherit the file-tool override (hashline vs standard). A `/goal` role may
 /// pass `harness_agent_type` to OVERRIDE that flavor regardless of the parent
-/// (so a grok-build session can run an alternate-harness verifier and vice-versa);
+/// (so a axon-build session can run an alternate-harness verifier and vice-versa);
 /// `None` for every non-goal spawn ⇒ the parent decides (unchanged). The base
 /// toolset stays role-dependent on `subagent_type` (general-purpose →
 /// implementer, else explorer), so the role keeps a capable toolset on the
@@ -2258,7 +2258,7 @@ fn emit_subagent_notification(
         meta: meta.map(serde_json::Value::Object),
     };
     if let Some(cmd_tx) = parent_cmd_tx {
-        let _ = cmd_tx.send(SessionCommand::XaiSessionNotification {
+        let _ = cmd_tx.send(SessionCommand::AxonSessionNotification {
             notification: notification.clone(),
         });
     }
@@ -2267,7 +2267,7 @@ fn emit_subagent_notification(
         .ok();
     if let Some(params) = params {
         let ext_notification =
-            acp::ExtNotification::new("x.ai/session_notification", params.into());
+            acp::ExtNotification::new("axon/session_notification", params.into());
         gateway.forward_fire_and_forget(ext_notification);
     }
 }
@@ -2321,7 +2321,7 @@ fn goal_tick_cmd_tx(
 ///
 /// Notifications are **not** persisted to JSONL — they are transient UI
 /// hints, not authoritative lifecycle events. The TUI can resync via
-/// `x.ai/subagent/list_running` on reconnect.
+/// `axon/subagent/list_running` on reconnect.
 fn spawn_progress_publisher(
     signals_handle: crate::session::signals::SessionSignalsHandle,
     gateway: GatewaySender,
@@ -2382,11 +2382,11 @@ fn spawn_progress_publisher(
                 .and_then(|v| serde_json::value::to_raw_value(&v))
                 .ok();
             if let Some(ref cmd_tx) = parent_cmd_tx {
-                let _ = cmd_tx.send(SessionCommand::XaiSessionNotification { notification });
+                let _ = cmd_tx.send(SessionCommand::AxonSessionNotification { notification });
             }
             if let Some(params) = params {
                 let ext_notification =
-                    acp::ExtNotification::new("x.ai/session_notification", params.into());
+                    acp::ExtNotification::new("axon/session_notification", params.into());
                 gateway.forward_fire_and_forget(ext_notification);
             }
         }

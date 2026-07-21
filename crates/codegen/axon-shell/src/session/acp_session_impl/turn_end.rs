@@ -78,7 +78,7 @@ impl SessionActor {
         self.emit_transient_notification(notification);
     }
 
-    /// Emit `x.ai/git_head_changed` after an edit/shell command that may have
+    /// Emit `axon/git_head_changed` after an edit/shell command that may have
     /// moved HEAD (e.g. `git checkout`), so clients update their status bar
     /// immediately rather than waiting for the debounced fs-watch refresh.
     pub(super) async fn maybe_notify_git_branch(&self) {
@@ -112,7 +112,7 @@ impl SessionActor {
             main_repo,
         };
         if let Ok(raw) = serde_json::value::to_raw_value(&params) {
-            let notification = acp::ExtNotification::new("x.ai/git_head_changed", raw.into());
+            let notification = acp::ExtNotification::new("axon/git_head_changed", raw.into());
             self.notifications
                 .gateway
                 .forward_fire_and_forget(notification);
@@ -123,12 +123,12 @@ impl SessionActor {
     pub(super) async fn outstanding_reply_for_prompt(
         &self,
         prompt_id: &str,
-    ) -> Option<axon_tools::implementations::grok_build::task::types::SubagentOutstandingReply>
+    ) -> Option<axon_tools::implementations::axon_build::task::types::SubagentOutstandingReply>
     {
         let Some(tx) = &self.tool_context.subagent_event_tx else {
             return Some(Default::default());
         };
-        use axon_tools::implementations::grok_build::task::types::{
+        use axon_tools::implementations::axon_build::task::types::{
             SubagentEvent, SubagentOutstandingRequest,
         };
         let (respond_to, rx) = tokio::sync::oneshot::channel();
@@ -148,7 +148,7 @@ impl SessionActor {
     /// [`super::turn::UsageDrainOutcome::report_incomplete`].
     pub(super) fn usage_incomplete_from_reply(
         reply: Option<
-            &axon_tools::implementations::grok_build::task::types::SubagentOutstandingReply,
+            &axon_tools::implementations::axon_build::task::types::SubagentOutstandingReply,
         >,
     ) -> bool {
         super::turn::UsageDrainOutcome::from_outstanding_reply(reply).report_incomplete()
@@ -158,7 +158,7 @@ impl SessionActor {
         let Some(tx) = &self.tool_context.subagent_event_tx else {
             return;
         };
-        use axon_tools::implementations::grok_build::task::types::{
+        use axon_tools::implementations::axon_build::task::types::{
             SubagentClearUsageNotAppliedRequest, SubagentEvent,
         };
         let _ = tx.send(SubagentEvent::ClearUsageNotApplied(
@@ -186,7 +186,7 @@ impl SessionActor {
                 .borrow()
                 .tool_bridge()
                 .update_resource(
-                    axon_tools::implementations::grok_build::task::types::CurrentPromptIdResource(
+                    axon_tools::implementations::axon_build::task::types::CurrentPromptIdResource(
                         String::new(),
                     ),
                 )
@@ -257,7 +257,7 @@ impl SessionActor {
 
         // Durable twin of the fire-and-forget `prompt_complete` (emitted from
         // `MvpAgent::prompt`): publish the turn's terminal on the persisted +
-        // replayed `_x.ai/session/update` rail so a viewer that re-attaches
+        // replayed `_axon/session/update` rail so a viewer that re-attaches
         // mid-turn finalizes from replay instead of stranding on "Waiting…".
         // The caller flushed the replay buffer first, so this lands strictly
         // after the turn's last `session/update` delta. Emit ONLY for a
@@ -309,7 +309,7 @@ impl SessionActor {
     /// (`cancel_running_task`) sites. Derives `(stop_reason, agent_result)`
     /// from the SAME source as the fire-and-forget `prompt_complete`
     /// (`prompt_complete_fields`), so the two signals never disagree, then
-    /// persists + forwards via `send_xai_notification`. Retiring
+    /// persists + forwards via `send_axon_notification`. Retiring
     /// `prompt_complete` later is then a one-line change at the call sites.
     ///
     /// `cancel_trigger` (when `Some`) rides the `_meta` as `cancelTrigger`;
@@ -327,7 +327,7 @@ impl SessionActor {
                 .into_iter()
                 .collect()
         });
-        self.send_xai_notification_with_extra_meta(
+        self.send_axon_notification_with_extra_meta(
             crate::session::turn_completion::build_turn_completed(
                 prompt_id,
                 stop_reason,

@@ -54,8 +54,8 @@ pub struct AcpConnection {
     pub rx: AcpClientRx,
     /// Available models and current selection.
     pub models: ModelState,
-    /// Whether the agent is a grok-shell instance.
-    pub is_grok_shell: bool,
+    /// Whether the agent is a axon-shell instance.
+    pub is_axon_shell: bool,
     /// Auth methods advertised by the agent.
     pub auth_methods: Vec<acp::AuthMethod>,
     /// Cancellation token to stop the agent.
@@ -67,9 +67,9 @@ pub struct AcpConnection {
     // NOTE: Startup announcements from InitializeResponse.meta are not yet supported.
     // Requires shell to include announcements in initialize metadata.
     // When available, add field: startup_announcements: Option<Vec<axon_announcements::RemoteAnnouncement>>
-    /// Whether interactive login is required (deferred auth for `grok.com`).
+    /// Whether interactive login is required (deferred auth for `blocked.invalid`).
     pub needs_login: bool,
-    /// Login button label from `AuthMethod.name` (e.g., "grok.com", "Acme Corp").
+    /// Login button label from `AuthMethod.name` (e.g., "blocked.invalid", "Acme Corp").
     pub login_label: Option<String>,
     /// The auth method ID to use for login (copied from the first advertised method).
     pub login_method_id: Option<acp::AuthMethodId>,
@@ -86,7 +86,7 @@ pub struct AcpConnection {
     /// resolved by the shell (remote settings / config / env; default OFF) and
     /// advertised in `InitializeResponse.meta.sessionRecap`. The client gates
     /// its automatic away-recap poll and the manual `/recap` on this so a
-    /// disabled feature produces zero `x.ai/recap` traffic. Defaults to `false`
+    /// disabled feature produces zero `axon/recap` traffic. Defaults to `false`
     /// when absent (e.g. an older shell that predates the feature).
     pub session_recap_available: bool,
     /// `AuthManager` for pager-side authenticated channels (voice STT/TTS).
@@ -189,14 +189,14 @@ pub async fn connect(cancel: &CancellationToken, flags: ConnectFlags) -> Result<
 
     // Spawn the agent
     let memory_config = agent_config.memory_config.clone();
-    let spawned = spawn::spawn_grok_shell(agent_config, cancel, memory_config).await?;
+    let spawned = spawn::spawn_axon_shell(agent_config, cancel, memory_config).await?;
     let auth_manager = spawned.auth_manager.clone();
     let (tx, rx) = (spawned.channel.tx, spawned.channel.rx);
 
     // Initialize
     let (
         models,
-        is_grok_shell,
+        is_axon_shell,
         auth_methods,
         default_auth_method_id,
         available_commands,
@@ -224,7 +224,7 @@ pub async fn connect(cancel: &CancellationToken, flags: ConnectFlags) -> Result<
         tx,
         rx,
         models,
-        is_grok_shell,
+        is_axon_shell,
         auth_methods,
         cancel: spawned.cancel,
         available_commands,
@@ -270,7 +270,7 @@ pub async fn connect_via_leader(
         .client_identifier
         .as_deref()
         .unwrap_or(HEADLESS_CLIENT_TYPE);
-    let env_urls = axon_shell::leader::LeaderEnvUrls::from(&agent_config.grok_com_config);
+    let env_urls = axon_shell::leader::LeaderEnvUrls::from(&agent_config.axon_com_config);
     let capabilities = ClientCapabilities {
         // Leader agent is pre-running; seed modes via capabilities → session meta.
         yolo_mode: flags.default_yolo_mode,
@@ -309,7 +309,7 @@ pub async fn connect_via_leader(
 
     let (
         models,
-        is_grok_shell,
+        is_axon_shell,
         auth_methods,
         default_auth_method_id,
         available_commands,
@@ -339,8 +339,8 @@ pub async fn connect_via_leader(
     // on failure. This one just reads the valid token, and on expiry adopts the
     // agent's disk-rotated token under the file lock (`try_adopt_disk_token`).
     let auth_manager = std::sync::Arc::new(axon_shell::auth::AuthManager::new(
-        &axon_shell::util::grok_home::grok_home(),
-        agent_config.grok_com_config.clone(),
+        &axon_shell::util::axon_home::axon_home(),
+        agent_config.axon_com_config.clone(),
     ));
 
     // Leader has no in-process agent; init this process's product telemetry client.
@@ -350,7 +350,7 @@ pub async fn connect_via_leader(
         tx,
         rx,
         models,
-        is_grok_shell,
+        is_axon_shell,
         auth_methods,
         cancel: bridge.cancel,
         available_commands,
@@ -407,7 +407,7 @@ fn unsupported_leader_flags(flags: &ConnectFlags) -> Vec<&'static str> {
 /// Write config.toml fields based on CLI flags.
 fn apply_config_writes(flags: &ConnectFlags) {
     // Use toml_edit to preserve existing config structure
-    let config_path = axon_shell::util::grok_home::grok_home().join("config.toml");
+    let config_path = axon_shell::util::axon_home::axon_home().join("config.toml");
     let content = std::fs::read_to_string(&config_path).unwrap_or_default();
     let mut doc = content
         .parse::<toml_edit::DocumentMut>()
@@ -460,10 +460,10 @@ fn client_capabilities_meta(flags: &ConnectFlags) -> serde_json::Value {
     let hunk_mode =
         crate::settings::canonical_hunk_tracker_mode(flags.hunk_tracker_mode.as_deref());
     serde_json::json!({
-        "x.ai/incrementalBashOutput": true,
-        "x.ai/hunkTracker": { "mode": hunk_mode },
-        "x.ai/bashOutputNoColor": true,
-        "x.ai/gitHeadChanged": true,
+        "axon/incrementalBashOutput": true,
+        "axon/hunkTracker": { "mode": hunk_mode },
+        "axon/bashOutputNoColor": true,
+        "axon/gitHeadChanged": true,
     })
 }
 
@@ -503,11 +503,11 @@ async fn initialize(
 
     let resp: acp::InitializeResponse = acp_send(req, tx).await?;
 
-    // Check if this is a grok-shell agent
-    let is_grok_shell = resp
+    // Check if this is a axon-shell agent
+    let is_axon_shell = resp
         .meta
         .as_ref()
-        .and_then(|m| m.get("grokShell"))
+        .and_then(|m| m.get("axonShell"))
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
 
@@ -535,7 +535,7 @@ async fn initialize(
 
     Ok((
         models,
-        is_grok_shell,
+        is_axon_shell,
         resp.auth_methods,
         default_auth_method_id,
         available_commands,
@@ -566,7 +566,7 @@ pub fn parse_session_recap_available(meta: Option<&acp::Meta>) -> bool {
 
 /// Determine whether interactive login is needed based on the advertised auth methods.
 ///
-/// Matches TUI startup behavior: if the first method is `grok.com`, defer auth
+/// Matches TUI startup behavior: if the first method is `blocked.invalid`, defer auth
 /// and show the login-aware welcome flow. Otherwise, authenticate eagerly.
 ///
 /// Returns `(needs_login, login_label, login_method_id, auth_start_mode)`.
@@ -610,7 +610,7 @@ pub fn startup_auth_metadata(
 ///
 /// Used when eager auth (cached_token / API key) fails and we need to fall
 /// back to the welcome screen with a working login button. Scans the list
-/// for a `grok.com` or `oidc` method — these are the ones that can trigger
+/// for a `blocked.invalid` or `oidc` method — these are the ones that can trigger
 /// a browser-based re-auth flow.
 pub fn find_interactive_login_method(
     auth_methods: &[acp::AuthMethod],
@@ -645,7 +645,7 @@ pub fn find_interactive_login_method(
 /// Attempt eager auth; on failure fall back to the interactive login screen.
 ///
 /// Errors from `authenticate` are caught so the connection still succeeds.
-/// When `xai.api_key` was advertised, non-interactive credentials were
+/// When `axon.api_key` was advertised, non-interactive credentials were
 /// available — do not promote to interactive auto-Login (shell owns
 /// unpinned fallthrough; a failed api_key must not open a browser). Otherwise
 /// hand the interactive method for the login screen.
@@ -695,7 +695,7 @@ async fn eager_auth_or_login_fallback(
             // already preferred them — do not auto-open browser login.
             let has_api_key = auth_methods
                 .iter()
-                .any(|m| AuthMethodKind::from_id(m.id()) == AuthMethodKind::XaiApiKey);
+                .any(|m| AuthMethodKind::from_id(m.id()) == AuthMethodKind::AxonApiKey);
             if has_api_key {
                 return (false, login_label, login_method_id, auth_start_mode, None);
             }
@@ -788,7 +788,7 @@ mod tests {
 
     #[test]
     fn parse_available_commands_missing_key_returns_empty() {
-        let meta = serde_json::json!({ "grokShell": true });
+        let meta = serde_json::json!({ "axonShell": true });
         let cmds = parse_available_commands(meta.as_object());
         assert!(cmds.is_empty());
     }
@@ -822,7 +822,7 @@ mod tests {
 
     #[test]
     fn parse_session_recap_available_defaults_off_when_missing() {
-        let meta = serde_json::json!({ "grokShell": true, "cancelRewind": true });
+        let meta = serde_json::json!({ "axonShell": true, "cancelRewind": true });
         assert!(!parse_session_recap_available(meta.as_object()));
         assert!(!parse_session_recap_available(None));
     }
@@ -853,28 +853,28 @@ mod tests {
     }
 
     #[test]
-    fn startup_auth_grok_com_no_provider_needs_login_pending() {
-        let methods = vec![make_auth_method("grok.com", "grok.com", None)];
+    fn startup_auth_axon_com_no_provider_needs_login_pending() {
+        let methods = vec![make_auth_method("blocked.invalid", "blocked.invalid", None)];
         let (needs, label, method_id, mode) = startup_auth_metadata(&methods);
         assert!(needs);
-        assert_eq!(label.as_deref(), Some("grok.com"));
-        assert_eq!(method_id.as_ref().unwrap().0.as_ref(), "grok.com");
+        assert_eq!(label.as_deref(), Some("blocked.invalid"));
+        assert_eq!(method_id.as_ref().unwrap().0.as_ref(), "blocked.invalid");
         assert_eq!(mode, AuthStartMode::Pending);
     }
 
     #[test]
-    fn startup_auth_grok_com_with_external_provider_command() {
+    fn startup_auth_axon_com_with_external_provider_command() {
         let meta = serde_json::json!({ "external_provider": true });
-        let methods = vec![make_auth_method("grok.com", "Acme Corp", Some(meta))];
+        let methods = vec![make_auth_method("blocked.invalid", "Acme Corp", Some(meta))];
         let (needs, label, method_id, mode) = startup_auth_metadata(&methods);
         assert!(needs);
         assert_eq!(label.as_deref(), Some("Acme Corp"));
-        assert_eq!(method_id.as_ref().unwrap().0.as_ref(), "grok.com");
+        assert_eq!(method_id.as_ref().unwrap().0.as_ref(), "blocked.invalid");
         assert_eq!(mode, AuthStartMode::Command);
     }
 
     #[test]
-    fn startup_auth_non_grok_com_no_login() {
+    fn startup_auth_non_axon_com_no_login() {
         let methods = vec![make_auth_method("api-key", "API Key", None)];
         let (needs, label, method_id, mode) = startup_auth_metadata(&methods);
         assert!(!needs);
@@ -893,12 +893,12 @@ mod tests {
     /// it calls the shell-side `build_auth_methods()` with the exact inputs
     /// `MvpAgent::initialize()` would compute for an enterprise user, then feeds
     /// the result into the pager's `startup_auth_metadata()`. If a future
-    /// change re-orders `build_auth_methods()` to put `xai.api_key` anywhere
+    /// change re-orders `build_auth_methods()` to put `axon.api_key` anywhere
     /// other than first (the shape of a past regression), this test fails
     /// because `startup_auth_metadata()` returns `needs_login = true`.
     ///
     /// Counterpart shell-side tests
-    /// (`agent::auth_method::tests::enterprise_byok_first_method_is_xai_api_key`
+    /// (`agent::auth_method::tests::enterprise_byok_first_method_is_axon_api_key`
     /// and `enterprise_byok_config_does_not_require_login`) pin the same
     /// invariant from the shell side; this test pins the cross-crate
     /// contract that the pager actually consumes the shell's output as
@@ -911,7 +911,7 @@ mod tests {
             // enterprise-style: model has `env_key` set and the env var resolves,
             // so the shell-side predicate returns true.
             has_external_api_key: true,
-            // Realistic enterprise user: no cached session token, default `grok.com`
+            // Realistic enterprise user: no cached session token, default `blocked.invalid`
             // login (no enterprise OIDC).
             has_cached_token: false,
             has_enterprise_oidc: false,
@@ -926,7 +926,7 @@ mod tests {
             !needs,
             "shell built auth_methods for a BYOK user, but the pager still \
              reports needs_login = true. Either the shell stopped putting \
-             xai.api_key first or the pager stopped treating xai.api_key as \
+             axon.api_key first or the pager stopped treating axon.api_key as \
              a no-login method.",
         );
         assert!(label.is_none());
@@ -934,34 +934,34 @@ mod tests {
         assert_eq!(mode, AuthStartMode::Pending);
     }
 
-    /// Inverse direction: when `xai.api_key` is NOT in the list, the pager
-    /// MUST show the login screen. We assert this with `xai.api_key` present
+    /// Inverse direction: when `axon.api_key` is NOT in the list, the pager
+    /// MUST show the login screen. We assert this with `axon.api_key` present
     /// LATER in the list (the shape of a past regression) and confirm the
     /// pager still requires login -- because the pager only inspects
     /// `auth_methods.first()`. This locks the failure mode of the regression:
     /// if a future refactor makes the pager scan past `.first()`, this test
     /// stops being equivalent to
-    /// `startup_auth_grok_com_no_provider_needs_login_pending` above and
+    /// `startup_auth_axon_com_no_provider_needs_login_pending` above and
     /// either passes or fails on a meaningful new code path.
     #[test]
-    fn startup_auth_xai_api_key_not_first_still_requires_login() {
-        use axon_shell::agent::auth_method::{AXON_COM_METHOD_ID, XAI_API_KEY_METHOD_ID};
+    fn startup_auth_axon_api_key_not_first_still_requires_login() {
+        use axon_shell::agent::auth_method::{AXON_COM_METHOD_ID, AXON_API_KEY_METHOD_ID};
 
         let methods = vec![
-            make_auth_method(AXON_COM_METHOD_ID, "Grok", None),
-            make_auth_method(XAI_API_KEY_METHOD_ID, "xai.api_key", None),
+            make_auth_method(AXON_COM_METHOD_ID, "Axon", None),
+            make_auth_method(AXON_API_KEY_METHOD_ID, "axon.api_key", None),
         ];
         let (needs, _, _, _) = startup_auth_metadata(&methods);
         assert!(
             needs,
-            "with grok.com first, the pager must require login -- pinning \
-             the BAD-ordering failure mode (xai.api_key not first)",
+            "with blocked.invalid first, the pager must require login -- pinning \
+             the BAD-ordering failure mode (axon.api_key not first)",
         );
     }
 
     #[test]
     fn startup_auth_method_id_is_copied_not_synthesized() {
-        let methods = vec![make_auth_method("grok.com", "My Login", None)];
+        let methods = vec![make_auth_method("blocked.invalid", "My Login", None)];
         let (_, _, method_id, _) = startup_auth_metadata(&methods);
         // Verify it's the exact same ID from the method, not hardcoded
         assert_eq!(&method_id.unwrap(), methods[0].id());
@@ -970,7 +970,7 @@ mod tests {
     #[test]
     fn startup_auth_external_provider_false_is_pending() {
         let meta = serde_json::json!({ "external_provider": false });
-        let methods = vec![make_auth_method("grok.com", "grok.com", Some(meta))];
+        let methods = vec![make_auth_method("blocked.invalid", "blocked.invalid", Some(meta))];
         let (_, _, _, mode) = startup_auth_metadata(&methods);
         assert_eq!(mode, AuthStartMode::Pending);
     }
@@ -1058,12 +1058,12 @@ mod tests {
         // Rows 1 & 2 of the truth table: nothing set, and a set-but-blank value,
         // both advertise the `agent_only` default (never `""` → AllDirty).
         let absent = client_capabilities_meta(&ConnectFlags::default());
-        assert_eq!(absent["x.ai/hunkTracker"]["mode"], "agent_only");
+        assert_eq!(absent["axon/hunkTracker"]["mode"], "agent_only");
         let blank = client_capabilities_meta(&ConnectFlags {
             hunk_tracker_mode: Some("   ".into()),
             ..Default::default()
         });
-        assert_eq!(blank["x.ai/hunkTracker"]["mode"], "agent_only");
+        assert_eq!(blank["axon/hunkTracker"]["mode"], "agent_only");
     }
 
     #[test]
@@ -1075,7 +1075,7 @@ mod tests {
                 hunk_tracker_mode: Some(raw.into()),
                 ..Default::default()
             });
-            assert_eq!(meta["x.ai/hunkTracker"]["mode"], "off", "raw={raw}");
+            assert_eq!(meta["axon/hunkTracker"]["mode"], "off", "raw={raw}");
         }
     }
 }

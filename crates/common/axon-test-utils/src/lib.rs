@@ -1,4 +1,4 @@
-//! Shared test utilities for xAI crates.
+//! Shared test utilities for Axon crates.
 //!
 //! Provides common helpers that are needed by many crates' test suites:
 //!

@@ -51,11 +51,11 @@ pub(crate) fn run_wrapped_command(program: &str, args: &[String]) -> Result<i32>
     args.iter().for_each(|arg| cmd.arg(arg));
 
     // Advertise to the wrapped program — and anything it spawns, e.g. a remote
-    // `grok` reached over SSH — that its OSC 52 clipboard writes are being
-    // intercepted here and copied to the real local clipboard. The inner grok
+    // `axon` reached over SSH — that its OSC 52 clipboard writes are being
+    // intercepted here and copied to the real local clipboard. The inner axon
     // reads this (see `axon_pager_render::clipboard::osc52_sink_active`) to
     // *trust* OSC 52 even when it can't detect an OSC-52-capable terminal,
-    // which is the usual SSH case (only `TERM` propagates, so the inner grok
+    // which is the usual SSH case (only `TERM` propagates, so the inner axon
     // cannot otherwise verify that the local clipboard received the write).
     //
     // `CommandBuilder::new` inherits the full parent environment; `env` overlays

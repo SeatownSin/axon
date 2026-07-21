@@ -37,10 +37,10 @@ enum InferenceRequestKind {
 
 impl InferenceRequestKind {
     fn classify(headers: &HeaderMap, body: &Value) -> Self {
-        if nonempty_header(headers, "x-grok-turn-idx").is_some() {
+        if nonempty_header(headers, "x-axon-turn-idx").is_some() {
             return Self::Foreground;
         }
-        if nonempty_header(headers, "x-grok-req-id").is_some() {
+        if nonempty_header(headers, "x-axon-req-id").is_some() {
             return Self::Auxiliary;
         }
         if body
@@ -285,7 +285,7 @@ impl InferenceOverrides {
     ) -> ClassifiedInferenceRequest {
         let kind = InferenceRequestKind::classify(headers, body);
         let fingerprint =
-            nonempty_header(headers, "x-grok-req-id").map(|request_id| ModelCallFingerprint {
+            nonempty_header(headers, "x-axon-req-id").map(|request_id| ModelCallFingerprint {
                 endpoint,
                 kind,
                 request_id: request_id.to_owned(),

@@ -2034,7 +2034,7 @@ fn snap_offset_to_line_boundary(offset: usize, heights: &[u16]) -> usize {
 /// Visual:
 ///
 /// ```text
-///   ◆ Add responsiveness to /context · xai my-branch-2 worktree       4 mins
+///   ◆ Add responsiveness to /context · axon my-branch-2 worktree       4 mins
 ///     Pending: plan approval plan.md
 /// ```
 ///
@@ -2248,7 +2248,7 @@ fn render_row(
             cx += label_w;
         }
 
-        // Subtitle: ` · xai my-branch-2 worktree`.
+        // Subtitle: ` · axon my-branch-2 worktree`.
         if let Some(sub) = row.subtitle.as_deref()
             && cx + 4 < age_x
         {
@@ -2608,7 +2608,7 @@ fn render_empty_state(buf: &mut Buffer, area: Rect, theme: &Theme, loading: bool
 /// chrome reflects what Enter will do: dispatch a new session vs.
 /// enqueue / send a prompt to the currently-selected agent.
 /// Paint a short right-aligned feedback badge onto the dispatch box's
-/// **top border** (e.g. `✗ Session no longer exists`, `✓ Theme: Grok
+/// **top border** (e.g. `✗ Session no longer exists`, `✓ Theme: Axon
 /// Day`), in a neutral accent colour. The message is painted VERBATIM:
 /// it already carries its own status glyph — errors are built via
 /// [`DashboardState::set_error_toast`] (`✗`), while successes / info
@@ -4390,7 +4390,7 @@ mod tests {
             DashboardRow {
                 id: DashboardRowId::TopLevel(crate::app::agent::AgentId(1)),
                 label: "Add responsiveness to /context".to_string(),
-                subtitle: Some("xai my-branch-2 worktree".to_string()),
+                subtitle: Some("axon my-branch-2 worktree".to_string()),
                 state: RowState::NeedsInput,
                 activity: Some("Awaiting your input".to_string()),
                 secondary_line: Some("Pending: plan approval plan.md".to_string()),
@@ -4409,7 +4409,7 @@ mod tests {
             DashboardRow {
                 id: DashboardRowId::TopLevel(crate::app::agent::AgentId(2)),
                 label: "Add buttons for /models".to_string(),
-                subtitle: Some("xai my-branch-3 worktree".to_string()),
+                subtitle: Some("axon my-branch-3 worktree".to_string()),
                 state: RowState::Completed,
                 activity: None,
                 secondary_line: Some("all tests completed, should I push?".to_string()),
@@ -4428,7 +4428,7 @@ mod tests {
             DashboardRow {
                 id: DashboardRowId::TopLevel(crate::app::agent::AgentId(3)),
                 label: "Investigate bug".to_string(),
-                subtitle: Some("xai main".to_string()),
+                subtitle: Some("axon main".to_string()),
                 state: RowState::Working,
                 activity: Some("read somefile.md".to_string()),
                 secondary_line: Some("read somefile.md".to_string()),
@@ -4447,7 +4447,7 @@ mod tests {
             DashboardRow {
                 id: DashboardRowId::TopLevel(crate::app::agent::AgentId(4)),
                 label: "Add responsiveness to /context".to_string(),
-                subtitle: Some("xai my-branch-2 worktree".to_string()),
+                subtitle: Some("axon my-branch-2 worktree".to_string()),
                 state: RowState::Working,
                 activity: Some("edit somefile.md".to_string()),
                 secondary_line: Some("edit somefile.md".to_string()),
@@ -4466,7 +4466,7 @@ mod tests {
             DashboardRow {
                 id: DashboardRowId::TopLevel(crate::app::agent::AgentId(5)),
                 label: "Add buttons for /models".to_string(),
-                subtitle: Some("xai mybranch worktree".to_string()),
+                subtitle: Some("axon mybranch worktree".to_string()),
                 state: RowState::Working,
                 activity: Some("thinking about life".to_string()),
                 secondary_line: Some("thinking about life".to_string()),
@@ -4873,7 +4873,7 @@ mod tests {
         let mut state = DashboardState::new();
         // A distinct absolute path outside $HOME (rendered verbatim) that
         // differs from the process cwd. No git cache entry → no branch span.
-        state.cwd = std::path::PathBuf::from("/grok-staged-cwd-marker");
+        state.cwd = std::path::PathBuf::from("/axon-staged-cwd-marker");
 
         let mut buf = Buffer::empty(area);
         render_header(&mut buf, area, &theme, &rows, &mut state, None);
@@ -4882,7 +4882,7 @@ mod tests {
             .map(|x| buf[(x, 0)].symbol().to_string())
             .collect();
         assert!(
-            top_row.contains("/grok-staged-cwd-marker"),
+            top_row.contains("/axon-staged-cwd-marker"),
             "header must render the staged cwd, not the process cwd; got: {top_row:?}",
         );
     }
@@ -7380,7 +7380,7 @@ mod tests {
         let area = Rect::new(0, 0, 80, 24);
         // A temp dir with a `.git` child so the toggle is eligible (hermetic,
         // unlike depending on the test's real cwd being a repo).
-        let repo = std::env::temp_dir().join("grok-loc-wt-toggle-repo-test");
+        let repo = std::env::temp_dir().join("axon-loc-wt-toggle-repo-test");
         std::fs::create_dir_all(repo.join(".git")).expect("mk .git");
         let mut modal =
             LocationPickerState::new(vec![], repo.clone(), std::collections::HashMap::new());
@@ -7440,7 +7440,7 @@ mod tests {
         let area = Rect::new(0, 0, 80, 24);
         let mut modal = LocationPickerState::new(
             vec![],
-            std::path::PathBuf::from("/grok-not-a-repo-xyz-12345"),
+            std::path::PathBuf::from("/axon-not-a-repo-xyz-12345"),
             std::collections::HashMap::new(),
         );
         let mut buf = Buffer::empty(area);

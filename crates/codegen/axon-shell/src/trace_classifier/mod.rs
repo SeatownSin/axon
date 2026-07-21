@@ -599,10 +599,10 @@ pub fn build_classifier_request(
         temperature: Some(0.0),
         max_output_tokens: Some(LAZINESS_MAX_OUTPUT_TOKENS),
         reasoning_effort: None,
-        x_grok_conv_id: session_id_str.clone(),
-        x_grok_req_id: Some(format!("{LAZINESS_REQ_ID_PREFIX}{}", uuid::Uuid::new_v4())),
-        x_grok_session_id: session_id_str,
-        x_grok_agent_id: Some(axon_telemetry::id::agent_id()),
+        x_axon_conv_id: session_id_str.clone(),
+        x_axon_req_id: Some(format!("{LAZINESS_REQ_ID_PREFIX}{}", uuid::Uuid::new_v4())),
+        x_axon_session_id: session_id_str,
+        x_axon_agent_id: Some(axon_telemetry::id::agent_id()),
         ..ConversationRequest::default()
     }
 }
@@ -957,11 +957,11 @@ pub struct RunArgs {
     /// override surface for the offline tool — production resolves
     /// `LazinessDetectorPerModelConfig::include_reasoning` separately.
     pub include_reasoning: Option<bool>,
-    /// Grok-home directory containing the `auth.json` to consult as
+    /// Axon-home directory containing the `auth.json` to consult as
     /// the third API-key fallback. Defaults to
-    /// `axon_shell::util::grok_home::grok_home()` when `None`.
+    /// `axon_shell::util::axon_home::axon_home()` when `None`.
     /// Exposed as a CLI flag for testability.
-    pub grok_home: Option<PathBuf>,
+    pub axon_home: Option<PathBuf>,
 }
 
 impl RunArgs {
@@ -1027,7 +1027,7 @@ pub fn parse_trace_file(path: &Path) -> Result<Vec<TurnRecord>> {
         .with_context(|| format!("parse trace {} as Vec<TurnRecord>", path.display()))
 }
 
-/// Resolve the API key from `--api-key` → `$XAI_API_KEY` →
+/// Resolve the API key from `--api-key` → `$AXON_API_KEY` →
 /// non-interactive `auth.json` (with silent OIDC refresh) → error.
 /// Empty or whitespace-only values at every layer fall through.
 ///
@@ -1040,29 +1040,29 @@ pub fn parse_trace_file(path: &Path) -> Result<Vec<TurnRecord>> {
 /// tried last. The replay never prompts interactively — an auth.json
 /// with a stale OIDC entry and no `refresh_token` surfaces an error
 /// the user can act on.
-pub async fn resolve_api_key(explicit: Option<&str>, grok_home: &Path) -> Result<String> {
+pub async fn resolve_api_key(explicit: Option<&str>, axon_home: &Path) -> Result<String> {
     if let Some(k) = explicit.map(str::trim).filter(|s| !s.is_empty()) {
         return Ok(k.to_owned());
     }
-    let env_key = std::env::var("XAI_API_KEY").ok();
+    let env_key = std::env::var("AXON_API_KEY").ok();
     if let Some(k) = env_key.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
         return Ok(k.to_owned());
     }
-    if let Some(key) = non_interactive_auth_key(grok_home).await? {
+    if let Some(key) = non_interactive_auth_key(axon_home).await? {
         return Ok(key);
     }
     Err(anyhow!(
-        "no API key: pass --api-key, set XAI_API_KEY, or run `axon login` to populate \
-         <grok-home>/auth.json. An expired OIDC token is auto-refreshed when a refresh_token \
+        "no API key: pass --api-key, set AXON_API_KEY, or run `axon login` to populate \
+         <axon-home>/auth.json. An expired OIDC token is auto-refreshed when a refresh_token \
          is present; if not, re-login is required."
     ))
 }
 
-/// Build an `AuthManager` for `grok_home`, install the
+/// Build an `AuthManager` for `axon_home`, install the
 /// non-interactive refresher chain, and ask for a usable key. Mirrors
 /// the body of [`crate::auth::try_ensure_fresh_auth`] but accepts an
-/// explicit `grok_home` so `--grok-home` overrides work in test
-/// fixtures (the upstream helper hardcodes the global `grok_home()`
+/// explicit `axon_home` so `--axon-home` overrides work in test
+/// fixtures (the upstream helper hardcodes the global `axon_home()`
 /// path).
 ///
 /// Returns:
@@ -1072,8 +1072,8 @@ pub async fn resolve_api_key(explicit: Option<&str>, grok_home: &Path) -> Result
 ///   unified "no API key" error naming all three sources.
 /// * `Err(_)` — refresh attempt failed in a way the operator needs to
 ///   see (network error, refresh_token rejected by the IdP, etc.).
-async fn non_interactive_auth_key(grok_home: &Path) -> Result<Option<String>> {
-    use crate::auth::{AuthError, AuthManager, GrokComConfig};
+async fn non_interactive_auth_key(axon_home: &Path) -> Result<Option<String>> {
+    use crate::auth::{AuthError, AuthManager, AxonComConfig};
 
     // Production's `try_ensure_fresh_auth` clones the whole config to
     // pass into `AuthManager::new` AND clones `auth_provider_command`
@@ -1081,9 +1081,9 @@ async fn non_interactive_auth_key(grok_home: &Path) -> Result<Option<String>> {
     // need first, then move the rest of `config` into `AuthManager`
     // — one `Option<String>` clone instead of one full struct clone
     // plus one Option clone.
-    let config = GrokComConfig::default();
+    let config = AxonComConfig::default();
     let auth_provider_command = config.auth_provider_command.clone();
-    let manager = std::sync::Arc::new(AuthManager::new(grok_home, config));
+    let manager = std::sync::Arc::new(AuthManager::new(axon_home, config));
     manager.configure_refresher(auth_provider_command, None);
     match manager.auth().await {
         Ok(auth) => {
@@ -1097,7 +1097,7 @@ async fn non_interactive_auth_key(grok_home: &Path) -> Result<Option<String>> {
         Err(AuthError::NotLoggedIn) => Ok(None),
         Err(e) => Err(anyhow!(
             "auth.json refresh failed: {e}. Run `axon login` to re-authenticate, \
-             or pass --api-key / set $XAI_API_KEY to bypass auth.json."
+             or pass --api-key / set $AXON_API_KEY to bypass auth.json."
         )),
     }
 }
@@ -1110,17 +1110,17 @@ async fn build_sampler_client(
     base_url: String,
     model: String,
     api_key: Option<&str>,
-    grok_home: Option<&Path>,
+    axon_home: Option<&Path>,
 ) -> Result<axon_sampler::SamplingClient> {
     let default_home;
-    let grok_home_path: &Path = match grok_home {
+    let axon_home_path: &Path = match axon_home {
         Some(p) => p,
         None => {
-            default_home = crate::util::grok_home::grok_home();
+            default_home = crate::util::axon_home::axon_home();
             default_home.as_path()
         }
     };
-    let resolved = resolve_api_key(api_key, grok_home_path).await?;
+    let resolved = resolve_api_key(api_key, axon_home_path).await?;
     let config = axon_sampler::SamplerConfig {
         api_key: Some(resolved),
         base_url,
@@ -1143,7 +1143,7 @@ pub async fn run(args: RunArgs) -> Result<Summary> {
         api_key,
         min_confidence,
         include_reasoning,
-        grok_home,
+        axon_home,
     } = args;
 
     // Fail fast on bad paths so the user doesn't wait for sampler
@@ -1173,7 +1173,7 @@ pub async fn run(args: RunArgs) -> Result<Summary> {
         api_base_url,
         model_id.clone(),
         api_key.as_deref(),
-        grok_home.as_deref(),
+        axon_home.as_deref(),
     )
     .await?;
     let client = SamplerClassifierClient::new(sampling_client);
@@ -1882,9 +1882,9 @@ mod tests {
         assert!(req.hosted_tools.is_empty());
         assert!(req.tool_choice.is_none());
 
-        assert_eq!(req.x_grok_conv_id.as_deref(), Some("sess-x"));
-        assert_eq!(req.x_grok_session_id.as_deref(), Some("sess-x"));
-        let req_id = req.x_grok_req_id.as_deref().expect("req id");
+        assert_eq!(req.x_axon_conv_id.as_deref(), Some("sess-x"));
+        assert_eq!(req.x_axon_session_id.as_deref(), Some("sess-x"));
+        let req_id = req.x_axon_req_id.as_deref().expect("req id");
         // N3: shared const for the prefix.
         let suffix = req_id
             .strip_prefix(LAZINESS_REQ_ID_PREFIX)
@@ -1896,7 +1896,7 @@ mod tests {
         assert!(!parsed.is_nil());
 
         assert_eq!(
-            req.x_grok_agent_id.as_deref(),
+            req.x_axon_agent_id.as_deref(),
             Some(axon_telemetry::id::agent_id().as_str())
         );
     }
@@ -2056,7 +2056,7 @@ mod tests {
             api_key: None,
             min_confidence: None,
             include_reasoning: None,
-            grok_home: None,
+            axon_home: None,
         };
         assert_eq!(args.include_reasoning_value(), LAZINESS_INCLUDE_REASONING);
     }
@@ -2071,7 +2071,7 @@ mod tests {
             api_key: None,
             min_confidence: None,
             include_reasoning: Some(false),
-            grok_home: None,
+            axon_home: None,
         };
         assert!(!args_off.include_reasoning_value());
 
@@ -2083,7 +2083,7 @@ mod tests {
             api_key: None,
             min_confidence: None,
             include_reasoning: Some(true),
-            grok_home: None,
+            axon_home: None,
         };
         assert!(args_on.include_reasoning_value());
     }
@@ -2146,8 +2146,8 @@ mod tests {
     /// `AuthManager` reads). `auth_mode: api_key` skips the refresh
     /// path entirely — useful for "plain key, no refresh wanted"
     /// fixtures.
-    fn write_auth_json(grok_home: &Path, key: &str) {
-        let scope = crate::auth::GrokComConfig::default().auth_scope();
+    fn write_auth_json(axon_home: &Path, key: &str) {
+        let scope = crate::auth::AxonComConfig::default().auth_scope();
         let body = serde_json::json!({
             scope: {
                 "key": key,
@@ -2156,23 +2156,23 @@ mod tests {
                 "user_id": "test-user",
             }
         });
-        std::fs::write(grok_home.join("auth.json"), body.to_string()).expect("write auth.json");
+        std::fs::write(axon_home.join("auth.json"), body.to_string()).expect("write auth.json");
     }
 
     /// `auth.json` with no scope entries — equivalent to "user never
     /// logged in". `AuthManager::auth()` returns `NotLoggedIn` →
     /// `non_interactive_auth_key` returns `Ok(None)` →
     /// `resolve_api_key` falls through to the unified error.
-    fn write_empty_auth_json(grok_home: &Path) {
-        std::fs::write(grok_home.join("auth.json"), "{}").expect("write auth.json");
+    fn write_empty_auth_json(axon_home: &Path) {
+        std::fs::write(axon_home.join("auth.json"), "{}").expect("write auth.json");
     }
 
     /// Write a non-expired OIDC entry (`expires_at` 1 hour in the
     /// future, `refresh_token` populated). `AuthManager::auth()`
     /// returns it via the fast path; the refresher chain is NOT
     /// invoked, so no network call fires.
-    fn write_fresh_oidc_auth_json(grok_home: &Path, key: &str) {
-        let scope = crate::auth::GrokComConfig::default().auth_scope();
+    fn write_fresh_oidc_auth_json(axon_home: &Path, key: &str) {
+        let scope = crate::auth::AxonComConfig::default().auth_scope();
         let body = serde_json::json!({
             scope: {
                 "key": key,
@@ -2185,14 +2185,14 @@ mod tests {
                 "user_id": "test-user",
             }
         });
-        std::fs::write(grok_home.join("auth.json"), body.to_string()).expect("write auth.json");
+        std::fs::write(axon_home.join("auth.json"), body.to_string()).expect("write auth.json");
     }
 
     /// Write an expired OIDC entry with NO `refresh_token`. The
     /// refresh chain has nothing to refresh against, so the auth
     /// call fails non-interactively.
-    fn write_expired_oidc_auth_json_no_refresh(grok_home: &Path, key: &str) {
-        let scope = crate::auth::GrokComConfig::default().auth_scope();
+    fn write_expired_oidc_auth_json_no_refresh(axon_home: &Path, key: &str) {
+        let scope = crate::auth::AxonComConfig::default().auth_scope();
         let body = serde_json::json!({
             scope: {
                 "key": key,
@@ -2202,13 +2202,13 @@ mod tests {
                 "user_id": "test-user",
             }
         });
-        std::fs::write(grok_home.join("auth.json"), body.to_string()).expect("write auth.json");
+        std::fs::write(axon_home.join("auth.json"), body.to_string()).expect("write auth.json");
     }
 
     /// F20: `resolve_api_key` precedence (flag > env > error). Now
     /// also covers whitespace-only flag (N6). Auth.json fallback is
     /// covered separately so this test can keep working with an
-    /// empty scratch `grok_home`.
+    /// empty scratch `axon_home`.
     #[tokio::test]
     #[serial_test::serial]
     async fn resolve_api_key_precedence() {
@@ -2216,9 +2216,9 @@ mod tests {
             return;
         }
         let tmp = tempfile::tempdir().expect("tempdir");
-        let grok_home = tmp.path();
+        let axon_home = tmp.path();
         // No auth.json at all → AuthManager sees nothing on disk.
-        write_empty_auth_json(grok_home);
+        write_empty_auth_json(axon_home);
 
         // Tear down + restore env inline (the async resolver can't
         // be called from inside a sync closure).
@@ -2231,50 +2231,50 @@ mod tests {
         }
 
         assert!(
-            resolve_api_key(None, grok_home).await.is_err(),
+            resolve_api_key(None, axon_home).await.is_err(),
             "no flag, no env, no auth.json → error",
         );
         assert!(
-            resolve_api_key(Some(""), grok_home).await.is_err(),
+            resolve_api_key(Some(""), axon_home).await.is_err(),
             "empty flag → error",
         );
         assert!(
-            resolve_api_key(Some("   "), grok_home).await.is_err(),
+            resolve_api_key(Some("   "), axon_home).await.is_err(),
             "whitespace-only flag → error",
         );
         assert_eq!(
-            resolve_api_key(Some("from-flag"), grok_home)
+            resolve_api_key(Some("from-flag"), axon_home)
                 .await
                 .expect("ok"),
             "from-flag",
         );
 
-        unsafe { std::env::set_var("XAI_API_KEY", "from-env") };
+        unsafe { std::env::set_var("AXON_API_KEY", "from-env") };
         assert_eq!(
-            resolve_api_key(None, grok_home).await.expect("ok"),
+            resolve_api_key(None, axon_home).await.expect("ok"),
             "from-env"
         );
         assert_eq!(
-            resolve_api_key(Some("from-flag"), grok_home)
+            resolve_api_key(Some("from-flag"), axon_home)
                 .await
                 .expect("ok"),
             "from-flag",
             "CLI flag overrides env",
         );
         assert_eq!(
-            resolve_api_key(Some(""), grok_home).await.expect("ok"),
+            resolve_api_key(Some(""), axon_home).await.expect("ok"),
             "from-env",
             "empty flag falls through to env",
         );
         assert_eq!(
-            resolve_api_key(Some("   "), grok_home).await.expect("ok"),
+            resolve_api_key(Some("   "), axon_home).await.expect("ok"),
             "from-env",
             "whitespace-only flag falls through to env",
         );
 
-        unsafe { std::env::set_var("XAI_API_KEY", "   ") };
+        unsafe { std::env::set_var("AXON_API_KEY", "   ") };
         assert!(
-            resolve_api_key(None, grok_home).await.is_err(),
+            resolve_api_key(None, axon_home).await.is_err(),
             "whitespace-only env is treated as absent",
         );
 
@@ -2294,12 +2294,12 @@ mod tests {
     #[serial_test::serial]
     async fn resolve_api_key_falls_back_to_auth_json() {
         let tmp = tempfile::tempdir().expect("tempdir");
-        let grok_home = tmp.path();
-        write_auth_json(grok_home, "from-auth-json");
+        let axon_home = tmp.path();
+        write_auth_json(axon_home, "from-auth-json");
         // `with_no_env` returns sync; we re-implement the clearing
         // inline so we can `.await` the resolver.
         let key =
-            with_env_isolated(async { resolve_api_key(None, grok_home).await.expect("ok") }).await;
+            with_env_isolated(async { resolve_api_key(None, axon_home).await.expect("ok") }).await;
         assert_eq!(key, "from-auth-json", "auth.json is the third source");
     }
 
@@ -2307,10 +2307,10 @@ mod tests {
     #[serial_test::serial]
     async fn resolve_api_key_skips_auth_json_when_flag_provided() {
         let tmp = tempfile::tempdir().expect("tempdir");
-        let grok_home = tmp.path();
-        write_auth_json(grok_home, "from-auth-json");
+        let axon_home = tmp.path();
+        write_auth_json(axon_home, "from-auth-json");
         let key = with_env_isolated(async {
-            resolve_api_key(Some("from-flag"), grok_home)
+            resolve_api_key(Some("from-flag"), axon_home)
                 .await
                 .expect("ok")
         })
@@ -2322,12 +2322,12 @@ mod tests {
     #[serial_test::serial]
     async fn resolve_api_key_skips_auth_json_when_env_provided() {
         let tmp = tempfile::tempdir().expect("tempdir");
-        let grok_home = tmp.path();
-        write_auth_json(grok_home, "from-auth-json");
+        let axon_home = tmp.path();
+        write_auth_json(axon_home, "from-auth-json");
         let key = with_env_isolated(async {
-            unsafe { std::env::set_var("XAI_API_KEY", "from-env") };
-            let resolved = resolve_api_key(None, grok_home).await.expect("ok");
-            unsafe { std::env::remove_var("XAI_API_KEY") };
+            unsafe { std::env::set_var("AXON_API_KEY", "from-env") };
+            let resolved = resolve_api_key(None, axon_home).await.expect("ok");
+            unsafe { std::env::remove_var("AXON_API_KEY") };
             resolved
         })
         .await;
@@ -2341,10 +2341,10 @@ mod tests {
             return;
         }
         let tmp = tempfile::tempdir().expect("tempdir");
-        let grok_home = tmp.path();
-        write_empty_auth_json(grok_home);
+        let axon_home = tmp.path();
+        write_empty_auth_json(axon_home);
         let msg = with_env_isolated(async {
-            let err = resolve_api_key(None, grok_home)
+            let err = resolve_api_key(None, axon_home)
                 .await
                 .expect_err("missing everywhere");
             format!("{err:#}")
@@ -2352,7 +2352,7 @@ mod tests {
         .await;
         assert!(
             msg.contains("--api-key")
-                && msg.contains("XAI_API_KEY")
+                && msg.contains("AXON_API_KEY")
                 && msg.contains("axon login")
                 && msg.contains("auth.json"),
             "error names all three sources: {msg}",
@@ -2366,16 +2366,16 @@ mod tests {
             return;
         }
         let tmp = tempfile::tempdir().expect("tempdir");
-        let grok_home = tmp.path();
+        let axon_home = tmp.path();
         // Entry exists with `.key == ""` → fast-path tries to return
         // it, our caller trims it down to empty → falls through to
         // the unified error.
-        write_auth_json(grok_home, "");
-        let err1 = with_env_isolated(async { resolve_api_key(None, grok_home).await }).await;
+        write_auth_json(axon_home, "");
+        let err1 = with_env_isolated(async { resolve_api_key(None, axon_home).await }).await;
         assert!(err1.is_err(), "empty auth.json entry is treated as absent");
 
-        write_auth_json(grok_home, "   ");
-        let err2 = with_env_isolated(async { resolve_api_key(None, grok_home).await }).await;
+        write_auth_json(axon_home, "   ");
+        let err2 = with_env_isolated(async { resolve_api_key(None, axon_home).await }).await;
         assert!(
             err2.is_err(),
             "whitespace-only auth.json entry is treated as absent",
@@ -2390,10 +2390,10 @@ mod tests {
     #[serial_test::serial]
     async fn resolve_api_key_returns_refreshable_oidc_token() {
         let tmp = tempfile::tempdir().expect("tempdir");
-        let grok_home = tmp.path();
-        write_fresh_oidc_auth_json(grok_home, "fresh-oidc-key");
+        let axon_home = tmp.path();
+        write_fresh_oidc_auth_json(axon_home, "fresh-oidc-key");
         let key =
-            with_env_isolated(async { resolve_api_key(None, grok_home).await.expect("ok") }).await;
+            with_env_isolated(async { resolve_api_key(None, axon_home).await.expect("ok") }).await;
         assert_eq!(key, "fresh-oidc-key");
     }
 
@@ -2410,9 +2410,9 @@ mod tests {
             return;
         }
         let tmp = tempfile::tempdir().expect("tempdir");
-        let grok_home = tmp.path();
-        write_expired_oidc_auth_json_no_refresh(grok_home, "stale-oidc-key");
-        let err = with_env_isolated(async { resolve_api_key(None, grok_home).await }).await;
+        let axon_home = tmp.path();
+        write_expired_oidc_auth_json_no_refresh(axon_home, "stale-oidc-key");
+        let err = with_env_isolated(async { resolve_api_key(None, axon_home).await }).await;
         assert!(
             err.is_err(),
             "expired OIDC + no refresh_token → error (no usable token)",
@@ -2443,7 +2443,7 @@ mod tests {
     /// Env vars cleared by [`with_env_isolated`] / inline test
     /// teardown. Each can short-circuit our `AuthManager` setup
     /// against the test's tempdir if left in place:
-    /// * `XAI_API_KEY` — would return early from `resolve_api_key`.
+    /// * `AXON_API_KEY` — would return early from `resolve_api_key`.
     /// * `AXON_AUTH` — inline-JSON credentials override that bypasses
     ///   the on-disk read entirely (`AuthManager::new`).
     /// * `AXON_AUTH_PATH` — overrides the auth.json path; if set to
@@ -2453,7 +2453,7 @@ mod tests {
     ///   refresher that could mint credentials independent of the
     ///   fixture.
     const ISOLATED_ENV_KEYS: &[&str] = &[
-        "XAI_API_KEY",
+        "AXON_API_KEY",
         "AXON_AUTH",
         "AXON_AUTH_PATH",
         "AXON_AUTH_PROVIDER_COMMAND",
@@ -2688,8 +2688,8 @@ mod tests {
     #[tokio::test]
     #[serial_test::serial]
     async fn run_rejects_missing_trace_path() {
-        let prev = std::env::var("XAI_API_KEY").ok();
-        unsafe { std::env::remove_var("XAI_API_KEY") };
+        let prev = std::env::var("AXON_API_KEY").ok();
+        unsafe { std::env::remove_var("AXON_API_KEY") };
         let tmp = tempfile::tempdir().expect("tempdir");
         let args = RunArgs {
             trace: PathBuf::from("/definitely/does/not/exist.json"),
@@ -2703,7 +2703,7 @@ mod tests {
             api_key: None,
             min_confidence: None,
             include_reasoning: None,
-            grok_home: Some(tmp.path().to_path_buf()),
+            axon_home: Some(tmp.path().to_path_buf()),
         };
         let err = run(args).await.expect_err("missing trace");
         let msg = format!("{err:#}");
@@ -2712,8 +2712,8 @@ mod tests {
             "msg: {msg}"
         );
         match prev {
-            Some(v) => unsafe { std::env::set_var("XAI_API_KEY", v) },
-            None => unsafe { std::env::remove_var("XAI_API_KEY") },
+            Some(v) => unsafe { std::env::set_var("AXON_API_KEY", v) },
+            None => unsafe { std::env::remove_var("AXON_API_KEY") },
         }
     }
 
@@ -3025,8 +3025,8 @@ mod tests {
     #[tokio::test]
     #[serial_test::serial]
     async fn run_rejects_missing_output_parent() {
-        let prev = std::env::var("XAI_API_KEY").ok();
-        unsafe { std::env::remove_var("XAI_API_KEY") };
+        let prev = std::env::var("AXON_API_KEY").ok();
+        unsafe { std::env::remove_var("AXON_API_KEY") };
         let tmp = tempfile::tempdir().expect("tempdir");
         let trace_path = tmp.path().join("trace.json");
         std::fs::write(&trace_path, "[]").expect("write");
@@ -3038,7 +3038,7 @@ mod tests {
             api_key: None,
             min_confidence: None,
             include_reasoning: None,
-            grok_home: Some(tmp.path().to_path_buf()),
+            axon_home: Some(tmp.path().to_path_buf()),
         };
         let err = run(args).await.expect_err("bad parent");
         let msg = format!("{err:#}");
@@ -3047,8 +3047,8 @@ mod tests {
             "msg: {msg}"
         );
         match prev {
-            Some(v) => unsafe { std::env::set_var("XAI_API_KEY", v) },
-            None => unsafe { std::env::remove_var("XAI_API_KEY") },
+            Some(v) => unsafe { std::env::set_var("AXON_API_KEY", v) },
+            None => unsafe { std::env::remove_var("AXON_API_KEY") },
         }
     }
 }

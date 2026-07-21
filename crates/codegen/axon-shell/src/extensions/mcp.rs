@@ -1,9 +1,9 @@
 //! MCP extension methods and business logic.
 //!
-//! - `x.ai/mcp/list` — list available MCP servers (agent-scoped or session-annotated)
-//! - `x.ai/mcp/call` — invoke an MCP tool directly, outside the LLM loop
-//! - `x.ai/mcp/servers_updated` — notification pushed when managed configs resolve
-//! - `x.ai/mcp/server_status` — per-server delta pushed by the
+//! - `axon/mcp/list` — list available MCP servers (agent-scoped or session-annotated)
+//! - `axon/mcp/call` — invoke an MCP tool directly, outside the LLM loop
+//! - `axon/mcp/servers_updated` — notification pushed when managed configs resolve
+//! - `axon/mcp/server_status` — per-server delta pushed by the
 //!   `StatusDispatcher` (transport-closed pollers, handshake failures,
 //!   config diffs, server-pushed list-changed notifications). See
 //!   [`crate::session::mcp_dispatcher`] for the coalescing /
@@ -24,7 +24,7 @@ use axon_mcp::wire;
 
 use super::{ExtResult, parse_params, to_ext_response};
 
-/// Agent-only `x.ai/mcp/*` ACP method/notification names.
+/// Agent-only `axon/mcp/*` ACP method/notification names.
 ///
 /// Unlike [`wire::MCP_CALL`] (the cross-SDK contract, which stays in
 /// `axon_mcp::wire`), these methods are private to the agent↔client channel and
@@ -32,21 +32,21 @@ use super::{ExtResult, parse_params, to_ext_response};
 /// same string literal across dispatch and notification send sites.
 pub mod mcp_methods {
     /// Shared prefix that routes every MCP ext method to this module's dispatcher.
-    pub const PREFIX: &str = "x.ai/mcp/";
+    pub const PREFIX: &str = "axon/mcp/";
 
-    pub const LIST: &str = "x.ai/mcp/list";
-    pub const READ_RESOURCE: &str = "x.ai/mcp/read_resource";
-    pub const AUTH_STATUS: &str = "x.ai/mcp/auth_status";
-    pub const AUTH_TRIGGER: &str = "x.ai/mcp/auth_trigger";
-    pub const SETUP: &str = "x.ai/mcp/setup";
-    pub const TOGGLE: &str = "x.ai/mcp/toggle";
-    pub const TOGGLE_TOOL: &str = "x.ai/mcp/toggle_tool";
-    pub const UPSERT: &str = "x.ai/mcp/upsert";
-    pub const DELETE: &str = "x.ai/mcp/delete";
+    pub const LIST: &str = "axon/mcp/list";
+    pub const READ_RESOURCE: &str = "axon/mcp/read_resource";
+    pub const AUTH_STATUS: &str = "axon/mcp/auth_status";
+    pub const AUTH_TRIGGER: &str = "axon/mcp/auth_trigger";
+    pub const SETUP: &str = "axon/mcp/setup";
+    pub const TOGGLE: &str = "axon/mcp/toggle";
+    pub const TOGGLE_TOOL: &str = "axon/mcp/toggle_tool";
+    pub const UPSERT: &str = "axon/mcp/upsert";
+    pub const DELETE: &str = "axon/mcp/delete";
 
-    pub const SERVERS_UPDATED: &str = "x.ai/mcp/servers_updated";
-    pub const TOOLS_CHANGED: &str = "x.ai/mcp/tools_changed";
-    pub const INIT_PROGRESS: &str = "x.ai/mcp/init_progress";
+    pub const SERVERS_UPDATED: &str = "axon/mcp/servers_updated";
+    pub const TOOLS_CHANGED: &str = "axon/mcp/tools_changed";
+    pub const INIT_PROGRESS: &str = "axon/mcp/init_progress";
 }
 use crate::agent::MvpAgent;
 use crate::session::managed_mcp::MANAGED_MCP_PREFIX;
@@ -266,9 +266,9 @@ pub struct McpToolsChanged {
     pub tools: Vec<McpToolEntry>,
 }
 
-// Re-export the `x.ai/mcp/server_status` schema +
+// Re-export the `axon/mcp/server_status` schema +
 // method constant from the dispatcher module so external callers
-// have a single import point alongside the other `x.ai/mcp/*`
+// have a single import point alongside the other `axon/mcp/*`
 // types.
 //
 // The canonical definitions still live in
@@ -328,13 +328,13 @@ pub async fn notify_servers_updated(
     if let Ok(params) = serde_json::value::to_raw_value(&payload) {
         let notification = acp::ExtNotification::new(mcp_methods::SERVERS_UPDATED, params.into());
         let _ = gateway.ext_notification(notification).await;
-        tracing::info!("Sent x.ai/mcp/servers_updated notification to client");
+        tracing::info!("Sent blocked.invalid/mcp/servers_updated notification to client");
     }
 }
 
 // ── Dispatch ────────────────────────────────────────────────────────
 
-/// Inbound `x.ai/mcp/*` methods this agent services, resolved from the wire string.
+/// Inbound `axon/mcp/*` methods this agent services, resolved from the wire string.
 ///
 /// Single source of truth for forward-method routing: [`handle`] maps each variant to
 /// its handler, and an unknown method yields `None` → `method_not_found`. The reverse
@@ -1914,7 +1914,7 @@ async fn handle_delete(agent: &MvpAgent, args: &acp::ExtRequest) -> ExtResult {
 mod tests {
     use super::*;
 
-    /// The emit-only reverse method (`x.ai/mcp/sdk_call`) shares the `x.ai/mcp/`
+    /// The emit-only reverse method (`axon/mcp/sdk_call`) shares the `axon/mcp/`
     /// prefix, so `mvp_agent`'s dispatcher routes an inbound copy of it to this
     /// module's `handle`. It must NOT collide with any forward route — i.e. it has no
     /// `McpRoute`, so `handle` returns `method_not_found` instead of misrouting a stray
@@ -1928,7 +1928,7 @@ mod tests {
         assert_eq!(
             route_mcp_method(wire::MCP_SDK_CALL),
             None,
-            "inbound x.ai/mcp/sdk_call must not resolve to a forward handler"
+            "inbound blocked.invalid/mcp/sdk_call must not resolve to a forward handler"
         );
         // Sanity: the forward sibling on the same prefix DOES route.
         assert_eq!(route_mcp_method(wire::MCP_CALL), Some(McpRoute::Call));
@@ -2069,14 +2069,14 @@ mod tests {
         let resp = McpListResponse {
             servers: vec![
                 McpServerEntry {
-                    name: "grok_com_linear".to_string(),
+                    name: "axon_com_linear".to_string(),
                     display_name: None,
                     source: McpServerSource::Managed,
                     config: McpServerConfig::Http {
                         url: "https://mcp.linear.app".to_string(),
                         scope: Some("team".to_string()),
                         scope_id: Some("team-uuid-123".to_string()),
-                        scope_name: Some("Grok CLI".to_string()),
+                        scope_name: Some("Axon CLI".to_string()),
                     },
                     source_label: None,
                     setup: None,
@@ -2118,7 +2118,7 @@ mod tests {
         assert_eq!(json["servers"][0]["url"], "https://mcp.linear.app");
         assert_eq!(json["servers"][0]["scope"], "team");
         assert_eq!(json["servers"][0]["scopeId"], "team-uuid-123");
-        assert_eq!(json["servers"][0]["scopeName"], "Grok CLI");
+        assert_eq!(json["servers"][0]["scopeName"], "Axon CLI");
         assert!(json["servers"][0].get("session").is_none());
         // Managed gateway connectors are not serialized as local transports.
         let gateway = serde_json::to_value(McpServerEntry {
@@ -2273,7 +2273,7 @@ mod tests {
 
     #[test]
     fn disabled_managed_http_rows_keep_non_gateway_placeholder_config() {
-        let entry = disabled_server_placeholder_entry("grok_com_slack");
+        let entry = disabled_server_placeholder_entry("axon_com_slack");
         assert_eq!(entry.source, McpServerSource::Managed);
         assert!(matches!(entry.config, McpServerConfig::Stdio { .. }));
     }
@@ -2302,7 +2302,7 @@ mod tests {
         let mut servers = build_mcp_catalog_with_gateway_tools(&[], &[], None, &Default::default());
         append_disabled_like_handle_list(
             &mut servers,
-            &["grok_com_slack", "grok_mcp_linear"],
+            &["axon_com_slack", "axon_mcp_linear"],
             true,
         );
         assert!(
@@ -2312,9 +2312,9 @@ mod tests {
 
         // Same orphans with gateway off → still placeholders (legacy UX).
         let mut servers = build_mcp_catalog_with_gateway_tools(&[], &[], None, &Default::default());
-        append_disabled_like_handle_list(&mut servers, &["grok_com_slack"], false);
+        append_disabled_like_handle_list(&mut servers, &["axon_com_slack"], false);
         assert_eq!(servers.len(), 1);
-        assert_eq!(servers[0].name, "grok_com_slack");
+        assert_eq!(servers[0].name, "axon_com_slack");
         assert!(!servers[0].session.as_ref().unwrap().enabled);
 
         // Name already in catalog (gateway row) → never double-append.
@@ -2493,7 +2493,7 @@ mod tests {
     #[test]
     fn test_disabled_session_state_serialization() {
         let entry = McpServerEntry {
-            name: "grok_com_slack".to_string(),
+            name: "axon_com_slack".to_string(),
             display_name: None,
             source: McpServerSource::Managed,
             source_label: None,

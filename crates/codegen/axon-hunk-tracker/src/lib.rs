@@ -2,7 +2,7 @@
 //!
 //! This crate provides:
 //! - Actor-based hunk tracking with source attribution (Agent vs External)
-//! - Integration with grok-shell sessions
+//! - Integration with axon-shell sessions
 //!
 //! ## Actor Pattern
 //!

@@ -948,7 +948,7 @@ mod tests {
         std::fs::create_dir_all(&install_dir).unwrap();
         // Build the registry against an explicit tempdir rather than going through
         // `InstallRegistry::load()`, which resolves the install dir via the
-        // process-global `grok_home()` `OnceLock` (first-write-wins). A parallel
+        // process-global `axon_home()` `OnceLock` (first-write-wins). A parallel
         // test in this binary can cache the real `~/.axon` before this runs,
         // which would leak the registry tests into the real home and make them
         // order-dependent and flaky.

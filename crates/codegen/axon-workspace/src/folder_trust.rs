@@ -119,7 +119,7 @@ pub fn decide_inputs_with_interactive(
 /// this binary — true on a local/dev build (no `AXON_VERSION` release stamp).
 ///
 /// THE single security short-circuit: every explicit trust auto-grant site calls
-/// this (greppable via `folder_trust_inert`). When true a self-built grok never
+/// this (greppable via `folder_trust_inert`). When true a self-built axon never
 /// prompts, never gates repo-local `.envrc`/`.claude`/hooks/plugins/MCP/LSP, and
 /// does NO `trusted_folders.toml` I/O. Release-stamped builds are unaffected.
 pub fn folder_trust_inert() -> bool {
@@ -145,7 +145,7 @@ fn is_local_build() -> bool {
 /// Resolve whether the folder-trust gate is enabled.
 ///
 /// On a local/dev build (no `AXON_VERSION` release stamp) the feature is OFF
-/// regardless of env/config/remote — a self-built grok auto-trusts (never
+/// regardless of env/config/remote — a self-built axon auto-trusts (never
 /// prompts, never gates repo-local MCP/LSP). Folder-trust applies only to
 /// shipped, release-stamped binaries.
 ///
@@ -162,7 +162,7 @@ pub fn feature_enabled(remote: Option<&RemoteSettings>) -> bool {
 fn feature_enabled_for_build(remote: Option<&RemoteSettings>, is_local_build: bool) -> bool {
     // Local/dev builds never gate (auto-trust): folder-trust applies only to
     // shipped, release-stamped binaries. Even an explicit AXON_FOLDER_TRUST/config
-    // opt-in is ignored here so a self-built grok never prompts.
+    // opt-in is ignored here so a self-built axon never prompts.
     if is_local_build {
         return false;
     }
@@ -371,7 +371,7 @@ fn collect_repo_config_kinds(cwd: &Path, first_only: bool) -> Vec<&'static str> 
     // Project PLUGIN dirs: project-scoped plugins are unified under folder-trust
     // too, so a repo-local plugin dir is repo-controlled code-exec (hooks/MCP)
     // that must be gated — else a plugin clone (e.g. `.axon/plugins/evil/`, even
-    // one in a subdir launched via `cd sub && grok`) would resolve trusted and
+    // one in a subdir launched via `cd sub && axon`) would resolve trusted and
     // run ungated. Uses the shared SSOT walk (cwd→git root) so detection matches
     // exactly what `discover_plugins` scans for Project scope (errs secure).
     if !axon_agent::plugins::project_plugin_dirs_in(&chain.dirs).is_empty() {
@@ -386,11 +386,11 @@ fn collect_repo_config_kinds(cwd: &Path, first_only: bool) -> Vec<&'static str> 
         hit!("agents");
     }
     // Presence matches exact-cwd discovery without parsing repository content.
-    let grok = cwd.join(".axon");
-    if directory_present_or_uncertain(&grok.join("roles")) {
+    let axon = cwd.join(".axon");
+    if directory_present_or_uncertain(&axon.join("roles")) {
         hit!("roles");
     }
-    if directory_present_or_uncertain(&grok.join("personas")) {
+    if directory_present_or_uncertain(&axon.join("personas")) {
         hit!("personas");
     }
     // `~/.claude.json` `projects.<cwd>.mcpServers`.
@@ -547,20 +547,20 @@ mod tests {
     }
 
     #[test]
-    fn repo_configs_present_detects_grok_config_mcp_servers() {
+    fn repo_configs_present_detects_axon_config_mcp_servers() {
         let tmp = repo_tmp();
-        let grok = tmp.path().join(".axon");
-        std::fs::create_dir_all(&grok).unwrap();
-        std::fs::write(grok.join("config.toml"), "[mcp_servers.x]\ncommand=\"y\"\n").unwrap();
+        let axon = tmp.path().join(".axon");
+        std::fs::create_dir_all(&axon).unwrap();
+        std::fs::write(axon.join("config.toml"), "[mcp_servers.x]\ncommand=\"y\"\n").unwrap();
         assert!(repo_configs_present(tmp.path()));
     }
 
     #[test]
-    fn repo_configs_present_detects_grok_lsp_json() {
+    fn repo_configs_present_detects_axon_lsp_json() {
         let tmp = repo_tmp();
-        let grok = tmp.path().join(".axon");
-        std::fs::create_dir_all(&grok).unwrap();
-        std::fs::write(grok.join("lsp.json"), "{}").unwrap();
+        let axon = tmp.path().join(".axon");
+        std::fs::create_dir_all(&axon).unwrap();
+        std::fs::write(axon.join("lsp.json"), "{}").unwrap();
         assert!(repo_configs_present(tmp.path()));
     }
 
@@ -633,9 +633,9 @@ mod tests {
     #[test]
     fn project_subagent_marker_regular_file_is_absent() {
         let tmp = repo_tmp();
-        let grok = tmp.path().join(".axon");
-        std::fs::create_dir_all(&grok).unwrap();
-        std::fs::write(grok.join("roles"), "not a directory").unwrap();
+        let axon = tmp.path().join(".axon");
+        std::fs::create_dir_all(&axon).unwrap();
+        std::fs::write(axon.join("roles"), "not a directory").unwrap();
         assert!(!repo_configs_present(tmp.path()));
     }
 
@@ -653,10 +653,10 @@ mod tests {
     fn project_subagent_marker_symlink_to_directory_is_present() {
         let tmp = repo_tmp();
         let target = tmp.path().join("target-roles");
-        let grok = tmp.path().join(".axon");
+        let axon = tmp.path().join(".axon");
         std::fs::create_dir_all(&target).unwrap();
-        std::fs::create_dir_all(&grok).unwrap();
-        std::os::unix::fs::symlink(&target, grok.join("roles")).unwrap();
+        std::fs::create_dir_all(&axon).unwrap();
+        std::os::unix::fs::symlink(&target, axon.join("roles")).unwrap();
         assert!(repo_configs_present(tmp.path()));
     }
 
@@ -664,9 +664,9 @@ mod tests {
     #[test]
     fn dangling_project_subagent_marker_is_absent() {
         let tmp = repo_tmp();
-        let grok = tmp.path().join(".axon");
-        std::fs::create_dir_all(&grok).unwrap();
-        std::os::unix::fs::symlink("missing", grok.join("personas")).unwrap();
+        let axon = tmp.path().join(".axon");
+        std::fs::create_dir_all(&axon).unwrap();
+        std::os::unix::fs::symlink("missing", axon.join("personas")).unwrap();
         assert!(!repo_configs_present(tmp.path()));
     }
 
@@ -696,9 +696,9 @@ mod tests {
     #[test]
     fn repo_configs_present_detects_project_hooks_file() {
         let tmp = repo_tmp();
-        let grok = tmp.path().join(".axon");
-        std::fs::create_dir_all(&grok).unwrap();
-        std::fs::write(grok.join("hooks"), "{}").unwrap();
+        let axon = tmp.path().join(".axon");
+        std::fs::create_dir_all(&axon).unwrap();
+        std::fs::write(axon.join("hooks"), "{}").unwrap();
 
         assert!(repo_configs_present(tmp.path()));
         assert!(repo_config_kinds(tmp.path()).contains(&"hooks"));
@@ -708,9 +708,9 @@ mod tests {
     #[test]
     fn repo_configs_present_detects_dangling_project_hooks_symlink() {
         let tmp = repo_tmp();
-        let grok = tmp.path().join(".axon");
-        std::fs::create_dir_all(&grok).unwrap();
-        std::os::unix::fs::symlink("missing-hooks", grok.join("hooks")).unwrap();
+        let axon = tmp.path().join(".axon");
+        std::fs::create_dir_all(&axon).unwrap();
+        std::os::unix::fs::symlink("missing-hooks", axon.join("hooks")).unwrap();
 
         assert!(repo_configs_present(tmp.path()));
         assert!(repo_config_kinds(tmp.path()).contains(&"hooks"));
@@ -753,21 +753,21 @@ mod tests {
         // A project config whose `[mcp_servers]` table is empty has nothing to
         // gate, so it must not trip the gate.
         let tmp = repo_tmp();
-        let grok = tmp.path().join(".axon");
-        std::fs::create_dir_all(&grok).unwrap();
-        std::fs::write(grok.join("config.toml"), "[mcp_servers]\n").unwrap();
+        let axon = tmp.path().join(".axon");
+        std::fs::create_dir_all(&axon).unwrap();
+        std::fs::write(axon.join("config.toml"), "[mcp_servers]\n").unwrap();
         assert!(!repo_configs_present(tmp.path()));
     }
 
     #[test]
-    fn repo_configs_present_detects_grok_config_plugins_paths() {
+    fn repo_configs_present_detects_axon_config_plugins_paths() {
         // A repo whose ONLY repo-local config is `[plugins].paths` (no plugin
         // dir, no MCP/LSP/hooks) must still be gated: those paths load as
         // auto-trusted ConfigPath plugins, so an ungated clone is a live RCE.
         let tmp = repo_tmp();
-        let grok = tmp.path().join(".axon");
-        std::fs::create_dir_all(&grok).unwrap();
-        std::fs::write(grok.join("config.toml"), "[plugins]\npaths = [\"./x\"]\n").unwrap();
+        let axon = tmp.path().join(".axon");
+        std::fs::create_dir_all(&axon).unwrap();
+        std::fs::write(axon.join("config.toml"), "[plugins]\npaths = [\"./x\"]\n").unwrap();
         assert!(repo_configs_present(tmp.path()));
     }
 
@@ -776,9 +776,9 @@ mod tests {
         // An empty `[plugins].paths` (or a `[plugins]` table without `paths`)
         // contributes no plugin code-exec, so it must not trip the gate.
         let tmp = repo_tmp();
-        let grok = tmp.path().join(".axon");
-        std::fs::create_dir_all(&grok).unwrap();
-        std::fs::write(grok.join("config.toml"), "[plugins]\npaths = []\n").unwrap();
+        let axon = tmp.path().join(".axon");
+        std::fs::create_dir_all(&axon).unwrap();
+        std::fs::write(axon.join("config.toml"), "[plugins]\npaths = []\n").unwrap();
         assert!(!repo_configs_present(tmp.path()));
     }
 
@@ -791,9 +791,9 @@ mod tests {
         // `.axon/agents` — even when launched from a SUBDIR (the cwd→git-root walk
         // that `first_only` shares). Guards against silent drift between the two.
         let tmp = repo_tmp();
-        let grok = tmp.path().join(".axon");
-        std::fs::create_dir_all(grok.join("agents")).unwrap();
-        std::fs::write(grok.join("config.toml"), "[plugins]\npaths = [\"./x\"]\n").unwrap();
+        let axon = tmp.path().join(".axon");
+        std::fs::create_dir_all(axon.join("agents")).unwrap();
+        std::fs::write(axon.join("config.toml"), "[plugins]\npaths = [\"./x\"]\n").unwrap();
         let claude = tmp.path().join(".claude");
         std::fs::create_dir_all(&claude).unwrap();
         std::fs::write(claude.join("settings.json"), r#"{"env":{"X":"1"}}"#).unwrap();
@@ -873,7 +873,7 @@ mod tests {
         // keeping today's gate. Isolate config so neither on-disk user/managed
         // config nor an ambient env flag can override it: empty AXON_HOME (no
         // config.toml/managed_config.toml) + AXON_FOLDER_TRUST unset. nextest's
-        // process-per-test makes grok_home()'s OnceLock pick up the temp dir.
+        // process-per-test makes axon_home()'s OnceLock pick up the temp dir.
         let _lock = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let home = tempfile::tempdir().unwrap();
         let _home = EnvVarGuard::set("AXON_HOME", home.path());
@@ -895,7 +895,7 @@ mod tests {
     #[test]
     fn local_build_ignores_explicit_env_optin() {
         // Auto-trust is absolute on a local build: even an explicit
-        // AXON_FOLDER_TRUST=1 does NOT enable the feature (so a self-built grok
+        // AXON_FOLDER_TRUST=1 does NOT enable the feature (so a self-built axon
         // never prompts). AXON_HOME isolated so on-disk config can't influence it.
         let _lock = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let home = tempfile::tempdir().unwrap();

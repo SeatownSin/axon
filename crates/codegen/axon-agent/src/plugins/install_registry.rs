@@ -72,7 +72,7 @@ pub struct MarketplaceProvenance {
     pub source_url_or_path: String,
     /// User-facing source name (display only, not used for matching).
     pub source_display_name: String,
-    /// Plugin subdirectory within marketplace (e.g., "plugins/xai-code-review").
+    /// Plugin subdirectory within marketplace (e.g., "plugins/axon-code-review").
     pub plugin_subdir: String,
 }
 
@@ -265,7 +265,7 @@ impl InstallRegistry {
             return dir;
         }
 
-        axon_config::grok_home().join(DEFAULT_INSTALL_DIR_NAME)
+        axon_config::axon_home().join(DEFAULT_INSTALL_DIR_NAME)
     }
 
     /// Read `[plugins].install_dir` from the effective config

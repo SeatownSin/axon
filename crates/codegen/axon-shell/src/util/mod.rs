@@ -1,5 +1,5 @@
 pub mod config;
-pub mod grok_auth_credentials;
+pub mod axon_auth_credentials;
 pub mod hooks;
 
 // The foundation utilities live in `axon-shell-base` (upstream of this
@@ -10,14 +10,14 @@ pub use axon_shell_base::util::*;
 
 pub(crate) fn is_user_instruction_path(
     path: &std::path::Path,
-    grok_home: &std::path::Path,
+    axon_home: &std::path::Path,
     vendor_homes: &[(std::path::PathBuf, bool)],
     workspace_root: Option<&std::path::Path>,
 ) -> bool {
     let parent = path.parent();
-    let grok_rules = grok_home.join("rules");
+    let axon_rules = axon_home.join("rules");
     let is_exact_home_surface = parent
-        .is_some_and(|parent| parent == grok_home || parent == grok_rules)
+        .is_some_and(|parent| parent == axon_home || parent == axon_rules)
         || vendor_homes.iter().any(|(vendor_home, named_enabled)| {
             parent.is_some_and(|parent| {
                 (*named_enabled && parent == vendor_home) || parent == vendor_home.join("rules")
@@ -29,7 +29,7 @@ pub(crate) fn is_user_instruction_path(
     if workspace_root.is_some_and(|root| path.starts_with(root)) {
         return false;
     }
-    path.starts_with(grok_home)
+    path.starts_with(axon_home)
         || vendor_homes
             .iter()
             .any(|(vendor_home, _)| path.starts_with(vendor_home))
@@ -56,7 +56,7 @@ mod is_user_instruction_path_tests {
     use std::path::Path;
 
     #[test]
-    fn grok_home_named_file_nested_in_workspace_is_user_scoped() {
+    fn axon_home_named_file_nested_in_workspace_is_user_scoped() {
         assert!(is_user_instruction_path(
             Path::new("/repo/config/AGENTS.md"),
             Path::new("/repo/config"),
@@ -72,12 +72,12 @@ mod is_user_instruction_path_tests {
     }
 
     #[test]
-    fn workspace_descendants_under_grok_home_stay_project_scoped() {
+    fn workspace_descendants_under_axon_home_stay_project_scoped() {
         assert!(!is_user_instruction_path(
-            Path::new("/custom/grok/worktrees/repo/src/AGENTS.md"),
-            Path::new("/custom/grok"),
+            Path::new("/custom/axon/worktrees/repo/src/AGENTS.md"),
+            Path::new("/custom/axon"),
             &[],
-            Some(Path::new("/custom/grok/worktrees/repo")),
+            Some(Path::new("/custom/axon/worktrees/repo")),
         ));
     }
 }

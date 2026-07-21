@@ -494,14 +494,14 @@ pub struct WorkspaceShared {
     pub(crate) hub_tools_snapshot: arc_swap::ArcSwap<Vec<ToolConfig>>,
     /// Server config stashed at construction time for deferred connect.
     pub(crate) hub_config: Option<HubConfig>,
-    /// Auth provider for xAI service calls.
+    /// Auth provider for Axon service calls.
     pub(crate) auth_provider: Option<axon_computer_hub_sdk::SharedAuthProvider>,
     /// Connection-level sink feeding the `ActivityTracker` (drained by
     /// `run_activity_feed`); not a network egress. `None` until `connect_hub()` sets it.
     pub(crate) activity_notify_handle:
         arc_swap::ArcSwap<Option<axon_tools::notification::types::ToolNotificationHandle>>,
     /// Sink for workspace-originated ext-notifications to the client (e.g.
-    /// `x.ai/search/fuzzy/status`). Mode-agnostic: the shell wires it to the
+    /// `axon/search/fuzzy/status`). Mode-agnostic: the shell wires it to the
     /// agent gateway in local mode, and to the server in proxy mode. `None` until
     /// set via [`WorkspaceHandle::set_client_ext_sink`](crate::handle::WorkspaceHandle::set_client_ext_sink).
     pub(crate) client_ext_sink: arc_swap::ArcSwap<Option<ClientExtSink>>,
@@ -530,7 +530,7 @@ pub struct WorkspaceShared {
     /// (from `AXON_WORKSPACE_REWIND_ALL_OUTCOMES`, default off).
     pub(crate) workspace_rewind_all_outcomes: bool,
     /// Resolved `$AXON_WORKSPACE_HOME` — the workspace-owned on-disk state root
-    /// (`<grok_home>/workspace` by default). The upload queue spills here.
+    /// (`<axon_home>/workspace` by default). The upload queue spills here.
     pub(crate) workspace_home: std::path::PathBuf,
     pub(crate) upload_queue: Option<std::sync::Arc<axon_file_utils::queue::UploadQueue>>,
     /// Whether collection is disabled (opt-out, or the fail-closed default).
@@ -635,7 +635,7 @@ impl WorkspaceShared {
     pub(crate) fn server_id(&self) -> Option<String> {
         self.hub_config.as_ref().and_then(|c| c.server_id.clone())
     }
-    /// Auth provider used for xAI service calls.
+    /// Auth provider used for Axon service calls.
     pub fn auth_provider(&self) -> Option<&axon_computer_hub_sdk::SharedAuthProvider> {
         self.auth_provider.as_ref()
     }

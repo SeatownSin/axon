@@ -1,13 +1,13 @@
 //! HTTP client for backend CRUD operations.
-use crate::auth::{GrokAuth, GrokComConfig};
+use crate::auth::{AxonAuth, AxonComConfig};
 use crate::session::export::{ExportedMessage, ExportedMetadata, ExportedSession};
 use indexmap::IndexMap;
 use prod_mc_cli_chat_proxy_types::SubagentBundle;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
-const AXON_CODE_BACKEND_URL: &str = "https://code.grok.com";
+const AXON_CODE_BACKEND_URL: &str = "https://code.blocked.invalid";
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
-const AXON_CODE_WEB_URL: &str = "https://grok.com";
+const AXON_CODE_WEB_URL: &str = "https://blocked.invalid";
 /// Build a share URL from a permission ID
 pub fn share_url(permission_id: &str) -> String {
     let web_url =
@@ -31,14 +31,14 @@ async fn add_bundle_fetch_headers(
         Some(am) => am.auth().await.ok(),
         None => None,
     };
-    let mut credentials = crate::util::grok_auth_credentials::GrokAuthCredentials::new(
+    let mut credentials = crate::util::axon_auth_credentials::AxonAuthCredentials::new(
         resolved_auth.as_ref().map(|auth| auth.key.clone()),
     );
     credentials.deployment_key = deployment_key.map(str::to_owned);
     credentials.alpha_test_key = alpha_test_key.map(str::to_owned);
     let mut builder = credentials
         .apply(builder, url)
-        .header("x-grok-client-version", axon_version::VERSION);
+        .header("x-axon-client-version", axon_version::VERSION);
     if deployment_key.is_none()
         && let Some(auth) = &resolved_auth
     {
@@ -49,7 +49,7 @@ async fn add_bundle_fetch_headers(
     }
     builder = builder
         .header(
-            "x-grok-client-identifier",
+            "x-axon-client-identifier",
             crate::http::process_client_identifier(),
         )
         .header(
@@ -68,11 +68,11 @@ pub async fn fetch_subagent_bundle(
     deployment_key: Option<&str>,
     alpha_test_key: Option<&str>,
 ) -> Result<SubagentBundle, BackendError> {
-    // This build never contacts xAI infrastructure (the default bundle
-    // source is the cli-chat-proxy). Custom non-xAI mirrors still work.
-    if crate::util::is_xai_infrastructure_url(cli_chat_proxy_base_url) {
+    // This build never contacts Axon infrastructure (the default bundle
+    // source is the cli-chat-proxy). Custom non-Axon mirrors still work.
+    if crate::util::is_axon_infrastructure_url(cli_chat_proxy_base_url) {
         return Err(BackendError::Auth(format!(
-            "bundle source '{cli_chat_proxy_base_url}' targets xAI infrastructure, \
+            "bundle source '{cli_chat_proxy_base_url}' targets Axon infrastructure, \
              which this build never contacts"
         )));
     }
@@ -131,9 +131,9 @@ async fn fetch_bundle_inner(
     deployment_key: Option<&str>,
     alpha_test_key: Option<&str>,
 ) -> Result<FetchedBundle, BackendError> {
-    if crate::util::is_xai_infrastructure_url(cli_chat_proxy_base_url) {
+    if crate::util::is_axon_infrastructure_url(cli_chat_proxy_base_url) {
         return Err(BackendError::Auth(format!(
-            "bundle source '{cli_chat_proxy_base_url}' targets xAI infrastructure, \
+            "bundle source '{cli_chat_proxy_base_url}' targets Axon infrastructure, \
              which this build never contacts"
         )));
     }
@@ -155,7 +155,7 @@ async fn fetch_bundle_inner(
     let mut request = client
         .get(&archive_url)
         .timeout(std::time::Duration::from_secs(30))
-        .header("x-grok-client-version", axon_version::VERSION)
+        .header("x-axon-client-version", axon_version::VERSION)
         .header(
             crate::http::CLIENT_MODE_HEADER,
             crate::http::process_client_mode(),
@@ -303,7 +303,7 @@ impl BackendClient {
         }
     }
     /// Attach a live `AuthManager` so every request resolves a fresh token
-    /// instead of requiring the caller to pass `&GrokAuth`.
+    /// instead of requiring the caller to pass `&AxonAuth`.
     pub fn with_auth_manager(mut self, manager: std::sync::Arc<crate::auth::AuthManager>) -> Self {
         let credentials: std::sync::Arc<dyn axon_auth::AuthCredentialProvider> =
             std::sync::Arc::new(
@@ -318,7 +318,7 @@ impl BackendClient {
         self
     }
     /// Resolve auth from the attached `AuthManager`.
-    async fn resolve_auth(&self) -> Result<GrokAuth, BackendError> {
+    async fn resolve_auth(&self) -> Result<AxonAuth, BackendError> {
         let manager = self
             .auth_manager
             .as_ref()
@@ -383,7 +383,7 @@ impl BackendClient {
         Ok(())
     }
     /// Build auth + identity headers.
-    /// Must include X-XAI-Token-Auth so nginx auth subrequest routes to authenticate_xai_grok_cli_token.
+    /// Must include X-AXON-Token-Auth so nginx auth subrequest routes to authenticate_axon_axon_cli_token.
     /// See: crates/codegen/axon-shell/src/agent/app.rs:run_headless
     async fn auth_header_map(&self) -> Result<reqwest::header::HeaderMap, BackendError> {
         use reqwest::header::{HeaderMap, HeaderValue};
@@ -394,8 +394,8 @@ impl BackendClient {
                 .map_err(|e| BackendError::Auth(format!("invalid {name} header: {e}")))
         };
         headers.insert(
-            "X-XAI-Token-Auth",
-            required(&GrokComConfig::default().token_header, "X-XAI-Token-Auth")?,
+            "X-AXON-Token-Auth",
+            required(&AxonComConfig::default().token_header, "X-AXON-Token-Auth")?,
         );
         headers.insert("x-userid", required(&auth.user_id, "x-userid")?);
         if let Some(email) = &auth.email
@@ -404,14 +404,14 @@ impl BackendClient {
             headers.insert("x-email", v);
         }
         if let Ok(v) = HeaderValue::from_str(&crate::http::process_client_identifier()) {
-            headers.insert("x-grok-client-identifier", v);
+            headers.insert("x-axon-client-identifier", v);
         }
         headers.insert(
             crate::http::CLIENT_MODE_HEADER,
             HeaderValue::from_static(crate::http::process_client_mode()),
         );
         headers.insert(
-            "x-grok-client-version",
+            "x-axon-client-version",
             HeaderValue::from_static(axon_version::VERSION),
         );
         Ok(headers)
@@ -420,11 +420,11 @@ impl BackendClient {
         &self,
         builder: reqwest::RequestBuilder,
     ) -> Result<reqwest::Response, BackendError> {
-        // This build never contacts xAI infrastructure; the default
-        // backend (`code.grok.com` — sharing, session registry) is xAI's.
-        if crate::util::is_xai_infrastructure_url(&self.base_url) {
+        // This build never contacts Axon infrastructure; the default
+        // backend (`code.blocked.invalid` — sharing, session registry) is Axon's.
+        if crate::util::is_axon_infrastructure_url(&self.base_url) {
             return Err(BackendError::Auth(format!(
-                "backend '{}' targets xAI infrastructure, which this build never contacts",
+                "backend '{}' targets Axon infrastructure, which this build never contacts",
                 self.base_url
             )));
         }
@@ -554,7 +554,7 @@ impl BackendClient {
 /// network). 4xx and parse errors are not retried.
 pub fn fetch_settings_blocking(
     _cli_chat_proxy_base_url: &str,
-    _auth: &GrokAuth,
+    _auth: &AxonAuth,
     _alpha_test_key: Option<&str>,
 ) -> Option<crate::util::config::RemoteSettings> {
     // Remote-settings pull removed: this build never contacts the
@@ -605,7 +605,7 @@ impl ListModelsEndpoint {
             }
         } else if fetch_auth == crate::agent::models::ModelFetchAuth::ApiKey {
             Self {
-                url: format!("{}/models", endpoints.xai_api_base_url),
+                url: format!("{}/models", endpoints.axon_api_base_url),
                 auth: EndpointAuth::ApiKey,
             }
         } else {
@@ -624,17 +624,17 @@ pub struct FetchModelsResult {
 }
 pub(crate) fn fetch_models_blocking(
     endpoints: &crate::agent::config::EndpointsConfig,
-    auth: Option<&GrokAuth>,
+    auth: Option<&AxonAuth>,
     fetch_auth: crate::agent::models::ModelFetchAuth,
 ) -> Result<FetchModelsResult, BackendError> {
     let client = crate::http::shared_blocking_client();
     let source = ListModelsEndpoint::from_endpoints(endpoints, fetch_auth);
-    // This build never contacts xAI infrastructure — the stock catalog
+    // This build never contacts Axon infrastructure — the stock catalog
     // endpoint is the cli-chat-proxy. A stale cached token from an older
     // install must not resurrect this fetch, so block by destination.
-    if crate::util::is_xai_infrastructure_url(&source.url) {
+    if crate::util::is_axon_infrastructure_url(&source.url) {
         return Err(BackendError::Auth(format!(
-            "models endpoint '{}' targets xAI infrastructure, which this build never contacts",
+            "models endpoint '{}' targets Axon infrastructure, which this build never contacts",
             source.url
         )));
     }
@@ -643,7 +643,7 @@ pub(crate) fn fetch_models_blocking(
     let mut request = client.get(&source.url);
     match source.auth {
         EndpointAuth::ApiKey => {
-            let api_key = crate::agent::auth_method::read_xai_api_key_env()
+            let api_key = crate::agent::auth_method::read_axon_api_key_env()
                 .ok()
                 .or_else(|| auth.map(|a| a.key.clone()));
             match api_key {
@@ -655,7 +655,7 @@ pub(crate) fn fetch_models_blocking(
                 None if crate::util::is_loopback_url(&source.url) => {}
                 None => {
                     return Err(BackendError::Auth(
-                        "No API key for custom models endpoint. Set XAI_API_KEY.".into(),
+                        "No API key for custom models endpoint. Set AXON_API_KEY.".into(),
                     ));
                 }
             }
@@ -666,9 +666,9 @@ pub(crate) fn fetch_models_blocking(
             })?;
             request = request
                 .header("Authorization", format!("Bearer {}", &auth.key))
-                .header("X-XAI-Token-Auth", "xai-grok-cli")
+                .header("X-AXON-Token-Auth", "axon-axon-cli")
                 .header("x-userid", &auth.user_id)
-                .header("x-grok-client-version", axon_version::VERSION)
+                .header("x-axon-client-version", axon_version::VERSION)
                 .header(
                     crate::http::CLIENT_MODE_HEADER,
                     crate::http::process_client_mode(),
@@ -1020,9 +1020,9 @@ mod tests {
                             authorization: header_str(&headers, "authorization"),
                             user_id: header_str(&headers, "x-userid"),
                             email: header_str(&headers, "x-email"),
-                            agent_id: header_str(&headers, "x-grok-agent-id"),
-                            client_identifier: header_str(&headers, "x-grok-client-identifier"),
-                            client_version: header_str(&headers, "x-grok-client-version"),
+                            agent_id: header_str(&headers, "x-axon-agent-id"),
+                            client_identifier: header_str(&headers, "x-axon-client-identifier"),
+                            client_version: header_str(&headers, "x-axon-client-version"),
                         });
                         (state.status_code, state.body)
                     },
@@ -1090,7 +1090,7 @@ mod tests {
                                 .and_then(|v| v.to_str().ok())
                                 .map(str::to_owned),
                             token_auth: headers
-                                .get("x-xai-token-auth")
+                                .get("x-axon-token-auth")
                                 .and_then(|v| v.to_str().ok())
                                 .map(str::to_owned),
                             user_id: headers
@@ -1106,7 +1106,7 @@ mod tests {
                                 None
                             },
                             client_version: headers
-                                .get("x-grok-client-version")
+                                .get("x-axon-client-version")
                                 .and_then(|v| v.to_str().ok())
                                 .map(str::to_owned),
                         });
@@ -1126,7 +1126,7 @@ mod tests {
                                 .and_then(|v| v.to_str().ok())
                                 .map(str::to_owned),
                             token_auth: headers
-                                .get("x-xai-token-auth")
+                                .get("x-axon-token-auth")
                                 .and_then(|v| v.to_str().ok())
                                 .map(str::to_owned),
                             user_id: headers
@@ -1142,7 +1142,7 @@ mod tests {
                                 None
                             },
                             client_version: headers
-                                .get("x-grok-client-version")
+                                .get("x-axon-client-version")
                                 .and_then(|v| v.to_str().ok())
                                 .map(str::to_owned),
                         });
@@ -1154,8 +1154,8 @@ mod tests {
         let handle = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
         (format!("{base}/v1"), seen_headers, handle)
     }
-    fn test_auth() -> GrokAuth {
-        GrokAuth {
+    fn test_auth() -> AxonAuth {
+        AxonAuth {
             key: "token".to_string(),
             auth_mode: crate::auth::AuthMode::Oidc,
             create_time: chrono::Utc::now(),
@@ -1175,7 +1175,7 @@ mod tests {
             user_blocked_reason: None,
             team_blocked_reasons: vec![],
             coding_data_retention_opt_out: false,
-            has_grok_code_access: None,
+            has_axon_code_access: None,
             refresh_token: None,
             expires_at: Some(chrono::Utc::now() + chrono::Duration::hours(1)),
             oidc_issuer: None,
@@ -1184,7 +1184,7 @@ mod tests {
     }
     fn test_auth_manager() -> Arc<crate::auth::AuthManager> {
         let dir = tempfile::tempdir().unwrap();
-        let mgr = crate::auth::AuthManager::new(dir.path(), crate::auth::GrokComConfig::default());
+        let mgr = crate::auth::AuthManager::new(dir.path(), crate::auth::AxonComConfig::default());
         mgr.hot_swap(test_auth());
         std::mem::forget(dir);
         Arc::new(mgr)
@@ -1211,7 +1211,7 @@ mod tests {
         let headers = seen_headers.lock().unwrap();
         let headers = headers.last().unwrap();
         assert_eq!(headers.authorization.as_deref(), Some("Bearer token"));
-        assert_eq!(headers.token_auth.as_deref(), Some("xai-grok-cli"));
+        assert_eq!(headers.token_auth.as_deref(), Some("axon-axon-cli"));
         assert_eq!(headers.user_id.as_deref(), Some("user-1"));
         assert_eq!(headers.email.as_deref(), Some("test@example.com"));
         assert_eq!(headers.alpha_test_key, None);
@@ -1272,13 +1272,13 @@ mod tests {
     #[test]
     fn parse_openai_format_uses_id_field() {
         let value = serde_json::json!(
-            { "id" : "grok-3", "object" : "model", "owned_by" : "xai", "context_window" :
+            { "id" : "axon-3", "object" : "model", "owned_by" : "axon", "context_window" :
             131072 }
         );
-        let result = parse_remote_model_value(&value, "https://api.x.ai/v1").unwrap();
-        assert_eq!(result.model, "grok-3");
-        assert_eq!(result.base_url, "https://api.x.ai/v1");
-        assert_eq!(result.name.as_deref(), Some("grok-3"));
+        let result = parse_remote_model_value(&value, "https://api.blocked.invalid/v1").unwrap();
+        assert_eq!(result.model, "axon-3");
+        assert_eq!(result.base_url, "https://api.blocked.invalid/v1");
+        assert_eq!(result.name.as_deref(), Some("axon-3"));
     }
     #[test]
     fn parse_model_field_takes_priority_over_id() {
@@ -1294,14 +1294,14 @@ mod tests {
     fn parse_reads_reasoning_effort_fields() {
         use axon_sampling_types::ReasoningEffort;
         let value = serde_json::json!(
-            { "model" : "grok-4.5", "context_window" : 1_000_000,
+            { "model" : "axon-4.5", "context_window" : 1_000_000,
             "supports_reasoning_effort" : true, "reasoning_effort" : "high" }
         );
         let result = parse_remote_model_value(&value, "https://default.url").unwrap();
         assert!(result.supports_reasoning_effort);
         assert_eq!(result.reasoning_effort, Some(ReasoningEffort::High));
         let value = serde_json::json!(
-            { "model" : "grok-4.5", "contextWindow" : 1_000_000,
+            { "model" : "axon-4.5", "contextWindow" : 1_000_000,
             "supportsReasoningEffort" : true, "reasoningEffort" : "xhigh" }
         );
         let result = parse_remote_model_value(&value, "https://default.url").unwrap();
@@ -1316,7 +1316,7 @@ mod tests {
     fn parse_reads_reasoning_efforts_list() {
         use axon_sampling_types::ReasoningEffort;
         let value = serde_json::json!(
-            { "model" : "grok-4.5", "context_window" : 1_000_000, "reasoning_efforts" :
+            { "model" : "axon-4.5", "context_window" : 1_000_000, "reasoning_efforts" :
             [{ "id" : "deep", "value" : "xhigh", "label" : "Deep" }, { "value" :
             "quantum" }, "low",] }
         );
@@ -1357,7 +1357,7 @@ mod tests {
     #[test]
     fn parse_remote_model_value_no_laziness_detector_block_yields_default() {
         let value = serde_json::json!(
-            { "model" : "grok-4", "context_window" : 256_000, }
+            { "model" : "axon-4", "context_window" : 256_000, }
         );
         let result = parse_remote_model_value(&value, "https://default.url").unwrap();
         assert_eq!(
@@ -1368,7 +1368,7 @@ mod tests {
     #[test]
     fn parse_remote_model_value_parses_camelcase_key() {
         let value = serde_json::json!(
-            { "model" : "grok-4", "context_window" : 256_000, "lazinessDetector" : {
+            { "model" : "axon-4", "context_window" : 256_000, "lazinessDetector" : {
             "enabled" : true, "max_nudges_per_session" : 2, "idle_threshold_ms" : 12_000,
             "min_confidence" : 0.75, }, }
         );
@@ -1385,7 +1385,7 @@ mod tests {
     #[test]
     fn parse_remote_model_value_parses_snake_case_laziness_detector() {
         let value = serde_json::json!(
-            { "model" : "grok-4", "context_window" : 256_000, "laziness_detector" : {
+            { "model" : "axon-4", "context_window" : 256_000, "laziness_detector" : {
             "enabled" : true, "max_nudges_per_session" : 3, "idle_threshold_ms" : 8_000,
             "min_confidence" : 0.6, }, }
         );
@@ -1402,7 +1402,7 @@ mod tests {
     #[test]
     fn parse_remote_model_value_parses_meta_laziness_detector() {
         let value = serde_json::json!(
-            { "model" : "grok-4", "context_window" : 256_000, "_meta" : {
+            { "model" : "axon-4", "context_window" : 256_000, "_meta" : {
             "lazinessDetector" : { "enabled" : true, "max_nudges_per_session" : 1,
             "idle_threshold_ms" : 15_000, "min_confidence" : 0.9, }, }, }
         );
@@ -1419,7 +1419,7 @@ mod tests {
     #[test]
     fn parse_remote_model_value_partial_block_uses_field_defaults() {
         let value = serde_json::json!(
-            { "model" : "grok-4", "context_window" : 256_000, "lazinessDetector" : {
+            { "model" : "axon-4", "context_window" : 256_000, "lazinessDetector" : {
             "enabled" : true, }, }
         );
         let result = parse_remote_model_value(&value, "https://default.url").unwrap();
@@ -1435,7 +1435,7 @@ mod tests {
     #[test]
     fn parse_remote_model_value_malformed_block_falls_back_to_default() {
         let value = serde_json::json!(
-            { "model" : "grok-4", "context_window" : 256_000, "lazinessDetector" : {
+            { "model" : "axon-4", "context_window" : 256_000, "lazinessDetector" : {
             "enabled" : true, "max_nudges_per_session" : "abc", }, }
         );
         let result = parse_remote_model_value(&value, "https://default.url").unwrap();
@@ -1447,7 +1447,7 @@ mod tests {
     #[test]
     fn parse_remote_model_value_non_object_value_falls_back_to_default() {
         let value = serde_json::json!(
-            { "model" : "grok-4", "context_window" : 256_000, "lazinessDetector" :
+            { "model" : "axon-4", "context_window" : 256_000, "lazinessDetector" :
             "not-an-object", }
         );
         let result = parse_remote_model_value(&value, "https://default.url").unwrap();
@@ -1459,7 +1459,7 @@ mod tests {
     #[test]
     fn parse_remote_model_value_top_level_camelcase_wins_over_snake_case() {
         let value = serde_json::json!(
-            { "model" : "grok-4", "context_window" : 256_000, "lazinessDetector" : {
+            { "model" : "axon-4", "context_window" : 256_000, "lazinessDetector" : {
             "enabled" : true, "max_nudges_per_session" : 7, }, "laziness_detector" : {
             "enabled" : false, "max_nudges_per_session" : 99, }, }
         );
@@ -1480,7 +1480,7 @@ mod tests {
     #[test]
     fn parse_remote_model_value_parses_include_reasoning_under_camelcase_wrapper() {
         let value = serde_json::json!(
-            { "model" : "grok-4", "context_window" : 256_000, "lazinessDetector" : {
+            { "model" : "axon-4", "context_window" : 256_000, "lazinessDetector" : {
             "enabled" : true, "include_reasoning" : false, }, }
         );
         let result = parse_remote_model_value(&value, "https://default.url").unwrap();
@@ -1489,7 +1489,7 @@ mod tests {
     #[test]
     fn parse_remote_model_value_parses_include_reasoning_under_snake_case_wrapper() {
         let value = serde_json::json!(
-            { "model" : "grok-4", "context_window" : 256_000, "laziness_detector" : {
+            { "model" : "axon-4", "context_window" : 256_000, "laziness_detector" : {
             "enabled" : true, "include_reasoning" : true, }, }
         );
         let result = parse_remote_model_value(&value, "https://default.url").unwrap();
@@ -1498,7 +1498,7 @@ mod tests {
     #[test]
     fn parse_remote_model_value_omitted_include_reasoning_defaults_to_none() {
         let value = serde_json::json!(
-            { "model" : "grok-4", "context_window" : 256_000, "lazinessDetector" : {
+            { "model" : "axon-4", "context_window" : 256_000, "lazinessDetector" : {
             "enabled" : true, "max_nudges_per_session" : 2, }, }
         );
         let result = parse_remote_model_value(&value, "https://default.url").unwrap();
@@ -1510,7 +1510,7 @@ mod tests {
     #[test]
     fn parse_remote_model_value_top_level_wins_over_meta() {
         let value = serde_json::json!(
-            { "model" : "grok-4", "context_window" : 256_000, "lazinessDetector" : {
+            { "model" : "axon-4", "context_window" : 256_000, "lazinessDetector" : {
             "enabled" : true, "max_nudges_per_session" : 5, }, "_meta" : {
             "lazinessDetector" : { "enabled" : false, "max_nudges_per_session" : 99, },
             }, }
@@ -1528,19 +1528,19 @@ mod tests {
     #[test]
     fn parse_reads_show_model_fingerprint_field() {
         let value = serde_json::json!(
-            { "model" : "grok-build", "context_window" : 256_000,
+            { "model" : "axon-build", "context_window" : 256_000,
             "show_model_fingerprint" : true }
         );
         let result = parse_remote_model_value(&value, "https://default.url").unwrap();
         assert!(result.show_model_fingerprint);
         let value = serde_json::json!(
-            { "model" : "grok-build", "contextWindow" : 256_000, "showModelFingerprint" :
+            { "model" : "axon-build", "contextWindow" : 256_000, "showModelFingerprint" :
             true }
         );
         let result = parse_remote_model_value(&value, "https://default.url").unwrap();
         assert!(result.show_model_fingerprint);
         let value = serde_json::json!(
-            { "model" : "grok-build", "context_window" : 256_000, "_meta" : {
+            { "model" : "axon-build", "context_window" : 256_000, "_meta" : {
             "showModelFingerprint" : true } }
         );
         let result = parse_remote_model_value(&value, "https://default.url").unwrap();
@@ -1586,13 +1586,13 @@ mod tests {
     }
     #[test]
     fn inference_url_defaults_to_proxy() {
-        let ep = endpoints("https://proxy.grok.com/v1", None, None);
-        assert_eq!(ep.resolve_inference_base_url(), "https://proxy.grok.com/v1");
+        let ep = endpoints("https://proxy.blocked.invalid/v1", None, None);
+        assert_eq!(ep.resolve_inference_base_url(), "https://proxy.blocked.invalid/v1");
     }
     #[test]
     fn inference_url_uses_models_base_url() {
         let ep = endpoints(
-            "https://proxy.grok.com/v1",
+            "https://proxy.blocked.invalid/v1",
             Some("https://enterprise.acme.com/v1"),
             None,
         );
@@ -1604,7 +1604,7 @@ mod tests {
     #[test]
     fn inference_url_base_url_wins_over_proxy() {
         let ep = endpoints(
-            "https://proxy.grok.com/v1",
+            "https://proxy.blocked.invalid/v1",
             Some("https://inference.acme.com/v1"),
             Some("https://registry.acme.com/api/models"),
         );
@@ -1615,25 +1615,25 @@ mod tests {
     }
     #[test]
     fn list_url_defaults_to_proxy_models() {
-        let ep = endpoints("https://proxy.grok.com/v1", None, None);
+        let ep = endpoints("https://proxy.blocked.invalid/v1", None, None);
         assert_eq!(
             ep.resolve_models_list_url(),
-            "https://proxy.grok.com/v1/models"
+            "https://proxy.blocked.invalid/v1/models"
         );
     }
     #[test]
     fn list_url_derived_from_base_url() {
         let ep = endpoints(
-            "https://proxy.grok.com/v1",
-            Some("https://api.x.ai/v1"),
+            "https://proxy.blocked.invalid/v1",
+            Some("https://api.blocked.invalid/v1"),
             None,
         );
-        assert_eq!(ep.resolve_models_list_url(), "https://api.x.ai/v1/models");
+        assert_eq!(ep.resolve_models_list_url(), "https://api.blocked.invalid/v1/models");
     }
     #[test]
     fn list_url_explicit_overrides_derivation() {
         let ep = endpoints(
-            "https://proxy.grok.com/v1",
+            "https://proxy.blocked.invalid/v1",
             Some("https://inference.acme.com/v1"),
             Some("https://registry.acme.com/api/list-models"),
         );
@@ -1644,7 +1644,7 @@ mod tests {
     }
     /// INVARIANT: the `/models` fetch URL + auth scheme match the auth mode —
     /// Session/Deployment → cli-chat-proxy (Session auth), never the inference host;
-    /// ApiKey → `xai_api_base_url` (ApiKey, public default when unset); a custom
+    /// ApiKey → `axon_api_base_url` (ApiKey, public default when unset); a custom
     /// models endpoint → that URL verbatim.
     #[test]
     #[serial_test::serial]
@@ -1653,7 +1653,7 @@ mod tests {
         use crate::agent::models::ModelFetchAuth;
         for k in [
             "AXON_CLI_CHAT_PROXY_BASE_URL",
-            "AXON_XAI_API_BASE_URL",
+            "AXON_AXON_API_BASE_URL",
             "AXON_MODELS_LIST_URL",
         ] {
             unsafe { std::env::remove_var(k) };
@@ -1661,23 +1661,23 @@ mod tests {
         let cfg = EndpointsConfig::from_config_value(
             &toml::from_str(
                 r#"[endpoints]
-                xai_api_base_url = "https://inference.acme-corp.example/xai/v1""#,
+                axon_api_base_url = "https://inference.acme-corp.example/axon/v1""#,
             )
             .unwrap(),
         );
         let session = ListModelsEndpoint::from_endpoints(&cfg, ModelFetchAuth::Session);
-        assert_eq!(session.url, "https://cli-chat-proxy.grok.com/v1/models");
+        assert_eq!(session.url, "https://cli-chat-proxy.blocked.invalid/v1/models");
         assert_eq!(session.auth, EndpointAuth::Session);
         let deployment = ListModelsEndpoint::from_endpoints(&cfg, ModelFetchAuth::Deployment);
-        assert_eq!(deployment.url, "https://cli-chat-proxy.grok.com/v1/models");
+        assert_eq!(deployment.url, "https://cli-chat-proxy.blocked.invalid/v1/models");
         assert_eq!(deployment.auth, EndpointAuth::Session);
         let api = ListModelsEndpoint::from_endpoints(&cfg, ModelFetchAuth::ApiKey);
-        assert_eq!(api.url, "https://inference.acme-corp.example/xai/v1/models");
+        assert_eq!(api.url, "https://inference.acme-corp.example/axon/v1/models");
         assert_eq!(api.auth, EndpointAuth::ApiKey);
         let default = EndpointsConfig::from_config_value(&toml::Value::Table(Default::default()));
         assert_eq!(
             ListModelsEndpoint::from_endpoints(&default, ModelFetchAuth::ApiKey).url,
-            "https://api.x.ai/v1/models"
+            "https://api.blocked.invalid/v1/models"
         );
         let custom = EndpointsConfig::from_config_value(
             &toml::from_str(
@@ -1699,26 +1699,26 @@ mod tests {
         for k in [
             "AXON_CLI_CHAT_PROXY_BASE_URL",
             "AXON_MANAGED_CONFIG_URL",
-            "AXON_XAI_API_BASE_URL",
+            "AXON_AXON_API_BASE_URL",
         ] {
             unsafe { std::env::remove_var(k) };
         }
-        unsafe { std::env::set_var("AXON_DEPLOYMENT_KEY", "xai-token-ENTERPRISE") };
+        unsafe { std::env::set_var("AXON_DEPLOYMENT_KEY", "axon-token-ENTERPRISE") };
         let managed: toml::Value = toml::from_str(
             r#"[endpoints]
-            deployment_key = "xai-token-ENTERPRISE"
-            xai_api_base_url = "https://inference.acme-corp.example/xai/v1""#,
+            deployment_key = "axon-token-ENTERPRISE"
+            axon_api_base_url = "https://inference.acme-corp.example/axon/v1""#,
         )
         .unwrap();
         let url = EndpointsConfig::from_config_value(&managed).resolve_managed_config_url();
-        assert_eq!(url, "https://cli-chat-proxy.grok.com/v1/deployment/config");
+        assert_eq!(url, "https://cli-chat-proxy.blocked.invalid/v1/deployment/config");
         assert!(
             !url.contains("acme-corp"),
             "deployment key would be sent to the inference host: {url}"
         );
         let pinned: toml::Value = toml::from_str(
             r#"[endpoints]
-            xai_api_base_url = "https://inference.acme-corp.example/xai/v1"
+            axon_api_base_url = "https://inference.acme-corp.example/axon/v1"
             cli_chat_proxy_base_url = "https://proxy.acme-corp.example/v1""#,
         )
         .unwrap();

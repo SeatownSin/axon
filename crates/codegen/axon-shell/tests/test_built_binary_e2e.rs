@@ -1,6 +1,6 @@
-//! Built-binary end-to-end tests for the grok (axon-pager) binary.
+//! Built-binary end-to-end tests for the axon (axon-pager) binary.
 //!
-//! These tests verify that the built grok binary works end-to-end against a mock
+//! These tests verify that the built axon binary works end-to-end against a mock
 //! inference server. They catch dynamic linking failures (libgit2/OpenSSL),
 //! session initialization crashes, and protocol regressions.
 //!
@@ -17,7 +17,7 @@
 //!
 //! In CI, set `AXON_BINARY` to point at the release artifact:
 //! ```bash
-//! AXON_BINARY=./artifacts/grok-0.1.159-linux-x86_64 \
+//! AXON_BINARY=./artifacts/axon-0.1.159-linux-x86_64 \
 //!   cargo test -p axon-shell --test test_built_binary_e2e -- --ignored
 //! ```
 
@@ -52,9 +52,9 @@ async fn single_model_server(model: &str, backend: &str) -> MockInferenceServer 
     .expect("start mock server")
 }
 
-async fn grok_build_server() -> MockInferenceServer {
+async fn axon_build_server() -> MockInferenceServer {
     MockInferenceServer::start_with_models(vec![
-        MockModelEntry::with_agent_type("grok-4.5", "grok-build")
+        MockModelEntry::with_agent_type("axon-4.5", "axon-build")
             .with_api_backend("responses")
             .with_supports_backend_search(true),
     ])
@@ -114,7 +114,7 @@ async fn run_headless_with_env(
     env: &[(&str, &str)],
 ) -> HeadlessResult {
     let home = tempfile::TempDir::new().expect("create temp home");
-    let mut cmd = tokio::process::Command::new(grok_binary());
+    let mut cmd = tokio::process::Command::new(axon_binary());
     cmd.args(args)
         .current_dir(cwd)
         .stdin(std::process::Stdio::null())
@@ -135,7 +135,7 @@ async fn run_headless_with_env(
 #[tokio::test]
 #[ignore] // requires pre-built binary; run with --ignored
 async fn test_version_exits_zero() {
-    let binary = grok_binary();
+    let binary = axon_binary();
     let output = Command::new(&binary)
         .arg("--version")
         .output()
@@ -143,7 +143,7 @@ async fn test_version_exits_zero() {
 
     assert!(
         output.status.success(),
-        "grok --version failed (exit {:?}):\n{}",
+        "axon --version failed (exit {:?}):\n{}",
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
@@ -155,7 +155,7 @@ async fn test_version_exits_zero() {
 #[tokio::test]
 #[ignore] // requires pre-built binary; run with --ignored
 async fn test_version_with_crash_handler_exits_zero() {
-    let binary = grok_binary();
+    let binary = axon_binary();
     let output = Command::new(&binary)
         .arg("--version")
         .env("AXON_CRASH_HANDLER", "1")
@@ -164,7 +164,7 @@ async fn test_version_with_crash_handler_exits_zero() {
 
     assert!(
         output.status.success(),
-        "grok --version with AXON_CRASH_HANDLER=1 failed (exit {:?}):\n{}",
+        "axon --version with AXON_CRASH_HANDLER=1 failed (exit {:?}):\n{}",
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
@@ -199,7 +199,7 @@ async fn test_headless_session_in_git_repo() {
     );
 }
 
-/// Verify grok works in a non-git directory (exercises the fallback codepath
+/// Verify axon works in a non-git directory (exercises the fallback codepath
 /// where libgit2 discovers there's no repo instead of initializing one).
 #[tokio::test]
 #[ignore] // requires pre-built binary; run with --ignored
@@ -219,7 +219,7 @@ async fn test_headless_session_in_non_git_dir() {
 #[tokio::test]
 #[ignore] // requires pre-built binary; run with --ignored
 async fn test_headless_tools_allowlist_keeps_enabled_web_tools() {
-    let server = grok_build_server().await;
+    let server = axon_build_server().await;
     server.preset_allow_access();
     let workdir = git_workdir();
 
@@ -277,7 +277,7 @@ async fn test_headless_tools_allowlist_keeps_enabled_web_tools() {
 #[tokio::test]
 #[ignore] // requires pre-built binary; run with --ignored
 async fn test_headless_tools_allowlist_does_not_fail_open_for_disabled_web_fetch() {
-    let server = grok_build_server().await;
+    let server = axon_build_server().await;
     server.set_settings(serde_json::json!({
         "allow_access": true,
         "web_fetch_enabled": false,
@@ -317,7 +317,7 @@ async fn test_headless_tools_allowlist_does_not_fail_open_for_disabled_web_fetch
 #[tokio::test]
 #[ignore] // requires pre-built binary; run with --ignored
 async fn test_headless_terminal_only_allowlist_is_foreground_only() {
-    let server = grok_build_server().await;
+    let server = axon_build_server().await;
     let workdir = git_workdir();
 
     let result = run_headless(
@@ -388,7 +388,7 @@ async fn test_headless_free_usage_exhausted_prints_paywall_message() {
     assert_no_crashes(&result.stderr);
     let combined = format!("{}\n{}", result.stdout, result.stderr);
     assert!(
-        combined.contains("reached your free Grok Build usage limit"),
+        combined.contains("reached your free Axon Build usage limit"),
         "expected the free-usage paywall message\nstdout:\n{}\nstderr tail:\n{}",
         result.stdout,
         stderr_tail(&result.stderr, 1000)
@@ -665,7 +665,7 @@ async fn headless_json_schema_chat_completions_uses_response_format() {
 #[tokio::test]
 #[ignore] // requires pre-built binary; run with --ignored
 async fn headless_json_schema_responses_uses_text_format() {
-    let server = single_model_server("grok-4.5", "responses").await;
+    let server = single_model_server("axon-4.5", "responses").await;
     server.set_response(r#"{"name":"Alice","age":30}"#);
 
     let workdir = git_workdir();
@@ -676,7 +676,7 @@ async fn headless_json_schema_responses_uses_text_format() {
             "extract name and age",
             "--yolo",
             "--model",
-            "grok-4.5",
+            "axon-4.5",
             "--json-schema",
             NAME_AGE_SCHEMA,
             "--max-turns",
@@ -967,7 +967,7 @@ async fn test_stdio_full_session_lifecycle() {
     with_local_set(|| async {
         let server = MockInferenceServer::start().await.expect("start mock server");
         let workdir = git_workdir();
-        let client = GrokStdioClient::spawn(&server, workdir.path()).await;
+        let client = AxonStdioClient::spawn(&server, workdir.path()).await;
 
         // Initialize and authenticate
         let init_resp = client.initialize_with_timeout().await;
@@ -1003,7 +1003,7 @@ async fn test_stdio_full_session_lifecycle() {
     .await;
 }
 
-/// Verify that x.ai/session/close frees the session.
+/// Verify that blocked.invalid/session/close frees the session.
 /// Creates a session, closes it via ext_method, then verifies session/info
 /// returns an empty response (session no longer exists).
 #[tokio::test]
@@ -1014,7 +1014,7 @@ async fn test_stdio_session_close() {
             .await
             .expect("start mock server");
         let workdir = git_workdir();
-        let client = GrokStdioClient::spawn(&server, workdir.path()).await;
+        let client = AxonStdioClient::spawn(&server, workdir.path()).await;
 
         client.initialize_with_timeout().await;
         let session_id = client.create_session_with_timeout(workdir.path()).await;
@@ -1022,7 +1022,7 @@ async fn test_stdio_session_close() {
         // Session should be alive — session/info returns data with sessionId
         let info_resp = client
             .ext_method(
-                "x.ai/session/info",
+                "axon/session/info",
                 serde_json::json!({ "sessionId": session_id.0.as_ref() }),
             )
             .await;
@@ -1041,7 +1041,7 @@ async fn test_stdio_session_close() {
         // Close the session
         let close_resp = client
             .ext_method(
-                "x.ai/session/close",
+                "axon/session/close",
                 serde_json::json!({ "sessionId": session_id.0.as_ref() }),
             )
             .await;
@@ -1055,7 +1055,7 @@ async fn test_stdio_session_close() {
         // Session should be gone — session/info returns empty result (no sessionId)
         let info_after = client
             .ext_method(
-                "x.ai/session/info",
+                "axon/session/info",
                 serde_json::json!({ "sessionId": session_id.0.as_ref() }),
             )
             .await;
@@ -1076,7 +1076,7 @@ async fn test_stdio_prompt_then_immediate_load_session() {
     with_local_set(|| async {
         let server = MockInferenceServer::start().await.expect("start mock server");
         let workdir = git_workdir();
-        let mut writer = GrokStdioClient::spawn(&server, workdir.path()).await;
+        let mut writer = AxonStdioClient::spawn(&server, workdir.path()).await;
 
         let init_resp = writer.initialize_with_timeout().await;
         assert!(
@@ -1097,7 +1097,7 @@ async fn test_stdio_prompt_then_immediate_load_session() {
         let shared_home = writer.take_home();
         drop(writer);
 
-        let reader = GrokStdioClient::spawn_with_home(&server, workdir.path(), shared_home).await;
+        let reader = AxonStdioClient::spawn_with_home(&server, workdir.path(), shared_home).await;
         reader.initialize_with_timeout().await;
         let _ = reader
             .load_session_with_timeout(&session_id, workdir.path())
@@ -1175,7 +1175,7 @@ async fn test_stdio_xcode_escaped_slash_methods_get_responses() {
     let auth_id = "3C41A7D9-6B58-4E2F-A0D3-5F8C1B7E0A02";
     agent
         .send_line(&format!(
-            r#"{{"jsonrpc":"2.0","id":"{auth_id}","method":"authenticate","params":{{"methodId":"xai.api_key","_meta":{{"headless":true}}}}}}"#
+            r#"{{"jsonrpc":"2.0","id":"{auth_id}","method":"authenticate","params":{{"methodId":"axon.api_key","_meta":{{"headless":true}}}}}}"#
         ))
         .await;
     let auth_resp = agent
@@ -1254,7 +1254,7 @@ async fn test_stdio_xcode_escaped_slash_methods_get_responses() {
 // ── Config test harness ─────────────────────────────────────────────────────
 
 /// Isolated headless run with a custom `~/.axon/`. Clean env (no leaked
-/// host credentials). Write config files into `grok_dir()` before `run()`.
+/// host credentials). Write config files into `axon_dir()` before `run()`.
 struct ConfigTestHarness {
     home: tempfile::TempDir,
     workdir: tempfile::TempDir,
@@ -1279,7 +1279,7 @@ impl ConfigTestHarness {
         }
     }
 
-    fn grok_dir(&self) -> std::path::PathBuf {
+    fn axon_dir(&self) -> std::path::PathBuf {
         self.home.path().join(".axon")
     }
 
@@ -1289,7 +1289,7 @@ impl ConfigTestHarness {
     }
 
     async fn run(&self) -> HeadlessResult {
-        let mut cmd = tokio::process::Command::new(grok_binary());
+        let mut cmd = tokio::process::Command::new(axon_binary());
         cmd.args(["-p", "say hello", "--yolo"])
             .current_dir(self.workdir.path())
             .stdin(std::process::Stdio::null())
@@ -1298,10 +1298,10 @@ impl ConfigTestHarness {
             .kill_on_drop(true)
             .env_clear()
             .env("HOME", self.home.path())
-            // Windows resolves `~` via USERPROFILE, not HOME — pin the grok
+            // Windows resolves `~` via USERPROFILE, not HOME — pin the axon
             // home explicitly so the sandbox holds on all platforms (see
             // `test_env_cmd_tokio`).
-            .env("AXON_HOME", self.grok_dir())
+            .env("AXON_HOME", self.axon_dir())
             .env("PATH", std::env::var("PATH").unwrap_or_default());
         for (k, v) in &self.env {
             cmd.env(k, v);
@@ -1319,7 +1319,7 @@ impl ConfigTestHarness {
 #[ignore] // requires pre-built binary; run with --ignored
 async fn test_headless_managed_config_byok_sends_authorized_requests() {
     let server = MockInferenceServer::start_with_required_auth(
-        vec![MockModelEntry::new("grok-4.5")],
+        vec![MockModelEntry::new("axon-4.5")],
         "test-byok-secret-token",
     )
     .await
@@ -1327,22 +1327,22 @@ async fn test_headless_managed_config_byok_sends_authorized_requests() {
 
     let mut h = ConfigTestHarness::new(&server);
     std::fs::write(
-        h.grok_dir().join("managed_config.toml"),
+        h.axon_dir().join("managed_config.toml"),
         format!(
             r#"
 [endpoints]
 deployment_key = "test-deployment-key"
-xai_api_base_url = "{url}"
+axon_api_base_url = "{url}"
 
-[model."grok-4.5"]
+[model."axon-4.5"]
 api_backend = "responses"
 base_url = "{url}"
 context_window = 500000
 env_key = "AXON_TEST_BYOK_TOKEN"
-model = "grok-4.5"
+model = "axon-4.5"
 
 [models]
-default = "grok-4.5"
+default = "axon-4.5"
 "#,
             url = server.url()
         ),

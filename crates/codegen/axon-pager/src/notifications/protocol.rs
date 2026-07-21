@@ -8,7 +8,7 @@ use crate::terminal::{MultiplexerKind, TerminalContext, TerminalName};
 pub enum NotificationProtocol {
     /// iTerm2/WezTerm/Warp: `\x1b]9;{message}\x07`
     Osc9,
-    /// Kitty: `\x1b]99;i=grok;{message}\x1b\\`
+    /// Kitty: `\x1b]99;i=axon;{message}\x1b\\`
     Osc99,
     /// Ghostty/VTE: `\x1b]777;notify;{title};{body}\x1b\\`
     Osc777,
@@ -45,7 +45,7 @@ pub fn select_protocol(ctx: &TerminalContext) -> NotificationProtocol {
         | TerminalName::Vte
         | TerminalName::Terminator
         | TerminalName::Foot => NotificationProtocol::Osc777,
-        TerminalName::GrokDesktop => NotificationProtocol::None,
+        TerminalName::AxonDesktop => NotificationProtocol::None,
         TerminalName::AppleTerminal
         | TerminalName::Alacritty
         | TerminalName::Rio
@@ -78,7 +78,7 @@ pub fn emit_notification(
     // the app name to avoid showing the session name twice.
     let sequence: Cow<'_, str> = match protocol {
         NotificationProtocol::Osc9 => format!("\x1b]9;{body} \u{b7} {title}\x07").into(),
-        NotificationProtocol::Osc99 => format!("\x1b]99;i=grok;{body} \u{b7} {title}\x1b\\").into(),
+        NotificationProtocol::Osc99 => format!("\x1b]99;i=axon;{body} \u{b7} {title}\x1b\\").into(),
         NotificationProtocol::Osc777 => format!("\x1b]777;notify;Axon;{body}\x1b\\").into(),
         NotificationProtocol::Bel => Cow::Borrowed("\x07"),
         NotificationProtocol::None => return,
@@ -175,9 +175,9 @@ mod tests {
     }
 
     #[test]
-    fn select_grok_desktop_uses_none() {
+    fn select_axon_desktop_uses_none() {
         assert_eq!(
-            select_protocol(&ctx_with_brand(TerminalName::GrokDesktop)),
+            select_protocol(&ctx_with_brand(TerminalName::AxonDesktop)),
             NotificationProtocol::None
         );
     }
@@ -302,7 +302,7 @@ mod tests {
 
     #[test]
     fn emit_none_is_noop() {
-        let ctx = ctx_with_brand(TerminalName::GrokDesktop);
+        let ctx = ctx_with_brand(TerminalName::AxonDesktop);
         // Should return immediately without writing anything.
         emit_notification(NotificationProtocol::None, "title", "body", &ctx);
     }
@@ -343,7 +343,7 @@ mod tests {
             (TerminalName::Ghostty, NotificationProtocol::Osc777),
             (TerminalName::Vte, NotificationProtocol::Osc777),
             (TerminalName::Foot, NotificationProtocol::Osc777),
-            (TerminalName::GrokDesktop, NotificationProtocol::None),
+            (TerminalName::AxonDesktop, NotificationProtocol::None),
             (TerminalName::AppleTerminal, NotificationProtocol::Bel),
             (TerminalName::Alacritty, NotificationProtocol::Bel),
             (TerminalName::VsCode, NotificationProtocol::Bel),

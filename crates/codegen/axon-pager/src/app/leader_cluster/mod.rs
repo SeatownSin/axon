@@ -11,14 +11,14 @@
 //! `event_loop::run` performs, minus the terminal).
 //!
 //! Env sandboxing follows this crate's `serial(AXON_HOME)` idiom; note
-//! `grok_home()` is process-cached (OnceLock), so disk assertions always go
-//! through [`effective_grok_home`] rather than assuming the temp dir won.
+//! `axon_home()` is process-cached (OnceLock), so disk assertions always go
+//! through [`effective_axon_home`] rather than assuming the temp dir won.
 //!
 //! The scenarios are `#[ignore]`d in the shared lib test binary: the harness
-//! mutates process-global env (proxy URLs, `XAI_API_KEY`,
+//! mutates process-global env (proxy URLs, `AXON_API_KEY`,
 //! `AXON_LEADER_SOCKET`, `AXON_HOME`) for a real agent's whole lifetime, and
 //! in a several-thousand-test process that poisons concurrently-running tests
-//! (and `grok_home()`'s OnceLock is usually already pinned). Run on demand:
+//! (and `axon_home()`'s OnceLock is usually already pinned). Run on demand:
 //!
 //! ```bash
 //! cargo test -p axon-pager --lib -- app::leader_cluster --ignored --test-threads=1
@@ -75,10 +75,10 @@ async fn bounded<T>(what: &str, fut: impl std::future::Future<Output = T>) -> T 
         .unwrap_or_else(|_| panic!("leader-cluster bring-up timed out: {what}"))
 }
 
-/// The grok home the agent actually persisted under: `grok_home()` is
+/// The axon home the agent actually persisted under: `axon_home()` is
 /// process-cached, so an earlier test in this binary may have pinned it.
-fn effective_grok_home() -> PathBuf {
-    axon_config::grok_home()
+fn effective_axon_home() -> PathBuf {
+    axon_config::axon_home()
 }
 
 /// Concatenated agent-message text across a view's scrollback (copy of the
@@ -301,7 +301,7 @@ struct PagerLeaderCluster {
     /// points at the sandbox), then the guards restore the env, then the temp
     /// home is deleted.
     _env: Vec<crate::test_util::EnvVarGuard>,
-    _grok_home: TempDir,
+    _axon_home: TempDir,
 }
 
 impl PagerLeaderCluster {
@@ -311,15 +311,15 @@ impl PagerLeaderCluster {
         let _ = rustls::crypto::ring::default_provider().install_default();
 
         let server = MockInferenceServer::start().await.expect("mock server");
-        let grok_home = TempDir::new().unwrap();
+        let axon_home = TempDir::new().unwrap();
         let workdir = TempDir::new().unwrap();
-        let sock_path = grok_home.path().join("leader-cluster.sock");
+        let sock_path = axon_home.path().join("leader-cluster.sock");
 
         let env = vec![
-            crate::test_util::EnvVarGuard::set("AXON_HOME", grok_home.path()),
+            crate::test_util::EnvVarGuard::set("AXON_HOME", axon_home.path()),
             crate::test_util::EnvVarGuard::set("AXON_CLI_CHAT_PROXY_BASE_URL", server.url()),
-            crate::test_util::EnvVarGuard::set("AXON_XAI_API_BASE_URL", server.url()),
-            crate::test_util::EnvVarGuard::set("XAI_API_KEY", "test-key-for-ci"),
+            crate::test_util::EnvVarGuard::set("AXON_AXON_API_BASE_URL", server.url()),
+            crate::test_util::EnvVarGuard::set("AXON_API_KEY", "test-key-for-ci"),
             crate::test_util::EnvVarGuard::set("AXON_TELEMETRY_ENABLED", "false"),
             crate::test_util::EnvVarGuard::set("AXON_FEEDBACK_ENABLED", "false"),
             crate::test_util::EnvVarGuard::set("AXON_TRACE_UPLOAD", "false"),
@@ -347,7 +347,7 @@ impl PagerLeaderCluster {
             authenticated: false,
             _flock: flock,
             _env: env,
-            _grok_home: grok_home,
+            _axon_home: axon_home,
         };
         cluster.spawn_leader_generation().await;
         cluster
@@ -525,8 +525,8 @@ impl PagerLeaderCluster {
                 name,
                 ClientMode::Stdio,
                 LeaderEnvUrls {
-                    grok_ws_url: String::new(),
-                    grok_ws_origin: String::new(),
+                    axon_ws_url: String::new(),
+                    axon_ws_origin: String::new(),
                 },
                 LeaderClientCapabilities {
                     client_version: Some("0.0.0-test".to_string()),
@@ -582,7 +582,7 @@ impl PagerLeaderCluster {
             let _: acp::AuthenticateResponse = bounded(
                 "authenticate",
                 acp_send(
-                    acp::AuthenticateRequest::new(acp::AuthMethodId::new("xai.api_key"))
+                    acp::AuthenticateRequest::new(acp::AuthMethodId::new("axon.api_key"))
                         .meta(serde_json::json!({ "headless": true }).as_object().cloned()),
                     &tx,
                 ),

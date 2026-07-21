@@ -1,6 +1,6 @@
 use crate::util::config::RemoteSettings;
 use toml::Value as TomlValue;
-use axon_tools::implementations::grok_build::ask_user_question;
+use axon_tools::implementations::axon_build::ask_user_question;
 
 /// Resolve whether the bash-harness `find`→`bfs` / `grep`→`ugrep` shadows are
 /// enabled. Precedence (highest first): `requirements.toml` (org policy, wins
@@ -270,7 +270,7 @@ fn resolve_ask_user_question_timeout_secs_from_tiers(
         .or(managed)
         .or(remote)
         .unwrap_or(
-            axon_tools::implementations::grok_build::ask_user_question::RESPONSE_TIMEOUT
+            axon_tools::implementations::axon_build::ask_user_question::RESPONSE_TIMEOUT
                 .as_secs(),
         )
 }
@@ -290,7 +290,7 @@ fn resolve_ask_user_question_timeout_secs(
 ) -> u64 {
     resolve_ask_user_question_timeout_secs_from_tiers(
         ask_user_question_timeout_secs_from_toml(requirements),
-        axon_tools::implementations::grok_build::ask_user_question::response_timeout_env_secs(),
+        axon_tools::implementations::axon_build::ask_user_question::response_timeout_env_secs(),
         ask_user_question_timeout_secs_from_toml(user),
         ask_user_question_timeout_secs_from_toml(managed)
             .or_else(|| ask_user_question_timeout_secs_from_toml(system_managed)),
@@ -309,7 +309,7 @@ fn resolve_ask_user_question_timeout_secs(
 /// runs for consumers that skip this resolver.
 pub(crate) fn resolve_ask_user_question_params_from_disk(
     remote: Option<&RemoteSettings>,
-) -> axon_tools::implementations::grok_build::ask_user_question::AskUserQuestionParams {
+) -> axon_tools::implementations::axon_build::ask_user_question::AskUserQuestionParams {
     let requirements = crate::config::load_merged_requirements();
     let layers = match crate::config::ConfigLayers::load() {
         Ok(l) => Some(l),
@@ -321,7 +321,7 @@ pub(crate) fn resolve_ask_user_question_params_from_disk(
     let user = layers.as_ref().map(|l| &l.user);
     let managed = layers.as_ref().map(|l| &l.managed);
     let system_managed = layers.as_ref().map(|l| &l.system_managed);
-    axon_tools::implementations::grok_build::ask_user_question::AskUserQuestionParams {
+    axon_tools::implementations::axon_build::ask_user_question::AskUserQuestionParams {
         timeout_enabled: Some(
             resolve_ask_user_question_timeout_enabled(
                 requirements.as_ref(),
@@ -346,7 +346,7 @@ pub(crate) fn resolve_ask_user_question_params_from_disk(
 mod ask_user_question_timeout_tests {
     use super::*;
     use crate::agent::config::ConfigSource;
-    use axon_tools::implementations::grok_build::ask_user_question::RESPONSE_TIMEOUT_ENV;
+    use axon_tools::implementations::axon_build::ask_user_question::RESPONSE_TIMEOUT_ENV;
 
     // Both env vars are process-global (a dev exports the secs var for TUI
     // repro); serialize and force them unset so these tests can't go flaky.
@@ -422,7 +422,7 @@ mod ask_user_question_timeout_tests {
 
     #[test]
     fn timeout_secs_tier_precedence() {
-        let d = axon_tools::implementations::grok_build::ask_user_question::RESPONSE_TIMEOUT
+        let d = axon_tools::implementations::axon_build::ask_user_question::RESPONSE_TIMEOUT
             .as_secs();
         let r = resolve_ask_user_question_timeout_secs_from_tiers;
         assert_eq!(r(None, None, None, None, None), d);
@@ -436,7 +436,7 @@ mod ask_user_question_timeout_tests {
     #[test]
     fn timeout_secs_rejects_non_positive_layers() {
         let _g = guard();
-        let d = axon_tools::implementations::grok_build::ask_user_question::RESPONSE_TIMEOUT
+        let d = axon_tools::implementations::axon_build::ask_user_question::RESPONSE_TIMEOUT
             .as_secs();
         // user 0 and managed negative are dropped; remote fills the gap.
         let zero = toml_ask("timeout_secs = 0");

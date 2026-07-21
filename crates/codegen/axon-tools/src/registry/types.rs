@@ -1,7 +1,7 @@
 use crate::{
     computer::types::{AsyncFileSystem, TerminalBackend},
     implementations::{
-        codex, grok_build, grok_build_concise, grok_build_hashline, opencode,
+        codex, axon_build, axon_build_concise, axon_build_hashline, opencode,
         skills::types::SkillInfo,
     },
     notification::ToolNotificationHandle,
@@ -237,7 +237,7 @@ pub struct SessionContext {
     /// scheduler actor instead of spawning its own, so scheduled tasks survive
     /// subagent exit.
     pub parent_scheduler_handle:
-        Option<crate::implementations::grok_build::scheduler::types::SchedulerHandle>,
+        Option<crate::implementations::axon_build::scheduler::types::SchedulerHandle>,
     /// Available skills for the Skill tool and description templates.
     pub skills: Vec<SkillInfo>,
     /// File path for persisting Resources state across restarts.
@@ -258,26 +258,26 @@ pub struct SessionContext {
     /// Optional web fetch configuration. When `Enabled`, a `WebFetchClient`
     /// is created and injected into `Resources` so the `web_fetch` tool can
     /// fetch URLs. When `Disabled` (default), the tool is not registered.
-    pub web_fetch_config: crate::implementations::grok_build::web_fetch::WebFetchConfig,
+    pub web_fetch_config: crate::implementations::axon_build::web_fetch::WebFetchConfig,
     /// Optional shared LSP handle — created once by the caller (shell),
     /// passed to every session. Same pattern as `fs` and `backend`.
     /// When `Some`, inserted into `Resources` so `LspTool` can use it.
     pub lsp: Option<std::sync::Arc<dyn crate::implementations::lsp::LspBackend>>,
     /// Optional image generation configuration. When `Enabled`, an `ImageGenClient`
     /// is created and injected into `Resources` so the `image_gen` tool can
-    /// call the xAI Imagine API. When `Disabled` (default), the tool is not
+    /// call the Axon Imagine API. When `Disabled` (default), the tool is not
     /// registered and image generation is unavailable.
-    pub image_gen_config: crate::implementations::grok_build::image_gen::ImageGenConfig,
+    pub image_gen_config: crate::implementations::axon_build::image_gen::ImageGenConfig,
     /// Optional video generation configuration. When `Enabled`, a `VideoGenClient`
     /// is created and injected into `Resources` so the `video_gen` tool can
-    /// call the xAI Video Generation API. When `Disabled` (default), the tool is not
+    /// call the Axon Video Generation API. When `Disabled` (default), the tool is not
     /// registered and video generation is unavailable.
-    pub video_gen_config: crate::implementations::grok_build::video_gen::VideoGenConfig,
+    pub video_gen_config: crate::implementations::axon_build::video_gen::VideoGenConfig,
     /// Optional deploy service configuration. When enabled, the
     /// `deploy_app` tool connects to the service at call time using the shared
     /// API key provider.
     pub app_builder_deployer_config:
-        crate::implementations::grok_build::deploy_app::AppBuilderDeployerConfig,
+        crate::implementations::axon_build::deploy_app::AppBuilderDeployerConfig,
     /// Dynamic API key provider for tool HTTP clients.
     /// When set, clients resolve the API key per-request from this provider
     /// instead of using the key baked into their config at construction time.
@@ -620,14 +620,14 @@ impl ToolRegistryBuilder {
         );
     }
     /// Whether this registry knows the fully-qualified tool id
-    /// (`"GrokBuild:read_file"`).
+    /// (`"AxonBuild:read_file"`).
     pub fn has_tool_id(&self, id: &str) -> bool {
         self.tools.contains_key(id)
     }
     pub fn known_tool_ids(&self) -> std::collections::HashSet<String> {
         self.tools.keys().cloned().collect()
     }
-    /// Fully-qualified tool id (`"GrokBuild:read_file"`) → declared
+    /// Fully-qualified tool id (`"AxonBuild:read_file"`) → declared
     /// [`ToolKind`], for every registered tool. Lets consumers that receive
     /// kind-less tool configs (e.g. hub `session.bind` wire entries) backfill
     /// the kind from the binary's own registry before capability filtering.
@@ -660,39 +660,39 @@ impl ToolRegistryBuilder {
             reminders: Vec::new(),
             shared_local_registry: None,
         };
-        b.register_with_params::<grok_build::BashTool, grok_build::bash::BashParams>();
-        b.register_with_params::<grok_build::ReadFileTool, grok_build::read_file::ReadFileParams>();
+        b.register_with_params::<axon_build::BashTool, axon_build::bash::BashParams>();
+        b.register_with_params::<axon_build::ReadFileTool, axon_build::read_file::ReadFileParams>();
         b.register_with_params::<
-                grok_build::SearchReplaceTool,
-                grok_build::search_replace::SearchReplaceParams,
+                axon_build::SearchReplaceTool,
+                axon_build::search_replace::SearchReplaceParams,
             >();
-        b.register_with_params::<grok_build::ListDirTool, grok_build::list_dir::ListDirParams>();
-        b.register_with_params::<grok_build::GrepTool, grok_build::grep::GrepParams>();
-        b.register::<grok_build::KillTaskTool>();
-        b.register::<grok_build::KillTerminalCommandTool>();
-        b.register::<grok_build::TodoWriteTool>();
-        b.register::<grok_build::UpdateGoalTool>();
-        b.register::<grok_build::TaskOutputTool>();
-        b.register::<grok_build::GetTerminalCommandOutputTool>();
-        b.register::<grok_build::WaitTasksTool>();
-        b.register::<grok_build::TaskTool>();
-        b.register::<grok_build::WebSearchTool>();
-        b.register_with_params::<grok_build::WebFetchTool, grok_build::web_fetch::WebFetchParams>();
-        b.register::<grok_build::LspTool>();
-        b.register::<grok_build::ImageGenTool>();
-        b.register::<grok_build::ImageEditTool>();
-        b.register::<grok_build::ImageToVideoTool>();
-        b.register::<grok_build::ReferenceToVideoTool>();
-        b.register::<grok_build::EnterPlanModeTool>();
-        b.register::<grok_build::ExitPlanModeTool>();
+        b.register_with_params::<axon_build::ListDirTool, axon_build::list_dir::ListDirParams>();
+        b.register_with_params::<axon_build::GrepTool, axon_build::grep::GrepParams>();
+        b.register::<axon_build::KillTaskTool>();
+        b.register::<axon_build::KillTerminalCommandTool>();
+        b.register::<axon_build::TodoWriteTool>();
+        b.register::<axon_build::UpdateGoalTool>();
+        b.register::<axon_build::TaskOutputTool>();
+        b.register::<axon_build::GetTerminalCommandOutputTool>();
+        b.register::<axon_build::WaitTasksTool>();
+        b.register::<axon_build::TaskTool>();
+        b.register::<axon_build::WebSearchTool>();
+        b.register_with_params::<axon_build::WebFetchTool, axon_build::web_fetch::WebFetchParams>();
+        b.register::<axon_build::LspTool>();
+        b.register::<axon_build::ImageGenTool>();
+        b.register::<axon_build::ImageEditTool>();
+        b.register::<axon_build::ImageToVideoTool>();
+        b.register::<axon_build::ReferenceToVideoTool>();
+        b.register::<axon_build::EnterPlanModeTool>();
+        b.register::<axon_build::ExitPlanModeTool>();
         b.register_with_params::<
-                grok_build::AskUserQuestionTool,
-                grok_build::ask_user_question::AskUserQuestionParams,
+                axon_build::AskUserQuestionTool,
+                axon_build::ask_user_question::AskUserQuestionParams,
             >();
-        b.register::<grok_build::MonitorTool>();
-        b.register::<grok_build::SchedulerCreateTool>();
-        b.register::<grok_build::SchedulerDeleteTool>();
-        b.register::<grok_build::SchedulerListTool>();
+        b.register::<axon_build::MonitorTool>();
+        b.register::<axon_build::SchedulerCreateTool>();
+        b.register::<axon_build::SchedulerDeleteTool>();
+        b.register::<axon_build::SchedulerListTool>();
         b.register::<codex::apply_patch::ApplyPatchTool>();
         b.register::<codex::list_dir::CodexListDirTool>();
         b.register::<codex::grep_files::CodexGrepFilesTool>();
@@ -713,28 +713,28 @@ impl ToolRegistryBuilder {
                 crate::implementations::use_tool::UseToolParams,
             >();
         b.register_with_params::<
-                grok_build_concise::ReadFileConciseTool,
-                grok_build::read_file::ReadFileParams,
+                axon_build_concise::ReadFileConciseTool,
+                axon_build::read_file::ReadFileParams,
             >();
         b.register_with_params::<
-                grok_build_concise::SearchReplaceConciseTool,
-                grok_build::search_replace::SearchReplaceParams,
+                axon_build_concise::SearchReplaceConciseTool,
+                axon_build::search_replace::SearchReplaceParams,
             >();
         b.register_with_params::<
-                grok_build_concise::BashConciseTool,
-                grok_build::bash::BashParams,
+                axon_build_concise::BashConciseTool,
+                axon_build::bash::BashParams,
             >();
         b.register_with_params::<
-                grok_build_hashline::HashlineReadTool,
-                grok_build_hashline::config::HashlineSchemeParams,
+                axon_build_hashline::HashlineReadTool,
+                axon_build_hashline::config::HashlineSchemeParams,
             >();
         b.register_with_params::<
-                grok_build_hashline::HashlineEditTool,
-                grok_build_hashline::config::HashlineSchemeParams,
+                axon_build_hashline::HashlineEditTool,
+                axon_build_hashline::config::HashlineSchemeParams,
             >();
         b.register_with_params::<
-                grok_build_hashline::HashlineGrepTool,
-                grok_build_hashline::config::HashlineSchemeParams,
+                axon_build_hashline::HashlineGrepTool,
+                axon_build_hashline::config::HashlineSchemeParams,
             >();
         b.register_reminder(crate::reminders::LspDiagnosticsReminder);
         b.register_reminder(crate::reminders::TaskCompletionReminder);
@@ -855,14 +855,14 @@ impl ToolRegistryBuilder {
         }
         {
             let standard_file_ids: &[&str] = &[
-                "GrokBuild:read_file",
-                "GrokBuild:search_replace",
-                "GrokBuild:grep",
+                "AxonBuild:read_file",
+                "AxonBuild:search_replace",
+                "AxonBuild:grep",
             ];
             let hashline_file_ids: &[&str] = &[
-                "GrokBuildHashline:hashline_read",
-                "GrokBuildHashline:hashline_edit",
-                "GrokBuildHashline:hashline_grep",
+                "AxonBuildHashline:hashline_read",
+                "AxonBuildHashline:hashline_edit",
+                "AxonBuildHashline:hashline_grep",
             ];
             let has_standard = config
                 .tools
@@ -1004,7 +1004,7 @@ impl ToolRegistryBuilder {
             resources.insert(lsp);
         }
         if ctx.image_gen_config.has_credentials() {
-            match crate::implementations::grok_build::image_gen::ImageGenClient::new(
+            match crate::implementations::axon_build::image_gen::ImageGenClient::new(
                 &ctx.image_gen_config,
                 ctx.api_key_provider.clone(),
             ) {
@@ -1018,7 +1018,7 @@ impl ToolRegistryBuilder {
             }
         }
         if ctx.video_gen_config.is_enabled() {
-            match crate::implementations::grok_build::video_gen::VideoGenClient::new(
+            match crate::implementations::axon_build::video_gen::VideoGenClient::new(
                 &ctx.video_gen_config,
                 ctx.api_key_provider.clone(),
             ) {
@@ -1031,10 +1031,10 @@ impl ToolRegistryBuilder {
                 }
             }
         }
-        if let crate::implementations::grok_build::web_fetch::WebFetchConfig::Enabled { params } =
+        if let crate::implementations::axon_build::web_fetch::WebFetchConfig::Enabled { params } =
             &ctx.web_fetch_config
         {
-            match crate::implementations::grok_build::web_fetch::WebFetchClient::new(params) {
+            match crate::implementations::axon_build::web_fetch::WebFetchClient::new(params) {
                 Ok(client) => {
                     resources.insert(client);
                 }
@@ -1043,7 +1043,7 @@ impl ToolRegistryBuilder {
                 }
             }
         }
-        let concise_ns = crate::types::tool::ToolNamespace::GrokBuildConcise.to_string();
+        let concise_ns = crate::types::tool::ToolNamespace::AxonBuildConcise.to_string();
         let has_concise_tools = config.tools.iter().any(|tc| {
             self.tools
                 .get(&tc.id)
@@ -1053,14 +1053,14 @@ impl ToolRegistryBuilder {
             resources.insert(crate::types::resources::SystemRemindersEnabled(false));
         }
         resources.register_state::<crate::reminders::task_completion::ReportedTaskCompletions>();
-        resources.register_state::<crate::implementations::grok_build::todo::TodoState>();
+        resources.register_state::<crate::implementations::axon_build::todo::TodoState>();
         resources.register_state::<crate::types::resources::WebCitationCounter>();
         resources
             .register_state::<
                 crate::implementations::cursor_rules_on_read::CursorRulesOnReadTracker,
             >();
         resources
-            .register_state::<crate::implementations::grok_build::scheduler::types::SchedulerState>(
+            .register_state::<crate::implementations::axon_build::scheduler::types::SchedulerState>(
             );
         for entry in self.tools.values() {
             (entry.register_params)(&mut resources);
@@ -1175,7 +1175,7 @@ impl ToolRegistryBuilder {
                 let (scheduler_cmd_tx, scheduler_cmd_rx) = tokio::sync::mpsc::unbounded_channel();
                 let cancel_token = tokio_util::sync::CancellationToken::new();
                 resources.insert(
-                    crate::implementations::grok_build::scheduler::types::SchedulerHandle(
+                    crate::implementations::axon_build::scheduler::types::SchedulerHandle(
                         scheduler_cmd_tx,
                     ),
                 );
@@ -1183,7 +1183,7 @@ impl ToolRegistryBuilder {
             };
         let shared_resources = resources.into_shared();
         if let (Some(cmd_rx), Some(cancel_token)) = (scheduler_cmd_rx, &scheduler_cancel_token) {
-            let actor = crate::implementations::grok_build::scheduler::actor::SchedulerActor {
+            let actor = crate::implementations::axon_build::scheduler::actor::SchedulerActor {
                 resources: shared_resources.clone(),
                 notification_handle: scheduler_notification_handle,
                 cmd_rx,
@@ -1338,7 +1338,7 @@ impl FinalizedToolset {
     }
     /// Resolve canonical [`ToolIdentity`] (kind, namespace, presentation label)
     /// for a tool by its client-facing wire name. Drives the first-party
-    /// `x.ai/*` tool `_meta` contract (tool normalization). Returns `None` for
+    /// `axon/*` tool `_meta` contract (tool normalization). Returns `None` for
     /// unknown tools (e.g. uninitialized MCP, backend-only tools).
     pub fn tool_identity(&self, tool_name: &str) -> Option<crate::normalization::ToolIdentity> {
         self.tools
@@ -1800,16 +1800,16 @@ fn explain_requirement_failure(
 ) -> RequirementError {
     let fq_tool_id = format!("{}:{}", entry.namespace, entry.id);
     match fq_tool_id.as_str() {
-        "GrokBuild:run_terminal_cmd" if params
+        "AxonBuild:run_terminal_cmd" if params
             .get("enabled_background")
             .and_then(|value| value.as_bool())
             .unwrap_or(true) => {
             let mut missing = vec![];
             if !has_tool_kind(proposed, ToolKind::BackgroundTaskAction) {
-                missing.push("GrokBuild:get_task_output");
+                missing.push("AxonBuild:get_task_output");
             }
             if !has_tool_kind(proposed, ToolKind::KillTaskAction) {
-                missing.push("GrokBuild:kill_task");
+                missing.push("AxonBuild:kill_task");
             }
             let message = if missing.is_empty() {
                 "unsatisfied requirements".to_string()
@@ -1827,13 +1827,13 @@ fn explain_requirement_failure(
                 .with_bad_value(serde_json::Value::Bool(true))
                 .with_category("requirements")
         }
-        "GrokBuild:task" => {
+        "AxonBuild:task" => {
             let mut missing = vec![];
             if !has_tool_kind(proposed, ToolKind::BackgroundTaskAction) {
-                missing.push("GrokBuild:get_task_output");
+                missing.push("AxonBuild:get_task_output");
             }
             if !has_tool_kind(proposed, ToolKind::KillTaskAction) {
-                missing.push("GrokBuild:kill_task");
+                missing.push("AxonBuild:kill_task");
             }
             RequirementError::new(
                     fq_tool_id,
@@ -1846,43 +1846,43 @@ fn explain_requirement_failure(
                 .with_expected("include get_task_output and kill_task")
                 .with_category("requirements")
         }
-        "GrokBuild:get_task_output" => {
-            let has_grok_build_bash = has_tool_with_bool_param(
+        "AxonBuild:get_task_output" => {
+            let has_axon_build_bash = has_tool_with_bool_param(
                 proposed,
-                "GrokBuild",
+                "AxonBuild",
                 "run_terminal_cmd",
                 "enabled_background",
                 true,
             );
-            let has_grok_build_concise_bash = has_tool_with_bool_param(
+            let has_axon_build_concise_bash = has_tool_with_bool_param(
                 proposed,
-                "GrokBuildConcise",
+                "AxonBuildConcise",
                 "run_terminal_cmd",
                 "enabled_background",
                 true,
             );
             let has_opencode_bash = has_tool(proposed, "OpenCode", "bash");
-            let has_task = has_tool(proposed, "GrokBuild", "task");
+            let has_task = has_tool(proposed, "AxonBuild", "task");
             let mut notes = vec![];
-            if has_tool(proposed, "GrokBuild", "run_terminal_cmd")
-                && !has_grok_build_bash
+            if has_tool(proposed, "AxonBuild", "run_terminal_cmd")
+                && !has_axon_build_bash
             {
                 notes
                     .push(
-                        "GrokBuild:run_terminal_cmd is present but enabled_background=false",
+                        "AxonBuild:run_terminal_cmd is present but enabled_background=false",
                     );
             }
-            if has_tool(proposed, "GrokBuildConcise", "run_terminal_cmd")
-                && !has_grok_build_concise_bash
+            if has_tool(proposed, "AxonBuildConcise", "run_terminal_cmd")
+                && !has_axon_build_concise_bash
             {
                 notes
                     .push(
-                        "GrokBuildConcise:run_terminal_cmd is present but enabled_background=false",
+                        "AxonBuildConcise:run_terminal_cmd is present but enabled_background=false",
                     );
             }
-            let mut message = "get_task_output requires a background-capable bash tool (GrokBuild:run_terminal_cmd or GrokBuildConcise:run_terminal_cmd with enabled_background=true), OpenCode:bash, or GrokBuild:task"
+            let mut message = "get_task_output requires a background-capable bash tool (AxonBuild:run_terminal_cmd or AxonBuildConcise:run_terminal_cmd with enabled_background=true), OpenCode:bash, or AxonBuild:task"
                 .to_string();
-            let has_provider = has_grok_build_bash || has_grok_build_concise_bash
+            let has_provider = has_axon_build_bash || has_axon_build_concise_bash
                 || has_opencode_bash || has_task;
             if !has_provider && !notes.is_empty() {
                 message.push_str(&format!("; {}", notes.join("; ")));
@@ -1890,11 +1890,11 @@ fn explain_requirement_failure(
             RequirementError::new(fq_tool_id, message)
                 .with_field_path("tools")
                 .with_expected(
-                    "include a background-capable bash tool, OpenCode:bash, or GrokBuild:task",
+                    "include a background-capable bash tool, OpenCode:bash, or AxonBuild:task",
                 )
                 .with_category("requirements")
         }
-        "GrokBuild:search_replace" if !params
+        "AxonBuild:search_replace" if !params
             .get("skip_read_before_edit")
             .and_then(|value| value.as_bool())
             .unwrap_or(false) && !has_tool_kind(proposed, ToolKind::Read) => {
@@ -1904,27 +1904,27 @@ fn explain_requirement_failure(
                 )
                 .with_field_path("params.skip_read_before_edit")
                 .with_expected(
-                    "set skip_read_before_edit=true or include a Read tool such as GrokBuild:read_file",
+                    "set skip_read_before_edit=true or include a Read tool such as AxonBuild:read_file",
                 )
                 .with_bad_value(serde_json::Value::Bool(false))
                 .with_category("requirements")
         }
-        "GrokBuild:enter_plan_mode" => {
+        "AxonBuild:enter_plan_mode" => {
             RequirementError::new(
                     fq_tool_id,
-                    "enter_plan_mode requires GrokBuild:exit_plan_mode so plan mode can always be exited",
+                    "enter_plan_mode requires AxonBuild:exit_plan_mode so plan mode can always be exited",
                 )
                 .with_field_path("tools")
-                .with_expected("include GrokBuild:exit_plan_mode")
+                .with_expected("include AxonBuild:exit_plan_mode")
                 .with_category("requirements")
         }
-        "GrokBuild:exit_plan_mode" => {
+        "AxonBuild:exit_plan_mode" => {
             RequirementError::new(
                     fq_tool_id,
-                    "exit_plan_mode requires GrokBuild:enter_plan_mode so plan mode can be entered before exiting",
+                    "exit_plan_mode requires AxonBuild:enter_plan_mode so plan mode can be entered before exiting",
                 )
                 .with_field_path("tools")
-                .with_expected("include GrokBuild:enter_plan_mode")
+                .with_expected("include AxonBuild:enter_plan_mode")
                 .with_category("requirements")
         }
         _ => {
@@ -2006,14 +2006,14 @@ mod tests {
             memory_backend: None,
             web_search_config: crate::implementations::web_search::WebSearchConfig::default(),
             web_fetch_config:
-                crate::implementations::grok_build::web_fetch::WebFetchConfig::default(),
+                crate::implementations::axon_build::web_fetch::WebFetchConfig::default(),
             lsp: None,
             image_gen_config:
-                crate::implementations::grok_build::image_gen::ImageGenConfig::default(),
+                crate::implementations::axon_build::image_gen::ImageGenConfig::default(),
             video_gen_config:
-                crate::implementations::grok_build::video_gen::VideoGenConfig::default(),
+                crate::implementations::axon_build::video_gen::VideoGenConfig::default(),
             app_builder_deployer_config:
-                crate::implementations::grok_build::deploy_app::AppBuilderDeployerConfig::default(),
+                crate::implementations::axon_build::deploy_app::AppBuilderDeployerConfig::default(),
             api_key_provider: None,
             auth_provider: None,
             attribution_callback: None,
@@ -2026,7 +2026,7 @@ mod tests {
     /// Before the fix, the `kind_params` builder used `if map.is_empty()` to
     /// seed identity param-name mappings only from the **first** tool of each
     /// kind. When `codex:apply_patch` (`ToolKind::Edit`, input: `{ patch }`)
-    /// appeared before `grok_build:search_replace` (`ToolKind::Edit`, input:
+    /// appeared before `axon_build:search_replace` (`ToolKind::Edit`, input:
     /// `{ file_path, old_string, new_string, replace_all }`), the renderer's
     /// context had `params.edit = { "patch": "patch" }` — missing
     /// `replace_all`. At runtime, the template `${{ params.edit.replace_all }}`
@@ -2048,7 +2048,7 @@ mod tests {
                     kind: None,
                 },
                 ToolConfig {
-                    id: "GrokBuild:search_replace".to_string(),
+                    id: "AxonBuild:search_replace".to_string(),
                     params: Some(
                         serde_json::json!({
                 "skip_read_before_edit" : true })
@@ -2107,7 +2107,7 @@ mod tests {
         let config = ToolServerConfig {
             tools: vec![
                 ToolConfig {
-                    id: "GrokBuild:read_file".to_string(),
+                    id: "AxonBuild:read_file".to_string(),
                     params: None,
                     name_override: None,
                     params_name_overrides: None,
@@ -2116,7 +2116,7 @@ mod tests {
                     kind: None,
                 },
                 ToolConfig {
-                    id: "GrokBuild:search_replace".to_string(),
+                    id: "AxonBuild:search_replace".to_string(),
                     params: None,
                     name_override: None,
                     params_name_overrides: None,
@@ -2151,13 +2151,13 @@ mod tests {
             "rendered description must not contain raw template placeholders"
         );
     }
-    /// Smoke test: finalize the full GrokBuild toolset and verify every
+    /// Smoke test: finalize the full AxonBuild toolset and verify every
     /// tool description is fully rendered -- no unresolved MiniJinja vars,
     /// no stale `{max_*}` placeholders, no empty tool-name references from
     /// missing conditional guards.
     #[tokio::test]
     async fn full_toolset_descriptions_render_cleanly() {
-        use crate::implementations::grok_build::{
+        use crate::implementations::axon_build::{
             IMAGE_GEN_TOOL_NAME, IMAGE_TO_VIDEO_TOOL_NAME, REFERENCE_TO_VIDEO_TOOL_NAME,
             SCHEDULER_CREATE_TOOL_NAME, SCHEDULER_DELETE_TOOL_NAME,
         };
@@ -2188,7 +2188,7 @@ mod tests {
                 "scheduler_list",
             ]
             .into_iter()
-            .map(|id| ToolConfig::from_id(format!("GrokBuild:{id}")))
+            .map(|id| ToolConfig::from_id(format!("AxonBuild:{id}")))
             .chain(std::iter::empty::<ToolConfig>())
             .collect(),
             behavior_preset: None,
@@ -2229,30 +2229,30 @@ mod tests {
         }
     }
     /// Bash mode resolves the toolset's execute tool by kind, not a hardcoded
-    /// name: `run_terminal_cmd` (grok).
+    /// name: `run_terminal_cmd` (axon).
     #[tokio::test]
     async fn tool_name_for_kind_resolves_execute() {
         use crate::types::tool::ToolKind;
         let tmp = TempDir::new().unwrap();
-        let grok = ToolRegistryBuilder::new()
+        let axon = ToolRegistryBuilder::new()
             .finalize(
                 ToolServerConfig {
                     tools: vec![
-                        ToolConfig::from_id("GrokBuild:run_terminal_cmd".to_string()),
-                        ToolConfig::from_id("GrokBuild:get_task_output".to_string()),
-                        ToolConfig::from_id("GrokBuild:kill_task".to_string()),
+                        ToolConfig::from_id("AxonBuild:run_terminal_cmd".to_string()),
+                        ToolConfig::from_id("AxonBuild:get_task_output".to_string()),
+                        ToolConfig::from_id("AxonBuild:kill_task".to_string()),
                     ],
                     behavior_preset: None,
                 },
                 test_session_context(&tmp),
             )
-            .expect("grok toolset should finalize");
+            .expect("axon toolset should finalize");
         assert_eq!(
-            grok.tool_name_for_kind(ToolKind::Execute).as_deref(),
+            axon.tool_name_for_kind(ToolKind::Execute).as_deref(),
             Some("run_terminal_cmd")
         );
     }
-    /// `merge_tool_meta` (the harness emission path) must stamp `x.ai/tool` for a
+    /// `merge_tool_meta` (the harness emission path) must stamp `axon/tool` for a
     /// known tool while preserving existing markers, and leave meta untouched for
     /// an unknown tool.
     #[tokio::test]
@@ -2262,9 +2262,9 @@ mod tests {
         use crate::types::tool_io::ToolInput;
         let config = ToolServerConfig {
             tools: vec![
-                ToolConfig::from_id("GrokBuild:run_terminal_cmd".to_string()),
-                ToolConfig::from_id("GrokBuild:get_task_output".to_string()),
-                ToolConfig::from_id("GrokBuild:kill_task".to_string()),
+                ToolConfig::from_id("AxonBuild:run_terminal_cmd".to_string()),
+                ToolConfig::from_id("AxonBuild:get_task_output".to_string()),
+                ToolConfig::from_id("AxonBuild:kill_task".to_string()),
             ],
             behavior_preset: None,
         };
@@ -2305,9 +2305,9 @@ mod tests {
     async fn identity_read_only_honors_per_tool_override() {
         let config = ToolServerConfig {
             tools: vec![
-                ToolConfig::from_id("GrokBuild:run_terminal_cmd".to_string()),
-                ToolConfig::from_id("GrokBuild:get_task_output".to_string()),
-                ToolConfig::from_id("GrokBuild:kill_task".to_string()),
+                ToolConfig::from_id("AxonBuild:run_terminal_cmd".to_string()),
+                ToolConfig::from_id("AxonBuild:get_task_output".to_string()),
+                ToolConfig::from_id("AxonBuild:kill_task".to_string()),
             ],
             behavior_preset: None,
         };
@@ -2330,11 +2330,11 @@ mod tests {
         let parse = |v: serde_json::Value| -> ToolConfig {
             serde_json::from_value(v).expect("ToolConfig deserializes")
         };
-        let known = parse(serde_json::json!({ "id" : "GrokBuild:read_file", "kind" : "read" }));
+        let known = parse(serde_json::json!({ "id" : "AxonBuild:read_file", "kind" : "read" }));
         assert_eq!(known.kind, Some(ToolKind::Read));
-        let typo = parse(serde_json::json!({ "id" : "GrokBuild:read_file", "kind" : "raed" }));
+        let typo = parse(serde_json::json!({ "id" : "AxonBuild:read_file", "kind" : "raed" }));
         assert_eq!(typo.kind, Some(ToolKind::Other));
-        let absent = parse(serde_json::json!({ "id" : "GrokBuild:read_file" }));
+        let absent = parse(serde_json::json!({ "id" : "AxonBuild:read_file" }));
         assert_eq!(absent.kind, None);
     }
     /// End-to-end: a `params_name_overrides` rename of `old_string` must flow
@@ -2346,7 +2346,7 @@ mod tests {
         let config = ToolServerConfig {
             tools: vec![
                 ToolConfig {
-                    id: "GrokBuild:read_file".to_string(),
+                    id: "AxonBuild:read_file".to_string(),
                     params: None,
                     name_override: None,
                     params_name_overrides: None,
@@ -2355,7 +2355,7 @@ mod tests {
                     kind: None,
                 },
                 ToolConfig {
-                    id: "GrokBuild:search_replace".to_string(),
+                    id: "AxonBuild:search_replace".to_string(),
                     params: None,
                     name_override: None,
                     params_name_overrides: Some(std::collections::HashMap::from([(
@@ -2418,7 +2418,7 @@ mod tests {
         let config = ToolServerConfig {
             tools: vec![
                 ToolConfig {
-                    id: "GrokBuild:read_file".to_string(),
+                    id: "AxonBuild:read_file".to_string(),
                     params: None,
                     name_override: None,
                     params_name_overrides: None,
@@ -2427,7 +2427,7 @@ mod tests {
                     kind: None,
                 },
                 ToolConfig {
-                    id: "GrokBuild:search_replace".to_string(),
+                    id: "AxonBuild:search_replace".to_string(),
                     params: None,
                     name_override: None,
                     params_name_overrides: None,
@@ -2502,7 +2502,7 @@ mod tests {
             other => panic!("Expected SearchReplace(NoMatchesFound), got: {other:?}"),
         }
     }
-    /// Verify GrokBuildConcise tools can be finalized and produce concise output.
+    /// Verify AxonBuildConcise tools can be finalized and produce concise output.
     #[tokio::test]
     async fn test_concise_namespace_tools() {
         use crate::types::output::{ReadFileOutput, ToolOutput};
@@ -2512,7 +2512,7 @@ mod tests {
         let config = ToolServerConfig {
             tools: vec![
                 ToolConfig {
-                    id: "GrokBuildConcise:read_file".to_string(),
+                    id: "AxonBuildConcise:read_file".to_string(),
                     params: None,
                     name_override: None,
                     params_name_overrides: None,
@@ -2521,7 +2521,7 @@ mod tests {
                     kind: None,
                 },
                 ToolConfig {
-                    id: "GrokBuildConcise:search_replace".to_string(),
+                    id: "AxonBuildConcise:search_replace".to_string(),
                     params: None,
                     name_override: None,
                     params_name_overrides: None,
@@ -2530,7 +2530,7 @@ mod tests {
                     kind: None,
                 },
                 ToolConfig {
-                    id: "GrokBuildConcise:run_terminal_cmd".to_string(),
+                    id: "AxonBuildConcise:run_terminal_cmd".to_string(),
                     params: Some(
                         serde_json::json!({ "enabled_background" : true })
                             .as_object()
@@ -2543,11 +2543,11 @@ mod tests {
                     behavior_version: None,
                     kind: None,
                 },
-                ToolConfig::for_tool::<grok_build::GrepTool>(),
-                ToolConfig::for_tool::<grok_build::KillTaskTool>(),
-                ToolConfig::for_tool::<grok_build::TaskOutputTool>(),
+                ToolConfig::for_tool::<axon_build::GrepTool>(),
+                ToolConfig::for_tool::<axon_build::KillTaskTool>(),
+                ToolConfig::for_tool::<axon_build::TaskOutputTool>(),
                 ToolConfig {
-                    id: "GrokBuild:list_dir".to_string(),
+                    id: "AxonBuild:list_dir".to_string(),
                     params: None,
                     name_override: None,
                     params_name_overrides: None,
@@ -2591,13 +2591,13 @@ mod tests {
     fn has_tool_id_knows_pinned_tool_config_ids() {
         let builder = ToolRegistryBuilder::new();
         for id in [
-            "GrokBuild:run_terminal_cmd",
-            "GrokBuild:read_file",
-            "GrokBuild:search_replace",
-            "GrokBuild:list_dir",
-            "GrokBuild:grep",
-            "GrokBuild:get_terminal_command_output",
-            "GrokBuild:kill_terminal_command",
+            "AxonBuild:run_terminal_cmd",
+            "AxonBuild:read_file",
+            "AxonBuild:search_replace",
+            "AxonBuild:list_dir",
+            "AxonBuild:grep",
+            "AxonBuild:get_terminal_command_output",
+            "AxonBuild:kill_terminal_command",
         ] {
             assert!(
                 builder.has_tool_id(id),
@@ -2605,7 +2605,7 @@ mod tests {
             );
         }
         assert!(
-            !builder.has_tool_id("GrokBuild:does_not_exist"),
+            !builder.has_tool_id("AxonBuild:does_not_exist"),
             "unknown ids must not be reported as known"
         );
         assert!(
@@ -2621,11 +2621,11 @@ mod tests {
     fn known_tool_kinds_maps_pinned_tool_config_ids() {
         let kinds = ToolRegistryBuilder::new().known_tool_kinds();
         for (id, expected) in [
-            ("GrokBuild:run_terminal_cmd", ToolKind::Execute),
-            ("GrokBuild:read_file", ToolKind::Read),
-            ("GrokBuild:search_replace", ToolKind::Edit),
-            ("GrokBuild:grep", ToolKind::Search),
-            ("GrokBuild:list_dir", ToolKind::List),
+            ("AxonBuild:run_terminal_cmd", ToolKind::Execute),
+            ("AxonBuild:read_file", ToolKind::Read),
+            ("AxonBuild:search_replace", ToolKind::Edit),
+            ("AxonBuild:grep", ToolKind::Search),
+            ("AxonBuild:list_dir", ToolKind::List),
         ] {
             assert_eq!(
                 kinds.get(id),
@@ -2634,7 +2634,7 @@ mod tests {
             );
         }
         assert!(
-            !kinds.contains_key("GrokBuild:does_not_exist"),
+            !kinds.contains_key("AxonBuild:does_not_exist"),
             "unknown ids must be absent"
         );
     }
@@ -2642,7 +2642,7 @@ mod tests {
     /// two tools resolve to the same `client_name`.
     ///
     /// Without `name_override`, the client_name defaults to `entry.id`
-    /// (e.g. `"read_file"`). If both `GrokBuild:read_file` and
+    /// (e.g. `"read_file"`). If both `AxonBuild:read_file` and
     /// `Codex:read_file` are in the config, both would get
     /// `client_name = "read_file"`, making the second unreachable at
     /// dispatch time.
@@ -2652,7 +2652,7 @@ mod tests {
         let config = ToolServerConfig {
             tools: vec![
                 ToolConfig {
-                    id: "GrokBuild:read_file".to_string(),
+                    id: "AxonBuild:read_file".to_string(),
                     params: None,
                     name_override: None,
                     params_name_overrides: None,
@@ -2686,7 +2686,7 @@ mod tests {
         let builder = ToolRegistryBuilder::new();
         let config = ToolServerConfig {
             tools: vec![ToolConfig {
-                id: "GrokBuild:run_terminal_cmd".to_string(),
+                id: "AxonBuild:run_terminal_cmd".to_string(),
                 params: Some(
                     serde_json::from_value(serde_json::json!({ "enabled_background" :
                 "yes" }))
@@ -2703,7 +2703,7 @@ mod tests {
         let errors = builder.validate_config(&config);
         assert_eq!(errors.len(), 1);
         let error = &errors[0];
-        assert_eq!(error.tool, "GrokBuild:run_terminal_cmd");
+        assert_eq!(error.tool, "AxonBuild:run_terminal_cmd");
         assert_eq!(
             error.field_path.as_deref(),
             Some("params.enabled_background")
@@ -2716,7 +2716,7 @@ mod tests {
         let builder = ToolRegistryBuilder::new();
         let config = ToolServerConfig {
             tools: vec![ToolConfig {
-                id: "GrokBuildHashline:hashline_read".to_string(),
+                id: "AxonBuildHashline:hashline_read".to_string(),
                 params: Some(
                     serde_json::from_value(serde_json::json!({ "hash_len" : 0 })).unwrap(),
                 ),
@@ -2744,7 +2744,7 @@ mod tests {
         let config = ToolServerConfig {
             tools: vec![
                 ToolConfig {
-                    id: "GrokBuild:read_file".to_string(),
+                    id: "AxonBuild:read_file".to_string(),
                     params: None,
                     name_override: None,
                     params_name_overrides: None,
@@ -2783,7 +2783,7 @@ mod tests {
         let config = ToolServerConfig {
             tools: vec![
                 ToolConfig {
-                    id: "GrokBuild:read_file".to_string(),
+                    id: "AxonBuild:read_file".to_string(),
                     params: None,
                     name_override: None,
                     params_name_overrides: None,
@@ -2984,7 +2984,7 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let builder = ToolRegistryBuilder::new();
         let config = ToolServerConfig {
-            tools: vec![ToolConfig::for_tool::<grok_build::ReadFileTool>()],
+            tools: vec![ToolConfig::for_tool::<axon_build::ReadFileTool>()],
             behavior_preset: None,
         };
         let ctx = test_session_context(&tmp);
@@ -3017,7 +3017,7 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let builder = ToolRegistryBuilder::new();
         let config = ToolServerConfig {
-            tools: vec![ToolConfig::for_tool::<grok_build::ReadFileTool>()],
+            tools: vec![ToolConfig::for_tool::<axon_build::ReadFileTool>()],
             behavior_preset: None,
         };
         let ctx = test_session_context(&tmp);
@@ -3131,7 +3131,7 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let builder = ToolRegistryBuilder::new();
         let config = ToolServerConfig {
-            tools: vec![ToolConfig::for_tool::<grok_build::ReadFileTool>()],
+            tools: vec![ToolConfig::for_tool::<axon_build::ReadFileTool>()],
             behavior_preset: None,
         };
         let ctx = test_session_context(&tmp);
@@ -3159,8 +3159,8 @@ mod tests {
         let builder = ToolRegistryBuilder::new();
         let config = ToolServerConfig {
             tools: vec![
-                ToolConfig::for_tool::<grok_build::ReadFileTool>(),
-                ToolConfig::for_tool::<grok_build::GrepTool>(),
+                ToolConfig::for_tool::<axon_build::ReadFileTool>(),
+                ToolConfig::for_tool::<axon_build::GrepTool>(),
             ],
             behavior_preset: None,
         };
@@ -3193,7 +3193,7 @@ mod tests {
         let builder = ToolRegistryBuilder::new();
         let config = ToolServerConfig {
             tools: vec![ToolConfig {
-                id: "GrokBuild:task".to_string(),
+                id: "AxonBuild:task".to_string(),
                 params: None,
                 name_override: None,
                 params_name_overrides: None,
@@ -3209,9 +3209,9 @@ mod tests {
             "task tool should be rejected without get_task_output and kill_task"
         );
         assert!(
-            errors.iter().any(|e| e.tool == "GrokBuild:task"
-                && e.message.contains("GrokBuild:get_task_output")
-                && e.message.contains("GrokBuild:kill_task")),
+            errors.iter().any(|e| e.tool == "AxonBuild:task"
+                && e.message.contains("AxonBuild:get_task_output")
+                && e.message.contains("AxonBuild:kill_task")),
             "error should mention missing background task tools: {errors:?}",
         );
     }
@@ -3223,7 +3223,7 @@ mod tests {
         let config = ToolServerConfig {
             tools: vec![
                 ToolConfig {
-                    id: "GrokBuild:task".to_string(),
+                    id: "AxonBuild:task".to_string(),
                     params: None,
                     name_override: None,
                     params_name_overrides: None,
@@ -3232,7 +3232,7 @@ mod tests {
                     kind: None,
                 },
                 ToolConfig {
-                    id: "GrokBuild:get_task_output".to_string(),
+                    id: "AxonBuild:get_task_output".to_string(),
                     params: None,
                     name_override: None,
                     params_name_overrides: None,
@@ -3247,7 +3247,7 @@ mod tests {
         assert!(
             errors
                 .iter()
-                .any(|e| e.tool == "GrokBuild:task" && e.message.contains("GrokBuild:kill_task")),
+                .any(|e| e.tool == "AxonBuild:task" && e.message.contains("AxonBuild:kill_task")),
             "task tool should be rejected without kill_task: {errors:?}",
         );
     }
@@ -3259,7 +3259,7 @@ mod tests {
         let config = ToolServerConfig {
             tools: vec![
                 ToolConfig {
-                    id: "GrokBuild:task".to_string(),
+                    id: "AxonBuild:task".to_string(),
                     params: None,
                     name_override: None,
                     params_name_overrides: None,
@@ -3268,7 +3268,7 @@ mod tests {
                     kind: None,
                 },
                 ToolConfig {
-                    id: "GrokBuild:kill_task".to_string(),
+                    id: "AxonBuild:kill_task".to_string(),
                     params: None,
                     name_override: None,
                     params_name_overrides: None,
@@ -3283,8 +3283,8 @@ mod tests {
         assert!(
             errors
                 .iter()
-                .any(|e| e.tool == "GrokBuild:task"
-                    && e.message.contains("GrokBuild:get_task_output")),
+                .any(|e| e.tool == "AxonBuild:task"
+                    && e.message.contains("AxonBuild:get_task_output")),
             "task tool should be rejected without get_task_output: {errors:?}",
         );
     }
@@ -3297,7 +3297,7 @@ mod tests {
         let config = ToolServerConfig {
             tools: vec![
                 ToolConfig {
-                    id: "GrokBuild:task".to_string(),
+                    id: "AxonBuild:task".to_string(),
                     params: None,
                     name_override: None,
                     params_name_overrides: None,
@@ -3306,7 +3306,7 @@ mod tests {
                     kind: None,
                 },
                 ToolConfig {
-                    id: "GrokBuild:get_task_output".to_string(),
+                    id: "AxonBuild:get_task_output".to_string(),
                     params: None,
                     name_override: None,
                     params_name_overrides: None,
@@ -3315,7 +3315,7 @@ mod tests {
                     kind: None,
                 },
                 ToolConfig {
-                    id: "GrokBuild:kill_task".to_string(),
+                    id: "AxonBuild:kill_task".to_string(),
                     params: None,
                     name_override: None,
                     params_name_overrides: None,
@@ -3340,14 +3340,14 @@ mod tests {
         assert!(task_def.is_some(), "task tool should be in definitions");
     }
     /// Verify that the task tool description renders correctly with the default
-    /// grok-build agent config (all tools present) and that the new examples
+    /// axon-build agent config (all tools present) and that the new examples
     /// section is included with no unresolved template placeholders.
     #[tokio::test]
     async fn bash_definition_hides_is_background_when_disabled() {
         let builder = ToolRegistryBuilder::new();
         let config = ToolServerConfig {
             tools: vec![ToolConfig {
-                id: "GrokBuild:run_terminal_cmd".to_string(),
+                id: "AxonBuild:run_terminal_cmd".to_string(),
                 params: Some(
                     serde_json::json!({ "enabled_background" : false })
                         .as_object()
@@ -3398,7 +3398,7 @@ mod tests {
         let config = ToolServerConfig {
             tools: vec![
                 ToolConfig {
-                    id: "GrokBuild:run_terminal_cmd".to_string(),
+                    id: "AxonBuild:run_terminal_cmd".to_string(),
                     params: Some(
                         serde_json::json!({ "enabled_background" : true })
                             .as_object()
@@ -3412,7 +3412,7 @@ mod tests {
                     kind: None,
                 },
                 ToolConfig {
-                    id: "GrokBuild:get_task_output".to_string(),
+                    id: "AxonBuild:get_task_output".to_string(),
                     params: None,
                     name_override: None,
                     params_name_overrides: None,
@@ -3421,7 +3421,7 @@ mod tests {
                     kind: None,
                 },
                 ToolConfig {
-                    id: "GrokBuild:kill_task".to_string(),
+                    id: "AxonBuild:kill_task".to_string(),
                     params: None,
                     name_override: None,
                     params_name_overrides: None,
@@ -3484,11 +3484,11 @@ mod tests {
         };
         let config = ToolServerConfig {
             tools: vec![
-                tool("GrokBuild:run_terminal_cmd"),
-                tool("GrokBuild:task"),
-                tool("GrokBuild:get_task_output"),
-                tool("GrokBuild:wait_tasks"),
-                tool("GrokBuild:kill_task"),
+                tool("AxonBuild:run_terminal_cmd"),
+                tool("AxonBuild:task"),
+                tool("AxonBuild:get_task_output"),
+                tool("AxonBuild:wait_tasks"),
+                tool("AxonBuild:kill_task"),
             ],
             behavior_preset: None,
         };
@@ -3538,7 +3538,7 @@ mod tests {
         let builder = ToolRegistryBuilder::new();
         let config = ToolServerConfig {
             tools: vec![ToolConfig {
-                id: "GrokBuild:run_terminal_cmd".to_string(),
+                id: "AxonBuild:run_terminal_cmd".to_string(),
                 params: Some(
                     serde_json::json!({ "enabled_background" : false,
                 "auto_background_on_timeout" : true })
@@ -3575,7 +3575,7 @@ mod tests {
         let builder = ToolRegistryBuilder::new();
         let config = ToolServerConfig {
             tools: vec![ToolConfig {
-                id: "GrokBuild:run_terminal_cmd".to_string(),
+                id: "AxonBuild:run_terminal_cmd".to_string(),
                 params: Some(
                     serde_json::json!({ "enabled_background" : false,
                 "auto_background_on_timeout" : false })
@@ -3621,7 +3621,7 @@ mod tests {
         let builder = ToolRegistryBuilder::new();
         let config = ToolServerConfig {
             tools: vec![ToolConfig {
-                id: "GrokBuild:run_terminal_cmd".to_string(),
+                id: "AxonBuild:run_terminal_cmd".to_string(),
                 params: Some(
                     serde_json::json!({ "enabled_background" : false,
                 "auto_background_on_timeout" : false })
@@ -3648,7 +3648,7 @@ mod tests {
         let builder = ToolRegistryBuilder::new();
         let config = ToolServerConfig {
             tools: vec![ToolConfig {
-                id: "GrokBuild:run_terminal_cmd".to_string(),
+                id: "AxonBuild:run_terminal_cmd".to_string(),
                 params: None,
                 name_override: None,
                 params_name_overrides: None,
@@ -3665,15 +3665,15 @@ mod tests {
             "expected one bash requirement error: {errors:?}"
         );
         let error = &errors[0];
-        assert_eq!(error.tool, "GrokBuild:run_terminal_cmd");
+        assert_eq!(error.tool, "AxonBuild:run_terminal_cmd");
         assert_eq!(error.category.as_deref(), Some("requirements"));
         assert_eq!(
             error.field_path.as_deref(),
             Some("params.enabled_background")
         );
         assert_eq!(error.bad_value, Some(serde_json::json!(true)));
-        assert!(error.message.contains("GrokBuild:get_task_output"));
-        assert!(error.message.contains("GrokBuild:kill_task"));
+        assert!(error.message.contains("AxonBuild:get_task_output"));
+        assert!(error.message.contains("AxonBuild:kill_task"));
         assert!(
             error
                 .expected
@@ -3687,7 +3687,7 @@ mod tests {
         let builder = ToolRegistryBuilder::new();
         let config = ToolServerConfig {
             tools: vec![ToolConfig {
-                id: "GrokBuild:task".to_string(),
+                id: "AxonBuild:task".to_string(),
                 params: None,
                 name_override: None,
                 params_name_overrides: None,
@@ -3704,9 +3704,9 @@ mod tests {
             "expected one task requirement error: {errors:?}"
         );
         let error = &errors[0];
-        assert_eq!(error.tool, "GrokBuild:task");
-        assert!(error.message.contains("GrokBuild:get_task_output"));
-        assert!(error.message.contains("GrokBuild:kill_task"));
+        assert_eq!(error.tool, "AxonBuild:task");
+        assert!(error.message.contains("AxonBuild:get_task_output"));
+        assert!(error.message.contains("AxonBuild:kill_task"));
         assert_eq!(error.field_path.as_deref(), Some("tools"));
     }
     #[test]
@@ -3714,7 +3714,7 @@ mod tests {
         let builder = ToolRegistryBuilder::new();
         let config = ToolServerConfig {
             tools: vec![ToolConfig {
-                id: "GrokBuild:get_task_output".to_string(),
+                id: "AxonBuild:get_task_output".to_string(),
                 params: None,
                 name_override: None,
                 params_name_overrides: None,
@@ -3731,17 +3731,17 @@ mod tests {
             "expected one get_task_output requirement error: {errors:?}"
         );
         let error = &errors[0];
-        assert_eq!(error.tool, "GrokBuild:get_task_output");
+        assert_eq!(error.tool, "AxonBuild:get_task_output");
         assert!(error.message.contains("background-capable bash tool"));
         assert!(error.message.contains("OpenCode:bash"));
-        assert!(error.message.contains("GrokBuild:task"));
+        assert!(error.message.contains("AxonBuild:task"));
     }
     #[test]
     fn search_replace_requirement_error_mentions_read_tool() {
         let builder = ToolRegistryBuilder::new();
         let config = ToolServerConfig {
             tools: vec![ToolConfig {
-                id: "GrokBuild:search_replace".to_string(),
+                id: "AxonBuild:search_replace".to_string(),
                 params: None,
                 name_override: None,
                 params_name_overrides: None,
@@ -3758,7 +3758,7 @@ mod tests {
         );
         let error = errors
             .iter()
-            .find(|error| error.tool == "GrokBuild:search_replace")
+            .find(|error| error.tool == "AxonBuild:search_replace")
             .expect("search_replace error should be present");
         assert!(error.message.contains("Read tool"));
         assert_eq!(
@@ -3773,7 +3773,7 @@ mod tests {
         let builder = ToolRegistryBuilder::new();
         let config = ToolServerConfig {
             tools: vec![ToolConfig {
-                id: "GrokBuild:ask_user_question".to_string(),
+                id: "AxonBuild:ask_user_question".to_string(),
                 params: None,
                 name_override: None,
                 params_name_overrides: None,
@@ -3795,7 +3795,7 @@ mod tests {
         let config = ToolServerConfig {
             tools: vec![
                 ToolConfig {
-                    id: "GrokBuild:run_terminal_cmd".to_string(),
+                    id: "AxonBuild:run_terminal_cmd".to_string(),
                     params: None,
                     name_override: None,
                     params_name_overrides: None,
@@ -3804,7 +3804,7 @@ mod tests {
                     kind: None,
                 },
                 ToolConfig {
-                    id: "GrokBuild:read_file".to_string(),
+                    id: "AxonBuild:read_file".to_string(),
                     params: None,
                     name_override: None,
                     params_name_overrides: None,
@@ -3813,7 +3813,7 @@ mod tests {
                     kind: None,
                 },
                 ToolConfig {
-                    id: "GrokBuild:search_replace".to_string(),
+                    id: "AxonBuild:search_replace".to_string(),
                     params: None,
                     name_override: None,
                     params_name_overrides: None,
@@ -3822,7 +3822,7 @@ mod tests {
                     kind: None,
                 },
                 ToolConfig {
-                    id: "GrokBuild:list_dir".to_string(),
+                    id: "AxonBuild:list_dir".to_string(),
                     params: None,
                     name_override: None,
                     params_name_overrides: None,
@@ -3831,7 +3831,7 @@ mod tests {
                     kind: None,
                 },
                 ToolConfig {
-                    id: "GrokBuild:grep".to_string(),
+                    id: "AxonBuild:grep".to_string(),
                     params: None,
                     name_override: None,
                     params_name_overrides: None,
@@ -3840,7 +3840,7 @@ mod tests {
                     kind: None,
                 },
                 ToolConfig {
-                    id: "GrokBuild:web_search".to_string(),
+                    id: "AxonBuild:web_search".to_string(),
                     params: None,
                     name_override: None,
                     params_name_overrides: None,
@@ -3849,7 +3849,7 @@ mod tests {
                     kind: None,
                 },
                 ToolConfig {
-                    id: "GrokBuild:task".to_string(),
+                    id: "AxonBuild:task".to_string(),
                     params: None,
                     name_override: None,
                     params_name_overrides: None,
@@ -3858,7 +3858,7 @@ mod tests {
                     kind: None,
                 },
                 ToolConfig {
-                    id: "GrokBuild:get_task_output".to_string(),
+                    id: "AxonBuild:get_task_output".to_string(),
                     params: None,
                     name_override: None,
                     params_name_overrides: None,
@@ -3867,7 +3867,7 @@ mod tests {
                     kind: None,
                 },
                 ToolConfig {
-                    id: "GrokBuild:kill_task".to_string(),
+                    id: "AxonBuild:kill_task".to_string(),
                     params: None,
                     name_override: None,
                     params_name_overrides: None,
@@ -3882,7 +3882,7 @@ mod tests {
         let ctx = test_session_context(&tmp);
         let toolset = builder
             .finalize(config, ctx)
-            .expect("finalize should succeed with default grok-build tools");
+            .expect("finalize should succeed with default axon-build tools");
         let defs = toolset.tool_definitions();
         let task_def = defs
             .iter()
@@ -3916,19 +3916,19 @@ mod tests {
         assert!(
             builder
                 .tools
-                .contains_key("GrokBuildHashline:hashline_read"),
+                .contains_key("AxonBuildHashline:hashline_read"),
             "hashline_read should be registered"
         );
         assert!(
             builder
                 .tools
-                .contains_key("GrokBuildHashline:hashline_edit"),
+                .contains_key("AxonBuildHashline:hashline_edit"),
             "hashline_edit should be registered"
         );
         assert!(
             builder
                 .tools
-                .contains_key("GrokBuildHashline:hashline_grep"),
+                .contains_key("AxonBuildHashline:hashline_grep"),
             "hashline_grep should be registered"
         );
     }
@@ -3938,9 +3938,9 @@ mod tests {
         let builder = ToolRegistryBuilder::new();
         let config = ToolServerConfig {
             tools: vec![
-                hashline_tool_config("GrokBuildHashline:hashline_read"),
-                hashline_tool_config("GrokBuildHashline:hashline_edit"),
-                hashline_tool_config("GrokBuildHashline:hashline_grep"),
+                hashline_tool_config("AxonBuildHashline:hashline_read"),
+                hashline_tool_config("AxonBuildHashline:hashline_edit"),
+                hashline_tool_config("AxonBuildHashline:hashline_grep"),
             ],
             behavior_preset: None,
         };
@@ -3963,9 +3963,9 @@ mod tests {
         let builder = ToolRegistryBuilder::new();
         let standard_config = ToolServerConfig {
             tools: vec![
-                hashline_tool_config("GrokBuild:read_file"),
-                hashline_tool_config("GrokBuild:search_replace"),
-                hashline_tool_config("GrokBuild:grep"),
+                hashline_tool_config("AxonBuild:read_file"),
+                hashline_tool_config("AxonBuild:search_replace"),
+                hashline_tool_config("AxonBuild:grep"),
             ],
             behavior_preset: None,
         };
@@ -3976,9 +3976,9 @@ mod tests {
         let builder2 = ToolRegistryBuilder::new();
         let hashline_config = ToolServerConfig {
             tools: vec![
-                hashline_tool_config("GrokBuildHashline:hashline_read"),
-                hashline_tool_config("GrokBuildHashline:hashline_edit"),
-                hashline_tool_config("GrokBuildHashline:hashline_grep"),
+                hashline_tool_config("AxonBuildHashline:hashline_read"),
+                hashline_tool_config("AxonBuildHashline:hashline_edit"),
+                hashline_tool_config("AxonBuildHashline:hashline_grep"),
             ],
             behavior_preset: None,
         };
@@ -3993,9 +3993,9 @@ mod tests {
         let builder = ToolRegistryBuilder::new();
         let config = ToolServerConfig {
             tools: vec![
-                hashline_tool_config("GrokBuildHashline:hashline_read"),
-                hashline_tool_config("GrokBuildHashline:hashline_edit"),
-                hashline_tool_config("GrokBuildHashline:hashline_grep"),
+                hashline_tool_config("AxonBuildHashline:hashline_read"),
+                hashline_tool_config("AxonBuildHashline:hashline_edit"),
+                hashline_tool_config("AxonBuildHashline:hashline_grep"),
             ],
             behavior_preset: None,
         };
@@ -4015,9 +4015,9 @@ mod tests {
         let builder = ToolRegistryBuilder::new();
         let config = ToolServerConfig {
             tools: vec![
-                hashline_tool_config("GrokBuild:read_file"),
-                hashline_tool_config("GrokBuildHashline:hashline_edit"),
-                hashline_tool_config("GrokBuild:grep"),
+                hashline_tool_config("AxonBuild:read_file"),
+                hashline_tool_config("AxonBuildHashline:hashline_edit"),
+                hashline_tool_config("AxonBuild:grep"),
             ],
             behavior_preset: None,
         };
@@ -4034,8 +4034,8 @@ mod tests {
         let builder = ToolRegistryBuilder::new();
         let config = ToolServerConfig {
             tools: vec![
-                ToolConfig::for_tool::<grok_build::EnterPlanModeTool>(),
-                ToolConfig::for_tool::<grok_build::ExitPlanModeTool>(),
+                ToolConfig::for_tool::<axon_build::EnterPlanModeTool>(),
+                ToolConfig::for_tool::<axon_build::ExitPlanModeTool>(),
             ],
             behavior_preset: None,
         };
@@ -4072,7 +4072,7 @@ mod tests {
         let config = ToolServerConfig {
             tools: vec![
                 ToolConfig {
-                    id: "GrokBuildHashline:hashline_read".to_owned(),
+                    id: "AxonBuildHashline:hashline_read".to_owned(),
                     params: Some(
                         serde_json::json!({ "scheme" : "chunk", "hash_len" : 2, "chunk_size"
                 : 16 })
@@ -4086,9 +4086,9 @@ mod tests {
                     behavior_version: None,
                     kind: None,
                 },
-                ToolConfig::for_tool::<grok_build_hashline::HashlineEditTool>(),
-                ToolConfig::for_tool::<grok_build_hashline::HashlineGrepTool>(),
-                ToolConfig::for_tool::<grok_build::ListDirTool>(),
+                ToolConfig::for_tool::<axon_build_hashline::HashlineEditTool>(),
+                ToolConfig::for_tool::<axon_build_hashline::HashlineGrepTool>(),
+                ToolConfig::for_tool::<axon_build::ListDirTool>(),
             ],
             behavior_preset: None,
         };
@@ -4112,7 +4112,7 @@ mod tests {
     }
     fn bash_config_with_background() -> ToolConfig {
         ToolConfig {
-            id: "GrokBuild:run_terminal_cmd".to_owned(),
+            id: "AxonBuild:run_terminal_cmd".to_owned(),
             params: Some(
                 serde_json::json!({ "enabled_background" : true })
                     .as_object()
@@ -4126,18 +4126,18 @@ mod tests {
             kind: None,
         }
     }
-    async fn grok_build_bridge(tmp: &TempDir) -> crate::bridge::ToolBridge {
+    async fn axon_build_bridge(tmp: &TempDir) -> crate::bridge::ToolBridge {
         let builder = ToolRegistryBuilder::new();
         let config = ToolServerConfig {
             tools: vec![
-                ToolConfig::for_tool::<grok_build::ListDirTool>(),
-                ToolConfig::for_tool::<grok_build::ReadFileTool>(),
-                ToolConfig::for_tool::<grok_build::SearchReplaceTool>(),
+                ToolConfig::for_tool::<axon_build::ListDirTool>(),
+                ToolConfig::for_tool::<axon_build::ReadFileTool>(),
+                ToolConfig::for_tool::<axon_build::SearchReplaceTool>(),
                 bash_config_with_background(),
-                ToolConfig::for_tool::<grok_build::TaskOutputTool>(),
-                ToolConfig::for_tool::<grok_build::KillTaskTool>(),
-                ToolConfig::for_tool::<grok_build::GrepTool>(),
-                ToolConfig::for_tool::<grok_build::TodoWriteTool>(),
+                ToolConfig::for_tool::<axon_build::TaskOutputTool>(),
+                ToolConfig::for_tool::<axon_build::KillTaskTool>(),
+                ToolConfig::for_tool::<axon_build::GrepTool>(),
+                ToolConfig::for_tool::<axon_build::TodoWriteTool>(),
             ],
             behavior_preset: None,
         };
@@ -4150,7 +4150,7 @@ mod tests {
     async fn hub_dispatch_list_dir() {
         let tmp = TempDir::new().unwrap();
         std::fs::write(tmp.path().join("hello.txt"), "world").unwrap();
-        let bridge = grok_build_bridge(&tmp).await;
+        let bridge = axon_build_bridge(&tmp).await;
         let result = bridge
             .call(
                 "list_dir",
@@ -4176,7 +4176,7 @@ mod tests {
         let args = serde_json::json!(
             { "target_directory" : test_dir.to_str().unwrap() }
         );
-        let hub_bridge = grok_build_bridge(&tmp).await;
+        let hub_bridge = axon_build_bridge(&tmp).await;
         let hub_result = hub_bridge
             .call("list_dir", args.clone(), "hub-call")
             .await
@@ -4190,7 +4190,7 @@ mod tests {
         );
         let builder = ToolRegistryBuilder::new();
         let config = ToolServerConfig {
-            tools: vec![ToolConfig::for_tool::<grok_build::ListDirTool>()],
+            tools: vec![ToolConfig::for_tool::<axon_build::ListDirTool>()],
             behavior_preset: None,
         };
         let legacy_toolset = Arc::new(
@@ -4217,7 +4217,7 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let file = tmp.path().join("editable.txt");
         std::fs::write(&file, "hello world").unwrap();
-        let bridge = grok_build_bridge(&tmp).await;
+        let bridge = axon_build_bridge(&tmp).await;
         bridge
             .call(
                 "read_file",
@@ -4249,7 +4249,7 @@ mod tests {
     #[tokio::test]
     async fn hub_dispatch_bash() {
         let tmp = TempDir::new().unwrap();
-        let bridge = grok_build_bridge(&tmp).await;
+        let bridge = axon_build_bridge(&tmp).await;
         let result = bridge
             .call(
                 "run_terminal_cmd",
@@ -4271,7 +4271,7 @@ mod tests {
     #[tokio::test]
     async fn hub_dispatch_invalid_args() {
         let tmp = TempDir::new().unwrap();
-        let bridge = grok_build_bridge(&tmp).await;
+        let bridge = axon_build_bridge(&tmp).await;
         let result = bridge.call("grep", serde_json::json!({}), "bad-call").await;
         assert!(
             result.is_err(),
@@ -4286,7 +4286,7 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let builder = ToolRegistryBuilder::new();
         let config = ToolServerConfig {
-            tools: vec![ToolConfig::for_tool::<grok_build::ListDirTool>()],
+            tools: vec![ToolConfig::for_tool::<axon_build::ListDirTool>()],
             behavior_preset: None,
         };
         let toolset = builder
@@ -4320,8 +4320,8 @@ mod tests {
         let builder = ToolRegistryBuilder::new();
         let config = ToolServerConfig {
             tools: vec![
-                ToolConfig::for_tool::<grok_build::ListDirTool>(),
-                ToolConfig::for_tool::<grok_build::ReadFileTool>(),
+                ToolConfig::for_tool::<axon_build::ListDirTool>(),
+                ToolConfig::for_tool::<axon_build::ReadFileTool>(),
             ],
             behavior_preset: None,
         };
@@ -4383,7 +4383,7 @@ mod tests {
         let builder = ToolRegistryBuilder::new();
         let config = ToolServerConfig {
             tools: vec![ToolConfig {
-                id: "GrokBuild:read_file".to_string(),
+                id: "AxonBuild:read_file".to_string(),
                 params: None,
                 name_override: None,
                 params_name_overrides: None,
@@ -4454,7 +4454,7 @@ mod tests {
         let builder = ToolRegistryBuilder::new();
         let config = ToolServerConfig {
             tools: vec![ToolConfig {
-                id: "GrokBuild:run_terminal_cmd".to_string(),
+                id: "AxonBuild:run_terminal_cmd".to_string(),
                 params: Some(
                     serde_json::json!({ "enabled_background" : false })
                         .as_object()

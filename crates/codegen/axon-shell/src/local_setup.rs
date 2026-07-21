@@ -1,6 +1,6 @@
 //! First-run local-model setup.
 //!
-//! This build never contacts xAI, so a fresh install with no `[model.*]`
+//! This build never contacts Axon, so a fresh install with no `[model.*]`
 //! configured has nothing to talk to and the upstream login screen is a dead
 //! end. These helpers let the TUI detect a running local model server
 //! (Ollama, LM Studio, llama.cpp, vLLM) and write a `[model.<id>]` entry so a

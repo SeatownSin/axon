@@ -1,5 +1,5 @@
-//! grok.com chat-product model catalog (`POST /rest/modes`) — the models
-//! grok-web's chat picker shows, distinct from the CLI `/v1/models` build
+//! blocked.invalid chat-product model catalog (`POST /rest/modes`) — the models
+//! axon-web's chat picker shows, distinct from the CLI `/v1/models` build
 //! catalog. Transport only; cache + ACP mapping live in
 //! [`crate::agent::chat_modes`].
 
@@ -9,7 +9,7 @@ use serde::Deserialize;
 
 use crate::auth::AuthManager;
 
-const AXON_WEB_URL: &str = "https://grok.com";
+const AXON_WEB_URL: &str = "https://blocked.invalid";
 
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -61,7 +61,7 @@ pub struct ListModesResponse {
 
 #[derive(Debug, thiserror::Error)]
 pub enum ChatModelsError {
-    #[error("no grok.com credentials")]
+    #[error("no blocked.invalid credentials")]
     NoAuth,
     #[error("request timed out")]
     Timeout,
@@ -99,12 +99,12 @@ impl ChatModelsClient {
             .unwrap_or_else(|| AXON_WEB_URL.to_string());
         Self {
             http: crate::http::shared_client(),
-            base_url: crate::util::block_xai_base_url(base_url, "chat modes backend"),
+            base_url: crate::util::block_axon_base_url(base_url, "chat modes backend"),
             auth,
         }
     }
 
-    /// Gated only on a valid grok.com bearer — deliberately NOT `is_xai_auth()`
+    /// Gated only on a valid blocked.invalid bearer — deliberately NOT `is_axon_auth()`
     /// (unlike workspaces/conversations), since `/rest/modes` is the public chat
     /// endpoint and that gate would exclude API-key / cached-token chat users.
     pub async fn list_modes(&self, locale: &str) -> Result<ListModesResponse, ChatModelsError> {
@@ -122,13 +122,13 @@ impl ChatModelsClient {
             .json(&body)
             .header("Authorization", format!("Bearer {}", auth.key))
             .header(
-                "X-XAI-Token-Auth",
-                self.auth.grok_com_config().token_header.clone(),
+                "X-AXON-Token-Auth",
+                self.auth.axon_com_config().token_header.clone(),
             )
             .header("x-userid", &auth.user_id)
-            .header("x-grok-client-version", axon_version::VERSION)
+            .header("x-axon-client-version", axon_version::VERSION)
             .header(
-                "x-grok-client-identifier",
+                "x-axon-client-identifier",
                 crate::http::process_client_identifier(),
             )
             .header(

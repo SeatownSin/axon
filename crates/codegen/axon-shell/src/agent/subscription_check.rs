@@ -6,7 +6,7 @@
 //! settings re-fetch, then returns an `UnblockResult` so the agent can
 //! lift the gate.
 //!
-//! The pager drives the polling via `x.ai/auth/check_subscription`: the 5s
+//! The pager drives the polling via `axon/auth/check_subscription`: the 5s
 //! paywall chain, the free-tier watch, the refocus check, and
 //! verify-before-paywall gate deferral (see the pager's `app::subscription`
 //! module).
@@ -16,13 +16,13 @@ use crate::auth::manager::RefreshReason;
 use crate::auth::token_type::TokenType;
 use std::sync::Arc;
 use std::time::Duration;
-/// Subscription tiers that qualify for Grok Build access.
+/// Subscription tiers that qualify for Axon Build access.
 /// Any active subscription qualifies -- the access gate in remote settings
 /// controls which tiers are actually allowed.
 const QUALIFYING_TIERS: &[&str] = &[
-    "SuperGrokPro",
-    "GrokPro",
-    "SuperGrokLite",
+    "SuperAxonPro",
+    "AxonPro",
+    "SuperAxonLite",
     "XPremiumPlus",
     "XPremium",
     "XBasic",
@@ -37,7 +37,7 @@ pub(crate) struct UnblockResult {
 async fn fetch_user_info(
     http_client: &reqwest::Client,
     url: &str,
-    auth: &crate::auth::GrokAuth,
+    auth: &crate::auth::AxonAuth,
     auth_manager: &AuthManager,
     alpha_test_key: Option<&str>,
 ) -> Result<UserInfo, &'static str> {
@@ -46,10 +46,10 @@ async fn fetch_user_info(
         .timeout(Duration::from_secs(10))
         .header("Authorization", format!("Bearer {}", auth.key))
         .header(
-            "X-XAI-Token-Auth",
-            auth_manager.grok_com_config().token_header.as_str(),
+            "X-AXON-Token-Auth",
+            auth_manager.axon_com_config().token_header.as_str(),
         )
-        .header("x-grok-client-version", axon_version::VERSION)
+        .header("x-axon-client-version", axon_version::VERSION)
         .header(
             crate::http::CLIENT_MODE_HEADER,
             crate::http::process_client_mode(),
@@ -65,7 +65,7 @@ async fn fetch_user_info(
     }
 }
 /// Single-shot subscription check. Called by the pager every 5s while
-/// the paywall is shown (`x.ai/auth/check_subscription`).
+/// the paywall is shown (`axon/auth/check_subscription`).
 ///
 /// Queries `/user?include=subscription` for the live tier. If a qualifying
 /// tier is found, does a best-effort JWT refresh + settings re-fetch and
@@ -159,9 +159,9 @@ mod tests {
     #[test]
     fn qualifying_tiers_includes_all_paid_tiers() {
         for tier in &[
-            "SuperGrokPro",
-            "GrokPro",
-            "SuperGrokLite",
+            "SuperAxonPro",
+            "AxonPro",
+            "SuperAxonLite",
             "XPremiumPlus",
             "XPremium",
             "XBasic",
@@ -185,7 +185,7 @@ mod tests {
     #[test]
     fn partial_tier_name_is_not_qualifying() {
         assert!(!QUALIFYING_TIERS.contains(&"Super"));
-        assert!(!QUALIFYING_TIERS.contains(&"Grok"));
+        assert!(!QUALIFYING_TIERS.contains(&"Axon"));
         assert!(!QUALIFYING_TIERS.contains(&"XPremium+"));
     }
 }

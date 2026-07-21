@@ -2,9 +2,9 @@ use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
-use crate::auth::{AuthManager, GrokAuth};
+use crate::auth::{AuthManager, AxonAuth};
 
-const AXON_WEB_URL: &str = "https://grok.com";
+const AXON_WEB_URL: &str = "https://blocked.invalid";
 
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -44,7 +44,7 @@ pub struct ListConversationsPage {
     pub next_page_token: Option<String>,
 }
 
-/// Body for `PUT /rest/app-chat/conversations/{id}` (grok-web `chatUpdateConversation`).
+/// Body for `PUT /rest/app-chat/conversations/{id}` (axon-web `chatUpdateConversation`).
 #[derive(Debug, Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateConversationBody {
@@ -103,14 +103,14 @@ impl ConversationsClient {
             .unwrap_or_else(|| AXON_WEB_URL.to_string());
         Self {
             http: crate::http::shared_client(),
-            base_url: crate::util::block_xai_base_url(base_url, "conversations backend"),
+            base_url: crate::util::block_axon_base_url(base_url, "conversations backend"),
             auth,
         }
     }
 
-    async fn require_xai_auth(&self) -> Result<GrokAuth, ConvError> {
+    async fn require_axon_auth(&self) -> Result<AxonAuth, ConvError> {
         let auth = self.auth.auth().await.map_err(|_| ConvError::NoOauth)?;
-        if !auth.is_xai_auth() {
+        if !auth.is_axon_auth() {
             return Err(ConvError::NoOauth);
         }
         Ok(auth)
@@ -119,18 +119,18 @@ impl ConversationsClient {
     fn apply_auth_headers(
         &self,
         builder: reqwest::RequestBuilder,
-        auth: &GrokAuth,
+        auth: &AxonAuth,
     ) -> reqwest::RequestBuilder {
         let mut builder = builder
             .header("Authorization", format!("Bearer {}", auth.key))
             .header(
-                "X-XAI-Token-Auth",
-                self.auth.grok_com_config().token_header.clone(),
+                "X-AXON-Token-Auth",
+                self.auth.axon_com_config().token_header.clone(),
             )
             .header("x-userid", &auth.user_id)
-            .header("x-grok-client-version", axon_version::VERSION)
+            .header("x-axon-client-version", axon_version::VERSION)
             .header(
-                "x-grok-client-identifier",
+                "x-axon-client-identifier",
                 crate::http::process_client_identifier(),
             )
             .header(
@@ -148,7 +148,7 @@ impl ConversationsClient {
         &self,
         q: &ConvQuery,
     ) -> Result<ListConversationsPage, ConvError> {
-        let auth = self.require_xai_auth().await?;
+        let auth = self.require_axon_auth().await?;
 
         let url = format!("{}/rest/app-chat/conversations", self.base_url);
         let mut query: Vec<(&str, String)> = vec![("pageSize", q.page_size.to_string())];
@@ -202,7 +202,7 @@ impl ConversationsClient {
         conversation_id: &str,
         body: &UpdateConversationBody,
     ) -> Result<(), ConvError> {
-        let auth = self.require_xai_auth().await?;
+        let auth = self.require_axon_auth().await?;
         let url = format!(
             "{}/rest/app-chat/conversations/{}",
             self.base_url,
@@ -224,7 +224,7 @@ impl ConversationsClient {
 
     /// `DELETE /rest/app-chat/conversations/soft/{conversation_id}` — soft-delete.
     pub async fn soft_delete_conversation(&self, conversation_id: &str) -> Result<(), ConvError> {
-        let auth = self.require_xai_auth().await?;
+        let auth = self.require_axon_auth().await?;
         let url = format!(
             "{}/rest/app-chat/conversations/soft/{}",
             self.base_url,

@@ -69,11 +69,11 @@ pub enum PluginOrigin {
     /// CLI `--plugin-dir`.
     CliOverride,
     /// Project `.axon/plugins/`.
-    ProjectGrok,
+    ProjectAxon,
     /// Project `.claude/plugins/`.
     ProjectClaude,
     /// `$AXON_HOME/plugins/`.
-    UserGrok,
+    UserAxon,
     /// `~/.claude/plugins/`.
     UserClaude,
     /// A compat marketplace clone (project `extraKnownMarketplaces`
@@ -87,7 +87,7 @@ pub enum PluginOrigin {
         /// Marketplace name from the `name@marketplace` JSON key, when present.
         marketplace: Option<String>,
     },
-    /// Grok's install registry (`~/.axon/installed-plugins`).
+    /// Axon's install registry (`~/.axon/installed-plugins`).
     MarketplaceInstall {
         /// Marketplace source display name (None for direct git/local installs).
         source_name: Option<String>,
@@ -213,13 +213,13 @@ impl DiscoveryConfig {
 ///
 /// Unlike agent discovery, plugins are intentionally NOT discovered from a
 /// legacy `~/.axon/plugins`: plugin trust, persisted plugin-data, and install
-/// paths all resolve under `grok_home()`, so a plugin scanned from the legacy
+/// paths all resolve under `axon_home()`, so a plugin scanned from the legacy
 /// tree would appear untrusted and lose its persisted state. Keeping plugins on
-/// `grok_home()` only avoids that half-initialized state.
-fn user_plugin_dirs(home: Option<&Path>, grok: Option<&Path>) -> Vec<(PathBuf, PluginOrigin)> {
+/// `axon_home()` only avoids that half-initialized state.
+fn user_plugin_dirs(home: Option<&Path>, axon: Option<&Path>) -> Vec<(PathBuf, PluginOrigin)> {
     let mut dirs = Vec::new();
-    if let Some(g) = grok {
-        dirs.push((g.join("plugins"), PluginOrigin::UserGrok));
+    if let Some(g) = axon {
+        dirs.push((g.join("plugins"), PluginOrigin::UserAxon));
     }
     if let Some(h) = home {
         dirs.push((h.join(".claude").join("plugins"), PluginOrigin::UserClaude));
@@ -236,7 +236,7 @@ fn project_plugins_dir_origin(plugins_dir: &Path) -> PluginOrigin {
     if is_claude {
         PluginOrigin::ProjectClaude
     } else {
-        PluginOrigin::ProjectGrok
+        PluginOrigin::ProjectAxon
     }
 }
 
@@ -338,10 +338,10 @@ pub fn discover_plugins(
     }
 
     // 4-5. User plugins: $AXON_HOME/plugins, legacy ~/.axon/plugins, ~/.claude/plugins.
-    // Gate the axon plugins dir on user_grok_home() so a project's .axon/plugins
+    // Gate the axon plugins dir on user_axon_home() so a project's .axon/plugins
     // is never scanned as user-global when no home resolves.
-    let grok = axon_config::user_grok_home();
-    let plugin_dirs = user_plugin_dirs(dirs::home_dir().as_deref(), grok.as_deref());
+    let axon = axon_config::user_axon_home();
+    let plugin_dirs = user_plugin_dirs(dirs::home_dir().as_deref(), axon.as_deref());
     for (plugins_dir, origin) in plugin_dirs {
         if plugins_dir.is_dir() {
             scan_plugin_dir(
@@ -909,11 +909,11 @@ mod tests {
     }
 
     #[test]
-    fn user_plugin_dirs_are_grok_and_claude_only_no_legacy() {
+    fn user_plugin_dirs_are_axon_and_claude_only_no_legacy() {
         let home = Path::new("/home/u");
-        let grok = Path::new("/custom/grokhome");
-        let dirs = user_plugin_dirs(Some(home), Some(grok));
-        assert!(dirs.contains(&(grok.join("plugins"), PluginOrigin::UserGrok)));
+        let axon = Path::new("/custom/axonhome");
+        let dirs = user_plugin_dirs(Some(home), Some(axon));
+        assert!(dirs.contains(&(axon.join("plugins"), PluginOrigin::UserAxon)));
         assert!(dirs.contains(&(
             home.join(".claude").join("plugins"),
             PluginOrigin::UserClaude
@@ -927,7 +927,7 @@ mod tests {
     }
 
     #[test]
-    fn user_plugin_dirs_empty_without_home_or_grok() {
+    fn user_plugin_dirs_empty_without_home_or_axon() {
         assert!(user_plugin_dirs(None, None).is_empty());
     }
 
@@ -957,10 +957,10 @@ mod tests {
     }
 
     #[test]
-    fn project_plugins_dir_origin_distinguishes_grok_and_claude() {
+    fn project_plugins_dir_origin_distinguishes_axon_and_claude() {
         assert_eq!(
             project_plugins_dir_origin(Path::new("/repo/.axon/plugins")),
-            PluginOrigin::ProjectGrok
+            PluginOrigin::ProjectAxon
         );
         assert_eq!(
             project_plugins_dir_origin(Path::new("/repo/.claude/plugins")),
@@ -973,18 +973,18 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
 
         // Create ~/.axon/plugins/ structure
-        let grok_plugins = tmp.path().join(".axon").join("plugins");
-        std::fs::create_dir_all(&grok_plugins).unwrap();
-        make_manifest_plugin(&grok_plugins, "user-tool");
+        let axon_plugins = tmp.path().join(".axon").join("plugins");
+        std::fs::create_dir_all(&axon_plugins).unwrap();
+        make_manifest_plugin(&axon_plugins, "user-tool");
 
         // Override home dir by directly scanning
         let trust = TrustStore::load_from(tmp.path().join("trust"));
         let mut seen = HashSet::new();
         let mut candidates = Vec::new();
         scan_plugin_dir(
-            &grok_plugins,
+            &axon_plugins,
             PluginScope::User,
-            PluginOrigin::UserGrok,
+            PluginOrigin::UserAxon,
             &trust,
             false,
             &mut seen,
@@ -1008,7 +1008,7 @@ mod tests {
         scan_plugin_dir(
             &plugins_dir,
             PluginScope::User,
-            PluginOrigin::UserGrok,
+            PluginOrigin::UserAxon,
             &trust,
             false,
             &mut seen,
@@ -1382,7 +1382,7 @@ mod tests {
         collect_plugin(
             &user_plugin,
             PluginScope::User,
-            PluginOrigin::UserGrok,
+            PluginOrigin::UserAxon,
             &trust,
             false,
             &mut seen,
@@ -1438,7 +1438,7 @@ mod tests {
         collect_plugin(
             &empty_dir,
             PluginScope::User,
-            PluginOrigin::UserGrok,
+            PluginOrigin::UserAxon,
             &trust,
             false,
             &mut seen,
@@ -1461,7 +1461,7 @@ mod tests {
         collect_plugin(
             &plugin_dir,
             PluginScope::Project,
-            PluginOrigin::ProjectGrok,
+            PluginOrigin::ProjectAxon,
             &trust,
             false,
             &mut seen,
@@ -1484,7 +1484,7 @@ mod tests {
         collect_plugin(
             &plugin_dir,
             PluginScope::Project,
-            PluginOrigin::ProjectGrok,
+            PluginOrigin::ProjectAxon,
             &trust,
             true,
             &mut seen,
@@ -1515,7 +1515,7 @@ mod tests {
                 PluginScope::CliOverride,
                 PluginOrigin::CliOverride,
             ),
-            (&user_dir, PluginScope::User, PluginOrigin::UserGrok),
+            (&user_dir, PluginScope::User, PluginOrigin::UserAxon),
             (
                 &config_dir,
                 PluginScope::ConfigPath,
@@ -1562,7 +1562,7 @@ mod tests {
             .find(|p| p.manifest.name == "proj-mcp")
             .expect("project plugin discovered");
         assert_eq!(p.scope, PluginScope::Project);
-        assert_eq!(p.origin, PluginOrigin::ProjectGrok);
+        assert_eq!(p.origin, PluginOrigin::ProjectAxon);
         assert!(!p.trusted, "untrusted folder must block the project plugin");
 
         // Trusted folder: the same plugin is allowed.

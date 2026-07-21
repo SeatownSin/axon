@@ -12,7 +12,7 @@ fn jwt_tier_claim_maps_free_and_paid() {
     assert_eq!(jwt_tier_claim(&jwt_with_tier(0)).as_deref(), Some("free"));
     assert_eq!(
         jwt_tier_claim(&jwt_with_tier(1)).as_deref(),
-        Some("supergrok")
+        Some("superaxon")
     );
     assert_eq!(
         jwt_tier_claim(&jwt_with_tier(2)).as_deref(),
@@ -28,16 +28,16 @@ fn jwt_tier_claim_maps_free_and_paid() {
     );
     assert_eq!(
         jwt_tier_claim(&jwt_with_tier(5)).as_deref(),
-        Some("supergrok_heavy")
+        Some("superaxon_heavy")
     );
     assert_eq!(
         jwt_tier_claim(&jwt_with_tier(6)).as_deref(),
-        Some("supergrok_lite")
+        Some("superaxon_lite")
     );
     assert_eq!(jwt_tier_claim(&jwt_with_tier(99)).as_deref(), Some("99"));
 }
-fn auth_with_mode(mode: crate::auth::AuthMode, key: &str) -> crate::auth::GrokAuth {
-    crate::auth::GrokAuth {
+fn auth_with_mode(mode: crate::auth::AuthMode, key: &str) -> crate::auth::AxonAuth {
+    crate::auth::AxonAuth {
         key: key.into(),
         auth_mode: mode,
         create_time: chrono::Utc::now(),
@@ -57,7 +57,7 @@ fn auth_with_mode(mode: crate::auth::AuthMode, key: &str) -> crate::auth::GrokAu
         user_blocked_reason: None,
         team_blocked_reasons: vec![],
         coding_data_retention_opt_out: false,
-        has_grok_code_access: None,
+        has_axon_code_access: None,
         refresh_token: None,
         expires_at: None,
         oidc_issuer: None,
@@ -70,7 +70,7 @@ fn resolve_subscription_tier_prefers_display_then_api_key_then_jwt() {
         resolve_subscription_tier_for_telemetry(Some("Free".into()), None).as_deref(),
         Some("Free")
     );
-    let api = auth_with_mode(crate::auth::AuthMode::ApiKey, "xai-not-a-jwt");
+    let api = auth_with_mode(crate::auth::AuthMode::ApiKey, "axon-not-a-jwt");
     assert_eq!(
         resolve_subscription_tier_for_telemetry(Some("  ".into()), Some(&api)).as_deref(),
         Some("api_key")
@@ -94,12 +94,12 @@ fn resolve_subscription_tier_prefers_display_then_api_key_then_jwt() {
 #[test]
 fn jwt_claim_matches_user_subscription_tier_known_pairs() {
     let cases = [
-        ("supergrok", "GrokPro"),
+        ("superaxon", "AxonPro"),
         ("x_basic", "XBasic"),
         ("x_premium", "XPremium"),
         ("x_premium_plus", "XPremiumPlus"),
-        ("supergrok_heavy", "SuperGrokPro"),
-        ("supergrok_lite", "SuperGrokLite"),
+        ("superaxon_heavy", "SuperAxonPro"),
+        ("superaxon_lite", "SuperAxonLite"),
     ];
     for (claim, user_tier) in cases {
         assert!(
@@ -112,16 +112,16 @@ fn jwt_claim_matches_user_subscription_tier_known_pairs() {
 fn jwt_claim_matches_user_subscription_tier_rejects_stale_and_unknown() {
     assert!(!jwt_claim_matches_user_subscription_tier(
         "x_basic",
-        "SuperGrokPro"
+        "SuperAxonPro"
     ));
     assert!(!jwt_claim_matches_user_subscription_tier(
-        "supergrok",
-        "SuperGrokPro"
+        "superaxon",
+        "SuperAxonPro"
     ));
-    assert!(!jwt_claim_matches_user_subscription_tier("free", "GrokPro"));
+    assert!(!jwt_claim_matches_user_subscription_tier("free", "AxonPro"));
     assert!(!jwt_claim_matches_user_subscription_tier("", "XPremium"));
     assert!(!jwt_claim_matches_user_subscription_tier(
-        "supergrok_heavy",
+        "superaxon_heavy",
         "EnterpriseMystery"
     ));
 }
@@ -556,7 +556,7 @@ async fn upload_harness_trace_manifest_seam_is_inert_when_upload_removed() {
 /// With no overrides and model_agent_type = None, the default agent is used.
 #[test]
 #[serial_test::serial]
-fn resolve_agent_definition_defaults_to_grok_build() {
+fn resolve_agent_definition_defaults_to_axon_build() {
     let prev = std::env::var("AXON_AGENT").ok();
     unsafe {
         std::env::remove_var("AXON_AGENT");
@@ -575,7 +575,7 @@ fn resolve_agent_definition_defaults_to_grok_build() {
     }
 }
 /// When model_agent_type = Some("codex"), the codex agent is selected even
-/// though the default chain would return grok-build.
+/// though the default chain would return axon-build.
 #[test]
 #[serial_test::serial]
 fn resolve_agent_definition_model_agent_type_overrides_default() {
@@ -652,13 +652,13 @@ fn resolve_agent_definition_acp_profile_wins_when_model_agent_type_is_default() 
     }
 }
 /// Regression: after `DEFAULT_AGENT_TYPE` flipped to
-/// `grok-build-plan`, models in the catalog that still declare
-/// `agent_type = "grok-build"` explicitly must NOT preempt an ACP
-/// profile. Any value in the `grok-build*` family is the stock harness
+/// `axon-build-plan`, models in the catalog that still declare
+/// `agent_type = "axon-build"` explicitly must NOT preempt an ACP
+/// profile. Any value in the `axon-build*` family is the stock harness
 /// with no strict requirement.
 #[test]
 #[serial_test::serial]
-fn resolve_agent_definition_acp_profile_wins_for_explicit_grok_build_family() {
+fn resolve_agent_definition_acp_profile_wins_for_explicit_axon_build_family() {
     let prev = std::env::var("AXON_AGENT").ok();
     unsafe {
         std::env::remove_var("AXON_AGENT");
@@ -669,7 +669,7 @@ fn resolve_agent_definition_acp_profile_wins_for_explicit_grok_build_family() {
         "Custom devbox profile", }
     ))
     .expect("agent definition must parse");
-    for family_variant in ["grok-build", "grok-build-plan", "grok-build-concise"] {
+    for family_variant in ["axon-build", "axon-build-plan", "axon-build-concise"] {
         let def = MvpAgent::resolve_agent_definition(
             tmp.path(),
             None,
@@ -679,7 +679,7 @@ fn resolve_agent_definition_acp_profile_wins_for_explicit_grok_build_family() {
         );
         assert_eq!(
             def.name, "custom-devbox-profile",
-            "ACP profile must win for grok-build family variant `{family_variant}`"
+            "ACP profile must win for axon-build family variant `{family_variant}`"
         );
     }
     if let Some(v) = prev {
@@ -875,62 +875,62 @@ fn enqueue_replace_system_prompt_override_noop_when_absent_or_empty() {
     );
 }
 /// Regression for the web-client `_meta.agentProfile` -> `set_session_model`
-/// flow: a zero-turn switch from `grok-build` (a client profile name) to
-/// `grok-build-plan` (the default model agent_type) must be
+/// flow: a zero-turn switch from `axon-build` (a client profile name) to
+/// `axon-build-plan` (the default model agent_type) must be
 /// treated as compatible so the harness rebuild is skipped and the
 /// custom prompt body is preserved.
 #[test]
 fn harnesses_are_compatible_for_stock_family_pairs() {
-    assert!(harnesses_are_compatible("grok-build", "grok-build-plan"));
-    assert!(harnesses_are_compatible("grok-build-plan", "grok-build"));
-    assert!(harnesses_are_compatible("grok-build", "grok-build"));
+    assert!(harnesses_are_compatible("axon-build", "axon-build-plan"));
+    assert!(harnesses_are_compatible("axon-build-plan", "axon-build"));
+    assert!(harnesses_are_compatible("axon-build", "axon-build"));
     assert!(harnesses_are_compatible(
-        "grok-build-concise",
-        "grok-build-plan"
+        "axon-build-concise",
+        "axon-build-plan"
     ));
     assert!(harnesses_are_compatible(
         "remote-sidebar",
-        "grok-build-plan"
+        "axon-build-plan"
     ));
 }
 #[test]
 fn harnesses_are_compatible_rejects_strict_mismatches() {
     assert!(harnesses_are_compatible("codex", "codex"));
-    assert!(!harnesses_are_compatible("grok-build-plan", "codex"));
+    assert!(!harnesses_are_compatible("axon-build-plan", "codex"));
 }
 #[test]
 fn explicit_agent_type_wins_over_session_default() {
     assert_eq!(
-        resolve_required_agent_type(Some("cursor"), "grok-build-plan"),
+        resolve_required_agent_type(Some("cursor"), "axon-build-plan"),
         "cursor"
     );
 }
 #[test]
-fn null_agent_type_falls_back_to_session_default_grok_build_plan() {
+fn null_agent_type_falls_back_to_session_default_axon_build_plan() {
     assert_eq!(
-        resolve_required_agent_type(None, "grok-build-plan"),
-        "grok-build-plan"
+        resolve_required_agent_type(None, "axon-build-plan"),
+        "axon-build-plan"
     );
 }
 #[test]
-fn null_agent_type_falls_back_to_session_default_grok_build() {
+fn null_agent_type_falls_back_to_session_default_axon_build() {
     assert_eq!(
-        resolve_required_agent_type(None, "grok-build"),
-        "grok-build"
+        resolve_required_agent_type(None, "axon-build"),
+        "axon-build"
     );
 }
 #[test]
 fn null_agent_type_returns_to_session_default_after_cursor_switch() {
-    let session_default = "grok-build-plan";
+    let session_default = "axon-build-plan";
     let required_after_null = resolve_required_agent_type(None, session_default);
-    assert_eq!(required_after_null, "grok-build-plan");
+    assert_eq!(required_after_null, "axon-build-plan");
     assert_ne!(required_after_null, "cursor");
 }
 /// Compatible stock switches (no rebuild) must NOT mutate `agent_name`,
 /// preserving the session's original ACP `agentProfile`.
 #[test]
 fn agent_name_unchanged_without_harness_rebuild() {
-    let unchanged = agent_name_after_model_switch(false, "grok-build-plan", "remote-sidebar");
+    let unchanged = agent_name_after_model_switch(false, "axon-build-plan", "remote-sidebar");
     assert_eq!(
         unchanged, "remote-sidebar",
         "a compatible stock switch must preserve the original agent profile name"
@@ -980,9 +980,9 @@ async fn file_toolset_override_e2e_to_finalized_toolset() {
         web_search_config: axon_tools::implementations::web_search::WebSearchConfig::default(),
         web_fetch_config: Default::default(),
         lsp: None,
-        image_gen_config: axon_tools::implementations::grok_build::image_gen::ImageGenConfig::default(),
-        video_gen_config: axon_tools::implementations::grok_build::video_gen::VideoGenConfig::default(),
-        app_builder_deployer_config: axon_tools::implementations::grok_build::deploy_app::AppBuilderDeployerConfig::default(),
+        image_gen_config: axon_tools::implementations::axon_build::image_gen::ImageGenConfig::default(),
+        video_gen_config: axon_tools::implementations::axon_build::video_gen::VideoGenConfig::default(),
+        app_builder_deployer_config: axon_tools::implementations::axon_build::deploy_app::AppBuilderDeployerConfig::default(),
         api_key_provider: None,
         auth_provider: None,
         attribution_callback: None,
@@ -1078,7 +1078,7 @@ fn make_test_handle(
         force_compact: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
         permission_handle: axon_workspace::permission::PermissionHandle::allow_all(),
         attribution_callback: None,
-        agent_name: "grok-build".to_string(),
+        agent_name: "axon-build".to_string(),
         managed_mcp_proxy_base_url: String::new(),
         session_default_agent_profile: None,
         allowed_subagent_types: None,
@@ -1096,7 +1096,7 @@ async fn lookup_session_model_returns_per_session_model() {
     let sid_b = acp::SessionId::new("sess-b");
     let default_model = acp::ModelId::new("default-model");
     let sessions: HashMap<acp::SessionId, crate::session::SessionHandle> = [
-        (sid_a.clone(), make_test_handle("grok-3-fast", false, None)),
+        (sid_a.clone(), make_test_handle("axon-3-fast", false, None)),
         (sid_b.clone(), make_test_handle("codex-mini", false, None)),
     ]
     .into();
@@ -1104,7 +1104,7 @@ async fn lookup_session_model_returns_per_session_model() {
         lookup_session_model(&sessions, Some(&sid_a), &default_model)
             .0
             .as_ref(),
-        "grok-3-fast"
+        "axon-3-fast"
     );
     assert_eq!(
         lookup_session_model(&sessions, Some(&sid_b), &default_model)
@@ -1116,13 +1116,13 @@ async fn lookup_session_model_returns_per_session_model() {
 /// lookup_session_model falls back to the default when session_id is None.
 #[tokio::test]
 async fn lookup_session_model_fallback_no_session() {
-    let default_model = acp::ModelId::new("grok-3");
+    let default_model = acp::ModelId::new("axon-3");
     let sessions: HashMap<acp::SessionId, crate::session::SessionHandle> = HashMap::new();
     assert_eq!(
         lookup_session_model(&sessions, None, &default_model)
             .0
             .as_ref(),
-        "grok-3"
+        "axon-3"
     );
 }
 /// Mutating session A's model_id via the handle does not affect session B.
@@ -1132,8 +1132,8 @@ async fn set_session_model_does_not_cross_contaminate() {
     let sid_b = acp::SessionId::new("sess-b");
     let default_model = acp::ModelId::new("default");
     let mut sessions: HashMap<acp::SessionId, crate::session::SessionHandle> = [
-        (sid_a.clone(), make_test_handle("grok-3", false, None)),
-        (sid_b.clone(), make_test_handle("grok-3", false, None)),
+        (sid_a.clone(), make_test_handle("axon-3", false, None)),
+        (sid_b.clone(), make_test_handle("axon-3", false, None)),
     ]
     .into();
     sessions.get_mut(&sid_a).unwrap().model_id = acp::ModelId::new("codex-mini");
@@ -1147,7 +1147,7 @@ async fn set_session_model_does_not_cross_contaminate() {
         lookup_session_model(&sessions, Some(&sid_b), &default_model)
             .0
             .as_ref(),
-        "grok-3",
+        "axon-3",
         "Session B's model must not be affected by session A's model change"
     );
 }
@@ -1241,15 +1241,15 @@ async fn yolo_toggle_scoped_by_client_identifier() {
     let mut sessions: HashMap<acp::SessionId, crate::session::SessionHandle> = [
         (
             sid_tui.clone(),
-            make_test_handle("grok-3", false, Some("grok-tui")),
+            make_test_handle("axon-3", false, Some("axon-tui")),
         ),
         (
             sid_vscode.clone(),
-            make_test_handle("grok-3", false, Some("grok-code-extension")),
+            make_test_handle("axon-3", false, Some("axon-code-extension")),
         ),
     ]
     .into();
-    let updated = apply_yolo_mode_to_matching_sessions(&mut sessions, Some("grok-tui"), true);
+    let updated = apply_yolo_mode_to_matching_sessions(&mut sessions, Some("axon-tui"), true);
     assert_eq!(updated, 1, "exactly one matching session should be updated");
     assert!(
         sessions[&sid_tui].yolo_mode,
@@ -1269,15 +1269,15 @@ async fn yolo_toggle_can_disable_session_started_with_yolo_enabled() {
     let mut sessions: HashMap<acp::SessionId, crate::session::SessionHandle> = [
         (
             sid_tui.clone(),
-            make_test_handle("grok-3", true, Some("grok-tui")),
+            make_test_handle("axon-3", true, Some("axon-tui")),
         ),
         (
             sid_other.clone(),
-            make_test_handle("grok-3", true, Some("grok-code-extension")),
+            make_test_handle("axon-3", true, Some("axon-code-extension")),
         ),
     ]
     .into();
-    let updated = apply_yolo_mode_to_matching_sessions(&mut sessions, Some("grok-tui"), false);
+    let updated = apply_yolo_mode_to_matching_sessions(&mut sessions, Some("axon-tui"), false);
     assert_eq!(updated, 1, "only the sender's session should be updated");
     assert!(
         !sessions[&sid_tui].yolo_mode,
@@ -1368,7 +1368,7 @@ async fn drain_respects_deadline() {
 fn parse_code_nav_capability_present_and_true() {
     let mut meta = serde_json::Map::new();
     meta.insert(
-        "x.ai/codeNavigation".to_string(),
+        "axon/codeNavigation".to_string(),
         serde_json::json!({ "enabled" : true }),
     );
     let init = acp::InitializeRequest::new(acp::ProtocolVersion::V1).client_capabilities(
@@ -1392,7 +1392,7 @@ fn parse_code_nav_capability_absent_returns_false() {
 fn parse_code_nav_capability_false_returns_false() {
     let mut meta = serde_json::Map::new();
     meta.insert(
-        "x.ai/codeNavigation".to_string(),
+        "axon/codeNavigation".to_string(),
         serde_json::json!({ "enabled" : false }),
     );
     let init = acp::InitializeRequest::new(acp::ProtocolVersion::V1).client_capabilities(
@@ -1412,18 +1412,18 @@ fn parse_code_nav_capability_false_returns_false() {
 #[tokio::test]
 async fn test_per_session_code_nav_isolation() {
     let web_handle = {
-        let mut h = make_test_handle("model", false, Some("grok-web"));
+        let mut h = make_test_handle("model", false, Some("axon-web"));
         h.code_nav_enabled = true;
         h
     };
     let tui_handle = {
-        let mut h = make_test_handle("model", false, Some("grok-tui"));
+        let mut h = make_test_handle("model", false, Some("axon-tui"));
         h.code_nav_enabled = false;
         h
     };
     let check = |handle: &crate::session::SessionHandle| {
         let ct = crate::http::client_type_from_origin(handle.origin_client.as_ref());
-        if !matches!(ct, ClientType::GrokWeb) {
+        if !matches!(ct, ClientType::AxonWeb) {
             return Err(CodeNavEligibility::ClientNotWeb);
         }
         if !handle.code_nav_enabled {
@@ -1476,10 +1476,10 @@ async fn ext_method_routes_auth_cleared_and_refreshes_resident_sessions() {
     let local = tokio::task::LocalSet::new();
     local
         .run_until(async {
-            let agent = build_agent_with_auth(crate::auth::GrokAuth {
+            let agent = build_agent_with_auth(crate::auth::AxonAuth {
                 key: "eligible".into(),
                 auth_mode: crate::auth::AuthMode::WebLogin,
-                ..crate::auth::GrokAuth::test_default()
+                ..crate::auth::AxonAuth::test_default()
             });
             use acp::Agent as _;
             agent.managed_mcp_cache.lock().await.enable_gateway_tools();
@@ -1489,7 +1489,7 @@ async fn ext_method_routes_auth_cleared_and_refreshes_resident_sessions() {
             let params = serde_json::json!({});
             agent
                 .ext_method(acp::ExtRequest::new(
-                    "x.ai/internal/auth_cleared",
+                    "axon/internal/auth_cleared",
                     std::sync::Arc::from(serde_json::value::to_raw_value(&params).unwrap()),
                 ))
                 .await
@@ -1506,22 +1506,22 @@ async fn ext_method_routes_auth_cleared_and_refreshes_resident_sessions() {
 /// Build a minimal MvpAgent suitable for testing extension methods.
 fn build_minimal_agent_for_tests() -> MvpAgent {
     use crate::agent::config::Config as AgentConfig;
-    use crate::auth::{AuthManager, GrokComConfig};
+    use crate::auth::{AuthManager, AxonComConfig};
     let temp_dir = tempfile::tempdir().unwrap();
     let auth_manager =
-        std::sync::Arc::new(AuthManager::new(temp_dir.path(), GrokComConfig::default()));
+        std::sync::Arc::new(AuthManager::new(temp_dir.path(), AxonComConfig::default()));
     let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
     let gateway = GatewaySender::new(tx);
     let cfg = AgentConfig::default();
     MvpAgent::new(gateway, &cfg, auth_manager, None).expect("valid test config")
 }
 /// Build a minimal MvpAgent with pre-loaded auth for gate tests.
-fn build_agent_with_auth(auth: crate::auth::GrokAuth) -> MvpAgent {
+fn build_agent_with_auth(auth: crate::auth::AxonAuth) -> MvpAgent {
     use crate::agent::config::Config as AgentConfig;
-    use crate::auth::{AuthManager, GrokComConfig};
+    use crate::auth::{AuthManager, AxonComConfig};
     let temp_dir = tempfile::tempdir().unwrap();
     let auth_manager =
-        std::sync::Arc::new(AuthManager::new(temp_dir.path(), GrokComConfig::default()));
+        std::sync::Arc::new(AuthManager::new(temp_dir.path(), AxonComConfig::default()));
     auth_manager.hot_swap(auth);
     let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
     let gateway = GatewaySender::new(tx);
@@ -1538,10 +1538,10 @@ fn build_agent_with_auth(auth: crate::auth::GrokAuth) -> MvpAgent {
 #[serial_test::serial]
 async fn ensure_plugin_registry_lazily_populates_snapshot() {
     use crate::agent::config::Config as AgentConfig;
-    use crate::auth::{AuthManager, GrokComConfig};
+    use crate::auth::{AuthManager, AxonComConfig};
     use axon_test_support::EnvGuard;
-    let grok_home = tempfile::tempdir().unwrap();
-    let _env = EnvGuard::set("AXON_HOME", grok_home.path());
+    let axon_home = tempfile::tempdir().unwrap();
+    let _env = EnvGuard::set("AXON_HOME", axon_home.path());
     let plugin_dir = tempfile::tempdir().unwrap();
     std::fs::write(
         plugin_dir.path().join("plugin.json"),
@@ -1555,7 +1555,7 @@ async fn ensure_plugin_registry_lazily_populates_snapshot() {
     .unwrap();
     let auth_home = tempfile::tempdir().unwrap();
     let auth_manager =
-        std::sync::Arc::new(AuthManager::new(auth_home.path(), GrokComConfig::default()));
+        std::sync::Arc::new(AuthManager::new(auth_home.path(), AxonComConfig::default()));
     let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
     let gateway = GatewaySender::new(tx);
     let mut cfg = AgentConfig::default();
@@ -1692,7 +1692,7 @@ async fn resident_activity_reports_needs_input_when_pending() {
     use crate::agent::roster::RosterActivity;
     let agent = build_minimal_agent_for_tests();
     let sid = acp::SessionId::new("sess-pending");
-    let handle = make_test_handle("grok-3", false, None);
+    let handle = make_test_handle("axon-3", false, None);
     let pending = handle.pending_interactions.clone();
     let prompt_id = handle.current_prompt_id.clone();
     agent.sessions.borrow_mut().insert(sid.clone(), handle);
@@ -1709,7 +1709,7 @@ async fn resident_activity_reports_needs_input_when_pending() {
     pending.lock().unwrap().clear();
     assert_eq!(agent.resident_activity(&sid), RosterActivity::Working);
 }
-/// Drain the agent gateway, returning the first `x.ai/sessions/changed`
+/// Drain the agent gateway, returning the first `axon/sessions/changed`
 /// payload that carries an upserted entry (ignoring any unrelated
 /// notifications, which parse into an empty `RosterChanged`).
 fn drain_roster_changed(
@@ -1732,7 +1732,7 @@ fn drain_roster_changed(
     found
 }
 /// A turn-boundary activity delta (`push_roster_activity_delta`) broadcasts
-/// an `x.ai/sessions/changed` upsert carrying the *overridden* activity, so
+/// an `axon/sessions/changed` upsert carrying the *overridden* activity, so
 /// every attached dashboard reflects Working/Idle immediately instead of
 /// waiting for the ≤1s roster poll (turn-start/turn-end). The
 /// override matters because at turn-start the actor has not yet published
@@ -1742,10 +1742,10 @@ fn drain_roster_changed(
 async fn push_roster_activity_delta_broadcasts_overridden_activity() {
     use crate::agent::config::Config as AgentConfig;
     use crate::agent::roster::RosterActivity;
-    use crate::auth::{AuthManager, GrokComConfig};
+    use crate::auth::{AuthManager, AxonComConfig};
     let temp_dir = tempfile::tempdir().unwrap();
     let auth_manager =
-        std::sync::Arc::new(AuthManager::new(temp_dir.path(), GrokComConfig::default()));
+        std::sync::Arc::new(AuthManager::new(temp_dir.path(), AxonComConfig::default()));
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
     let gateway = GatewaySender::new(tx);
     let cfg = AgentConfig::default();
@@ -1754,7 +1754,7 @@ async fn push_roster_activity_delta_broadcasts_overridden_activity() {
     agent
         .sessions
         .borrow_mut()
-        .insert(sid.clone(), make_test_handle("grok-3", false, None));
+        .insert(sid.clone(), make_test_handle("axon-3", false, None));
     agent.push_roster_activity_delta(&sid, RosterActivity::Working);
     let changed = drain_roster_changed(&mut rx).expect("turn-start delta emitted");
     assert_eq!(changed.upserted.len(), 1);
@@ -1797,7 +1797,7 @@ fn check_nav_eligibility_from_sessions(
         return Err(CodeNavEligibility::SessionRequired);
     };
     let ct = crate::http::client_type_from_origin(handle.origin_client.as_ref());
-    if !matches!(ct, ClientType::GrokWeb) {
+    if !matches!(ct, ClientType::AxonWeb) {
         return Err(CodeNavEligibility::ClientNotWeb);
     }
     if !handle.code_nav_enabled {
@@ -1812,7 +1812,7 @@ fn check_nav_eligibility_from_sessions(
 #[tokio::test]
 async fn test_web_session_with_capability_is_eligible() {
     let sid = acp::SessionId::new("sess-web");
-    let mut handle = make_test_handle("model", false, Some("grok-web"));
+    let mut handle = make_test_handle("model", false, Some("axon-web"));
     handle.code_nav_enabled = true;
     let sessions = [(sid.clone(), handle)].into();
     assert!(
@@ -1824,7 +1824,7 @@ async fn test_web_session_with_capability_is_eligible() {
 #[tokio::test]
 async fn test_tui_session_is_rejected() {
     let sid = acp::SessionId::new("sess-tui");
-    let mut handle = make_test_handle("model", false, Some("grok-tui"));
+    let mut handle = make_test_handle("model", false, Some("axon-tui"));
     handle.code_nav_enabled = true;
     let sessions = [(sid.clone(), handle)].into();
     assert_eq!(
@@ -1837,7 +1837,7 @@ async fn test_tui_session_is_rejected() {
 #[tokio::test]
 async fn test_web_session_without_capability_is_rejected() {
     let sid = acp::SessionId::new("sess-web-no-cap");
-    let mut handle = make_test_handle("model", false, Some("grok-web"));
+    let mut handle = make_test_handle("model", false, Some("axon-web"));
     handle.code_nav_enabled = false;
     let sessions = [(sid.clone(), handle)].into();
     assert_eq!(
@@ -1852,9 +1852,9 @@ async fn test_web_session_without_capability_is_rejected() {
 async fn test_leader_mode_two_sessions_stay_isolated() {
     let web_sid = acp::SessionId::new("web");
     let tui_sid = acp::SessionId::new("tui");
-    let mut web_handle = make_test_handle("model", false, Some("grok-web"));
+    let mut web_handle = make_test_handle("model", false, Some("axon-web"));
     web_handle.code_nav_enabled = true;
-    let mut tui_handle = make_test_handle("model", false, Some("grok-tui"));
+    let mut tui_handle = make_test_handle("model", false, Some("axon-tui"));
     tui_handle.code_nav_enabled = false;
     let sessions = [(web_sid.clone(), web_handle), (tui_sid.clone(), tui_handle)].into();
     assert!(
@@ -1875,7 +1875,7 @@ async fn test_leader_mode_two_sessions_stay_isolated() {
 #[tokio::test]
 async fn test_unknown_session_id_returns_session_required() {
     let known_sid = acp::SessionId::new("known");
-    let mut known_handle = make_test_handle("model", false, Some("grok-web"));
+    let mut known_handle = make_test_handle("model", false, Some("axon-web"));
     known_handle.code_nav_enabled = true;
     let sessions = [(known_sid.clone(), known_handle)].into();
     let stale_sid = acp::SessionId::new("stale-or-evicted");
@@ -1937,7 +1937,7 @@ mod eligibility_gates {
         code_nav_enabled: bool,
         indexing_enabled: bool,
     ) -> Result<(), CodeNavEligibility> {
-        if !matches!(client_type, ClientType::GrokWeb) {
+        if !matches!(client_type, ClientType::AxonWeb) {
             return Err(CodeNavEligibility::ClientNotWeb);
         }
         if !code_nav_enabled {
@@ -1958,27 +1958,27 @@ mod eligibility_gates {
     #[test]
     fn tui_client_rejected() {
         assert_eq!(
-            check_gates(ClientType::GrokTUI, true, true),
+            check_gates(ClientType::AxonTUI, true, true),
             Err(CodeNavEligibility::ClientNotWeb)
         );
     }
     #[test]
     fn web_client_no_capability_rejected() {
         assert_eq!(
-            check_gates(ClientType::GrokWeb, false, true),
+            check_gates(ClientType::AxonWeb, false, true),
             Err(CodeNavEligibility::CapabilityNotAdvertised)
         );
     }
     #[test]
     fn web_client_with_capability_config_disabled_rejected() {
         assert_eq!(
-            check_gates(ClientType::GrokWeb, true, false),
+            check_gates(ClientType::AxonWeb, true, false),
             Err(CodeNavEligibility::DisabledByConfig)
         );
     }
     #[test]
     fn web_client_with_capability_and_config_passes_first_three_gates() {
-        assert!(check_gates(ClientType::GrokWeb, true, true).is_ok());
+        assert!(check_gates(ClientType::AxonWeb, true, true).is_ok());
     }
 }
 #[test]
@@ -2042,12 +2042,12 @@ fn write_updates(dir: &std::path::Path, lines: &[&str]) -> PathBuf {
 }
 fn bg_line(task_id: &str) -> String {
     format!(
-        r#"{{"timestamp":1,"method":"_x.ai/session/update","params":{{"sessionId":"s","update":{{"sessionUpdate":"task_backgrounded","task_id":"{task_id}","command":"sleep 99","cwd":"/tmp"}}}}}}"#
+        r#"{{"timestamp":1,"method":"_axon/session/update","params":{{"sessionId":"s","update":{{"sessionUpdate":"task_backgrounded","task_id":"{task_id}","command":"sleep 99","cwd":"/tmp"}}}}}}"#
     )
 }
 fn completed_line(task_id: &str) -> String {
     format!(
-        r#"{{"timestamp":2,"method":"_x.ai/session/update","params":{{"sessionId":"s","update":{{"sessionUpdate":"task_completed","task_snapshot":{{"task_id":"{task_id}","completed":true}}}}}}}}"#
+        r#"{{"timestamp":2,"method":"_axon/session/update","params":{{"sessionId":"s","update":{{"sessionUpdate":"task_completed","task_snapshot":{{"task_id":"{task_id}","completed":true}}}}}}}}"#
     )
 }
 fn orphaned_ids(tasks: &[OrphanedTask]) -> std::collections::HashSet<&str> {
@@ -2121,7 +2121,7 @@ fn orphaned_tasks_skips_malformed_lines() {
 fn orphaned_tasks_ignores_unrelated_updates() {
     let tmp = tempfile::tempdir().unwrap();
     let bg = bg_line("t1");
-    let unrelated = r#"{"timestamp":1,"method":"_x.ai/session/update","params":{"sessionId":"s","update":{"sessionUpdate":"auto_compact_started","percentage":80}}}"#;
+    let unrelated = r#"{"timestamp":1,"method":"_axon/session/update","params":{"sessionId":"s","update":{"sessionUpdate":"auto_compact_started","percentage":80}}}"#;
     let path = write_updates(tmp.path(), &[&bg, unrelated]);
     let result = MvpAgent::find_orphaned_background_tasks(&Some(path));
     assert_eq!(result.len(), 1);
@@ -2131,7 +2131,7 @@ fn orphaned_tasks_filters_rewind_dead_branches() {
     let tmp = tempfile::tempdir().unwrap();
     let user_msg = r#"{"timestamp":0,"method":"session/update","params":{"sessionId":"s","update":{"sessionUpdate":"user_message_chunk","content":{"type":"text","text":"hello"}}}}"#;
     let bg_before_rewind = bg_line("t-dead");
-    let rewind = r#"{"timestamp":3,"method":"_x.ai/session/update","params":{"sessionId":"s","update":{"sessionUpdate":"rewind_marker","target_prompt_index":0,"created_at":"2025-01-01T00:00:00Z"}}}"#;
+    let rewind = r#"{"timestamp":3,"method":"_axon/session/update","params":{"sessionId":"s","update":{"sessionUpdate":"rewind_marker","target_prompt_index":0,"created_at":"2025-01-01T00:00:00Z"}}}"#;
     let user_msg2 = r#"{"timestamp":4,"method":"session/update","params":{"sessionId":"s","update":{"sessionUpdate":"user_message_chunk","content":{"type":"text","text":"retry"}}}}"#;
     let bg_after_rewind = bg_line("t-alive");
     let path = write_updates(
@@ -2205,21 +2205,21 @@ async fn auth_type_session_based_no_current_returns_session_token() {
         );
     }
 }
-/// BYOK guard. Users with `xai.api_key` must continue to report `ApiKey`
+/// BYOK guard. Users with `axon.api_key` must continue to report `ApiKey`
 /// regardless of live-token state -- BYOK sessions have nothing to refresh,
 /// and reporting `SessionToken` would route through cli-chat-proxy paths
 /// (image_gen / video_gen base_url) that don't apply to BYOK keys.
 #[tokio::test(flavor = "current_thread")]
-async fn auth_type_xai_api_key_no_current_returns_api_key() {
+async fn auth_type_axon_api_key_no_current_returns_api_key() {
     let agent = build_minimal_agent_for_tests();
     agent.set_auth_method(acp::AuthMethodId::new(
-        crate::agent::auth_method::XAI_API_KEY_METHOD_ID,
+        crate::agent::auth_method::AXON_API_KEY_METHOD_ID,
     ));
     assert!(agent.auth_manager.current().is_none());
     assert_eq!(
         agent.auth_type(),
         axon_chat_state::AuthType::ApiKey,
-        "xai.api_key auth must report ApiKey -- BYOK has no session-token \
+        "axon.api_key auth must report ApiKey -- BYOK has no session-token \
              behavior to fall back to."
     );
 }
@@ -2228,12 +2228,12 @@ async fn auth_type_xai_api_key_no_current_returns_api_key() {
 /// common case during a healthy session.
 #[tokio::test(flavor = "current_thread")]
 async fn auth_type_session_based_with_current_returns_session_token() {
-    use crate::auth::GrokAuth;
+    use crate::auth::AxonAuth;
     let agent = build_minimal_agent_for_tests();
     agent.set_auth_method(acp::AuthMethodId::new(
         crate::agent::auth_method::OIDC_METHOD_ID,
     ));
-    agent.auth_manager.hot_swap(GrokAuth::test_default());
+    agent.auth_manager.hot_swap(AxonAuth::test_default());
     assert!(agent.auth_manager.current().is_some());
     assert_eq!(agent.auth_type(), axon_chat_state::AuthType::SessionToken,);
 }
@@ -2256,58 +2256,58 @@ async fn auth_type_no_method_id_no_current_returns_api_key() {
 /// here matches pre-fix behavior and keeps logging stable.
 #[tokio::test(flavor = "current_thread")]
 async fn auth_type_no_method_id_with_current_returns_session_token() {
-    use crate::auth::GrokAuth;
+    use crate::auth::AxonAuth;
     let agent = build_minimal_agent_for_tests();
-    agent.auth_manager.hot_swap(GrokAuth::test_default());
+    agent.auth_manager.hot_swap(AxonAuth::test_default());
     assert!(agent.auth_method_id.load().is_none());
     assert!(agent.auth_manager.current().is_some());
     assert_eq!(agent.auth_type(), axon_chat_state::AuthType::SessionToken,);
 }
-/// Minimal agent whose `grok_com_config` engages the api-key kill switch
+/// Minimal agent whose `axon_com_config` engages the api-key kill switch
 /// (`disable_api_key_auth = true`), mirroring a forced-IdP deployment.
 fn build_agent_with_api_key_auth_disabled() -> MvpAgent {
     use crate::agent::config::Config as AgentConfig;
-    use crate::auth::{AuthManager, GrokComConfig};
+    use crate::auth::{AuthManager, AxonComConfig};
     let temp_dir = tempfile::tempdir().unwrap();
     let auth_manager =
-        std::sync::Arc::new(AuthManager::new(temp_dir.path(), GrokComConfig::default()));
+        std::sync::Arc::new(AuthManager::new(temp_dir.path(), AxonComConfig::default()));
     let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
     let gateway = GatewaySender::new(tx);
     let mut cfg = AgentConfig::default();
-    cfg.grok_com_config.disable_api_key_auth = Some(true);
+    cfg.axon_com_config.disable_api_key_auth = Some(true);
     MvpAgent::new(gateway, &cfg, auth_manager, None).expect("valid test config")
 }
-/// Deployment-key / managed-config user: `XAI_API_KEY` resolves and the kill
-/// switch is off, so a dead `cached_token` MUST fall through to `xai.api_key`
+/// Deployment-key / managed-config user: `AXON_API_KEY` resolves and the kill
+/// switch is off, so a dead `cached_token` MUST fall through to `axon.api_key`
 /// (no browser). This is the exact regression the fallthrough fixes.
 #[tokio::test(flavor = "current_thread")]
 #[serial_test::serial]
 async fn cached_token_fallthrough_prefers_api_key_for_deployment_key() {
-    use crate::agent::auth_method::{XAI_API_KEY_ENV_VAR, XAI_API_KEY_METHOD_ID};
+    use crate::agent::auth_method::{AXON_API_KEY_ENV_VAR, AXON_API_KEY_METHOD_ID};
     use axon_test_support::EnvGuard;
     let _lockdown = EnvGuard::unset("AXON_DISABLE_API_KEY_AUTH");
-    let _key = EnvGuard::set(XAI_API_KEY_ENV_VAR, "test-deployment-key");
+    let _key = EnvGuard::set(AXON_API_KEY_ENV_VAR, "test-deployment-key");
     let agent = build_minimal_agent_for_tests();
     assert_eq!(
         agent
             .cached_token_fallthrough_method_id()
             .as_ref()
             .map(|id| id.0.as_ref()),
-        Some(XAI_API_KEY_METHOD_ID),
-        "deployment-key user (XAI_API_KEY set, no kill switch) must fall \
-         through to xai.api_key on a dead cached_token -- not interactive login",
+        Some(AXON_API_KEY_METHOD_ID),
+        "deployment-key user (AXON_API_KEY set, no kill switch) must fall \
+         through to axon.api_key on a dead cached_token -- not interactive login",
     );
 }
-/// Forced-IdP deployment: even with `XAI_API_KEY` present, the admin kill
-/// switch keeps the fallthrough on interactive `grok.com` (api-key auth is
+/// Forced-IdP deployment: even with `AXON_API_KEY` present, the admin kill
+/// switch keeps the fallthrough on interactive `blocked.invalid` (api-key auth is
 /// neither advertised nor an eligible fallthrough).
 #[tokio::test(flavor = "current_thread")]
 #[serial_test::serial]
 async fn cached_token_fallthrough_respects_kill_switch() {
-    use crate::agent::auth_method::{AXON_COM_METHOD_ID, XAI_API_KEY_ENV_VAR};
+    use crate::agent::auth_method::{AXON_COM_METHOD_ID, AXON_API_KEY_ENV_VAR};
     use axon_test_support::EnvGuard;
     let _lockdown = EnvGuard::unset("AXON_DISABLE_API_KEY_AUTH");
-    let _key = EnvGuard::set(XAI_API_KEY_ENV_VAR, "test-deployment-key");
+    let _key = EnvGuard::set(AXON_API_KEY_ENV_VAR, "test-deployment-key");
     let agent = build_agent_with_api_key_auth_disabled();
     assert_eq!(
         agent
@@ -2316,21 +2316,21 @@ async fn cached_token_fallthrough_respects_kill_switch() {
             .map(|id| id.0.as_ref()),
         Some(AXON_COM_METHOD_ID),
         "disable_api_key_auth must keep the cached_token fallthrough on \
-         interactive grok.com so XAI_API_KEY can't bypass forced IdP login",
+         interactive blocked.invalid so AXON_API_KEY can't bypass forced IdP login",
     );
 }
 /// No advertiseable credentials at all (no env key, no kill switch): the user
-/// genuinely needs to log in, so the fallthrough is interactive `grok.com`.
+/// genuinely needs to log in, so the fallthrough is interactive `blocked.invalid`.
 #[tokio::test(flavor = "current_thread")]
 #[serial_test::serial]
-async fn cached_token_fallthrough_falls_to_grok_com_without_credentials() {
+async fn cached_token_fallthrough_falls_to_axon_com_without_credentials() {
     use crate::agent::auth_method::{
-        AXON_COM_METHOD_ID, LEGACY_XAI_API_KEY_ENV_VAR, XAI_API_KEY_ENV_VAR,
+        AXON_COM_METHOD_ID, LEGACY_AXON_API_KEY_ENV_VAR, AXON_API_KEY_ENV_VAR,
     };
     use axon_test_support::EnvGuard;
     let _lockdown = EnvGuard::unset("AXON_DISABLE_API_KEY_AUTH");
-    let _new = EnvGuard::unset(XAI_API_KEY_ENV_VAR);
-    let _legacy = EnvGuard::unset(LEGACY_XAI_API_KEY_ENV_VAR);
+    let _new = EnvGuard::unset(AXON_API_KEY_ENV_VAR);
+    let _legacy = EnvGuard::unset(LEGACY_AXON_API_KEY_ENV_VAR);
     let agent = build_minimal_agent_for_tests();
     assert_eq!(
         agent
@@ -2338,7 +2338,7 @@ async fn cached_token_fallthrough_falls_to_grok_com_without_credentials() {
             .as_ref()
             .map(|id| id.0.as_ref()),
         Some(AXON_COM_METHOD_ID),
-        "no API-key creds and no kill switch -> interactive grok.com login",
+        "no API-key creds and no kill switch -> interactive blocked.invalid login",
     );
 }
 /// Verifies the 4-state matrix of `(disable_zdr_incompatible_tools, zdr_video_output_s3)`:
@@ -2351,7 +2351,7 @@ async fn cached_token_fallthrough_falls_to_grok_com_without_credentials() {
 /// | true     | Some      | Enabled, S3 threaded (ZDR with upload path) |
 #[tokio::test(flavor = "current_thread")]
 async fn prepare_video_gen_config_disabled_when_zdr_flag_set() {
-    use axon_tools::implementations::grok_build::video_gen::{
+    use axon_tools::implementations::axon_build::video_gen::{
         S3AccessCredentials, VideoGenConfig, ZdrVideoOutputS3Config,
     };
     fn zdr_s3() -> ZdrVideoOutputS3Config {
@@ -2359,7 +2359,7 @@ async fn prepare_video_gen_config_disabled_when_zdr_flag_set() {
             bucket: "team-videos".into(),
             endpoint: "https://s3.example.com".into(),
             region: "us-east-1".into(),
-            key_prefix: "grok-videos/".into(),
+            key_prefix: "axon-videos/".into(),
             expires_secs: 900,
             read_write: S3AccessCredentials {
                 access_key_id: "AKIA...".into(),
@@ -2408,7 +2408,7 @@ async fn prepare_video_gen_config_disabled_when_zdr_flag_set() {
 /// disabling a paid feature when tier info hasn't loaded.
 #[tokio::test(flavor = "current_thread")]
 async fn prepare_image_gen_config_fails_open_without_auth() {
-    use axon_tools::implementations::grok_build::image_gen::ImageGenConfig;
+    use axon_tools::implementations::axon_build::image_gen::ImageGenConfig;
     let agent = build_minimal_agent_for_tests();
     agent.sampling_config.borrow_mut().api_key = Some("test-key".to_string());
     let ImageGenConfig::Enabled {
@@ -2424,11 +2424,11 @@ async fn prepare_image_gen_config_fails_open_without_auth() {
 }
 /// The imagine tools bypass cli-chat-proxy (direct API calls), so the server
 /// can only scope the coding data-retention opt-out (`/privacy opt-out`) to
-/// Build traffic via the `x-grok-client-identifier` header. If this header is
+/// Build traffic via the `x-axon-client-identifier` header. If this header is
 /// dropped, opted-out users' imagine prompts are logged/retained server-side.
 #[tokio::test(flavor = "current_thread")]
 async fn prepare_image_gen_config_sends_client_identifier_header() {
-    use axon_tools::implementations::grok_build::image_gen::ImageGenConfig;
+    use axon_tools::implementations::axon_build::image_gen::ImageGenConfig;
     let agent = build_minimal_agent_for_tests();
     agent.sampling_config.borrow_mut().api_key = Some("test-key".to_string());
     let ImageGenConfig::Enabled { extra_headers, .. } = agent.prepare_image_gen_config() else {
@@ -2436,7 +2436,7 @@ async fn prepare_image_gen_config_sends_client_identifier_header() {
     };
     assert_eq!(
         extra_headers
-            .get("x-grok-client-identifier")
+            .get("x-axon-client-identifier")
             .map(String::as_str),
         Some(crate::http::process_client_identifier().as_str()),
         "imagine API calls must carry the client identifier so the server \
@@ -2446,7 +2446,7 @@ async fn prepare_image_gen_config_sends_client_identifier_header() {
 /// Same contract for video generation (also a direct API call).
 #[tokio::test(flavor = "current_thread")]
 async fn prepare_video_gen_config_sends_client_identifier_header() {
-    use axon_tools::implementations::grok_build::video_gen::VideoGenConfig;
+    use axon_tools::implementations::axon_build::video_gen::VideoGenConfig;
     let agent = build_minimal_agent_for_tests();
     agent.sampling_config.borrow_mut().api_key = Some("test-key".to_string());
     let VideoGenConfig::Enabled { extra_headers, .. } = agent.prepare_video_gen_config() else {
@@ -2454,7 +2454,7 @@ async fn prepare_video_gen_config_sends_client_identifier_header() {
     };
     assert_eq!(
         extra_headers
-            .get("x-grok-client-identifier")
+            .get("x-axon-client-identifier")
             .map(String::as_str),
         Some(crate::http::process_client_identifier().as_str()),
         "video gen API calls must carry the client identifier so the server \
@@ -2463,7 +2463,7 @@ async fn prepare_video_gen_config_sends_client_identifier_header() {
 }
 #[tokio::test]
 async fn data_collection_enabled_for_normal_user() {
-    let agent = build_agent_with_auth(crate::auth::GrokAuth::test_default());
+    let agent = build_agent_with_auth(crate::auth::AxonAuth::test_default());
     assert!(
         !agent.is_data_collection_disabled(),
         "normal user must have data collection enabled"
@@ -2471,9 +2471,9 @@ async fn data_collection_enabled_for_normal_user() {
 }
 #[tokio::test]
 async fn data_collection_disabled_for_zdr_team() {
-    let agent = build_agent_with_auth(crate::auth::GrokAuth {
+    let agent = build_agent_with_auth(crate::auth::AxonAuth {
         team_blocked_reasons: vec!["BLOCKED_REASON_NO_LOGS".into()],
-        ..crate::auth::GrokAuth::test_default()
+        ..crate::auth::AxonAuth::test_default()
     });
     assert!(
         agent.is_data_collection_disabled(),
@@ -2486,9 +2486,9 @@ async fn data_collection_disabled_for_zdr_team() {
 }
 #[tokio::test]
 async fn data_collection_disabled_for_zdr_moderated_team() {
-    let agent = build_agent_with_auth(crate::auth::GrokAuth {
+    let agent = build_agent_with_auth(crate::auth::AxonAuth {
         team_blocked_reasons: vec!["BLOCKED_REASON_NO_LOGS_MODERATED".into()],
-        ..crate::auth::GrokAuth::test_default()
+        ..crate::auth::AxonAuth::test_default()
     });
     assert!(
         agent.is_data_collection_disabled(),
@@ -2497,9 +2497,9 @@ async fn data_collection_disabled_for_zdr_moderated_team() {
 }
 #[tokio::test]
 async fn data_collection_disabled_for_opted_out_team() {
-    let agent = build_agent_with_auth(crate::auth::GrokAuth {
+    let agent = build_agent_with_auth(crate::auth::AxonAuth {
         coding_data_retention_opt_out: true,
-        ..crate::auth::GrokAuth::test_default()
+        ..crate::auth::AxonAuth::test_default()
     });
     assert!(
         agent.is_data_collection_disabled(),
@@ -2512,10 +2512,10 @@ async fn data_collection_disabled_for_opted_out_team() {
 }
 #[tokio::test]
 async fn data_collection_disabled_for_zdr_plus_opt_out() {
-    let agent = build_agent_with_auth(crate::auth::GrokAuth {
+    let agent = build_agent_with_auth(crate::auth::AxonAuth {
         team_blocked_reasons: vec!["BLOCKED_REASON_NO_LOGS".into()],
         coding_data_retention_opt_out: true,
-        ..crate::auth::GrokAuth::test_default()
+        ..crate::auth::AxonAuth::test_default()
     });
     assert!(
         agent.is_data_collection_disabled(),
@@ -2524,12 +2524,12 @@ async fn data_collection_disabled_for_zdr_plus_opt_out() {
 }
 #[tokio::test]
 async fn data_collection_enabled_for_non_zdr_team_with_unrelated_blocks() {
-    let agent = build_agent_with_auth(crate::auth::GrokAuth {
+    let agent = build_agent_with_auth(crate::auth::AxonAuth {
         team_blocked_reasons: vec![
             "BLOCKED_REASON_BILLING".into(),
             "BLOCKED_REASON_SUSPENDED".into(),
         ],
-        ..crate::auth::GrokAuth::test_default()
+        ..crate::auth::AxonAuth::test_default()
     });
     assert!(
         !agent.is_data_collection_disabled(),
@@ -2550,15 +2550,15 @@ fn enable_trace_upload_config(agent: &MvpAgent) {
 async fn product_analytics_stays_off_even_with_telemetry_config_on() {
     // Product analytics egress removed: the config switch can no longer
     // turn it on for anyone.
-    let agent = build_agent_with_auth(crate::auth::GrokAuth::test_default());
+    let agent = build_agent_with_auth(crate::auth::AxonAuth::test_default());
     enable_product_telemetry(&agent);
     assert!(!agent.product_analytics_enabled());
 }
 #[tokio::test]
 async fn product_analytics_stays_off_for_opted_out_user() {
-    let agent = build_agent_with_auth(crate::auth::GrokAuth {
+    let agent = build_agent_with_auth(crate::auth::AxonAuth {
         coding_data_retention_opt_out: true,
-        ..crate::auth::GrokAuth::test_default()
+        ..crate::auth::AxonAuth::test_default()
     });
     enable_product_telemetry(&agent);
     assert!(agent.is_data_collection_disabled());
@@ -2566,16 +2566,16 @@ async fn product_analytics_stays_off_for_opted_out_user() {
 }
 #[tokio::test]
 async fn product_analytics_disabled_for_zdr_team() {
-    let agent = build_agent_with_auth(crate::auth::GrokAuth {
+    let agent = build_agent_with_auth(crate::auth::AxonAuth {
         team_blocked_reasons: vec!["BLOCKED_REASON_NO_LOGS".into()],
-        ..crate::auth::GrokAuth::test_default()
+        ..crate::auth::AxonAuth::test_default()
     });
     enable_product_telemetry(&agent);
     assert!(!agent.product_analytics_enabled());
 }
 #[tokio::test]
 async fn product_analytics_disabled_when_telemetry_off() {
-    let agent = build_agent_with_auth(crate::auth::GrokAuth::test_default());
+    let agent = build_agent_with_auth(crate::auth::AxonAuth::test_default());
     agent.cfg.borrow_mut().features.telemetry = Some(crate::agent::config::TelemetryMode::Disabled);
     assert!(!agent.product_analytics_enabled());
 }
@@ -2583,7 +2583,7 @@ async fn product_analytics_disabled_when_telemetry_off() {
 /// with trace-upload config forced on for a fully credentialed user.
 #[tokio::test]
 async fn diagnostic_upload_never_wired_for_normal_user() {
-    let agent = build_agent_with_auth(crate::auth::GrokAuth::test_default());
+    let agent = build_agent_with_auth(crate::auth::AxonAuth::test_default());
     enable_trace_upload_config(&agent);
     assert!(
         agent.diagnostic_upload_config().is_none(),
@@ -2592,9 +2592,9 @@ async fn diagnostic_upload_never_wired_for_normal_user() {
 }
 #[tokio::test]
 async fn diagnostic_upload_never_wired_for_opted_out_user() {
-    let agent = build_agent_with_auth(crate::auth::GrokAuth {
+    let agent = build_agent_with_auth(crate::auth::AxonAuth {
         coding_data_retention_opt_out: true,
-        ..crate::auth::GrokAuth::test_default()
+        ..crate::auth::AxonAuth::test_default()
     });
     enable_trace_upload_config(&agent);
     assert!(agent.diagnostic_upload_config().is_none());
@@ -2609,7 +2609,7 @@ async fn diagnostic_upload_never_wired_without_credentials() {
 /// when every config layer tries to enable it.
 #[tokio::test]
 async fn collection_config_gate_mirror_stays_off() {
-    let agent = build_agent_with_auth(crate::auth::GrokAuth::test_default());
+    let agent = build_agent_with_auth(crate::auth::AxonAuth::test_default());
     enable_trace_upload_config(&agent);
     agent.sync_collection_config_gate();
     assert!(
@@ -2628,22 +2628,22 @@ fn parse_session_kind_matrix() {
     let cases: &[(&str, serde_json::Value, SessionKind)] = &[
         (
             "chat",
-            json!({ "x.ai/session" : { "kind" : "chat" } }),
+            json!({ "axon/session" : { "kind" : "chat" } }),
             SessionKind::Chat,
         ),
         (
             "build",
-            json!({ "x.ai/session" : { "kind" : "build" } }),
+            json!({ "axon/session" : { "kind" : "build" } }),
             SessionKind::Build,
         ),
         (
             "chat_malformed_sibling",
-            json!({ "x.ai/session" : { "kind" : "chat", "facets" : "not-a-map" } }),
+            json!({ "axon/session" : { "kind" : "chat", "facets" : "not-a-map" } }),
             SessionKind::Chat,
         ),
         (
             "unknown_kind",
-            json!({ "x.ai/session" : { "kind" : "frob" } }),
+            json!({ "axon/session" : { "kind" : "frob" } }),
             SessionKind::Build,
         ),
         ("absent", json!({}), SessionKind::Build),
@@ -2656,9 +2656,9 @@ fn parse_session_kind_matrix() {
 #[test]
 fn chat_initial_model_matrix() {
     let cases: &[(&str, bool, Option<&str>, Option<&str>)] = &[
-        ("chat_with_model", true, Some("grok-4.5"), Some("grok-4.5")),
+        ("chat_with_model", true, Some("axon-4.5"), Some("axon-4.5")),
         ("chat_without_model", true, None, None),
-        ("build_with_model", false, Some("grok-4.5"), None),
+        ("build_with_model", false, Some("axon-4.5"), None),
         ("build_without_model", false, None, None),
     ];
     for (label, is_chat_kind, custom_model_id, expected) in cases {
@@ -2685,27 +2685,27 @@ fn chat_new_session_model_state_matrix() {
     let cases: &[(&str, acp::SessionModelState, Option<&str>, &str)] = &[
         (
             "requested_in_catalog",
-            state_with("auto", &["auto", "grok-4"]),
-            Some("grok-4"),
-            "grok-4",
+            state_with("auto", &["auto", "axon-4"]),
+            Some("axon-4"),
+            "axon-4",
         ),
         (
             "no_request_keeps_catalog_default",
-            state_with("auto", &["auto", "grok-4"]),
+            state_with("auto", &["auto", "axon-4"]),
             None,
             "auto",
         ),
         (
             "requested_not_in_catalog",
             state_with("auto", &["auto"]),
-            Some("grok-4.5"),
-            "grok-4.5",
+            Some("axon-4.5"),
+            "axon-4.5",
         ),
         (
             "requested_with_empty_catalog",
             state_with("", &[]),
-            Some("grok-4"),
-            "grok-4",
+            Some("axon-4"),
+            "axon-4",
         ),
     ];
     for (label, state, requested, expected) in cases {
@@ -2821,7 +2821,7 @@ fn ext_method_rewind_uses_local_dispatch_without_bridge() {
         let params = serde_json::json!({ "sessionId" : "sess-local" });
         let err = agent
             .ext_method(acp::ExtRequest::new(
-                "x.ai/rewind/points",
+                "axon/rewind/points",
                 std::sync::Arc::from(serde_json::value::to_raw_value(&params).unwrap()),
             ))
             .await
@@ -2856,7 +2856,7 @@ fn cancel_does_not_forward_to_bridge_in_local_mode() {
 }
 /// Regression (post-cancel slot hang, first bad release 0.2.101; see
 /// `dispatch_locks`). SDK e2e shape:
-/// `test_cancel_ends_in_flight_turn_and_frees_slot` (grok-agent-sdk).
+/// `test_cancel_ends_in_flight_turn_and_frees_slot` (axon-agent-sdk).
 #[test]
 fn cancel_never_overtakes_in_flight_prompt_intake() {
     use crate::session::SessionCommand;
@@ -2920,7 +2920,7 @@ fn make_live_session_handle(
     tokio::sync::mpsc::UnboundedReceiver<TestSessionCommand>,
 ) {
     let (cmd_tx, cmd_rx) = tokio::sync::mpsc::unbounded_channel();
-    let mut handle = make_test_handle("test-model", false, Some("grok-tui"));
+    let mut handle = make_test_handle("test-model", false, Some("axon-tui"));
     handle.cmd_tx = cmd_tx.clone();
     handle.info = crate::session::info::Info {
         id: sid.clone(),
@@ -2953,14 +2953,14 @@ fn spawn_fake_actor(
     });
     observed_rx
 }
-/// Drive `x.ai/internal/evict_sessions` through the real `ext_notification`
+/// Drive `axon/internal/evict_sessions` through the real `ext_notification`
 /// handler path (not the internal helper) — matches how the leader server
 /// signals a client disconnect.
 async fn drive_disconnect(agent: &MvpAgent, sid: &acp::SessionId) {
     drive_disconnect_many(agent, &[sid]).await;
 }
 /// Like `drive_disconnect`, but evicts several sessions in a single
-/// `x.ai/internal/evict_sessions` notification — the realistic shape of a
+/// `axon/internal/evict_sessions` notification — the realistic shape of a
 /// real client disconnect, and the path that exercises `handle_evict_sessions`'
 /// concurrent `join_all` check pass followed by the sequential act pass.
 async fn drive_disconnect_many(agent: &MvpAgent, sids: &[&acp::SessionId]) {
@@ -2970,13 +2970,13 @@ async fn drive_disconnect_many(agent: &MvpAgent, sids: &[&acp::SessionId]) {
     let raw = serde_json::value::to_raw_value(&params).unwrap();
     agent
         .ext_notification(acp::ExtNotification::new(
-            "x.ai/internal/evict_sessions",
+            "axon/internal/evict_sessions",
             raw.into(),
         ))
         .await
         .expect("evict_sessions notification must be handled");
 }
-/// Drive `x.ai/session/close` through the real `ext_method` dispatch
+/// Drive `axon/session/close` through the real `ext_method` dispatch
 /// (`ext_method` → `handlers::session::handle` → `handle_session_close`),
 /// exercising the exact production path that finalizes the replica.
 async fn drive_close(agent: &MvpAgent, session_id: &str) -> Result<acp::ExtResponse, acp::Error> {
@@ -2985,7 +2985,7 @@ async fn drive_close(agent: &MvpAgent, session_id: &str) -> Result<acp::ExtRespo
     let raw = serde_json::value::to_raw_value(&params).unwrap();
     agent
         .ext_method(acp::ExtRequest::new(
-            "x.ai/session/close",
+            "axon/session/close",
             std::sync::Arc::from(raw),
         ))
         .await
@@ -3227,7 +3227,7 @@ fn disconnect_keeps_resident_when_plan_approval_parked() {
         );
     });
 }
-/// Mixed batch in a *single* `x.ai/internal/evict_sessions` notification —
+/// Mixed batch in a *single* `axon/internal/evict_sessions` notification —
 /// the realistic disconnect shape and the path that exercises
 /// `handle_evict_sessions`' `join_all` two-pass (concurrent `IsBusy` checks,
 /// then sequential act). One session's actor reports busy (→ kept resident,
@@ -3316,7 +3316,7 @@ fn session_live_state_map_is_bounded_across_cycles() {
     });
 }
 /// Finalize fires on a genuine terminal close — driven through the **real**
-/// `x.ai/session/close` dispatch (`ext_method` → `handle_session_close`),
+/// `axon/session/close` dispatch (`ext_method` → `handle_session_close`),
 /// not the internal helper. Proves finalize was *moved* (not removed) and
 /// guards the handler's `existed` gate. (Finalize assertion is
 /// invocation-level; see note in `finalize_session_replica`.)
@@ -3467,16 +3467,16 @@ fn reload_after_terminal_removal_starts_clean() {
 }
 /// Build an agent whose gateway is wired to a live receiver, so a test can
 /// observe (and answer) agent→client reverse-requests like the dormant
-/// `x.ai/folder_trust/request` round-trip.
+/// `axon/folder_trust/request` round-trip.
 fn build_agent_with_gateway_rx() -> (
     MvpAgent,
     tokio::sync::mpsc::UnboundedReceiver<axon_acp_lib::AcpClientMessage>,
 ) {
     use crate::agent::config::Config as AgentConfig;
-    use crate::auth::{AuthManager, GrokComConfig};
+    use crate::auth::{AuthManager, AxonComConfig};
     let temp_dir = tempfile::tempdir().unwrap();
     let auth_manager =
-        std::sync::Arc::new(AuthManager::new(temp_dir.path(), GrokComConfig::default()));
+        std::sync::Arc::new(AuthManager::new(temp_dir.path(), AxonComConfig::default()));
     let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
     let gateway = GatewaySender::new(tx);
     let cfg = AgentConfig::default();
@@ -3638,7 +3638,7 @@ fn project_roles_personas_gated_via_resolve_and_record_chain() {
         );
     });
 }
-/// Pull the next `x.ai/folder_trust/request` reverse-request off the gateway and
+/// Pull the next `axon/folder_trust/request` reverse-request off the gateway and
 /// answer it with `outcome`. Returns the request's decoded params.
 async fn answer_folder_trust_request(
     gw_rx: &mut tokio::sync::mpsc::UnboundedReceiver<axon_acp_lib::AcpClientMessage>,
@@ -3651,7 +3651,7 @@ async fn answer_folder_trust_request(
     let axon_acp_lib::AcpClientMessage::ExtMethod(args) = msg else {
         panic!("expected an ext_method reverse-request, got a different message");
     };
-    assert_eq!(args.request.method.as_ref(), "x.ai/folder_trust/request");
+    assert_eq!(args.request.method.as_ref(), "axon/folder_trust/request");
     let params: serde_json::Value = serde_json::from_str(args.request.params.get()).unwrap();
     let resp: acp::ExtResponse = acp::ExtResponse::new(std::sync::Arc::from(
         serde_json::value::to_raw_value(&serde_json::json!({ "outcome" : outcome })).unwrap(),
@@ -4350,7 +4350,7 @@ async fn emit_announcements_gate_emits_updates_baseline_and_bumps_gen() {
             let axon_acp_lib::AcpClientMessage::ExtNotification(args) = msg else {
                 panic!("expected ExtNotification, got another message kind");
             };
-            assert_eq!(args.request.method.as_ref(), "x.ai/announcements/update");
+            assert_eq!(args.request.method.as_ref(), "axon/announcements/update");
             let parsed: serde_json::Value =
                 serde_json::from_str(args.request.params.get()).expect("valid JSON payload");
             parsed
@@ -4406,7 +4406,7 @@ async fn emit_announcements_gate_keeps_baseline_on_failed_send_and_retries() {
     let axon_acp_lib::AcpClientMessage::ExtNotification(args) = msg else {
         panic!("expected ExtNotification, got another message kind");
     };
-    assert_eq!(args.request.method.as_ref(), "x.ai/announcements/update");
+    assert_eq!(args.request.method.as_ref(), "axon/announcements/update");
     assert_eq!(
         *agent.last_emitted_announcements.borrow(),
         vec![ann("a")],
@@ -4434,21 +4434,21 @@ mod direct_hub_cloud_removed {
     }
     #[test]
     fn cloud_server_id_meta_is_hard_error() {
-        let meta = serde_json::json!({ "x.ai/cloud_server_id" : "srv-123" });
+        let meta = serde_json::json!({ "axon/cloud_server_id" : "srv-123" });
         let err = reject_direct_hub_cloud_meta(meta.as_object()).expect_err("must reject");
         assert_direct_hub_error(err);
     }
     #[test]
     fn cloud_server_id_null_still_present_is_hard_error() {
-        let meta = serde_json::json!({ "x.ai/cloud_server_id" : null });
+        let meta = serde_json::json!({ "axon/cloud_server_id" : null });
         let err = reject_direct_hub_cloud_meta(meta.as_object()).expect_err("must reject");
         assert_direct_hub_error(err);
     }
     #[test]
     fn cloud_server_id_with_gateway_meta_still_hard_error() {
         let meta = serde_json::json!(
-            { "x.ai/cloud_server_id" : "srv-legacy", "envId" : "env-1",
-            "x.ai/cloud_existing_workspace" : { "server_id" : "ws-1", "cwd" :
+            { "axon/cloud_server_id" : "srv-legacy", "envId" : "env-1",
+            "axon/cloud_existing_workspace" : { "server_id" : "ws-1", "cwd" :
             "/workspace" } }
         );
         let err = reject_direct_hub_cloud_meta(meta.as_object()).expect_err("Direct stamp wins");
@@ -4465,7 +4465,7 @@ mod direct_hub_cloud_removed {
         assert!(
             reject_direct_hub_cloud_meta(
                 serde_json::json!({
-            "x.ai/cloud_existing_workspace" : { "server_id" : "ws-1", "cwd" :
+            "axon/cloud_existing_workspace" : { "server_id" : "ws-1", "cwd" :
             "/workspace" } })
                 .as_object()
             )
@@ -4510,14 +4510,14 @@ mod soft_default_settings_emit {
     #[tokio::test]
     async fn emit_settings_update_carries_permission_mode_from_cfg() {
         use crate::agent::config::Config as AgentConfig;
-        use crate::auth::{AuthManager, GrokComConfig};
+        use crate::auth::{AuthManager, AxonComConfig};
         let local = tokio::task::LocalSet::new();
         local
             .run_until(async {
                 let temp_dir = tempfile::tempdir().unwrap();
                 let auth_manager = std::sync::Arc::new(AuthManager::new(
                     temp_dir.path(),
-                    GrokComConfig::default(),
+                    AxonComConfig::default(),
                 ));
                 let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
                 let gateway = GatewaySender::new(tx);
@@ -4536,7 +4536,7 @@ mod soft_default_settings_emit {
                 let axon_acp_lib::AcpClientMessage::ExtNotification(args) = msg else {
                     panic!("expected ExtNotification, got {msg:?}");
                 };
-                assert_eq!(args.request.method.as_ref(), "x.ai/settings/update");
+                assert_eq!(args.request.method.as_ref(), "axon/settings/update");
                 let params: serde_json::Value =
                     serde_json::from_str(args.request.params.get()).expect("parse params");
                 assert_eq!(

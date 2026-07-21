@@ -132,7 +132,7 @@ mod tests {
     }"#;
 
     #[test]
-    fn load_catalog_parses_grok_plugin_dir() {
+    fn load_catalog_parses_axon_plugin_dir() {
         let dir = tempfile::tempdir().unwrap();
         write_catalog(dir.path(), ".axon-plugin", BASIC);
         let catalog = load_catalog(dir.path()).unwrap();
@@ -156,7 +156,7 @@ mod tests {
     }
 
     #[test]
-    fn load_catalog_prefers_grok_dir_over_claude_dir() {
+    fn load_catalog_prefers_axon_dir_over_claude_dir() {
         let dir = tempfile::tempdir().unwrap();
         write_catalog(dir.path(), ".axon-plugin", BASIC);
         write_catalog(
@@ -208,7 +208,7 @@ mod tests {
             dir.path(),
             ".axon-plugin",
             r#"{
-                "$schema": "https://x.ai/grok/plugin-index.schema.json",
+                "$schema": "https://blocked.invalid/axon/plugin-index.schema.json",
                 "version": 1,
                 "generatedAt": "2026-06-09T12:00:00Z",
                 "plugins": {

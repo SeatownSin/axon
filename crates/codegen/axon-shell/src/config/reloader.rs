@@ -7,7 +7,7 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info};
 
-use crate::auth::{GrokAuth, read_auth_json};
+use crate::auth::{AxonAuth, read_auth_json};
 
 use super::watcher::ConfigChangeEvent;
 
@@ -15,7 +15,7 @@ use super::watcher::ConfigChangeEvent;
 #[derive(Debug)]
 pub enum ConfigUpdate {
     /// New auth credentials from disk.
-    Auth(Box<GrokAuth>),
+    Auth(Box<AxonAuth>),
     /// Auth scope was removed (user logged out).
     AuthCleared,
     /// A **broadcast** MCP reload — applies to every active session
@@ -44,7 +44,7 @@ pub enum ConfigUpdate {
     /// Strictly additive to [`Self::McpServersChanged`] — the unit
     /// variant continues to fire for global-config edits. The two
     /// cases are split so per-project reloads don't
-    /// grok process sharing the home dir). The agent should consult the cache
+    /// axon process sharing the home dir). The agent should consult the cache
     /// thrash unrelated sessions.
     ProjectMcpServersChanged {
         /// The project root whose `.axon/`, `.mcp.json`, or
@@ -70,7 +70,7 @@ pub enum ConfigUpdate {
     /// drop redundant `ProjectMcpServersChanged` dispatches on
     /// the reloader doesn't have.
     ModelsCacheChanged,
-    /// Updated UI settings — agent broadcasts `x.ai/config_changed` to IPC clients.
+    /// Updated UI settings — agent broadcasts `axon/config_changed` to IPC clients.
     Ui {
         theme: Option<String>,
         yolo: bool,
@@ -88,7 +88,7 @@ pub struct ConfigReloader {
     /// to diff (the dedup lives in `ModelsManager::reload_from_disk_cache`),
     /// mtime-only touches (see `hash_project_mcp_config`).
     last_project_mcp_hashes: HashMap<PathBuf, u64>,
-    grok_home: PathBuf,
+    axon_home: PathBuf,
     auth_scope: String,
     remote_settings: Option<crate::util::config::RemoteSettings>,
     config_update_tx: mpsc::UnboundedSender<ConfigUpdate>,
@@ -100,7 +100,7 @@ pub struct ConfigReloader {
 
 impl ConfigReloader {
     pub fn new(
-        grok_home: PathBuf,
+        axon_home: PathBuf,
         initial_auth_key_hash: u64,
         initial_config: toml::Value,
         auth_scope: String,
@@ -113,7 +113,7 @@ impl ConfigReloader {
             last_auth_key_hash: initial_auth_key_hash,
             last_global_config: initial_config,
             last_project_mcp_hashes: HashMap::new(),
-            grok_home,
+            axon_home,
             auth_scope,
             remote_settings,
             config_update_tx,
@@ -182,7 +182,7 @@ impl ConfigReloader {
                         // Whole-file deletion (NotFound) and corrupt JSON
                         // land here. The resulting memory/disk divergence
                         // must be visible in unified.jsonl.
-                        let path = self.grok_home.join("auth.json");
+                        let path = self.axon_home.join("auth.json");
                         axon_telemetry::unified_log::error(
                             "auth reload: auth.json unreadable, keeping previous credentials",
                             None,
@@ -274,7 +274,7 @@ impl ConfigReloader {
     }
 
     fn reload_auth(&mut self) -> anyhow::Result<()> {
-        let auth_path = self.grok_home.join("auth.json");
+        let auth_path = self.axon_home.join("auth.json");
         let store = read_auth_json(&auth_path)?;
 
         match crate::auth::lookup_auth(&store, &self.auth_scope) {
@@ -535,14 +535,14 @@ fn extract_ui_fields(config: &toml::Value) -> (Option<String>, bool, Option<Stri
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::auth::GrokAuth;
+    use crate::auth::AxonAuth;
     use std::collections::BTreeMap;
 
-    fn make_auth(key: &str) -> GrokAuth {
-        GrokAuth {
+    fn make_auth(key: &str) -> AxonAuth {
+        AxonAuth {
             key: key.to_string(),
             email: Some("test@test.com".to_string()),
-            ..GrokAuth::test_default()
+            ..AxonAuth::test_default()
         }
     }
 
@@ -604,7 +604,7 @@ mod tests {
         reloader.reload_auth().unwrap();
         let update = rx.try_recv().expect("should send Auth update");
         assert!(
-            matches!(update, ConfigUpdate::Auth(a) if a.key == "new-key"), // a is Box<GrokAuth>, Deref coercion
+            matches!(update, ConfigUpdate::Auth(a) if a.key == "new-key"), // a is Box<AxonAuth>, Deref coercion
             "should contain new key"
         );
     }
@@ -909,14 +909,14 @@ ignore = ["/tmp"]
 [ui]
 theme = "dark"
 yolo = true
-fork_secondary_model = "grok-4.5"
+fork_secondary_model = "axon-4.5"
 "#,
         )
         .unwrap();
         let (theme, yolo, fork) = extract_ui_fields(&config);
         assert_eq!(theme.as_deref(), Some("dark"));
         assert!(yolo);
-        assert_eq!(fork.as_deref(), Some("grok-4.5"));
+        assert_eq!(fork.as_deref(), Some("axon-4.5"));
     }
 
     #[test]
@@ -939,7 +939,7 @@ fork_secondary_model = "grok-4.5"
         let b: toml::Value = toml::from_str(
             r#"
 [model.my-custom]
-model = "grok-4.5"
+model = "axon-4.5"
 base_url = "https://api.example.com/v1"
 "#,
         )
@@ -949,8 +949,8 @@ base_url = "https://api.example.com/v1"
 
     #[test]
     fn models_changed_detects_default_change() {
-        let a: toml::Value = toml::from_str("[models]\ndefault = \"grok-code-fast-1\"").unwrap();
-        let b: toml::Value = toml::from_str("[models]\ndefault = \"grok-code-slow-1\"").unwrap();
+        let a: toml::Value = toml::from_str("[models]\ndefault = \"axon-code-fast-1\"").unwrap();
+        let b: toml::Value = toml::from_str("[models]\ndefault = \"axon-code-slow-1\"").unwrap();
         assert_ne!(a.get("models"), b.get("models"));
     }
 

@@ -198,7 +198,7 @@ mod tests {
             "plugin_root": "/root/.axon/plugins/infra-plugin",
             "plugin_data": "/root/.axon/plugin-data/infra-plugin",
             "allowed_tools": ["bash"],
-            "model": "grok-4",
+            "model": "axon-4",
             "effort": "high",
             "user_invocable": true,
             "disable_model_invocation": false,

@@ -394,9 +394,9 @@ impl SessionContextFactory for WorkspaceSessionContextFactory {
         session_env: Arc<HashMap<String, String>>,
         backend: Arc<dyn axon_tools::computer::types::TerminalBackend>,
     ) -> axon_tools::registry::types::SessionContext {
-        use axon_tools::implementations::grok_build::deploy_app::AppBuilderDeployerConfig;
-        use axon_tools::implementations::grok_build::image_gen::ImageGenConfig;
-        use axon_tools::implementations::grok_build::video_gen::VideoGenConfig;
+        use axon_tools::implementations::axon_build::deploy_app::AppBuilderDeployerConfig;
+        use axon_tools::implementations::axon_build::image_gen::ImageGenConfig;
+        use axon_tools::implementations::axon_build::video_gen::VideoGenConfig;
         use axon_tools::implementations::web_search::WebSearchConfig;
         let fs = Arc::new(axon_tools::computer::local::LocalFs)
             as Arc<dyn axon_tools::computer::types::AsyncFileSystem>;
@@ -496,13 +496,13 @@ fn build_proxy_headers(base_url: &str) -> indexmap::IndexMap<String, String> {
         "user-agent".to_string(),
         format!("axon-workspace/{version}"),
     );
-    headers.insert("x-grok-client-version".to_string(), version.to_string());
+    headers.insert("x-axon-client-version".to_string(), version.to_string());
     headers.insert(
-        "x-grok-client-identifier".to_string(),
-        std::env::var("AXON_CLIENT_NAME").unwrap_or_else(|_| "grok-shell".to_string()),
+        "x-axon-client-identifier".to_string(),
+        std::env::var("AXON_CLIENT_NAME").unwrap_or_else(|_| "axon-shell".to_string()),
     );
     if base_url.contains("cli-chat-proxy") || base_url.contains("chat-proxy") {
-        headers.insert("X-XAI-Token-Auth".to_string(), "xai-grok-cli".to_string());
+        headers.insert("X-AXON-Token-Auth".to_string(), "axon-axon-cli".to_string());
         headers.insert(
             "x-authenticateresponse".to_string(),
             "authenticate-response".to_string(),
@@ -512,9 +512,9 @@ fn build_proxy_headers(base_url: &str) -> indexmap::IndexMap<String, String> {
 }
 /// Build web fetch config. Enabled with default params unless
 /// `AXON_DISABLE_WEB_FETCH=1` is set.
-fn build_web_fetch_config() -> axon_tools::implementations::grok_build::web_fetch::WebFetchConfig
+fn build_web_fetch_config() -> axon_tools::implementations::axon_build::web_fetch::WebFetchConfig
 {
-    use axon_tools::implementations::grok_build::web_fetch::{WebFetchConfig, WebFetchParams};
+    use axon_tools::implementations::axon_build::web_fetch::{WebFetchConfig, WebFetchParams};
     if std::env::var("AXON_DISABLE_WEB_FETCH").is_ok_and(|v| v == "1" || v == "true") {
         return WebFetchConfig::Disabled;
     }
@@ -528,7 +528,7 @@ fn build_web_fetch_config() -> axon_tools::implementations::grok_build::web_fetc
     WebFetchConfig::Enabled { params }
 }
 fn default_web_search_model() -> String {
-    std::env::var("AXON_WEB_SEARCH_MODEL").unwrap_or_else(|_| "grok-4.20-multi-agent".to_string())
+    std::env::var("AXON_WEB_SEARCH_MODEL").unwrap_or_else(|_| "axon-4.20-multi-agent".to_string())
 }
 #[cfg(any(test, feature = "test-support"))]
 pub mod test_support {
@@ -619,10 +619,10 @@ pub mod test_support {
     pub fn baseline_config() -> ToolServerConfig {
         ToolServerConfig {
             tools: vec![
-                tc("GrokBuild:read_file", Some(ToolKind::Read)),
-                tc("GrokBuild:search_replace", Some(ToolKind::Edit)),
-                tc("GrokBuild:grep", Some(ToolKind::Search)),
-                tc("GrokBuild:list_dir", Some(ToolKind::ListDir)),
+                tc("AxonBuild:read_file", Some(ToolKind::Read)),
+                tc("AxonBuild:search_replace", Some(ToolKind::Edit)),
+                tc("AxonBuild:grep", Some(ToolKind::Search)),
+                tc("AxonBuild:list_dir", Some(ToolKind::ListDir)),
             ],
             behavior_preset: None,
         }
@@ -677,12 +677,12 @@ mod tests {
         let factory = factory_for_test();
         let baseline = ToolServerConfig {
             tools: vec![test_support::tc(
-                "GrokBuild:read_file",
+                "AxonBuild:read_file",
                 Some(ToolKind::Read),
             )],
             behavior_preset: None,
         };
-        let mut mcp_dup = test_support::tc("GrokBuild:read_file", Some(ToolKind::Read));
+        let mut mcp_dup = test_support::tc("AxonBuild:read_file", Some(ToolKind::Read));
         mcp_dup.name_override = Some("mcp_read".into());
         let snapshot = vec![mcp_dup];
         let (_eff, ts, _backend) = resolve_session_toolset(
@@ -714,14 +714,14 @@ mod tests {
     #[test]
     fn backfill_tool_kinds_fills_known_kindless_ids_only() {
         let kinds = HashMap::from([
-            ("GrokBuild:search_replace".to_owned(), ToolKind::Edit),
-            ("GrokBuild:read_file".to_owned(), ToolKind::Read),
+            ("AxonBuild:search_replace".to_owned(), ToolKind::Edit),
+            ("AxonBuild:read_file".to_owned(), ToolKind::Read),
         ]);
         let config = ToolServerConfig {
             tools: vec![
-                test_support::tc("GrokBuild:search_replace", None),
+                test_support::tc("AxonBuild:search_replace", None),
                 test_support::tc("adhoc.opaque", None),
-                test_support::tc("GrokBuild:read_file", Some(ToolKind::Search)),
+                test_support::tc("AxonBuild:read_file", Some(ToolKind::Search)),
             ],
             behavior_preset: Some("current".to_owned()),
         };
@@ -734,14 +734,14 @@ mod tests {
                 .expect("tool present")
                 .kind
         };
-        assert_eq!(kind_of("GrokBuild:search_replace"), Some(ToolKind::Edit));
+        assert_eq!(kind_of("AxonBuild:search_replace"), Some(ToolKind::Edit));
         assert_eq!(
             kind_of("adhoc.opaque"),
             None,
             "ids unknown to the registry stay kind-less"
         );
         assert_eq!(
-            kind_of("GrokBuild:read_file"),
+            kind_of("AxonBuild:read_file"),
             Some(ToolKind::Search),
             "an explicit kind wins over the registry's"
         );
@@ -757,11 +757,11 @@ mod tests {
         let factory = factory_for_test();
         let baseline = ToolServerConfig {
             tools: vec![
-                test_support::tc("GrokBuild:read_file", None),
-                test_support::tc("GrokBuild:grep", None),
-                test_support::tc("GrokBuild:list_dir", None),
-                test_support::tc("GrokBuild:search_replace", None),
-                test_support::tc("GrokBuild:run_terminal_cmd", None),
+                test_support::tc("AxonBuild:read_file", None),
+                test_support::tc("AxonBuild:grep", None),
+                test_support::tc("AxonBuild:list_dir", None),
+                test_support::tc("AxonBuild:search_replace", None),
+                test_support::tc("AxonBuild:run_terminal_cmd", None),
             ],
             behavior_preset: None,
         };
@@ -803,7 +803,7 @@ mod tests {
     fn resolve_session_toolset_mcp_edit_dropped_under_readonly() {
         let baseline = ToolServerConfig {
             tools: vec![test_support::tc(
-                "GrokBuild:read_file",
+                "AxonBuild:read_file",
                 Some(ToolKind::Read),
             )],
             behavior_preset: None,
@@ -823,7 +823,7 @@ mod tests {
         let factory = factory_for_test();
         let baseline = ToolServerConfig {
             tools: vec![
-                test_support::tc("GrokBuild:read_file", Some(ToolKind::Read)),
+                test_support::tc("AxonBuild:read_file", Some(ToolKind::Read)),
                 test_support::tc("baseline.opaque", None),
             ],
             behavior_preset: None,
@@ -846,7 +846,7 @@ mod tests {
             "MCP kind: None MUST be dropped under ReadOnly: {kept_ids:?}"
         );
         assert!(
-            kept_ids.contains(&"GrokBuild:read_file"),
+            kept_ids.contains(&"AxonBuild:read_file"),
             "baseline Read kind must survive ReadOnly: {kept_ids:?}"
         );
         let _ = factory;
@@ -908,7 +908,7 @@ mod tests {
     fn hub_tool_dropped_under_readonly_because_kind_none() {
         let baseline = ToolServerConfig {
             tools: vec![test_support::tc(
-                "GrokBuild:read_file",
+                "AxonBuild:read_file",
                 Some(ToolKind::Read),
             )],
             behavior_preset: None,
@@ -962,7 +962,7 @@ mod tests {
     fn hub_tool_name_collision_with_baseline_skipped() {
         let baseline = ToolServerConfig {
             tools: vec![test_support::tc(
-                "GrokBuild:read_file",
+                "AxonBuild:read_file",
                 Some(ToolKind::Read),
             )],
             behavior_preset: None,

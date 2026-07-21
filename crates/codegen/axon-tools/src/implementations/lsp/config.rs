@@ -30,7 +30,7 @@ pub fn load_servers_with_plugins_sourced(
         "plugin_names must be empty or parallel to plugin_lsp_paths"
     );
 
-    let user_path = crate::util::grok_home::grok_home().join("lsp.json");
+    let user_path = crate::util::axon_home::axon_home().join("lsp.json");
     let project_path = cwd.join(".axon").join("lsp.json");
 
     // User-level servers
@@ -134,7 +134,7 @@ pub fn filter_project_lsp_when_untrusted(
 /// Load LSP server configs from `~/.axon/lsp.json` and `<cwd>/.axon/lsp.json`.
 /// Project config overrides user config for the same server name.
 pub fn load_servers(cwd: &Path) -> BTreeMap<String, LspServerConfig> {
-    let user_path = crate::util::grok_home::grok_home().join("lsp.json");
+    let user_path = crate::util::axon_home::axon_home().join("lsp.json");
     let project_path = cwd.join(".axon").join("lsp.json");
 
     let mut merged = load_file(&user_path);

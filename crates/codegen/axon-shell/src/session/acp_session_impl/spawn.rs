@@ -155,10 +155,10 @@ pub(crate) async fn spawn_session_actor(
     inference_idle_timeout_secs: u64,
     max_retries: Option<u32>,
     web_search_sampling_config: Option<axon_sampler::SamplerConfig>,
-    web_fetch_config: axon_tools::implementations::grok_build::web_fetch::WebFetchConfig,
-    image_gen_config: axon_tools::implementations::grok_build::image_gen::ImageGenConfig,
-    video_gen_config: axon_tools::implementations::grok_build::video_gen::VideoGenConfig,
-    app_builder_deployer_config: axon_tools::implementations::grok_build::deploy_app::AppBuilderDeployerConfig,
+    web_fetch_config: axon_tools::implementations::axon_build::web_fetch::WebFetchConfig,
+    image_gen_config: axon_tools::implementations::axon_build::image_gen::ImageGenConfig,
+    video_gen_config: axon_tools::implementations::axon_build::video_gen::VideoGenConfig,
+    app_builder_deployer_config: axon_tools::implementations::axon_build::deploy_app::AppBuilderDeployerConfig,
     write_file_enabled: bool,
     goal_enabled: bool,
     subagents_enabled: bool,
@@ -191,7 +191,7 @@ pub(crate) async fn spawn_session_actor(
         std::sync::Arc<dyn axon_tools::computer::types::TerminalBackend>,
     >,
     parent_scheduler_handle: Option<
-        axon_tools::implementations::grok_build::scheduler::types::SchedulerHandle,
+        axon_tools::implementations::axon_build::scheduler::types::SchedulerHandle,
     >,
     max_turns: Option<usize>,
     forked_tool_override: Option<Vec<ToolSpec>>,
@@ -245,7 +245,7 @@ pub(crate) async fn spawn_session_actor(
                 "CLI --allow catch-all ignored: always-approve disabled by managed policy"
             );
             if startup_hints.non_interactive {
-                eprintln!("grok: --allow catch-all ignored: {reason}");
+                eprintln!("axon: --allow catch-all ignored: {reason}");
             }
         }
         if !cli_permission_rules.is_empty() {
@@ -655,7 +655,7 @@ pub(crate) async fn spawn_session_actor(
     };
     let reminder_policy = resolve_reminder_policy(remote_settings.as_ref(), todo_gate);
     let (user_question_tx, user_question_rx) = tokio::sync::mpsc::unbounded_channel::<
-        axon_tools::implementations::grok_build::ask_user_question::types::UserQuestionRequest,
+        axon_tools::implementations::axon_build::ask_user_question::types::UserQuestionRequest,
     >();
     let attribution_callback_for_spec = auth_manager.as_ref().map(|am| {
         crate::auth::attribution::ShellAttribution::new_tool_callback(
@@ -817,7 +817,7 @@ pub(crate) async fn spawn_session_actor(
             state.set_acp_servers(acp_mcp_servers, invoker);
             tracing::info!(
                 session_id = % session_info.id.0, acp_mcp_servers = acp_server_count,
-                "Registered in-process SDK MCP servers (x.ai/mcp/sdk_call)"
+                "Registered in-process SDK MCP servers (blocked.invalid/mcp/sdk_call)"
             );
         }
         Arc::new(TokioMutex::new(state))
@@ -922,7 +922,7 @@ pub(crate) async fn spawn_session_actor(
     let scheduler_handle_for_handle = {
         let toolset = agent.tool_bridge().toolset();
         let res = toolset.resources.lock().await;
-        res.get::<axon_tools::implementations::grok_build::scheduler::types::SchedulerHandle>()
+        res.get::<axon_tools::implementations::axon_build::scheduler::types::SchedulerHandle>()
             .cloned()
     };
     if let Err(e) = workspace_ops.bind_local_session(
@@ -992,15 +992,15 @@ pub(crate) async fn spawn_session_actor(
         "Creating feedback manager"
     );
     let feedback_client_type = match client_type {
-        ClientType::GrokTUI => prod_mc_cli_chat_proxy_types::feedback_types::ClientType::Tui,
-        ClientType::GrokWeb => prod_mc_cli_chat_proxy_types::feedback_types::ClientType::Web,
+        ClientType::AxonTUI => prod_mc_cli_chat_proxy_types::feedback_types::ClientType::Tui,
+        ClientType::AxonWeb => prod_mc_cli_chat_proxy_types::feedback_types::ClientType::Web,
         ClientType::Nebula => prod_mc_cli_chat_proxy_types::feedback_types::ClientType::Nebula,
         ClientType::Extension => {
             prod_mc_cli_chat_proxy_types::feedback_types::ClientType::Extension
         }
         ClientType::Generic => prod_mc_cli_chat_proxy_types::feedback_types::ClientType::Agent,
         ClientType::Desktop => prod_mc_cli_chat_proxy_types::feedback_types::ClientType::Desktop,
-        ClientType::GrokPager => prod_mc_cli_chat_proxy_types::feedback_types::ClientType::Tui,
+        ClientType::AxonPager => prod_mc_cli_chat_proxy_types::feedback_types::ClientType::Tui,
     };
     let feedback_config = FeedbackManagerConfig {
         feedback_enabled: feedback_flags.enabled,
@@ -1101,7 +1101,7 @@ pub(crate) async fn spawn_session_actor(
         .collect();
     let upload_queue = Arc::new(std::sync::OnceLock::new());
     let (goal_update_tx, goal_update_rx) = tokio::sync::mpsc::unbounded_channel::<
-        axon_tools::implementations::grok_build::update_goal::UpdateGoalEnvelope,
+        axon_tools::implementations::axon_build::update_goal::UpdateGoalEnvelope,
     >();
     let obs_bridge = {
         let sid = axon_tool_protocol::SessionId::new(&*session_info.id.0)
@@ -1416,7 +1416,7 @@ pub(crate) async fn spawn_session_actor(
         .borrow()
         .tool_bridge()
         .update_resource(
-            axon_tools::implementations::grok_build::update_goal::GoalUpdateHandle(
+            axon_tools::implementations::axon_build::update_goal::GoalUpdateHandle(
                 session.goal_update_tx.clone(),
             ),
         )
@@ -1512,7 +1512,7 @@ pub(crate) async fn spawn_session_actor(
     }
     {
         use agent_client_protocol::Client as _;
-        use axon_tools::implementations::grok_build::ask_user_question::{
+        use axon_tools::implementations::axon_build::ask_user_question::{
             AskUserQuestionExtRequest, AskUserQuestionExtResponse, UserQuestionError,
             UserQuestionResponse,
         };
@@ -1524,7 +1524,7 @@ pub(crate) async fn spawn_session_actor(
         let mut user_question_rx = user_question_rx;
         tokio::task::spawn_local(async move {
             while let Some(mut request) = user_question_rx.recv().await {
-                use axon_tools::implementations::grok_build::ask_user_question::AskUserQuestionMode;
+                use axon_tools::implementations::axon_build::ask_user_question::AskUserQuestionMode;
                 let mode = match *current_prompt_mode.lock() {
                     PromptMode::Plan => AskUserQuestionMode::Plan,
                     _ => AskUserQuestionMode::Default,
@@ -1540,7 +1540,7 @@ pub(crate) async fn spawn_session_actor(
                     "ask_user_question reverse-request must carry a non-empty sessionId (design §5.4)"
                 );
                 let ext_request = agent_client_protocol::ExtRequest::new(
-                    "x.ai/ask_user_question",
+                    "axon/ask_user_question",
                     serde_json::value::to_raw_value(&ext_req)
                         .expect("AskUserQuestionExtRequest serialization should not fail")
                         .into(),
@@ -1763,10 +1763,10 @@ pub(crate) async fn spawn_session_on_thread(
     inference_idle_timeout_secs: u64,
     max_retries: Option<u32>,
     web_search_sampling_config: Option<axon_sampler::SamplerConfig>,
-    web_fetch_config: axon_tools::implementations::grok_build::web_fetch::WebFetchConfig,
-    image_gen_config: axon_tools::implementations::grok_build::image_gen::ImageGenConfig,
-    video_gen_config: axon_tools::implementations::grok_build::video_gen::VideoGenConfig,
-    app_builder_deployer_config: axon_tools::implementations::grok_build::deploy_app::AppBuilderDeployerConfig,
+    web_fetch_config: axon_tools::implementations::axon_build::web_fetch::WebFetchConfig,
+    image_gen_config: axon_tools::implementations::axon_build::image_gen::ImageGenConfig,
+    video_gen_config: axon_tools::implementations::axon_build::video_gen::VideoGenConfig,
+    app_builder_deployer_config: axon_tools::implementations::axon_build::deploy_app::AppBuilderDeployerConfig,
     write_file_enabled: bool,
     goal_enabled: bool,
     subagents_enabled: bool,
@@ -1800,7 +1800,7 @@ pub(crate) async fn spawn_session_on_thread(
         std::sync::Arc<dyn axon_tools::computer::types::TerminalBackend>,
     >,
     parent_scheduler_handle: Option<
-        axon_tools::implementations::grok_build::scheduler::types::SchedulerHandle,
+        axon_tools::implementations::axon_build::scheduler::types::SchedulerHandle,
     >,
     max_turns: Option<usize>,
     forked_tool_override: Option<Vec<ToolSpec>>,

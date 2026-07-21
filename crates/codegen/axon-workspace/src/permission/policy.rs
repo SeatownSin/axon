@@ -3,7 +3,7 @@ use crate::permission::shell_access::combine_decisions;
 use crate::permission::types::{
     AccessKind, Decision, PatternMode, PermissionConfig, PermissionRule, RuleAction, ToolFilter,
 };
-use axon_tools::implementations::grok_build::web_fetch::domain::normalize_domain;
+use axon_tools::implementations::axon_build::web_fetch::domain::normalize_domain;
 
 #[derive(Clone, Copy)]
 enum MatchContext {

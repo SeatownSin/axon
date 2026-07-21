@@ -230,8 +230,8 @@ pub struct SubagentsConfig {
     ///
     /// ```toml
     /// [subagents.models]
-    /// explore = "grok-3-fast"
-    /// plan = "grok-3"
+    /// explore = "axon-3-fast"
+    /// plan = "axon-3"
     /// ```
     #[serde(default)]
     pub models: std::collections::HashMap<String, String>,
@@ -252,7 +252,7 @@ pub struct SubagentsConfig {
     /// [subagents.roles.researcher]
     /// description = "Deep research agent"
     /// default_capability_mode = "read-only"
-    /// model = "grok-3"
+    /// model = "axon-3"
     ///
     /// [subagents.roles.implementer]
     /// description = "Implementation agent with full access"
@@ -447,18 +447,18 @@ impl SubagentsConfig {
     /// Project files are excluded from this trust-independent base; Task
     /// boundaries overlay them using the parent cwd's authoritative trust verdict.
     pub fn resolve(cli_flag: bool, config: &toml::Value) -> Self {
-        let user_grok_root = axon_config::user_grok_home();
+        let user_axon_root = axon_config::user_axon_home();
         Self::resolve_base_with_sources(
             cli_flag,
             config,
-            user_grok_root.as_deref(),
+            user_axon_root.as_deref(),
             &bundle::bundled_root(),
         )
     }
     pub(crate) fn resolve_base_with_sources(
         cli_flag: bool,
         config: &toml::Value,
-        user_grok_root: Option<&std::path::Path>,
+        user_axon_root: Option<&std::path::Path>,
         bundled_root: &std::path::Path,
     ) -> Self {
         let mut result: Self = config
@@ -474,7 +474,7 @@ impl SubagentsConfig {
             true,
         );
         result.enabled = resolved.value;
-        if let Some(root) = user_grok_root {
+        if let Some(root) = user_axon_root {
             result.discover_roles_in_dir(&root.join("roles"));
             result.discover_personas_in_dir(&root.join("personas"));
         }
@@ -572,7 +572,7 @@ pub struct ModelOverrideConfig {
     pub web_search: String,
     /// `None` = current model.
     pub session_summary: Option<String>,
-    /// Compiled default (`grok-build`) when unset locally, remotely, and via env.
+    /// Compiled default (`axon-build`) when unset locally, remotely, and via env.
     pub image_description: Option<String>,
     /// Next-prompt suggestion model pin. Unlike the other overrides this does
     /// NOT fill a compiled default — see [`PromptSuggestModelPin`].
@@ -596,9 +596,9 @@ impl Default for ModelOverrideConfig {
 /// Unlike the other auxiliary overrides this does not collapse to a plain
 /// model string: the consumer (`handle_suggest_prompt`) must distinguish
 /// an explicit pin from "unpinned" (where the client hint and the built-in
-/// `grok-build-0.1` default apply), and whether the pin came from the env
+/// `axon-build-0.1` default apply), and whether the pin came from the env
 /// escape hatch. Every effective model except an env pin is catalog-guarded —
-/// when the model is not in the shell's catalog (e.g. `grok-build-0.1` for
+/// when the model is not in the shell's catalog (e.g. `axon-build-0.1` for
 /// OAuth users, whose catalogs exclude it) the per-turn suggestion request is
 /// skipped entirely rather than fired doomed. The env pin is deliberately
 /// exempt so `AXON_PROMPT_SUGGESTIONS_MODEL` keeps working for models a
@@ -631,7 +631,7 @@ fn non_empty_model_override(value: Option<&str>) -> Option<String> {
 impl ModelOverrideConfig {
     /// CLI flag > env var > config.toml > remote settings > compiled default.
     /// `image_description` and `session_summary` always resolve to `Some(_)`
-    /// (default `grok-build`), never the session model.
+    /// (default `axon-build`), never the session model.
     /// `prompt_suggestion` resolves to a [`PromptSuggestModelPin`] instead of
     /// a model string (no CLI flag; the default and the catalog guard live at
     /// the consumer, `handle_suggest_prompt`).
@@ -729,7 +729,7 @@ pub struct ToolsConfig {
     /// When `true`, all tools (including `read_file`) filter gitignored
     /// files. When `false` (default), each tool picks its own default.
     pub respect_gitignore: bool,
-    /// Drop tools whose xAI API requires server-side artifact storage
+    /// Drop tools whose Axon API requires server-side artifact storage
     /// (currently just `video_gen`). Intended for ZDR-bound teams via
     /// `~/.axon/managed_config.toml`. Defaults to `false`.
     pub disable_zdr_incompatible_tools: bool,
@@ -739,7 +739,7 @@ pub struct ToolsConfig {
     /// downloaded locally. Only effective when `disable_zdr_incompatible_tools`
     /// is `true`. Populated from `[tools.zdr_video_output_s3]` in config.
     pub zdr_video_output_s3:
-        Option<axon_tools::implementations::grok_build::video_gen::ZdrVideoOutputS3Config>,
+        Option<axon_tools::implementations::axon_build::video_gen::ZdrVideoOutputS3Config>,
 }
 impl ToolsConfig {
     /// Resolve the final tools config, in priority order:
@@ -768,7 +768,7 @@ impl ToolsConfig {
                 .and_then(|s3_val| match s3_val
                     .clone()
                     .try_into::<
-                        axon_tools::implementations::grok_build::video_gen::ZdrVideoOutputS3Config,
+                        axon_tools::implementations::axon_build::video_gen::ZdrVideoOutputS3Config,
                     >()
                 {
                     Ok(cfg) if cfg.is_valid() => Some(cfg),
@@ -819,7 +819,7 @@ pub enum StorageMode {
 }
 impl StorageMode {
     /// Pinned to `Local`: writeback flushed session content to the
-    /// cli-chat-proxy (xAI infrastructure), which this build never
+    /// cli-chat-proxy (Axon infrastructure), which this build never
     /// contacts — no CLI flag, env var, or remote setting re-enables it.
     pub fn resolve(
         cli_override: Option<&str>,
@@ -829,7 +829,7 @@ impl StorageMode {
             || std::env::var("AXON_STORAGE_MODE").as_deref() == Ok("writeback")
         {
             tracing::warn!(
-                "storage-mode writeback removed (synced sessions to xAI); staying local"
+                "storage-mode writeback removed (synced sessions to Axon); staying local"
             );
         }
         let _ = remote;
@@ -848,7 +848,7 @@ pub use axon_config::{
     load_from_disk, load_managed_config, load_merged_requirements, load_system_managed_config,
     load_toml_file, managed_config_identity_changed_at, managed_deployment_id,
     managed_policy_compromised_for, mark_managed_config_synced, mark_managed_config_synced_at,
-    normalize_identity, requirements_layers, system_config_dir, user_grok_home,
+    normalize_identity, requirements_layers, system_config_dir, user_axon_home,
 };
 /// Map of "dotted.path" to which config file the value came from.
 pub fn config_origins(
@@ -1141,11 +1141,11 @@ fn apply_requirements_inner(
     enforce_str!("models", "web_search", config.models.web_search);
     enforce_str!("cli", "channel", config.cli.channel);
     enforce_str!("cli", "minimum_version", config.cli.minimum_version);
-    if let Some(val) = req_str(req, "endpoints", "xai_api_base_url")
-        && config.endpoints.xai_api_base_url != val
+    if let Some(val) = req_str(req, "endpoints", "axon_api_base_url")
+        && config.endpoints.axon_api_base_url != val
     {
-        config.endpoints.xai_api_base_url = val.to_owned();
-        push("endpoints.xai_api_base_url", val.to_owned());
+        config.endpoints.axon_api_base_url = val.to_owned();
+        push("endpoints.axon_api_base_url", val.to_owned());
     }
     if let Some(val) = req_str(req, "endpoints", "cli_chat_proxy_base_url")
         && config.endpoints.cli_chat_proxy_base_url.as_deref() != Some(val)
@@ -1374,7 +1374,7 @@ pub use axon_workspace::project_config::find_project_configs;
 /// ([`find_project_configs`], extending `paths` and `disabled`) plus the
 /// imported `enabledPlugins` merge.
 ///
-/// Shared by `reload_plugins_impl`, `x.ai/commands/list`, and the agent's
+/// Shared by `reload_plugins_impl`, `axon/commands/list`, and the agent's
 /// eager plugin-registry fan-out so all three discover the same plugins for a
 /// given cwd. Centralizing it prevents the paths/disabled/discovered-command
 /// drift those callers would otherwise accumulate.
@@ -1410,7 +1410,7 @@ pub use axon_config::{deep_merge_toml, expand_env_vars_in_string, expand_env_var
 /// Creates the `[plugins]` section and `paths` array if they don't exist.
 /// Deduplicates: if the path is already present, this is a no-op.
 pub fn add_plugin_path(path: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let config_path = crate::util::grok_home::grok_home().join("config.toml");
+    let config_path = crate::util::axon_home::axon_home().join("config.toml");
     let content = std::fs::read_to_string(&config_path).unwrap_or_default();
     let mut config: toml::Value = if content.is_empty() {
         toml::Value::Table(toml::map::Map::new())
@@ -1451,7 +1451,7 @@ pub fn add_plugin_path(path: &str) -> Result<(), Box<dyn std::error::Error>> {
 ///
 /// If the path is not found, this is a no-op (returns Ok).
 pub fn remove_plugin_path(path: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let config_path = crate::util::grok_home::grok_home().join("config.toml");
+    let config_path = crate::util::axon_home::axon_home().join("config.toml");
     let content = match std::fs::read_to_string(&config_path) {
         Ok(c) => c,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(()),
@@ -1475,7 +1475,7 @@ pub fn remove_plugin_path(path: &str) -> Result<(), Box<dyn std::error::Error>> 
 /// Creates the `[plugins]` section and `disabled` array if they don't exist.
 /// Deduplicates: if already present, this is a no-op.
 pub fn add_disabled_plugin(plugin_id: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let config_path = crate::util::grok_home::grok_home().join("config.toml");
+    let config_path = crate::util::axon_home::axon_home().join("config.toml");
     let content = std::fs::read_to_string(&config_path).unwrap_or_default();
     let mut config: toml::Value = if content.is_empty() {
         toml::Value::Table(toml::map::Map::new())
@@ -1518,7 +1518,7 @@ pub fn add_disabled_plugin(plugin_id: &str) -> Result<(), Box<dyn std::error::Er
 ///
 /// If the plugin is not in the disabled list, this is a no-op.
 pub fn remove_disabled_plugin(plugin_id: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let config_path = crate::util::grok_home::grok_home().join("config.toml");
+    let config_path = crate::util::axon_home::axon_home().join("config.toml");
     let content = match std::fs::read_to_string(&config_path) {
         Ok(c) => c,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(()),
@@ -1542,7 +1542,7 @@ pub fn remove_disabled_plugin(plugin_id: &str) -> Result<(), Box<dyn std::error:
 /// Creates the `[plugin_cta]` section and `dismissed` array if they don't exist.
 /// Deduplicates: if already present, this is a no-op.
 pub fn add_dismissed_plugin_cta(plugin_id: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let config_path = crate::util::grok_home::grok_home().join("config.toml");
+    let config_path = crate::util::axon_home::axon_home().join("config.toml");
     add_dismissed_plugin_cta_to_file(plugin_id, &config_path)
 }
 /// Add a dismissed plugin CTA to a specific config file (path-parameterized for tests).
@@ -1594,7 +1594,7 @@ pub fn add_dismissed_plugin_cta_to_file(
 /// Read once (e.g. on catalog load) and cached so the matched-debounce recompute
 /// doesn't parse the config from disk on the UI thread.
 pub fn dismissed_plugin_ctas() -> std::collections::HashSet<String> {
-    let config_path = crate::util::grok_home::grok_home().join("config.toml");
+    let config_path = crate::util::axon_home::axon_home().join("config.toml");
     dismissed_plugin_ctas_in_file(&config_path)
 }
 /// Read the dismissed plugin CTA set from a specific config file (for tests).
@@ -1631,7 +1631,7 @@ pub fn validate_hooks_path(path: &str) -> Result<(), Box<dyn std::error::Error>>
     if !candidate.is_absolute() {
         return Err("Hook path must be absolute.".into());
     }
-    let grok_home = crate::util::grok_home::grok_home();
+    let axon_home = crate::util::axon_home::axon_home();
     let canonical = dunce::canonicalize(candidate)
         .or_else(|_| {
             let mut base = candidate.to_path_buf();
@@ -1651,7 +1651,7 @@ pub fn validate_hooks_path(path: &str) -> Result<(), Box<dyn std::error::Error>>
             Ok(resolved)
         })
         .map_err(|e: std::io::Error| format!("Cannot resolve hook path: {e}"))?;
-    let canonical_home = dunce::canonicalize(&grok_home).unwrap_or_else(|_| grok_home.clone());
+    let canonical_home = dunce::canonicalize(&axon_home).unwrap_or_else(|_| axon_home.clone());
     if !canonical.starts_with(&canonical_home) {
         return Err(format!(
             "Hook path must be under ~/.axon/ ({}). Got: {}",
@@ -1688,7 +1688,7 @@ pub fn post_install_plugin(repo_key: &str) -> (Vec<String>, Vec<String>) {
 /// Used for project-scope plugins that are disabled by default.
 /// Deduplicates: if already present, this is a no-op.
 pub fn add_enabled_plugin(plugin_id: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let config_path = crate::util::grok_home::grok_home().join("config.toml");
+    let config_path = crate::util::axon_home::axon_home().join("config.toml");
     let content = std::fs::read_to_string(&config_path).unwrap_or_default();
     let mut config: toml::Value = if content.is_empty() {
         toml::Value::Table(toml::map::Map::new())
@@ -1729,7 +1729,7 @@ pub fn add_enabled_plugin(plugin_id: &str) -> Result<(), Box<dyn std::error::Err
 }
 /// Remove a plugin from `[plugins].enabled` in `~/.axon/config.toml`.
 pub fn remove_enabled_plugin(plugin_id: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let config_path = crate::util::grok_home::grok_home().join("config.toml");
+    let config_path = crate::util::axon_home::axon_home().join("config.toml");
     let content = match std::fs::read_to_string(&config_path) {
         Ok(c) => c,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(()),
@@ -1756,7 +1756,7 @@ pub fn add_hooks_path(path: &str) -> Result<(), Box<dyn std::error::Error>> {
     validate_hooks_path(path)?;
     add_hooks_path_to_file(
         path,
-        &crate::util::grok_home::grok_home().join("hooks-paths"),
+        &crate::util::axon_home::axon_home().join("hooks-paths"),
     )
 }
 /// Add a hook path to a specific file (for tests).
@@ -1786,7 +1786,7 @@ pub fn add_hooks_path_to_file(
 pub fn remove_hooks_path(path: &str) -> Result<(), Box<dyn std::error::Error>> {
     remove_hooks_path_from_file(
         path,
-        &crate::util::grok_home::grok_home().join("hooks-paths"),
+        &crate::util::axon_home::axon_home().join("hooks-paths"),
     )
 }
 /// Remove a hook path from a specific file (for tests).

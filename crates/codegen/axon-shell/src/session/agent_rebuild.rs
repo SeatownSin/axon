@@ -48,14 +48,14 @@ use axon_agent::prompt::context::PromptAudience;
 use axon_agent::prompt::skills::SkillsConfig;
 use axon_agent::{Agent, AgentBuilder, CompactionPolicy, ReminderPolicy};
 use axon_tools::computer::types::{AsyncFileSystem, TerminalBackend};
-use axon_tools::implementations::grok_build::ask_user_question::types::UserQuestionRequest;
-use axon_tools::implementations::grok_build::deploy_app::AppBuilderDeployerConfig;
-use axon_tools::implementations::grok_build::image_gen::ImageGenConfig;
-use axon_tools::implementations::grok_build::task::types::{
+use axon_tools::implementations::axon_build::ask_user_question::types::UserQuestionRequest;
+use axon_tools::implementations::axon_build::deploy_app::AppBuilderDeployerConfig;
+use axon_tools::implementations::axon_build::image_gen::ImageGenConfig;
+use axon_tools::implementations::axon_build::task::types::{
     MonitorEventBuffer, SubagentEvent, TaskModelValidator,
 };
-use axon_tools::implementations::grok_build::video_gen::VideoGenConfig;
-use axon_tools::implementations::grok_build::web_fetch::WebFetchConfig;
+use axon_tools::implementations::axon_build::video_gen::VideoGenConfig;
+use axon_tools::implementations::axon_build::web_fetch::WebFetchConfig;
 use axon_tools::implementations::lsp::LspBackend;
 use axon_tools::implementations::web_search::WebSearchConfig;
 use axon_tools::notification::ToolNotificationHandle;
@@ -131,7 +131,7 @@ pub(crate) struct AgentRebuildSpec {
     pub system_prompt_label: String,
     pub owner_session_id: Option<String>,
     pub parent_scheduler_handle:
-        Option<axon_tools::implementations::grok_build::scheduler::types::SchedulerHandle>,
+        Option<axon_tools::implementations::axon_build::scheduler::types::SchedulerHandle>,
 }
 impl AgentRebuildSpec {
     /// Build a fresh [`Agent`] from this spec and an [`AgentDefinition`].
@@ -316,10 +316,10 @@ impl AgentRebuildSpec {
             }))
             .await;
         if let Some(event_tx) = subagent_event_tx.clone() {
-            use axon_tools::implementations::grok_build::task::backend::{
+            use axon_tools::implementations::axon_build::task::backend::{
                 ChannelBackend, SubagentBackendResource,
             };
-            use axon_tools::implementations::grok_build::task::types::{
+            use axon_tools::implementations::axon_build::task::types::{
                 SessionIdResource, SubagentDepthCounter, SubagentEventSender,
             };
             let backend = SubagentBackendResource(Arc::new(ChannelBackend::new(event_tx.clone())));
@@ -356,7 +356,7 @@ impl AgentRebuildSpec {
             agent.tool_bridge().update_resource(client).await;
         }
         {
-            use axon_tools::implementations::grok_build::ask_user_question::UserQuestionSender;
+            use axon_tools::implementations::axon_build::ask_user_question::UserQuestionSender;
             agent
                 .tool_bridge()
                 .update_resource(UserQuestionSender(user_question_tx.clone()))
@@ -441,13 +441,13 @@ mod tests {
         let toolset = agent.tool_bridge().toolset();
         let task_name = toolset
             .tool_name_for_kind(axon_tools::types::tool::ToolKind::Task)
-            .expect("GrokBuild Task tool should be present");
+            .expect("AxonBuild Task tool should be present");
         toolset
             .tool_definitions()
             .into_iter()
             .find(|definition| definition.function.name == task_name)
             .and_then(|definition| definition.function.description)
-            .expect("GrokBuild Task description should be present")
+            .expect("AxonBuild Task description should be present")
     }
     #[tokio::test(flavor = "current_thread")]
     async fn rebuild_projects_fresh_public_model_keys_into_task_description() {
@@ -470,7 +470,7 @@ mod tests {
                 models_manager
                     .insert_test_entry("private-unselectable-model", unselectable);
                 let first = spec
-                    .build_agent(AgentDefinition::default_grok_build())
+                    .build_agent(AgentDefinition::default_axon_build())
                     .await
                     .expect("first agent build should succeed");
                 let first_description = task_description(&first);
@@ -495,7 +495,7 @@ mod tests {
                     .insert_test_entry("beta-public", model_entry("internal-beta"));
                 assert!(validator.error_for("beta-public").is_none());
                 let rebuilt = spec
-                    .build_agent(AgentDefinition::default_grok_build())
+                    .build_agent(AgentDefinition::default_axon_build())
                     .await
                     .expect("rebuilt agent should succeed");
                 let rebuilt_description = task_description(&rebuilt);

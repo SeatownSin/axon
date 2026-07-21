@@ -1,4 +1,4 @@
-//! `x.ai/share_session` extension handler.
+//! `axon/share_session` extension handler.
 //!
 //! Loads a local session, exports it, uploads the message payload to cloud storage via
 //! a signed URL (so large sessions bypass the proxy/backend body-size limits),
@@ -20,7 +20,7 @@ use axon_telemetry::id::agent_id;
 #[tracing::instrument(skip_all, fields(method = %args.method))]
 pub async fn handle(agent: &MvpAgent, args: &acp::ExtRequest) -> ExtResult {
     match args.method.as_ref() {
-        "x.ai/share_session" => {
+        "axon/share_session" => {
             tracing::info!("handling share session request");
             handle_share_session(agent, args).await
         }
@@ -32,7 +32,7 @@ async fn handle_share_session(agent: &MvpAgent, args: &acp::ExtRequest) -> ExtRe
     let request: ShareSessionRequest = parse_params(args)?;
 
     // Get auth - required for sharing.
-    let auth = require_xai_auth_for_share(&agent.auth_manager)?;
+    let auth = require_axon_auth_for_share(&agent.auth_manager)?;
 
     // Remote settings / feature-flag gate: sharing_enabled defaults to false
     // and is only enabled for eligible accounts.
@@ -170,10 +170,10 @@ async fn upload_share_data_to_gcs(
     }
 }
 
-fn require_xai_auth_for_share(
+fn require_axon_auth_for_share(
     auth_manager: &crate::auth::AuthManager,
-) -> Result<crate::auth::GrokAuth, acp::Error> {
-    super::auth_gate::require_xai_auth(
+) -> Result<crate::auth::AxonAuth, acp::Error> {
+    super::auth_gate::require_axon_auth(
         auth_manager,
         "Authentication required to share session",
         "Share session is disabled. Run `axon login` to authenticate.",
@@ -183,8 +183,8 @@ fn require_xai_auth_for_share(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::auth::GrokComConfig;
-    use crate::auth::{AuthMode, GrokAuth};
+    use crate::auth::AxonComConfig;
+    use crate::auth::{AuthMode, AxonAuth};
     use chrono::{Duration, Utc};
     use std::sync::Arc;
     use tempfile::tempdir;
@@ -195,18 +195,18 @@ mod tests {
         let dir = tempdir().expect("tempdir for share auth test");
         let mgr = Arc::new(crate::auth::AuthManager::new(
             dir.path(),
-            GrokComConfig::default(),
+            AxonComConfig::default(),
         ));
 
         let expires_at = Utc::now() + ttl;
 
-        // We must explicitly set oidc_issuer to a first-party xAI issuer.
-        // Only OIDC tokens against https://auth.x.ai (or the local-dev equivalent)
-        // return true from is_xai_auth(). This is required for the share tests to
-        // exercise the happy path through require_xai_auth_for_share.
-        let auth = GrokAuth {
+        // We must explicitly set oidc_issuer to a first-party Axon issuer.
+        // Only OIDC tokens against https://auth.blocked.invalid (or the local-dev equivalent)
+        // return true from is_axon_auth(). This is required for the share tests to
+        // exercise the happy path through require_axon_auth_for_share.
+        let auth = AxonAuth {
             auth_mode: AuthMode::Oidc,
-            oidc_issuer: Some("https://auth.x.ai".to_string()),
+            oidc_issuer: Some("https://auth.blocked.invalid".to_string()),
             key: "test-key".into(),
             expires_at: Some(expires_at),
             create_time: Utc::now() - Duration::hours(1),
@@ -220,7 +220,7 @@ mod tests {
     fn share_works_outside_the_5m_early_invalidation_window() {
         let (mgr, _dir) = make_auth_manager_with_token_expiring_in(Duration::minutes(10));
         assert!(mgr.current().is_some());
-        assert!(require_xai_auth_for_share(&mgr).is_ok());
+        assert!(require_axon_auth_for_share(&mgr).is_ok());
     }
 
     #[test]
@@ -234,10 +234,10 @@ mod tests {
         assert!(mgr.expired_auth().is_some());
 
         // Now that we use current_or_expired(), this passes.
-        let res = require_xai_auth_for_share(&mgr);
+        let res = require_axon_auth_for_share(&mgr);
         assert!(
             res.is_ok(),
-            "require_xai_auth_for_share must succeed for a still-valid buffered xAI token"
+            "require_axon_auth_for_share must succeed for a still-valid buffered Axon token"
         );
     }
 
@@ -246,34 +246,34 @@ mod tests {
         let dir = tempdir().expect("tempdir");
         let mgr = Arc::new(crate::auth::AuthManager::new(
             dir.path(),
-            GrokComConfig::default(),
+            AxonComConfig::default(),
         ));
-        assert!(require_xai_auth_for_share(&mgr).is_err());
+        assert!(require_axon_auth_for_share(&mgr).is_err());
     }
 
     #[test]
-    fn share_rejects_non_xai_auth_with_actionable_grok_login_message() {
+    fn share_rejects_non_axon_auth_with_actionable_axon_login_message() {
         let dir = tempdir().expect("tempdir");
         let mgr = Arc::new(crate::auth::AuthManager::new(
             dir.path(),
-            GrokComConfig::default(),
+            AxonComConfig::default(),
         ));
 
-        // API key is the simplest non-xAI credential (External and enterprise OIDC
+        // API key is the simplest non-Axon credential (External and enterprise OIDC
         // are also rejected the same way).
-        let non_xai = GrokAuth {
+        let non_axon = AxonAuth {
             auth_mode: AuthMode::ApiKey,
-            key: "xai-test-key".into(),
+            key: "axon-test-key".into(),
             create_time: Utc::now(),
             ..Default::default()
         };
-        mgr.hot_swap(non_xai);
+        mgr.hot_swap(non_axon);
 
-        let err = require_xai_auth_for_share(&mgr)
-            .expect_err("non-xAI accounts (API key, External, enterprise IdP) must be rejected");
+        let err = require_axon_auth_for_share(&mgr)
+            .expect_err("non-Axon accounts (API key, External, enterprise IdP) must be rejected");
 
         // This is the key assertion the review asked for: we must test the *exact*
-        // actionable data string for the non-xAI path (distinct from the generic
+        // actionable data string for the non-Axon path (distinct from the generic
         // "Authentication required to share session" path).
         let serialized =
             serde_json::to_value(&err).expect("acp::Error serializes to JSON-RPC shape");

@@ -52,7 +52,7 @@ impl Default for ImportState {
 
 /// Path to the import state file.
 fn state_path() -> PathBuf {
-    crate::util::grok_home::grok_home().join("claude_import_state.json")
+    crate::util::axon_home::axon_home().join("claude_import_state.json")
 }
 
 /// Load the import state from disk. Returns default if missing or unreadable.

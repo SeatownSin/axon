@@ -1,6 +1,6 @@
 //! Memory system tracing target and optional file-based logging layer.
 //!
-//! Provides a dedicated tracing target (`xai_memory`) with an optional
+//! Provides a dedicated tracing target (`axon_memory`) with an optional
 //! file logger that writes to `~/.axon/logs/memory.log`.
 //!
 //! ## When to use
@@ -13,12 +13,12 @@
 //!
 //! ```bash
 //! # build with memory logging enabled, then:
-//! AXON_MEMORY_LOG=0 grok                # disable even when enabled
+//! AXON_MEMORY_LOG=0 axon                # disable even when enabled
 //! tail -f ~/.axon/logs/memory.log      # watch in another terminal
 //! ```
 
 /// Tracing target for all memory system operations.
-pub const TARGET: &str = "xai_memory";
+pub const TARGET: &str = "axon_memory";
 
 #[cfg(feature = "memory-log")]
 mod inner {
@@ -35,7 +35,7 @@ mod inner {
     use tracing_subscriber::registry::LookupSpan;
 
     use super::TARGET;
-    use axon_config::grok_home;
+    use axon_config::axon_home;
 
     const ENV_MEMORY_LOG: &str = "AXON_MEMORY_LOG";
 
@@ -65,7 +65,7 @@ mod inner {
 
     /// Build the memory log layer.
     ///
-    /// Writes to `~/.axon/logs/memory.log`. Filters to `xai_memory=trace`.
+    /// Writes to `~/.axon/logs/memory.log`. Filters to `axon_memory=trace`.
     /// Set `AXON_MEMORY_LOG=0` to disable, `AXON_MEMORY_LOG=/path` to redirect.
     pub fn layer<S>() -> Option<impl Layer<S>>
     where
@@ -109,7 +109,7 @@ mod inner {
     }
 
     fn resolve_log_path() -> Option<PathBuf> {
-        let default_path = || grok_home().join("logs").join("memory.log");
+        let default_path = || axon_home().join("logs").join("memory.log");
         let raw = match std::env::var(ENV_MEMORY_LOG) {
             Ok(val) => val,
             Err(_) => return Some(default_path()),

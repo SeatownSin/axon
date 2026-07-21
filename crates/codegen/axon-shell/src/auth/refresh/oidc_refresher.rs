@@ -95,7 +95,7 @@ impl OidcRefresher {
     /// already refreshed and wrote a valid token.
     async fn retry_with_fresh_disk_token(
         &self,
-        tried: &crate::auth::GrokAuth,
+        tried: &crate::auth::AxonAuth,
     ) -> Option<RefreshOutcome> {
         let disk_now = self.auth.read_disk_auth()?;
 

@@ -342,7 +342,7 @@ mod tests {
     #[test]
     fn slugify_lowercases_and_hyphenates_spaces() {
         assert_eq!(slugify("Local Dev"), "local-dev");
-        assert_eq!(slugify("xAI Official"), "xai-official");
+        assert_eq!(slugify("Axon Official"), "axon-official");
     }
 
     #[test]
@@ -377,7 +377,7 @@ mod tests {
             "https://github.com/xai-org/plugin-marketplace.git",
             "git@github.com:xai-org/plugin-marketplace.git",
             "ssh://git@github.com/xai-org/plugin-marketplace",
-            "https://GitHub.com/XAI-org/Plugin-Marketplace",
+            "https://GitHub.com/AXON-org/Plugin-Marketplace",
         ] {
             let sources = [git_source("src", url)];
             assert_eq!(
@@ -404,7 +404,7 @@ mod tests {
     fn resolve_qualifier_matches_local_by_slug() {
         let sources = [
             git_source(
-                "xAI Official",
+                "Axon Official",
                 "https://github.com/xai-org/plugin-marketplace.git",
             ),
             local_source("Local Dev", "/tmp/plugins"),
@@ -416,7 +416,7 @@ mod tests {
     fn resolve_qualifier_matches_non_github_git_by_slug() {
         let sources = [
             git_source(
-                "xAI Official",
+                "Axon Official",
                 "https://github.com/xai-org/plugin-marketplace.git",
             ),
             git_source("Self Hosted", "https://git.example.com/org/repo.git"),
@@ -447,7 +447,7 @@ mod tests {
     fn resolve_qualifier_unknown_for_git_and_local() {
         let sources = [
             git_source(
-                "xAI Official",
+                "Axon Official",
                 "https://github.com/xai-org/plugin-marketplace.git",
             ),
             local_source("Local Dev", "/tmp/plugins"),
@@ -519,12 +519,12 @@ mod tests {
     fn resolve_qualifier_name_vs_other_source_owner_repo_is_ambiguous() {
         let sources = [
             git_source(
-                "xAI Official",
+                "Axon Official",
                 "https://github.com/xai-org/plugin-marketplace.git",
             ),
             git_source(
                 "xai-org/plugin-marketplace",
-                "git@github.example.com:mirror/xai.git",
+                "git@github.example.com:mirror/axon.git",
             ),
         ];
         assert_eq!(
@@ -598,7 +598,7 @@ mod tests {
             ),
             (
                 git_source(
-                    "xAI Official",
+                    "Axon Official",
                     "https://github.com/xai-org/plugin-marketplace.git",
                 ),
                 entry("sentry"),

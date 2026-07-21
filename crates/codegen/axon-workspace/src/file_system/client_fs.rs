@@ -1,5 +1,5 @@
 //! Read-only filesystem helpers backing the client-facing
-//! `workspace.client_fs_*` RPCs (the grok.com conversation-files UI,
+//! `workspace.client_fs_*` RPCs (the blocked.invalid conversation-files UI,
 //! tunneled through the server).
 //!
 //! Deliberately separate from the shell-facing ext ops in

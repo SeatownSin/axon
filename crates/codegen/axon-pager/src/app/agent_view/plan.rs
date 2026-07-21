@@ -21,7 +21,7 @@ impl AgentView {
         let cwd_str = self.session.cwd.to_string_lossy().into_owned();
         let encoded_cwd = urlencoding::encode(&cwd_str);
         Some(
-            axon_shell::util::grok_home::grok_home()
+            axon_shell::util::axon_home::axon_home()
                 .join("sessions")
                 .join(encoded_cwd.as_ref())
                 .join(session_id.0.as_ref())

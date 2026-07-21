@@ -7,7 +7,7 @@ use std::sync::Arc;
 use serde::Serialize;
 use axon_tools::types::config_source::ConfigSource;
 
-use crate::auth::GrokComConfig;
+use crate::auth::AxonComConfig;
 use crate::session::managed_mcp;
 use crate::session::mcp_servers;
 
@@ -147,8 +147,8 @@ fn discover_servers(cwd: &Path) -> (Vec<ConfigSourceStatus>, Vec<DiscoveredServe
 
     let mut sources = Vec::new();
 
-    let grok_home = axon_tools::util::grok_home::grok_home();
-    let user_config = grok_home.join("config.toml");
+    let axon_home = axon_tools::util::axon_home::axon_home();
+    let user_config = axon_home.join("config.toml");
     if user_config.is_file() {
         sources.push(ConfigSourceStatus {
             path: "~/.axon/config.toml".to_string(),
@@ -238,9 +238,9 @@ fn discover_servers(cwd: &Path) -> (Vec<ConfigSourceStatus>, Vec<DiscoveredServe
     (sources, servers)
 }
 
-// ── Managed (grok.com) server discovery ─────────────────────────
+// ── Managed (blocked.invalid) server discovery ─────────────────────────
 
-const MANAGED_SOURCE_LABEL: &str = "grok.com";
+const MANAGED_SOURCE_LABEL: &str = "blocked.invalid";
 
 fn managed_skipped(reason: impl Into<String>) -> (ConfigSourceStatus, Vec<DiscoveredServer>) {
     (
@@ -269,17 +269,17 @@ fn managed_found(
     )
 }
 
-/// Discover managed `grok_com_*` servers if the user has xAI auth on disk.
+/// Discover managed `axon_com_*` servers if the user has Axon auth on disk.
 async fn try_discover_managed_servers() -> (ConfigSourceStatus, Vec<DiscoveredServer>) {
-    let grok_home = axon_tools::util::grok_home::grok_home();
-    let grok_com_config = GrokComConfig::default();
-    let auth_manager = Arc::new(crate::auth::AuthManager::new(&grok_home, grok_com_config));
+    let axon_home = axon_tools::util::axon_home::axon_home();
+    let axon_com_config = AxonComConfig::default();
+    let auth_manager = Arc::new(crate::auth::AuthManager::new(&axon_home, axon_com_config));
 
     let Some(snapshot) = auth_manager.current_or_expired() else {
         return managed_skipped("not logged in");
     };
     if !snapshot.is_managed_mcp_eligible() {
-        return managed_skipped(format!("{:?} auth (not xAI OIDC)", snapshot.auth_mode));
+        return managed_skipped(format!("{:?} auth (not Axon OIDC)", snapshot.auth_mode));
     }
 
     let token = match auth_manager.get_valid_token().await {

@@ -2,7 +2,7 @@
 //!
 //! Credentials are stored in `$AXON_HOME/mcp_credentials.json`, keyed by a
 //! composite key derived from the server name and URL. This keeps MCP OAuth
-//! tokens isolated from the user's xAI auth (`auth.json`).
+//! tokens isolated from the user's Axon auth (`auth.json`).
 //!
 //! Stores rmcp's `StoredCredentials` type directly — the same type that
 //! rmcp's `AuthorizationManager` uses internally.
@@ -116,7 +116,7 @@ impl McpCredentialStore {
     /// Save the credential store to the default path.
     pub fn save_default(&self) -> Result<()> {
         let path = Self::default_path().ok_or_else(|| {
-            McpCredentialError::Other("no user grok home (set $AXON_HOME or $HOME)".into())
+            McpCredentialError::Other("no user axon home (set $AXON_HOME or $HOME)".into())
         })?;
         self.save_to(&path)
     }
@@ -138,7 +138,7 @@ impl McpCredentialStore {
         creds: rmcp::transport::auth::StoredCredentials,
     ) -> Result<()> {
         let path = Self::default_path().ok_or_else(|| {
-            McpCredentialError::Other("no user grok home (set $AXON_HOME or $HOME)".into())
+            McpCredentialError::Other("no user axon home (set $AXON_HOME or $HOME)".into())
         })?;
         let lock_path = path.with_extension("lock");
 
@@ -288,7 +288,7 @@ impl McpCredentialStore {
 
     /// Default path: `$AXON_HOME/mcp_credentials.json`.
     fn default_path() -> Option<PathBuf> {
-        Some(axon_config::user_grok_home()?.join(CREDENTIALS_FILENAME))
+        Some(axon_config::user_axon_home()?.join(CREDENTIALS_FILENAME))
     }
 }
 
@@ -467,7 +467,7 @@ mod tests {
 
     #[test]
     fn save_and_load_from_file() {
-        let dir = std::env::temp_dir().join("grok-mcp-credentials-test");
+        let dir = std::env::temp_dir().join("axon-mcp-credentials-test");
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("test_creds.json");
 

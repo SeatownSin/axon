@@ -1041,11 +1041,11 @@ mod tests {
     #[test]
     fn basename_contains_ignores_directory_components() {
         assert!(basename_contains(
-            "/usr/local/bin/xai-workspace-server",
+            "/usr/local/bin/axon-workspace-server",
             "workspace-server"
         ));
         assert!(basename_contains(
-            "C:\\Program Files\\XAI-Workspace-Server.exe",
+            "C:\\Program Files\\AXON-Workspace-Server.exe",
             "workspace-server"
         ));
         assert!(

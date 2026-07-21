@@ -5,7 +5,7 @@
 //! `GoalUpdated` events and format elapsed time.
 
 use crate::extensions::notification::{
-    SessionNotification as XaiSessionNotification, SessionUpdate as XaiSessionUpdate,
+    SessionNotification as AxonSessionNotification, SessionUpdate as AxonSessionUpdate,
 };
 use crate::session::goal_tracker::{GoalOrchestration, GoalPhase, GoalStatus, GoalTracker};
 use crate::session::persistence::PersistenceMsg;
@@ -75,9 +75,9 @@ impl GoalNotifySender {
 
     /// Persist + fire-and-forget a notification to the gateway. Used for
     /// snapshot-derived payloads and for the "planning…" / "Verifying…"
-    /// latch updates that must not run the `send_xai_notification`
+    /// latch updates that must not run the `send_axon_notification`
     /// rewind-window-close side effect.
-    pub(crate) fn send_update(&self, update: XaiSessionUpdate) {
+    pub(crate) fn send_update(&self, update: AxonSessionUpdate) {
         self.dispatch_update(update, true);
     }
 
@@ -85,11 +85,11 @@ impl GoalNotifySender {
     /// `persist == false` ships the update to the gateway only (no JSONL
     /// append) for recurring/transient ticks — see
     /// [`Self::emit_goal_updated_ephemeral`].
-    fn dispatch_update(&self, update: XaiSessionUpdate, persist: bool) {
+    fn dispatch_update(&self, update: AxonSessionUpdate, persist: bool) {
         // Stamped before the persist/broadcast fork — see `ensure_event_id_meta`.
         let mut meta = None;
         crate::util::event_id::ensure_event_id_meta(&self.session_id.0, &mut meta);
-        let notification = XaiSessionNotification {
+        let notification = AxonSessionNotification {
             session_id: self.session_id.clone(),
             update,
             meta: meta.map(serde_json::Value::Object),
@@ -99,12 +99,12 @@ impl GoalNotifySender {
             .ok();
         if persist {
             let _ = self.persistence_tx.send(PersistenceMsg::Update(
-                crate::session::storage::SessionUpdate::Xai(Box::new(notification)),
+                crate::session::storage::SessionUpdate::Axon(Box::new(notification)),
             ));
         }
         if let Some(raw) = raw {
             let ext = agent_client_protocol::ExtNotification::new(
-                "x.ai/session_notification",
+                "axon/session_notification",
                 raw.into(),
             );
             self.gateway.forward_fire_and_forget(ext);
@@ -142,7 +142,7 @@ pub(crate) fn build_goal_updated(
     o: &GoalOrchestration,
     tokens_used: i64,
     finished_subagent_tokens: i64,
-) -> XaiSessionUpdate {
+) -> AxonSessionUpdate {
     let last_entry = o.history.last();
 
     let status_str = match o.status {
@@ -163,7 +163,7 @@ pub(crate) fn build_goal_updated(
 
     let last_event = last_entry.map(|e| goal_event_as_str(&e.event).to_owned());
 
-    XaiSessionUpdate::GoalUpdated {
+    AxonSessionUpdate::GoalUpdated {
         goal_id: o.goal_id.clone(),
         objective: o.objective.clone(),
         status: status_str.to_owned(),
@@ -222,8 +222,8 @@ pub(crate) fn build_goal_updated(
 
 /// Build a `GoalUpdated` with `status: "cleared"` to tell the pager to
 /// drop its goal state.
-pub(crate) fn build_goal_cleared() -> XaiSessionUpdate {
-    XaiSessionUpdate::GoalUpdated {
+pub(crate) fn build_goal_cleared() -> AxonSessionUpdate {
+    AxonSessionUpdate::GoalUpdated {
         goal_id: String::new(),
         objective: String::new(),
         status: "cleared".to_owned(),
@@ -299,7 +299,7 @@ mod tests {
         let o = make_base_orchestration();
         let update = build_goal_updated(&o, 0, 0);
         match update {
-            XaiSessionUpdate::GoalUpdated {
+            AxonSessionUpdate::GoalUpdated {
                 total_deliverables,
                 completed_deliverables,
                 classifier_runs_attempted,
@@ -335,7 +335,7 @@ mod tests {
 
         let update = build_goal_updated(&o, 0, 0);
         match update {
-            XaiSessionUpdate::GoalUpdated {
+            AxonSessionUpdate::GoalUpdated {
                 classifier_runs_attempted,
                 classifier_max_runs,
                 last_classifier_verdict,
@@ -375,9 +375,9 @@ mod tests {
         );
     }
 
-    fn planning_field(update: &XaiSessionUpdate) -> Option<bool> {
+    fn planning_field(update: &AxonSessionUpdate) -> Option<bool> {
         match update {
-            XaiSessionUpdate::GoalUpdated { planning, .. } => *planning,
+            AxonSessionUpdate::GoalUpdated { planning, .. } => *planning,
             _ => panic!("expected GoalUpdated"),
         }
     }
@@ -388,8 +388,8 @@ mod tests {
         // mid-verification GoalUpdated fired. Sourced from the latch, every
         // snapshot-derived update keeps the "Verifying…" badge.
         let mut o = make_base_orchestration();
-        let verifying = |u: &XaiSessionUpdate| match u {
-            XaiSessionUpdate::GoalUpdated {
+        let verifying = |u: &AxonSessionUpdate| match u {
+            AxonSessionUpdate::GoalUpdated {
                 verifying_completion,
                 ..
             } => *verifying_completion,
@@ -410,7 +410,7 @@ mod tests {
         o.live_subagent_tokens = 5_000;
         let update = build_goal_updated(&o, 60_000, 40_000);
         match update {
-            XaiSessionUpdate::GoalUpdated {
+            AxonSessionUpdate::GoalUpdated {
                 tokens_used,
                 finished_subagent_tokens,
                 live_subagent_tokens,
@@ -432,9 +432,9 @@ mod tests {
         // — the wire field stays empty so the doc contract holds and we
         // don't ship a 1-element vec the pager would collapse anyway.
         let mut o = make_base_orchestration();
-        o.live_tokens_by_model = vec![("grok-4".into(), 5_000)];
+        o.live_tokens_by_model = vec![("axon-4".into(), 5_000)];
         match build_goal_updated(&o, 0, 0) {
-            XaiSessionUpdate::GoalUpdated {
+            AxonSessionUpdate::GoalUpdated {
                 live_tokens_by_model,
                 ..
             } => assert!(
@@ -445,14 +445,14 @@ mod tests {
         }
 
         // ≥2 distinct models are transmitted verbatim.
-        o.live_tokens_by_model = vec![("grok-4".into(), 5_000), ("grok-3".into(), 3_000)];
+        o.live_tokens_by_model = vec![("axon-4".into(), 5_000), ("axon-3".into(), 3_000)];
         match build_goal_updated(&o, 0, 0) {
-            XaiSessionUpdate::GoalUpdated {
+            AxonSessionUpdate::GoalUpdated {
                 live_tokens_by_model,
                 ..
             } => assert_eq!(
                 live_tokens_by_model,
-                vec![("grok-4".to_owned(), 5_000), ("grok-3".to_owned(), 3_000)]
+                vec![("axon-4".to_owned(), 5_000), ("axon-3".to_owned(), 3_000)]
             ),
             _ => panic!("expected GoalUpdated"),
         }
@@ -462,7 +462,7 @@ mod tests {
     fn build_goal_cleared_is_cleared() {
         let update = build_goal_cleared();
         match update {
-            XaiSessionUpdate::GoalUpdated {
+            AxonSessionUpdate::GoalUpdated {
                 status,
                 classifier_runs_attempted,
                 classifier_max_runs,

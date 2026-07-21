@@ -24,7 +24,7 @@ pub fn resolve_zdr_access_enabled(
 }
 
 /// Whether model-catalog (`/v1/models`) and remote-settings (`/v1/settings`)
-/// fetches from xAI backends are allowed, including the deployment-config sync
+/// fetches from Axon backends are allowed, including the deployment-config sync
 /// bundled into the startup prefetch (the background managed-config sync has
 /// its own `[features] managed_config` gate).
 ///

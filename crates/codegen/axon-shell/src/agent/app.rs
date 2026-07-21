@@ -20,8 +20,8 @@ use crate::agent::config::{Config as AgentConfig, ModelEntry};
 use crate::agent::init::{bootstrap, exit_on_config_error};
 use crate::agent::models::{ModelFetchAuth, prefetch_models_blocking};
 use crate::agent::mvp_agent::MvpAgent;
-use crate::auth::{AuthManager, AuthMode, GrokAuth, run_auth_flow};
-use crate::util::grok_home;
+use crate::auth::{AuthManager, AuthMode, AxonAuth, run_auth_flow};
+use crate::util::axon_home;
 use dirs;
 
 const MAX_BUFFER_SIZE: usize = 8 * 1024 * 1024;
@@ -83,7 +83,7 @@ const MAX_AUTO_UPDATE_BUSY_DEFERRALS: u32 = 24;
 ///
 /// Idle means BOTH `agent_busy` is false (no IPC client request in flight)
 /// AND `activity.is_busy()` is false (no running turn, parked interaction,
-/// or live subagent). The second signal covers relay-driven (grok.com
+/// or live subagent). The second signal covers relay-driven (blocked.invalid
 /// WebSocket) leaders, whose traffic bypasses the IPC server and never sets
 /// `agent_busy`.
 ///
@@ -216,10 +216,10 @@ fn spawn_agent_local(
 }
 
 /// Build a newline-terminated JSON-RPC request line for an internal
-/// `x.ai/...` extension method, for injection into the agent's inbound ACP
+/// `axon/...` extension method, for injection into the agent's inbound ACP
 /// stream by the leader's own watcher tasks (config hot-reload, skills).
 ///
-/// The wire method is written **`_`-prefixed** (`_x.ai/internal/...`):
+/// The wire method is written **`_`-prefixed** (`_axon/internal/...`):
 /// `agent-client-protocol`'s inbound decoder routes a non-built-in method to
 /// `ext_method` only when it carries the `_` extension prefix and rejects
 /// bare custom methods with `-32601 method_not_found`. These injections were
@@ -238,7 +238,7 @@ fn internal_reload_request_line(id: &str, method: &str, params: serde_json::Valu
     format!("{}\n", msg)
 }
 
-/// Start a skills file watcher and wire it to inject `x.ai/internal/reload_skills`
+/// Start a skills file watcher and wire it to inject `axon/internal/reload_skills`
 /// messages into the shared ACP incoming stream when SKILL.md files change on disk.
 ///
 /// Returns the watcher guard (must be kept alive for the lifetime of the session)
@@ -263,7 +263,7 @@ where
             info!("Skill directory changed on disk, reloading skills for all sessions");
             let line = internal_reload_request_line(
                 "skills-reload",
-                "x.ai/internal/reload_skills",
+                "axon/internal/reload_skills",
                 serde_json::json!({}),
             );
             let mut tx = skills_tx.lock().await;
@@ -299,11 +299,11 @@ pub async fn run_stdio_agent(
     // Clean up orphaned upload queue temp files from previous sessions (best-effort).
     // Uses DEFAULT_MAX_AGE to stay in sync with the upload queue's retry policy.
     axon_file_utils::queue::cleanup_orphaned_uploads(
-        &grok_home::grok_home(),
+        &axon_home::axon_home(),
         axon_file_utils::queue::DEFAULT_MAX_AGE,
     );
 
-    // Log the client that launched us (set by grok-desktop when spawning `axon agent stdio`).
+    // Log the client that launched us (set by axon-desktop when spawning `axon agent stdio`).
     // This appears early in unified.jsonl and is extremely useful for auth diagnostics.
     if let Ok(version) = std::env::var("AXON_CLIENT_VERSION") {
         crate::unified_log::info(
@@ -376,7 +376,7 @@ pub async fn run_stdio_agent(
             // Pause refreshes across system sleep so an OIDC refresh can't straddle a
             // suspend (which can revoke the refresh token and force re-login).
             // `axon agent stdio` is a local/interactive entrypoint (spawned by
-            // grok-desktop), so it needs the gate like the leader and pager paths;
+            // axon-desktop), so it needs the gate like the leader and pager paths;
             // no-op where the OS listener is unavailable.
             auth_manager.start_system_power_listener();
 
@@ -439,20 +439,20 @@ async fn run_headless_inner(
     use tokio_util::sync::CancellationToken;
 
     // Headless's only transport is the relay (no IPC fallback), so a session is required.
-    const HEADLESS_NO_SESSION: &str = "Headless mode requires a grok.com session. \
+    const HEADLESS_NO_SESSION: &str = "Headless mode requires a blocked.invalid session. \
         Run `axon login` to sign in, or use `axon agent stdio` for API-key access.";
 
     // Clean up orphaned upload queue temp files from previous sessions (best-effort).
     // Uses DEFAULT_MAX_AGE to stay in sync with the upload queue's retry policy.
     axon_file_utils::queue::cleanup_orphaned_uploads(
-        &grok_home::grok_home(),
+        &axon_home::axon_home(),
         axon_file_utils::queue::DEFAULT_MAX_AGE,
     );
 
     let mut agent_config = agent_config.clone();
     agent_config.mode = crate::agent::config::AgentMode::Headless;
 
-    let ctx = &agent_config.grok_com_config;
+    let ctx = &agent_config.axon_com_config;
     let (mut auth, did_browser_flow) = if no_browser {
         // No-browser mode: only use cached credentials, skip OAuth flow
         let auth_manager = agent_config.create_auth_manager();
@@ -464,7 +464,7 @@ async fn run_headless_inner(
             None => anyhow::bail!("No cached credentials found. Run `axon login`."),
         }
     } else if reauthenticate {
-        let auth_manager = Arc::new(AuthManager::new(&grok_home::grok_home(), ctx.clone()));
+        let auth_manager = Arc::new(AuthManager::new(&axon_home::axon_home(), ctx.clone()));
         run_auth_flow(
             &auth_manager,
             ctx,
@@ -478,8 +478,8 @@ async fn run_headless_inner(
     } else {
         // Don't pre-resolve via try_ensure_session_noninteractive: run_auth_flow below
         // already mints external/devbox creds, so it would run the provider twice.
-        let auth_manager = Arc::new(AuthManager::new(&grok_home::grok_home(), ctx.clone()));
-        if crate::agent::auth_method::has_xai_api_key_env()
+        let auth_manager = Arc::new(AuthManager::new(&axon_home::axon_home(), ctx.clone()));
+        if crate::agent::auth_method::has_axon_api_key_env()
             && ctx.auth_provider_command.is_none()
             && crate::auth::try_ensure_fresh_auth(ctx).await.is_none()
         {
@@ -544,8 +544,8 @@ async fn run_headless_inner(
         anyhow::bail!("{HEADLESS_NO_SESSION}");
     };
 
-    // Capture the grok build URL for the first-connection callback
-    let grok_code_url = format!("{}/build", ctx.grok_ws_origin);
+    // Capture the axon build URL for the first-connection callback
+    let axon_code_url = format!("{}/build", ctx.axon_ws_origin);
 
     // Create first-connection callback for headless-specific behavior
     let on_first_connect: Box<dyn FnOnce() + Send + 'static> = Box::new(move || {
@@ -553,11 +553,11 @@ async fn run_headless_inner(
             // Print to stderr (not logger) so user sees it
             eprintln!();
             eprintln!(
-                "Open Grok Build: {} (press Enter to open in browser)",
-                grok_code_url
+                "Open Axon Build: {} (press Enter to open in browser)",
+                axon_code_url
             );
             eprintln!();
-            let url_for_open = grok_code_url.clone();
+            let url_for_open = axon_code_url.clone();
             std::thread::spawn(move || {
                 let mut input = String::new();
                 let _ = std::io::stdin().read_line(&mut input);
@@ -687,9 +687,9 @@ async fn run_headless_inner(
 /// drop the legacy scope). No-op outside a devbox or for non-WebLogin / `None`.
 /// On mint/save failure, returns the existing token so the leader still starts.
 async fn migrate_devbox_auth_if_legacy(
-    auth: Option<GrokAuth>,
+    auth: Option<AxonAuth>,
     agent_config: &AgentConfig,
-) -> Option<GrokAuth> {
+) -> Option<AxonAuth> {
     let auth = auth?;
     if !crate::auth::devbox_login::is_devbox_environment() || auth.auth_mode != AuthMode::WebLogin {
         return Some(auth);
@@ -771,7 +771,7 @@ async fn migrate_devbox_auth_if_legacy(
 /// Never clobbers an equal-or-fresher token: the same key (already in sync) or
 /// a token whose `create_time` is newer (e.g. a sibling process refreshed disk
 /// in the manager-construction→here window).
-fn should_seed_shared_session(existing: Option<&GrokAuth>, session: &GrokAuth) -> bool {
+fn should_seed_shared_session(existing: Option<&AxonAuth>, session: &AxonAuth) -> bool {
     match existing {
         None => true,
         Some(existing) => {
@@ -791,7 +791,7 @@ fn should_seed_shared_session(existing: Option<&GrokAuth>, session: &GrokAuth) -
 /// `refresh_lock` and `permanent_failure` cache as every other consumer,
 /// so concurrent recovery paths cannot double-spend a refresh token.
 fn relay_config_for_session(
-    auth: Option<&GrokAuth>,
+    auth: Option<&AxonAuth>,
     agent_config: &AgentConfig,
     shared_auth_manager: &Arc<AuthManager>,
 ) -> Option<crate::agent::relay::RelayConfig> {
@@ -805,13 +805,13 @@ fn relay_config_for_session(
     }
     crate::agent::relay::RelayConfig::for_session(
         session,
-        &agent_config.grok_com_config,
+        &agent_config.axon_com_config,
         agent_config.endpoints.alpha_test_key.clone(),
         Some(shared_auth_manager.clone()),
     )
 }
 
-/// Start the leader's grok.com relay connection according to the start policy,
+/// Start the leader's blocked.invalid relay connection according to the start policy,
 /// returning the slot where the [`RelayHandle`](crate::agent::relay::RelayHandle)
 /// is parked once the connection task is running.
 ///
@@ -828,7 +828,7 @@ fn relay_config_for_session(
 ///   [`ClientMode::Headless`](crate::leader::ClientMode::Headless)
 ///   registration. A leader serving only TUI-dashboard / IDE clients never
 ///   opens the relay and never pays the per-message clone/parse/log/TLS
-///   duplication of mirroring every agent message to grok.com.
+///   duplication of mirroring every agent message to blocked.invalid.
 ///
 /// Until the relay starts, `agent_to_ws_tx` stays `None`, so the outbound
 /// bridge skips the relay clone entirely. Messages produced before the relay
@@ -890,7 +890,7 @@ fn spawn_leader_relay(
 }
 
 /// Run the agent in leader mode, accepting IPC connections from multiple clients.
-/// When a grok.com session is present, the leader connects to the websocket relay
+/// When a blocked.invalid session is present, the leader connects to the websocket relay
 /// after startup (post-auth, post-prefetch); BYOK / no-session leaders skip it and
 /// serve clients over IPC only. See [`spawn_leader_relay`] for when the relay
 /// connection is opened (eager by default, demand-gated with `relay_on_demand`).
@@ -911,7 +911,7 @@ fn spawn_leader_relay(
 ///
 /// * `agent_config` - The agent configuration
 /// * `no_exit_on_disconnect` - If true, the leader will not exit when all clients disconnect
-/// * `relay_on_demand` - If true, defer the grok.com relay WebSocket until the
+/// * `relay_on_demand` - If true, defer the blocked.invalid relay WebSocket until the
 ///   first headless IPC client registers; if false (default), connect eagerly at
 ///   startup. See [`spawn_leader_relay`].
 pub async fn run_leader(
@@ -940,7 +940,7 @@ pub async fn run_leader(
     // could not connect until the sweep finished.
     tokio::task::spawn_blocking(|| {
         axon_file_utils::queue::cleanup_orphaned_uploads(
-            &grok_home::grok_home(),
+            &axon_home::axon_home(),
             axon_file_utils::queue::DEFAULT_MAX_AGE,
         );
     });
@@ -949,7 +949,7 @@ pub async fn run_leader(
     agent_config.mode = crate::agent::config::AgentMode::Leader;
 
     // Use the WS URL to determine which socket/lock paths to use.
-    let ws_url = &agent_config.grok_com_config.grok_ws_url;
+    let ws_url = &agent_config.axon_com_config.axon_ws_url;
     let mut lock = LeaderLock::new(ws_url);
     let socket_path = lock.socket_path().clone();
 
@@ -1136,14 +1136,14 @@ pub async fn run_leader(
     // The IPC server is already accepting connections. Clients that send ACP
     // messages during this window receive a `leader_starting` error and can retry.
 
-    let ctx = &agent_config.grok_com_config;
+    let ctx = &agent_config.axon_com_config;
     // Never interactive: a detached leader has no TTY (forcing OAuth here hung BYOK).
-    let auth: Option<GrokAuth> = crate::auth::try_ensure_session_noninteractive(ctx).await;
+    let auth: Option<AxonAuth> = crate::auth::try_ensure_session_noninteractive(ctx).await;
 
     // ── Phase 6b: Legacy devbox auth migration ─────────────────────────────
-    let auth: Option<GrokAuth> = migrate_devbox_auth_if_legacy(auth, &agent_config).await;
+    let auth: Option<AxonAuth> = migrate_devbox_auth_if_legacy(auth, &agent_config).await;
 
-    let auth_for_prefetch: Option<GrokAuth> = auth.clone();
+    let auth_for_prefetch: Option<AxonAuth> = auth.clone();
     let endpoints_for_prefetch = agent_config.endpoints.clone();
     let fetch_auth_for_prefetch = ModelFetchAuth::resolve(&endpoints_for_prefetch, auth.is_some());
     // The shared pair helper owns the remote_fetch gate for both halves, so a
@@ -1309,7 +1309,7 @@ pub async fn run_leader(
                 }
             });
 
-            // Bridge websocket messages to agent (from grok.com relay)
+            // Bridge websocket messages to agent (from blocked.invalid relay)
             let acp_incoming_tx_ws = acp_incoming_tx.clone();
             tokio::task::spawn_local(async move {
                 while let Some(msg) = ws_to_agent_rx.recv().await {
@@ -1354,7 +1354,7 @@ pub async fn run_leader(
                 }
             });
 
-            // Start (or arm) the grok.com relay. Eager by default — a bare
+            // Start (or arm) the blocked.invalid relay. Eager by default — a bare
             // `axon agent leader` (devbox / systemd) has no local IPC clients
             // and receives remote prompts *through* the relay, so it must
             // connect unconditionally. Leaders auto-spawned by interactive
@@ -1370,7 +1370,7 @@ pub async fn run_leader(
                     cancel_clone.clone(),
                 )
             } else {
-                info!("Relay disabled: no grok.com session token (BYOK / local-only leader)");
+                info!("Relay disabled: no blocked.invalid session token (BYOK / local-only leader)");
                 Rc::new(std::cell::RefCell::new(None))
             };
 
@@ -1398,10 +1398,10 @@ pub async fn run_leader(
             if let Some(home) = dirs::home_dir() {
                 watch_paths.push(home.join(".claude.json"));
             }
-            let auth_scope = agent_config.grok_com_config.auth_scope();
-            // Gated on user_grok_home() so a cwd-relative .axon/auth.json is never
+            let auth_scope = agent_config.axon_com_config.auth_scope();
+            // Gated on user_axon_home() so a cwd-relative .axon/auth.json is never
             // read as the user auth store when no home resolves.
-            let initial_auth_key_hash = axon_config::user_grok_home()
+            let initial_auth_key_hash = axon_config::user_axon_home()
                 .map(|g| g.join("auth.json"))
                 .and_then(|auth_path| crate::auth::read_auth_json(&auth_path).ok())
                 .and_then(|store| {
@@ -1423,7 +1423,7 @@ pub async fn run_leader(
 
             let _config_watcher = if let Some((watcher, events_rx)) =
                 crate::config::watcher::ConfigFileWatcher::start(
-                    &grok_home::grok_home(),
+                    &axon_home::axon_home(),
                     &watch_paths,
                     watcher_cwd,
                     None,
@@ -1460,7 +1460,7 @@ pub async fn run_leader(
                 let initial_config = crate::config::load_effective_config()
                     .unwrap_or_else(|_| toml::Value::Table(toml::map::Map::new()));
                 let reloader = crate::config::reloader::ConfigReloader::new(
-                    grok_home::grok_home(),
+                    axon_home::axon_home(),
                     initial_auth_key_hash,
                     initial_config,
                     auth_scope,
@@ -1503,7 +1503,7 @@ pub async fn run_leader(
                             models_manager_for_config.on_auth_changed().await;
                             let line = internal_reload_request_line(
                                 "config-auth-reloaded",
-                                "x.ai/internal/reload_all_mcp_servers",
+                                "axon/internal/reload_all_mcp_servers",
                                 serde_json::json!({}),
                             );
                             let mut tx = acp_tx_for_config.lock().await;
@@ -1515,7 +1515,7 @@ pub async fn run_leader(
                             auth_manager_for_config.clear_in_memory();
                             let line = internal_reload_request_line(
                                 "config-auth-cleared",
-                                "x.ai/internal/auth_cleared",
+                                "axon/internal/auth_cleared",
                                 serde_json::json!({}),
                             );
                             let mut tx = acp_tx_for_config.lock().await;
@@ -1534,7 +1534,7 @@ pub async fn run_leader(
                             info!("MCP server config change detected — reloading active sessions");
                             let line = internal_reload_request_line(
                                 "config-reload-mcp",
-                                "x.ai/internal/reload_all_mcp_servers",
+                                "axon/internal/reload_all_mcp_servers",
                                 serde_json::json!({}),
                             );
                             let mut tx = acp_tx_for_config.lock().await;
@@ -1557,7 +1557,7 @@ pub async fn run_leader(
                             );
                             let line = internal_reload_request_line(
                                 "config-reload-project-mcp",
-                                "x.ai/internal/reload_project_mcp_servers",
+                                "axon/internal/reload_project_mcp_servers",
                                 serde_json::json!({ "cwd": cwd.to_string_lossy() }),
                             );
                             let mut tx = acp_tx_for_config.lock().await;
@@ -1572,7 +1572,7 @@ pub async fn run_leader(
                             info!("Model config change detected — reloading agent model list");
                             let line = internal_reload_request_line(
                                 "config-reload-models",
-                                "x.ai/internal/reload_models",
+                                "axon/internal/reload_models",
                                 serde_json::json!({}),
                             );
                             let mut tx = acp_tx_for_config.lock().await;
@@ -1582,7 +1582,7 @@ pub async fn run_leader(
                         }
                         ConfigUpdate::ModelsCacheChanged => {
                             // External write to ~/.axon/models_cache.json
-                            // (another grok process fetched a fresher /v1/models
+                            // (another axon process fetched a fresher /v1/models
                             // catalog). Injected into the agent's ACP stream —
                             // NOT applied directly on the manager — so it is
                             // serialized behind any `reload_models` from the
@@ -1598,7 +1598,7 @@ pub async fn run_leader(
                             info!("Models cache change detected — reloading agent model catalog");
                             let line = internal_reload_request_line(
                                 "config-reload-models-cache",
-                                "x.ai/internal/reload_models_cache",
+                                "axon/internal/reload_models_cache",
                                 serde_json::json!({}),
                             );
                             let mut tx = acp_tx_for_config.lock().await;
@@ -1635,7 +1635,7 @@ pub async fn run_leader(
                             info!("UI config change detected by watcher");
                             let notification = serde_json::json!({
                                 "jsonrpc": "2.0",
-                                "method": "x.ai/config_changed",
+                                "method": "axon/config_changed",
                                 "params": {
                                     "section": "ui",
                                     "changes": {
@@ -1714,15 +1714,15 @@ mod tests {
 
     // ===== relay shared-manager seeding tests =====
 
-    fn oidc_session(key: &str, create_time: chrono::DateTime<chrono::Utc>) -> GrokAuth {
-        GrokAuth {
+    fn oidc_session(key: &str, create_time: chrono::DateTime<chrono::Utc>) -> AxonAuth {
+        AxonAuth {
             key: key.into(),
             auth_mode: AuthMode::Oidc,
-            oidc_issuer: Some(crate::auth::XAI_OAUTH2_ISSUER.to_string()),
+            oidc_issuer: Some(crate::auth::AXON_OAUTH2_ISSUER.to_string()),
             refresh_token: Some(format!("rt-{key}")),
             create_time,
             expires_at: Some(create_time + chrono::Duration::minutes(15)),
-            ..GrokAuth::test_default()
+            ..AxonAuth::test_default()
         }
     }
 
@@ -1793,20 +1793,20 @@ mod tests {
     }
 
     /// Relay config pointing at the mock server, built through the only
-    /// constructor (`for_session`) with a relay-eligible x.ai OIDC session.
+    /// constructor (`for_session`) with a relay-eligible blocked.invalid OIDC session.
     fn test_relay_config(addr: std::net::SocketAddr) -> crate::agent::relay::RelayConfig {
-        let auth = GrokAuth {
+        let auth = AxonAuth {
             auth_mode: AuthMode::Oidc,
-            oidc_issuer: Some(crate::auth::XAI_OAUTH2_ISSUER.to_string()),
-            ..GrokAuth::test_default()
+            oidc_issuer: Some(crate::auth::AXON_OAUTH2_ISSUER.to_string()),
+            ..AxonAuth::test_default()
         };
-        let cfg = crate::auth::GrokComConfig {
-            grok_ws_url: format!("ws://{addr}"),
-            grok_ws_origin: format!("http://{addr}"),
+        let cfg = crate::auth::AxonComConfig {
+            axon_ws_url: format!("ws://{addr}"),
+            axon_ws_origin: format!("http://{addr}"),
             ..Default::default()
         };
         crate::agent::relay::RelayConfig::for_session(&auth, &cfg, None, None)
-            .expect("x.ai OIDC session must be relay-eligible")
+            .expect("blocked.invalid OIDC session must be relay-eligible")
     }
 
     /// Wait until at least one relay connection is accepted, or panic.
@@ -1823,7 +1823,7 @@ mod tests {
 
     /// Regression test for the bare-leader relay gating bug: a bare
     /// `axon agent leader` (devbox/systemd — no local IPC clients,
-    /// `relay_on_demand == false`) must connect the grok.com relay eagerly.
+    /// `relay_on_demand == false`) must connect the blocked.invalid relay eagerly.
     /// Remote prompts arrive *through* the relay, so on such a leader no
     /// headless-registration demand signal can ever fire; gating the relay on
     /// it means the agent never registers with the backend ("No online
@@ -1917,13 +1917,13 @@ mod tests {
     fn internal_reload_request_line_uses_wire_ext_prefix() {
         let line = internal_reload_request_line(
             "config-reload-models",
-            "x.ai/internal/reload_models",
+            "axon/internal/reload_models",
             serde_json::json!({}),
         );
         assert!(line.ends_with('\n'), "must be a newline-terminated line");
         let msg: serde_json::Value = serde_json::from_str(line.trim_end()).unwrap();
         assert_eq!(
-            msg["method"], "_x.ai/internal/reload_models",
+            msg["method"], "_axon/internal/reload_models",
             "wire method must carry the `_` ext prefix or the ACP decoder \
              rejects it with method_not_found"
         );
@@ -1933,7 +1933,7 @@ mod tests {
         // Params must pass through verbatim (project-MCP reload carries cwd).
         let line = internal_reload_request_line(
             "config-reload-project-mcp",
-            "x.ai/internal/reload_project_mcp_servers",
+            "axon/internal/reload_project_mcp_servers",
             serde_json::json!({ "cwd": "/repo/x" }),
         );
         let msg: serde_json::Value = serde_json::from_str(line.trim_end()).unwrap();
@@ -1941,11 +1941,11 @@ mod tests {
 
         let line = internal_reload_request_line(
             "config-auth-cleared",
-            "x.ai/internal/auth_cleared",
+            "axon/internal/auth_cleared",
             serde_json::json!({}),
         );
         let msg: serde_json::Value = serde_json::from_str(line.trim_end()).unwrap();
-        assert_eq!(msg["method"], "_x.ai/internal/auth_cleared");
+        assert_eq!(msg["method"], "_axon/internal/auth_cleared");
     }
 
     #[tokio::test]

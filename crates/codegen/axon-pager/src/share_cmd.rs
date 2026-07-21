@@ -14,7 +14,7 @@ pub struct ShareArgs {
 
 pub async fn run(args: &ShareArgs, agent_config: &AgentConfig) -> Result<()> {
     let cancel = CancellationToken::new();
-    let spawned = crate::acp::spawn::spawn_grok_shell(agent_config.clone(), &cancel, None).await?;
+    let spawned = crate::acp::spawn::spawn_axon_shell(agent_config.clone(), &cancel, None).await?;
 
     let _init: acp::InitializeResponse = acp_send(
         acp::InitializeRequest::new(acp::ProtocolVersion::V1)
@@ -38,7 +38,7 @@ pub async fn run(args: &ShareArgs, agent_config: &AgentConfig) -> Result<()> {
     let params = serde_json::value::to_raw_value(&ShareSessionRequest {
         session_id: args.session_id.clone(),
     })?;
-    let ext_req = acp::ExtRequest::new("x.ai/share_session", params.into());
+    let ext_req = acp::ExtRequest::new("axon/share_session", params.into());
 
     let ext_resp: acp::ExtResponse = acp_send(ext_req, &spawned.channel.tx).await?;
     let response: ShareSessionResponse = serde_json::from_str(ext_resp.0.get())?;

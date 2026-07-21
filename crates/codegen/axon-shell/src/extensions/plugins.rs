@@ -1,4 +1,4 @@
-//! `x.ai/plugins/*` extension handlers.
+//! `axon/plugins/*` extension handlers.
 //!
 //! Provides the plugins list endpoint for the pager's hooks/plugins modal.
 
@@ -79,9 +79,9 @@ fn origin_to_dto(origin: &axon_agent::plugins::PluginOrigin) -> PluginOrigin {
     use axon_agent::plugins::PluginOrigin as AgentOrigin;
     match origin {
         AgentOrigin::CliOverride => PluginOrigin::CliOverride,
-        AgentOrigin::ProjectGrok => PluginOrigin::ProjectGrok,
+        AgentOrigin::ProjectAxon => PluginOrigin::ProjectAxon,
         AgentOrigin::ProjectClaude => PluginOrigin::ProjectClaude,
-        AgentOrigin::UserGrok => PluginOrigin::UserGrok,
+        AgentOrigin::UserAxon => PluginOrigin::UserAxon,
         AgentOrigin::UserClaude => PluginOrigin::UserClaude,
         AgentOrigin::ClaudeMarketplace { marketplace } => PluginOrigin::ClaudeMarketplace {
             marketplace: marketplace.clone(),
@@ -132,7 +132,7 @@ fn marketplace_source_label(origin: &PluginOrigin) -> Option<String> {
 
 pub async fn handle(agent: &MvpAgent, args: &acp::ExtRequest) -> ExtResult {
     match args.method.as_ref() {
-        "x.ai/plugins/list" => {
+        "axon/plugins/list" => {
             let req: ListRequest = super::parse_params(args)?;
 
             // A known session answers from its own registry, which includes
@@ -158,7 +158,7 @@ pub async fn handle(agent: &MvpAgent, args: &acp::ExtRequest) -> ExtResult {
             };
             super::to_ext_response(Ok::<_, anyhow::Error>(response))
         }
-        "x.ai/plugins/action" => {
+        "axon/plugins/action" => {
             let req: axon_hooks_plugins_types::PluginsActionRequest = super::parse_params(args)?;
             let sid = acp::SessionId::new(req.session_id);
 
@@ -168,7 +168,7 @@ pub async fn handle(agent: &MvpAgent, args: &acp::ExtRequest) -> ExtResult {
                 .ok_or_else(|| anyhow::anyhow!("session not found"));
             super::to_ext_response(result)
         }
-        "x.ai/plugins/notify-updates" => {
+        "axon/plugins/notify-updates" => {
             // Broadcast a PluginUpdatesInstalled notification to the session.
             #[derive(serde::Deserialize)]
             #[serde(rename_all = "camelCase")]
@@ -233,18 +233,18 @@ mod tests {
     #[test]
     fn info_carries_origin_and_marketplace_display_name() {
         let plugin = make_loaded_plugin(AgentOrigin::MarketplaceInstall {
-            source_name: Some("xAI Official".to_string()),
+            source_name: Some("Axon Official".to_string()),
             git_url: Some("https://example.com/mp.git".to_string()),
         });
         let info = loaded_plugin_to_info(&plugin);
         assert_eq!(
             info.origin,
             Some(PluginOrigin::MarketplaceInstall {
-                source_name: Some("xAI Official".to_string()),
+                source_name: Some("Axon Official".to_string()),
                 git_url: Some("https://example.com/mp.git".to_string()),
             })
         );
-        assert_eq!(info.marketplace_source.as_deref(), Some("xAI Official"));
+        assert_eq!(info.marketplace_source.as_deref(), Some("Axon Official"));
     }
 
     #[test]

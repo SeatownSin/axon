@@ -42,9 +42,9 @@ async fn client_hooks_fire_without_file_registry() {
                 .try_recv()
                 .expect("client hook must fire with no file registry");
             let axon_acp_lib::AcpClientMessage::ExtNotification(args) = msg else {
-                panic!("expected an x.ai/hooks/event ext notification");
+                panic!("expected an blocked.invalid/hooks/event ext notification");
             };
-            assert_eq!(args.request.method.as_ref(), "x.ai/hooks/event");
+            assert_eq!(args.request.method.as_ref(), "axon/hooks/event");
             let params: serde_json::Value =
                 serde_json::from_str(args.request.params.get()).unwrap();
             assert_eq!(params["hookCallbackId"], "cb_0");
@@ -54,7 +54,7 @@ async fn client_hooks_fire_without_file_registry() {
 }
 
 /// The PreToolUse gate blocks a tool when a client hook returns `deny`: the reverse
-/// `x.ai/hooks/run` request is answered with a deny and `run_pre_tool_use_client_hook`
+/// `axon/hooks/run` request is answered with a deny and `run_pre_tool_use_client_hook`
 /// returns `ToolLoop::HookDenied`. Complements the pure `classify` test by covering the
 /// gate wiring (the one new path that can block tool execution).
 #[tokio::test(flavor = "current_thread")]
@@ -79,7 +79,7 @@ async fn pre_tool_use_client_deny_blocks_the_tool() {
             );
             *actor.client_hooks.borrow_mut() = client_hooks;
 
-            // Answer the x.ai/hooks/run reverse request with a deny; ack the UI
+            // Answer the blocked.invalid/hooks/run reverse request with a deny; ack the UI
             // notifications `deny_tool` emits so it can't block the gate.
             tokio::task::spawn_local(async move {
                 while let Some(msg) = gateway_rx.recv().await {
@@ -432,7 +432,7 @@ async fn pre_tool_use_slow_callback_does_not_starve_a_deny() {
 /// dispatch error fires only PostToolUseFailure; a successful dispatch fires only
 /// PostToolUse. Guards the explicitly-hardened no-double-fire path (the PostToolUse
 /// success block routes through `dispatch_hook`, the same as the failure arm). Each
-/// post-tool event is observed as a fire-and-forget `x.ai/hooks/event` notification.
+/// post-tool event is observed as a fire-and-forget `axon/hooks/event` notification.
 #[tokio::test(flavor = "current_thread")]
 async fn post_tool_use_and_failure_never_double_fire() {
     let local = tokio::task::LocalSet::new();
@@ -444,7 +444,7 @@ async fn post_tool_use_and_failure_never_double_fire() {
                 tokio::sync::mpsc::unbounded_channel::<PersistenceMsg>();
             let actor = create_test_actor(0, 256_000, 85, gateway_tx, persistence_tx).await;
             // The agent's tool bridge must know `todo_write` for it to parse + dispatch.
-            *actor.agent.borrow_mut() = test_grok_build_agent_with_todo().await;
+            *actor.agent.borrow_mut() = test_axon_build_agent_with_todo().await;
 
             let mut client_hooks = crate::extensions::hooks::ClientHooks::new();
             for event in [
@@ -462,13 +462,13 @@ async fn post_tool_use_and_failure_never_double_fire() {
             }
             *actor.client_hooks.borrow_mut() = client_hooks;
 
-            // Collect the `hookEventName` of every `x.ai/hooks/event` notification queued.
+            // Collect the `hookEventName` of every `axon/hooks/event` notification queued.
             let drain =
                 |rx: &mut tokio::sync::mpsc::UnboundedReceiver<axon_acp_lib::AcpClientMessage>| {
                     let mut events = Vec::new();
                     while let Ok(msg) = rx.try_recv() {
                         if let axon_acp_lib::AcpClientMessage::ExtNotification(args) = msg
-                            && args.request.method.as_ref() == "x.ai/hooks/event"
+                            && args.request.method.as_ref() == "axon/hooks/event"
                         {
                             let params: serde_json::Value =
                                 serde_json::from_str(args.request.params.get()).unwrap();
@@ -545,7 +545,7 @@ async fn pre_tool_use_deny_feeds_reason_back_and_continues_turn() {
             let actor = create_test_actor(0, 256_000, 85, gateway_tx, persistence_tx).await;
             // The agent's tool bridge must know `todo_write` so it parses + reaches
             // the PreToolUse gate (rather than short-circuiting as an unknown tool).
-            *actor.agent.borrow_mut() = test_grok_build_agent_with_todo().await;
+            *actor.agent.borrow_mut() = test_axon_build_agent_with_todo().await;
 
             let mut client_hooks = crate::extensions::hooks::ClientHooks::new();
             client_hooks.insert(
@@ -558,7 +558,7 @@ async fn pre_tool_use_deny_feeds_reason_back_and_continues_turn() {
             );
             *actor.client_hooks.borrow_mut() = client_hooks;
 
-            // Answer the reverse x.ai/hooks/run request with a deny carrying a reason;
+            // Answer the reverse blocked.invalid/hooks/run request with a deny carrying a reason;
             // ack the UI notifications `deny_tool` emits so it can't block the gate.
             tokio::task::spawn_local(async move {
                 while let Some(msg) = gateway_rx.recv().await {

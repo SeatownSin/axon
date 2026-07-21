@@ -80,7 +80,7 @@ impl ContentController {
     /// Mirrors `axon_test_support::env::test_env_cmd_tokio`.
     pub fn env_for_pager(&self) -> Vec<(String, String)> {
         let home = self.home.path().to_string_lossy().into_owned();
-        let grok_home = self
+        let axon_home = self
             .home
             .path()
             .join(".axon")
@@ -91,10 +91,10 @@ impl ContentController {
             // Explicit AXON_HOME prevents leaking the real user's
             // config.toml when $HOME alone isn't sufficient (e.g. if
             // AXON_HOME is set in the test runner's env).
-            ("AXON_HOME".into(), grok_home),
+            ("AXON_HOME".into(), axon_home),
             ("AXON_CLI_CHAT_PROXY_BASE_URL".into(), self.url()),
-            ("AXON_XAI_API_BASE_URL".into(), self.url()),
-            ("XAI_API_KEY".into(), "test-key-for-ci".into()),
+            ("AXON_AXON_API_BASE_URL".into(), self.url()),
+            ("AXON_API_KEY".into(), "test-key-for-ci".into()),
             ("AXON_TELEMETRY_ENABLED".into(), "false".into()),
             ("AXON_FEEDBACK_ENABLED".into(), "false".into()),
             ("AXON_TRACE_UPLOAD".into(), "false".into()),
@@ -219,7 +219,7 @@ mod tests {
 
     /// The pre-delegation mock always served 200 `{"allow_access": true}`;
     /// the shared server defaults to 404-until-set. A 404 strands the pager
-    /// on the SuperGrok upsell screen and breaks every PTY test.
+    /// on the SuperAxon upsell screen and breaks every PTY test.
     #[tokio::test]
     async fn settings_endpoint_allows_access_by_default() {
         let content = ContentController::start().await.unwrap();
@@ -288,8 +288,8 @@ mod tests {
             content.home().join(".axon").to_str()
         );
         assert_eq!(get("AXON_CLI_CHAT_PROXY_BASE_URL"), Some(content.url()));
-        assert_eq!(get("AXON_XAI_API_BASE_URL"), Some(content.url()));
-        assert_eq!(get("XAI_API_KEY").as_deref(), Some("test-key-for-ci"));
+        assert_eq!(get("AXON_AXON_API_BASE_URL"), Some(content.url()));
+        assert_eq!(get("AXON_API_KEY").as_deref(), Some("test-key-for-ci"));
         assert_eq!(get("AXON_TELEMETRY_ENABLED").as_deref(), Some("false"));
         assert_eq!(get("AXON_FEEDBACK_ENABLED").as_deref(), Some("false"));
         assert_eq!(get("AXON_TRACE_UPLOAD").as_deref(), Some("false"));

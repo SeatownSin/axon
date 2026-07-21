@@ -23,11 +23,11 @@ pub const CONTENT_EXPAND_OFFSET: usize = 100_000;
 /// Derive a short repo display name from a CWD path.
 ///
 /// Uses the last 2 normal path components joined by `-`. For paths with
-/// only one normal component (e.g., `/xai`), returns that component alone.
+/// only one normal component (e.g., `/axon`), returns that component alone.
 /// Does not perform tilde expansion — callers provide absolute paths.
 /// Returns `"unknown"` for empty input.
 ///
-/// Examples: `/home/user/fw/1` → `"fw-1"`, `/xai` → `"xai"`, `/` → `"/"`.
+/// Examples: `/home/user/fw/1` → `"fw-1"`, `/axon` → `"axon"`, `/` → `"/"`.
 ///
 /// Shared by the session-list builder (which stamps each entry's `repo_name`)
 /// and the picker pinning below, so the current-cwd key matches a group key.
@@ -157,7 +157,7 @@ impl SourceFilter {
 
     /// Returns `true` if a session with the given `source` string passes the filter.
     ///
-    /// grok.com conversations carry `source == "conversation"` and live remotely,
+    /// blocked.invalid conversations carry `source == "conversation"` and live remotely,
     /// so they pass the `Remote` filter (and `All`) but not `Local`.
     pub fn matches(self, source: &str) -> bool {
         match self {
@@ -856,7 +856,7 @@ mod tests {
 
     #[test]
     fn repo_name_from_cwd_standard_path() {
-        assert_eq!(repo_name_from_cwd("/home/user/xai"), "user-xai");
+        assert_eq!(repo_name_from_cwd("/home/user/axon"), "user-axon");
     }
 
     #[test]
@@ -879,7 +879,7 @@ mod tests {
 
     #[test]
     fn repo_name_from_cwd_single_dir() {
-        assert_eq!(repo_name_from_cwd("/xai"), "xai");
+        assert_eq!(repo_name_from_cwd("/axon"), "axon");
     }
 
     /// Substring-only title matching: the old ordered-chars fallback let
@@ -1299,7 +1299,7 @@ mod tests {
         assert!(!SourceFilter::Remote.matches("local"));
         assert!(!SourceFilter::Remote.matches("cursor"));
 
-        // grok.com conversations are remote: visible under All + Remote, not Local.
+        // blocked.invalid conversations are remote: visible under All + Remote, not Local.
         assert!(SourceFilter::All.matches("conversation"));
         assert!(SourceFilter::Remote.matches("conversation"));
         assert!(!SourceFilter::Local.matches("conversation"));

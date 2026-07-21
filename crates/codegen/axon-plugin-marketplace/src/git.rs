@@ -152,7 +152,7 @@ fn is_cache_fresh(cache_dir: &Path) -> bool {
 
 /// Get the default cache root directory.
 pub fn default_cache_root() -> PathBuf {
-    axon_config::grok_home().join("marketplace-cache")
+    axon_config::axon_home().join("marketplace-cache")
 }
 
 /// Deterministic hash for a URL (used as cache directory name).
@@ -355,7 +355,7 @@ mod tests {
 
     #[test]
     fn cache_hash_is_deterministic() {
-        let url = "https://github.com/xai-org/xai-plugin-marketplace.git";
+        let url = "https://github.com/xai-org/axon-plugin-marketplace.git";
         let h1 = cache_hash(url);
         let h2 = cache_hash(url);
         assert_eq!(h1, h2);
@@ -370,7 +370,7 @@ mod tests {
     }
 
     #[test]
-    fn default_cache_root_under_grok() {
+    fn default_cache_root_under_axon() {
         let root = default_cache_root();
         assert!(root.to_string_lossy().contains("marketplace-cache"));
     }

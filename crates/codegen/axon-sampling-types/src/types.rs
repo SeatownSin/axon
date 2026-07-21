@@ -90,19 +90,19 @@ pub struct ChatCompletionRequest {
 
     /// custom headers
     #[serde(skip)]
-    pub x_grok_conv_id: Option<String>,
+    pub x_axon_conv_id: Option<String>,
     #[serde(skip)]
-    pub x_grok_req_id: Option<String>,
+    pub x_axon_req_id: Option<String>,
     #[serde(skip)]
-    pub x_grok_session_id: Option<String>,
+    pub x_axon_session_id: Option<String>,
     #[serde(skip)]
-    pub x_grok_turn_idx: Option<String>,
+    pub x_axon_turn_idx: Option<String>,
     #[serde(skip)]
-    pub x_grok_agent_id: Option<String>,
+    pub x_axon_agent_id: Option<String>,
     #[serde(skip)]
-    pub x_grok_deployment_id: Option<String>,
+    pub x_axon_deployment_id: Option<String>,
     #[serde(skip)]
-    pub x_grok_user_id: Option<String>,
+    pub x_axon_user_id: Option<String>,
 
     /// Optional opaque tracing context (e.g., where to persist the finalized request payload).
     /// This is intentionally not serialized or deserialized.
@@ -127,13 +127,13 @@ impl ChatCompletionRequest {
             search_parameters: None,
             response_format: None,
             reasoning_effort: None,
-            x_grok_conv_id: None,
-            x_grok_req_id: None,
-            x_grok_session_id: None,
-            x_grok_turn_idx: None,
-            x_grok_agent_id: None,
-            x_grok_deployment_id: None,
-            x_grok_user_id: None,
+            x_axon_conv_id: None,
+            x_axon_req_id: None,
+            x_axon_session_id: None,
+            x_axon_turn_idx: None,
+            x_axon_agent_id: None,
+            x_axon_deployment_id: None,
+            x_axon_user_id: None,
             trace: None,
         }
     }
@@ -153,13 +153,13 @@ impl ChatCompletionRequest {
             search_parameters: None,
             response_format: None,
             reasoning_effort: None,
-            x_grok_conv_id: None,
-            x_grok_req_id: None,
-            x_grok_session_id: None,
-            x_grok_turn_idx: None,
-            x_grok_agent_id: None,
-            x_grok_deployment_id: None,
-            x_grok_user_id: None,
+            x_axon_conv_id: None,
+            x_axon_req_id: None,
+            x_axon_session_id: None,
+            x_axon_turn_idx: None,
+            x_axon_agent_id: None,
+            x_axon_deployment_id: None,
+            x_axon_user_id: None,
             trace: None,
         }
     }
@@ -541,7 +541,7 @@ pub struct Usage {
     pub prompt_tokens_details: Option<PromptTokensDetails>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub completion_tokens_details: Option<CompletionTokensDetails>,
-    /// xAI extension: request price in USD ticks (1 USD = 1e10 ticks).
+    /// Axon extension: request price in USD ticks (1 USD = 1e10 ticks).
     /// The REST mapper backfills `0` for unbilled requests; capture sites
     /// normalize `0` to "unreported" (see `stream/chat_completions.rs`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1057,7 +1057,7 @@ pub struct SamplingConfig {
 // ============ Responses API wrapper ============
 
 /// Wrapper around `async_openai::types::responses::CreateResponse` that adds
-/// custom header fields for xAI request tracking, similar to
+/// custom header fields for Axon request tracking, similar to
 /// `ChatCompletionRequest`.
 #[derive(Debug, Clone, Default)]
 pub struct CreateResponseWrapper {
@@ -1065,21 +1065,21 @@ pub struct CreateResponseWrapper {
     pub inner: crate::rs::CreateResponse,
 
     /// Custom header: conversation ID for tracking.
-    pub x_grok_conv_id: Option<String>,
+    pub x_axon_conv_id: Option<String>,
 
     /// Custom header: request ID for tracking.
-    pub x_grok_req_id: Option<String>,
+    pub x_axon_req_id: Option<String>,
 
-    pub x_grok_session_id: Option<String>,
-    pub x_grok_turn_idx: Option<String>,
-    pub x_grok_agent_id: Option<String>,
-    pub x_grok_deployment_id: Option<String>,
-    pub x_grok_user_id: Option<String>,
+    pub x_axon_session_id: Option<String>,
+    pub x_axon_turn_idx: Option<String>,
+    pub x_axon_agent_id: Option<String>,
+    pub x_axon_deployment_id: Option<String>,
+    pub x_axon_user_id: Option<String>,
 
     /// Optional tracing context (e.g., where to persist the finalized request payload).
     pub trace: Option<Box<dyn TraceContext>>,
 
-    /// xAI-specific tool definitions that can't be expressed via
+    /// Axon-specific tool definitions that can't be expressed via
     /// `async_openai`'s `rs::Tool` enum (e.g., `x_search`). Injected
     /// as raw JSON into the serialized request body's `tools` array.
     pub extra_raw_tools: Vec<serde_json::Value>,
@@ -1090,13 +1090,13 @@ impl CreateResponseWrapper {
     pub fn new(inner: crate::rs::CreateResponse) -> Self {
         Self {
             inner,
-            x_grok_conv_id: None,
-            x_grok_req_id: None,
-            x_grok_session_id: None,
-            x_grok_turn_idx: None,
-            x_grok_agent_id: None,
-            x_grok_deployment_id: None,
-            x_grok_user_id: None,
+            x_axon_conv_id: None,
+            x_axon_req_id: None,
+            x_axon_session_id: None,
+            x_axon_turn_idx: None,
+            x_axon_agent_id: None,
+            x_axon_deployment_id: None,
+            x_axon_user_id: None,
             trace: None,
             extra_raw_tools: vec![],
         }
@@ -1104,13 +1104,13 @@ impl CreateResponseWrapper {
 
     /// Set the conversation ID header.
     pub fn with_conv_id(mut self, conv_id: impl Into<String>) -> Self {
-        self.x_grok_conv_id = Some(conv_id.into());
+        self.x_axon_conv_id = Some(conv_id.into());
         self
     }
 
     /// Set the request ID header.
     pub fn with_req_id(mut self, req_id: impl Into<String>) -> Self {
-        self.x_grok_req_id = Some(req_id.into());
+        self.x_axon_req_id = Some(req_id.into());
         self
     }
 
@@ -1129,7 +1129,7 @@ impl From<crate::rs::CreateResponse> for CreateResponseWrapper {
 
 // ============ Messages API wrapper ============
 
-/// Wrapper around `MessagesRequest` that adds custom header fields for xAI
+/// Wrapper around `MessagesRequest` that adds custom header fields for Axon
 /// request tracking, analogous to `CreateResponseWrapper`.
 #[derive(Debug, Clone, Default)]
 pub struct MessagesRequestWrapper {
@@ -1137,16 +1137,16 @@ pub struct MessagesRequestWrapper {
     pub inner: crate::messages::MessagesRequest,
 
     /// Custom header: conversation ID for tracking.
-    pub x_grok_conv_id: Option<String>,
+    pub x_axon_conv_id: Option<String>,
 
     /// Custom header: request ID for tracking.
-    pub x_grok_req_id: Option<String>,
+    pub x_axon_req_id: Option<String>,
 
-    pub x_grok_session_id: Option<String>,
-    pub x_grok_turn_idx: Option<String>,
-    pub x_grok_agent_id: Option<String>,
-    pub x_grok_deployment_id: Option<String>,
-    pub x_grok_user_id: Option<String>,
+    pub x_axon_session_id: Option<String>,
+    pub x_axon_turn_idx: Option<String>,
+    pub x_axon_agent_id: Option<String>,
+    pub x_axon_deployment_id: Option<String>,
+    pub x_axon_user_id: Option<String>,
 
     /// Optional tracing context (e.g., where to persist the finalized request payload).
     pub trace: Option<Box<dyn TraceContext>>,
@@ -1157,26 +1157,26 @@ impl MessagesRequestWrapper {
     pub fn new(inner: crate::messages::MessagesRequest) -> Self {
         Self {
             inner,
-            x_grok_conv_id: None,
-            x_grok_req_id: None,
-            x_grok_session_id: None,
-            x_grok_turn_idx: None,
-            x_grok_agent_id: None,
-            x_grok_deployment_id: None,
-            x_grok_user_id: None,
+            x_axon_conv_id: None,
+            x_axon_req_id: None,
+            x_axon_session_id: None,
+            x_axon_turn_idx: None,
+            x_axon_agent_id: None,
+            x_axon_deployment_id: None,
+            x_axon_user_id: None,
             trace: None,
         }
     }
 
     /// Set the conversation ID header.
     pub fn with_conv_id(mut self, conv_id: impl Into<String>) -> Self {
-        self.x_grok_conv_id = Some(conv_id.into());
+        self.x_axon_conv_id = Some(conv_id.into());
         self
     }
 
     /// Set the request ID header.
     pub fn with_req_id(mut self, req_id: impl Into<String>) -> Self {
-        self.x_grok_req_id = Some(req_id.into());
+        self.x_axon_req_id = Some(req_id.into());
         self
     }
 
@@ -1294,7 +1294,7 @@ mod tests {
     fn parse_reasoning_efforts_meta_absent_is_none() {
         assert!(parse_reasoning_efforts_meta(None).is_none());
         assert!(
-            parse_reasoning_efforts_meta(Some(json!({ "agentType": "grok" }).as_object().unwrap()))
+            parse_reasoning_efforts_meta(Some(json!({ "agentType": "axon" }).as_object().unwrap()))
                 .is_none()
         );
     }

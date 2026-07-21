@@ -61,27 +61,27 @@ const BUNDLED_SKILLS: &[(&str, &str)] = &[
 ];
 
 /// True when a discovered skill is the copy `extract_bundled_files` wrote to
-/// `<grok_home>/skills/<name>/SKILL.md`. Exact-path (not prefix) so a
+/// `<axon_home>/skills/<name>/SKILL.md`. Exact-path (not prefix) so a
 /// user-authored skill that reuses a bundled name — even elsewhere under
-/// `<grok_home>/skills/` — is never labeled bundled. Lives beside the
+/// `<axon_home>/skills/` — is never labeled bundled. Lives beside the
 /// extraction code so the target layout and this predicate move together.
 /// Used by inspect, which otherwise sees extracted copies as user skills.
 pub(crate) fn is_extracted_bundled_skill(
     name: &str,
     path: &std::path::Path,
-    grok_home: &std::path::Path,
+    axon_home: &std::path::Path,
 ) -> bool {
     BUNDLED_SKILLS.iter().any(|&(n, _)| n == name)
-        && path == grok_home.join("skills").join(name).join("SKILL.md")
+        && path == axon_home.join("skills").join(name).join("SKILL.md")
 }
 
 /// Resolve the content for a skill, applying any name-specific transforms.
-fn resolve_skill_content(name: &str, raw: &str, grok_home: &std::path::Path) -> String {
+fn resolve_skill_content(name: &str, raw: &str, axon_home: &std::path::Path) -> String {
     match name {
         // Help skill needs path substitution so absolute paths work.
         "help" => {
-            let grok_home_str = format!("{}/", grok_home.to_string_lossy());
-            raw.replace("~/.axon/", &grok_home_str)
+            let axon_home_str = format!("{}/", axon_home.to_string_lossy());
+            raw.replace("~/.axon/", &axon_home_str)
         }
         _ => raw.to_string(),
     }
@@ -96,44 +96,44 @@ fn resolve_skill_content(name: &str, raw: &str, grok_home: &std::path::Path) -> 
 /// Legacy/renamed bundled skills (see `LEGACY_BUNDLED_SKILL_NAMES`) are
 /// always cleaned up first so that old slash commands disappear after
 /// a rename (e.g. the previous `/check` after the move to `/check-work`).
-pub fn extract_bundled_files(grok_home: &std::path::Path) {
+pub fn extract_bundled_files(axon_home: &std::path::Path) {
     // Always remove legacy/renamed bundled skills first (e.g. the old
     // `check` directory after the rename to `check-work`). This runs on
     // every startup so users get cleaned up even without hitting a
     // version-bump marker change.
-    remove_legacy_bundled_skills(grok_home);
+    remove_legacy_bundled_skills(axon_home);
 
     let version = axon_version::VERSION;
-    let marker = grok_home.join(".metadata_version");
+    let marker = axon_home.join(".metadata_version");
 
     if let Ok(existing) = std::fs::read_to_string(&marker)
         && existing.trim() == version
     {
         // Same version — only extract skill files that are missing on disk.
         // This handles skills added between version bumps.
-        extract_missing_skills(grok_home);
+        extract_missing_skills(axon_home);
         return;
     }
 
-    let _ = std::fs::create_dir_all(grok_home);
+    let _ = std::fs::create_dir_all(axon_home);
 
     // Clean up cached changelog files from previous version so
     // /release-notes fetches fresh content for the new version.
     for stale in &["CHANGELOG.json", "CHANGELOG.md"] {
-        let _ = std::fs::remove_file(grok_home.join(stale));
+        let _ = std::fs::remove_file(axon_home.join(stale));
     }
 
     for &(filename, content) in BUNDLED_FILES {
-        if let Err(e) = std::fs::write(grok_home.join(filename), content) {
+        if let Err(e) = std::fs::write(axon_home.join(filename), content) {
             tracing::debug!(error = %e, filename, "Failed to extract bundled file");
         }
     }
 
     // Skill SKILL.md files.
     for &(name, raw) in BUNDLED_SKILLS {
-        let skill_dir = grok_home.join("skills").join(name);
+        let skill_dir = axon_home.join("skills").join(name);
         let _ = std::fs::create_dir_all(&skill_dir);
-        let content = resolve_skill_content(name, raw, grok_home);
+        let content = resolve_skill_content(name, raw, axon_home);
         if let Err(e) = std::fs::write(skill_dir.join("SKILL.md"), content) {
             tracing::debug!(error = %e, name, "Failed to write skill");
         }
@@ -145,14 +145,14 @@ pub fn extract_bundled_files(grok_home: &std::path::Path) {
 
 /// Extract only missing skill SKILL.md files (same-version fast path).
 /// Iterates `BUNDLED_SKILLS` so adding a new skill there is sufficient.
-fn extract_missing_skills(grok_home: &std::path::Path) {
+fn extract_missing_skills(axon_home: &std::path::Path) {
     for &(name, raw) in BUNDLED_SKILLS {
-        let skill_md = grok_home.join("skills").join(name).join("SKILL.md");
+        let skill_md = axon_home.join("skills").join(name).join("SKILL.md");
         if skill_md.exists() {
             continue;
         }
         let _ = std::fs::create_dir_all(skill_md.parent().unwrap());
-        let content = resolve_skill_content(name, raw, grok_home);
+        let content = resolve_skill_content(name, raw, axon_home);
         let _ = std::fs::write(&skill_md, content);
     }
 }
@@ -166,13 +166,13 @@ fn extract_missing_skills(grok_home: &std::path::Path) {
 /// - If a name is still present in `BUNDLED_SKILLS`, we deliberately skip
 ///   deletion. This allows safe re-use of a skill name in the future.
 /// - If the target directory no longer exists, this is a trivial no-op.
-fn remove_legacy_bundled_skills(grok_home: &std::path::Path) {
-    remove_legacy_skills(grok_home, LEGACY_BUNDLED_SKILL_NAMES, BUNDLED_SKILLS);
+fn remove_legacy_bundled_skills(axon_home: &std::path::Path) {
+    remove_legacy_skills(axon_home, LEGACY_BUNDLED_SKILL_NAMES, BUNDLED_SKILLS);
 }
 
 /// Core implementation, extracted for testability.
 fn remove_legacy_skills(
-    grok_home: &std::path::Path,
+    axon_home: &std::path::Path,
     legacy_names: &[&str],
     bundled_skills: &[(&str, &str)],
 ) {
@@ -184,7 +184,7 @@ fn remove_legacy_skills(
             continue;
         }
 
-        let dir = grok_home.join("skills").join(name);
+        let dir = axon_home.join("skills").join(name);
         if dir.exists() {
             if let Err(e) = std::fs::remove_dir_all(&dir) {
                 tracing::debug!(error = %e, name, "Failed to remove legacy bundled skill");

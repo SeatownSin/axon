@@ -468,7 +468,7 @@ impl SessionActor {
 
             // Append a RewindMarker to updates.jsonl so the replay pipeline can
             // handle timeline branching (updates.jsonl is append-only).
-            self.persist_xai_update_only(XaiSessionUpdate::RewindMarker {
+            self.persist_axon_update_only(AxonSessionUpdate::RewindMarker {
                 target_prompt_index: target_index,
                 created_at: chrono::Utc::now().to_rfc3339(),
             });
@@ -525,7 +525,7 @@ impl SessionActor {
             .send(PersistenceMsg::MergeRewindPointsFrom { target_index });
     }
 
-    /// Out-of-band history repair (`x.ai/session/repair`) for a resident
+    /// Out-of-band history repair (`axon/session/repair`) for a resident
     /// session: run `axon_chat_state::compaction_utils::repair_history` inside
     /// the chat-state actor, then flush persistence so `chat_history.jsonl`
     /// is rewritten on disk before the caller sees success.

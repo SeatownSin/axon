@@ -2795,7 +2795,7 @@ mod tests {
     fn entry_label_includes_meta() {
         let mut info = make_info();
         info.persona = Some("researcher".into());
-        info.model = Some("grok-3".into());
+        info.model = Some("axon-3".into());
         let entry = TaskEntry::from_subagent(&info);
         let label = match &entry {
             TaskEntry::Agent { label, .. } => label.as_str(),
@@ -2806,7 +2806,7 @@ mod tests {
             "label should contain capitalized persona: {label}",
         );
         assert!(
-            label.contains("grok-3"),
+            label.contains("axon-3"),
             "label should contain model: {label}",
         );
     }

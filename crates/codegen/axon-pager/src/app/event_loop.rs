@@ -90,7 +90,7 @@ struct ReinitOutcome {
 struct AgentLoadOutcome {
     agent_id: super::agent::AgentId,
     success: bool,
-    /// `x.ai/runningPromptId` from the reload response: the turn another
+    /// `axon/runningPromptId` from the reload response: the turn another
     /// client is driving mid-reconnect, adopted at finalize (mirrors the
     /// `SessionLoaded` adoption in `dispatch.rs`).
     running_prompt_id: Option<String>,
@@ -889,12 +889,12 @@ pub(crate) async fn run(
                 crate::acp::AuthStartMode::Command => super::app_view::AuthMode::Command,
             };
         } else {
-            // --force-login: find the grok.com method from the advertised list
-            let grok_com = connection
+            // --force-login: find the blocked.invalid method from the advertised list
+            let axon_com = connection
                 .auth_methods
                 .iter()
-                .find(|m| m.id().0.as_ref() == "grok.com");
-            if let Some(method) = grok_com {
+                .find(|m| m.id().0.as_ref() == "blocked.invalid");
+            if let Some(method) = axon_com {
                 app.login_label = Some(method.name().to_string());
                 app.login_method_id = Some(method.id().clone());
                 let is_provider = method
@@ -909,7 +909,7 @@ pub(crate) async fn run(
                     super::app_view::AuthMode::Pending
                 };
             } else {
-                // No grok.com method available, use the first method as fallback
+                // No blocked.invalid method available, use the first method as fallback
                 let first = &connection.auth_methods[0];
                 app.login_label = Some(first.name().to_string());
                 app.login_method_id = Some(first.id().clone());
@@ -921,7 +921,7 @@ pub(crate) async fn run(
         // by reusing dispatch_login. Effects are stashed and drained after
         // the initial render so the user sees the auth UI right away.
         // Empty auth_methods (preferred_method pin with no credentials) is
-        // fail-closed: do not invent grok.com / auto-start OIDC.
+        // fail-closed: do not invent blocked.invalid / auto-start OIDC.
         tracing::info!(
             method_id = ?app.login_method_id,
             methods_empty = connection.auth_methods.is_empty(),
@@ -955,7 +955,7 @@ pub(crate) async fn run(
     } else {
         // No cached session — check if the API key is the active credential.
         app.is_api_key_auth = app.auth_methods.iter().any(|m| {
-            m.id().0.as_ref() == axon_shell::agent::auth_method::XAI_API_KEY_METHOD_ID
+            m.id().0.as_ref() == axon_shell::agent::auth_method::AXON_API_KEY_METHOD_ID
         });
         // No AuthMeta on this path — hide `/usage` for API keys.
         if app.is_api_key_auth {
@@ -1023,16 +1023,16 @@ pub(crate) async fn run(
         );
         if let Some(table) = raw.as_table() {
             // Voice inherits the same resolved endpoints base as chat
-            // (config > AXON_XAI_API_BASE_URL env > default).
+            // (config > AXON_AXON_API_BASE_URL env > default).
             let endpoints_base =
                 axon_shell::agent::config::EndpointsConfig::from_config_value(raw)
-                    .xai_api_base_url;
+                    .axon_api_base_url;
             app.voice_config =
                 axon_voice::VoiceConfig::from_config_table(table, Some(&endpoints_base));
         }
     }
     // Stamp request-identity headers so the STT handshake attributes voice usage
-    // to grok-cli server-side (mirrors sampler / imagine). Done after
+    // to axon-cli server-side (mirrors sampler / imagine). Done after
     // `from_config_table` — which yields a fresh config with these
     // `#[serde(skip)]` fields defaulted to empty — and unconditionally, so they
     // apply even when there is no `[voice]` table (or no config at all).
@@ -1116,8 +1116,8 @@ pub(crate) async fn run(
         );
 
         if !app.tips.is_empty() {
-            let grok_home = axon_tools::util::grok_home::grok_home();
-            app.tip = axon_shell::util::tips::pick_and_advance(&app.tips, &grok_home);
+            let axon_home = axon_tools::util::axon_home::axon_home();
+            app.tip = axon_shell::util::tips::pick_and_advance(&app.tips, &axon_home);
         }
     }
 
@@ -1498,9 +1498,9 @@ pub(crate) async fn run(
         if process_effects(effs, &mut tasks, &mut app, &progress_tx) {
             return Ok(make_run_result(&app));
         }
-        // Billing prefetch removed: it queried xAI account APIs, which
+        // Billing prefetch removed: it queried Axon account APIs, which
         // this build never contacts.
-        // Startup changelog prefetch removed: it pulled x.ai on every
+        // Startup changelog prefetch removed: it pulled blocked.invalid on every
         // launch. `/release-notes` still fetches on demand.
         if !app.has_access() {
             gate_poll_at = Some(Instant::now() + GATE_POLL_INTERVAL);
@@ -1782,7 +1782,7 @@ pub(crate) async fn run(
             } else if app.voice_cmd_tx.is_none() {
                 app.voice_state = VoiceState::Idle;
                 app.voice_ui_active = false;
-                app.show_toast("Voice pipeline could not start — restart grok");
+                app.show_toast("Voice pipeline could not start — restart axon");
             } else {
                 // Defensive: a queued start with the pipeline already up (which
                 // shouldn't occur) — drop it so we don't re-enter every tick.

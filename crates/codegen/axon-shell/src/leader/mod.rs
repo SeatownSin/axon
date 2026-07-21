@@ -1,4 +1,4 @@
-//! Leader-follower IPC architecture for grok-shell.
+//! Leader-follower IPC architecture for axon-shell.
 //!
 //! This module implements a single-leader-per-machine architecture where one leader
 //! process manages the agent state while multiple clients (TUI, IDE extensions, headless)
@@ -40,7 +40,7 @@
 //! // Connect to existing leader or spawn a new one
 //! let caps = ClientCapabilities {
 //!     yolo_mode: true,
-//!     default_model: Some("grok-3-fast".to_string()),
+//!     default_model: Some("axon-3-fast".to_string()),
 //! };
 //! let conn = connect_or_spawn("my-client", ClientMode::Stdio, &env_urls, caps).await?;
 //!
@@ -57,7 +57,7 @@ mod server;
 #[cfg(test)]
 pub(crate) mod test_support;
 mod transport;
-use crate::env::GrokBuildEnvironment;
+use crate::env::AxonBuildEnvironment;
 pub use client::{ClientError, DisconnectReason, LeaderClient, LeaderRegistration};
 pub use lock::{
     LEADER_SOCKET_ENV, LeaderLock, LockError, compute_ws_url_suffix, lock_path_for_ws_url,
@@ -115,8 +115,8 @@ const RECONNECT_MAX_ATTEMPTS_BOUNDED: u32 = 5;
 /// These are resolved from the environment (--dev flag) before spawning.
 #[derive(Debug, Clone)]
 pub struct LeaderEnvUrls {
-    pub grok_ws_url: String,
-    pub grok_ws_origin: String,
+    pub axon_ws_url: String,
+    pub axon_ws_origin: String,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -178,7 +178,7 @@ pub struct LeaderDescriptor {
     pub socket_path: Option<PathBuf>,
     pub ws_url_suffix: String,
     pub classification: LeaderDiscoveryState,
-    pub environment: Option<GrokBuildEnvironment>,
+    pub environment: Option<AxonBuildEnvironment>,
     pub live_info: Option<LiveLeaderInfo>,
     pub target_error: Option<LeaderTargetErrorCode>,
 }
@@ -202,19 +202,19 @@ impl LeaderTargetSelection {
 }
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LeaderTarget {
-    Environment(GrokBuildEnvironment),
+    Environment(AxonBuildEnvironment),
     WsUrl(String),
     Pid(u32),
 }
-fn known_environment_for_ws_url(ws_url: &str) -> Option<GrokBuildEnvironment> {
-    let environments: &[GrokBuildEnvironment] = &[GrokBuildEnvironment::Production];
+fn known_environment_for_ws_url(ws_url: &str) -> Option<AxonBuildEnvironment> {
+    let environments: &[AxonBuildEnvironment] = &[AxonBuildEnvironment::Production];
     environments
         .iter()
         .copied()
         .find(|environment| environment.relay_ws_url() == ws_url)
 }
 fn environment_target_matches_descriptor(
-    environment: GrokBuildEnvironment,
+    environment: AxonBuildEnvironment,
     descriptor: &LeaderDescriptor,
 ) -> bool {
     descriptor.environment == Some(environment)
@@ -222,8 +222,8 @@ fn environment_target_matches_descriptor(
 fn ws_url_target_matches_descriptor(ws_url: &str, descriptor: &LeaderDescriptor) -> bool {
     descriptor.ws_url_suffix == compute_ws_url_suffix(ws_url)
 }
-fn known_environment_for_suffix(ws_url_suffix: &str) -> Option<GrokBuildEnvironment> {
-    let environments: &[GrokBuildEnvironment] = &[GrokBuildEnvironment::Production];
+fn known_environment_for_suffix(ws_url_suffix: &str) -> Option<AxonBuildEnvironment> {
+    let environments: &[AxonBuildEnvironment] = &[AxonBuildEnvironment::Production];
     environments
         .iter()
         .copied()
@@ -256,7 +256,7 @@ fn build_live_leader_info(payload: ControlPayload) -> Result<LiveLeaderInfo, Lea
 async fn fetch_live_leader_info(socket_path: &Path) -> Result<LiveLeaderInfo, LeaderTargetError> {
     let client = LeaderClient::connect(
         socket_path.to_path_buf(),
-        "grok-leader-discovery",
+        "axon-leader-discovery",
         ClientMode::Stdio,
         ClientCapabilities::default(),
     )
@@ -510,7 +510,7 @@ async fn discover_leaders_in(root: &Path) -> Vec<LeaderDescriptor> {
     entries
 }
 pub async fn discover_leaders() -> Vec<LeaderDescriptor> {
-    discover_leaders_in(&crate::util::grok_home::grok_home()).await
+    discover_leaders_in(&crate::util::axon_home::axon_home()).await
 }
 /// (pid, leader_binary_version) of socket-verified (Reachable) leaders; a
 /// stale-lock-only descriptor is skipped (its `pid_from_lock` may be recycled).
@@ -759,11 +759,11 @@ pub async fn resolve_leader_target(
     let leaders = discover_leaders().await;
     resolve_target_from_descriptors(target, leaders)
 }
-impl From<&crate::auth::GrokComConfig> for LeaderEnvUrls {
-    fn from(c: &crate::auth::GrokComConfig) -> Self {
+impl From<&crate::auth::AxonComConfig> for LeaderEnvUrls {
+    fn from(c: &crate::auth::AxonComConfig) -> Self {
         Self {
-            grok_ws_url: c.grok_ws_url.clone(),
-            grok_ws_origin: c.grok_ws_origin.clone(),
+            axon_ws_url: c.axon_ws_url.clone(),
+            axon_ws_origin: c.axon_ws_origin.clone(),
         }
     }
 }
@@ -910,7 +910,7 @@ impl ReconnectPolicy {
 /// ```ignore
 /// let (status_tx, status_rx) = LeaderReconnector::status_channel();
 /// let reconnector = LeaderReconnector::new(
-///     "grok-tui", ClientMode::Stdio, env_urls, caps, status_tx,
+///     "axon-tui", ClientMode::Stdio, env_urls, caps, status_tx,
 /// );
 ///
 /// // When connection dies:
@@ -1193,12 +1193,12 @@ async fn evict_leader(conn: LeaderConnection, lock: &LeaderLock) {
 /// 3. If lock acquired, we are responsible for spawning the leader
 /// 4. If lock not acquired, another process is leader/spawning - wait and retry
 ///
-/// The `env_urls.grok_ws_url` determines which leader instance to connect to.
+/// The `env_urls.axon_ws_url` determines which leader instance to connect to.
 /// Different WS URLs get different leader processes (via hashed socket paths).
 ///
 /// # Arguments
 ///
-/// * `client_type` - Identifier for the client type (e.g., "grok-tui", "vscode")
+/// * `client_type` - Identifier for the client type (e.g., "axon-tui", "vscode")
 /// * `mode` - Communication mode (Stdio or Headless)
 /// * `env_urls` - Environment URLs for the leader subprocess
 /// * `capabilities` - Client capabilities (e.g., yolo_mode) to register with the leader
@@ -1209,7 +1209,7 @@ pub async fn connect_or_spawn(
     capabilities: ClientCapabilities,
 ) -> Result<LeaderConnection, ConnectionError> {
     let start = std::time::Instant::now();
-    let mut lock = LeaderLock::new(&env_urls.grok_ws_url);
+    let mut lock = LeaderLock::new(&env_urls.axon_ws_url);
     let sock_path = lock.socket_path().clone();
     let mut replacing_stale = false;
     if crate::leader::transport::listener_is_ready(&sock_path) {
@@ -1335,8 +1335,8 @@ pub async fn connect_or_spawn(
 }
 /// Resolve the binary to spawn as the leader subprocess.
 ///
-/// For a **managed install** — the running binary lives under `grok_home`
-/// (e.g. `~/.axon/...`) — prefer the managed `~/.axon/bin/grok` symlink. After an
+/// For a **managed install** — the running binary lives under `axon_home`
+/// (e.g. `~/.axon/...`) — prefer the managed `~/.axon/bin/axon` symlink. After an
 /// auto-update or `axon update` atomically swaps that symlink, `current_exe()`
 /// still resolves (via `/proc/self/exe` on Linux) to the *old* versioned target,
 /// so spawning it would relaunch the stale binary. The symlink always points to
@@ -1344,28 +1344,28 @@ pub async fn connect_or_spawn(
 /// `axon_update::auto_update::resolve_restart_exe`.
 ///
 /// For a **dev / out-of-tree binary** (`cargo run`, integration tests, installs
-/// not under `grok_home`), keep `current_exe()` so the spawned leader matches the
+/// not under `axon_home`), keep `current_exe()` so the spawned leader matches the
 /// calling binary.
 ///
-/// Falls back to `~/.axon/bin/grok` only when `current_exe()` is unavailable.
+/// Falls back to `~/.axon/bin/axon` only when `current_exe()` is unavailable.
 fn resolve_exe_for_spawn() -> Result<std::path::PathBuf, ConnectionError> {
-    resolve_binary_with_home(&crate::util::grok_home::grok_home())
+    resolve_binary_with_home(&crate::util::axon_home::axon_home())
 }
-fn resolve_binary_with_home(grok_home: &Path) -> Result<std::path::PathBuf, ConnectionError> {
-    resolve_binary_impl(grok_home, std::env::current_exe().ok())
+fn resolve_binary_with_home(axon_home: &Path) -> Result<std::path::PathBuf, ConnectionError> {
+    resolve_binary_impl(axon_home, std::env::current_exe().ok())
 }
-/// Binary file name for the managed grok install (`grok` / `grok.exe`).
-fn managed_grok_bin_name() -> &'static str {
-    if cfg!(windows) { "grok.exe" } else { "grok" }
+/// Binary file name for the managed axon install (`axon` / `axon.exe`).
+fn managed_axon_bin_name() -> &'static str {
+    if cfg!(windows) { "axon.exe" } else { "axon" }
 }
 /// Core leader-binary resolution with the current-exe path injected, for testability.
 fn resolve_binary_impl(
-    grok_home: &Path,
+    axon_home: &Path,
     current_exe: Option<std::path::PathBuf>,
 ) -> Result<std::path::PathBuf, ConnectionError> {
-    let managed_bin = grok_home.join("bin").join(managed_grok_bin_name());
+    let managed_bin = axon_home.join("bin").join(managed_axon_bin_name());
     if let Some(ref exe) = current_exe
-        && path_is_under(exe, grok_home)
+        && path_is_under(exe, axon_home)
         && managed_bin.exists()
     {
         return Ok(managed_bin);
@@ -1393,8 +1393,8 @@ fn spawn_leader_subprocess(env_urls: &LeaderEnvUrls) -> Result<u32, ConnectionEr
     cmd.arg("agent").arg("leader");
     cmd.arg("--no-exit-on-disconnect");
     cmd.arg("--relay-on-demand");
-    cmd.arg("--grok-ws-url").arg(&env_urls.grok_ws_url);
-    cmd.arg("--grok-ws-origin").arg(&env_urls.grok_ws_origin);
+    cmd.arg("--axon-ws-url").arg(&env_urls.axon_ws_url);
+    cmd.arg("--axon-ws-origin").arg(&env_urls.axon_ws_origin);
     if let Some(socket) = std::env::var_os(crate::leader::LEADER_SOCKET_ENV) {
         cmd.env(crate::leader::LEADER_SOCKET_ENV, socket);
     }
@@ -1410,7 +1410,7 @@ fn spawn_leader_subprocess(env_urls: &LeaderEnvUrls) -> Result<u32, ConnectionEr
     }
     cmd.stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null());
-    let log_path = crate::util::grok_home::grok_home().join("leader.log");
+    let log_path = crate::util::axon_home::axon_home().join("leader.log");
     match std::fs::File::create(&log_path) {
         Ok(log_file) => {
             info!("Leader stderr → log file");
@@ -1626,8 +1626,8 @@ mod tests {
         let fake =
             spawn_fake_leader(sock_path.clone(), FakeLeaderBehavior::SilentAfterAccept).await;
         let env_urls = LeaderEnvUrls {
-            grok_ws_url: "wss://test.invalid".into(),
-            grok_ws_origin: "https://test.invalid".into(),
+            axon_ws_url: "wss://test.invalid".into(),
+            axon_ws_origin: "https://test.invalid".into(),
         };
         let (status_tx, mut status_rx) = LeaderReconnector::status_channel();
         let reconnector = LeaderReconnector::new(
@@ -1806,8 +1806,8 @@ mod tests {
     #[test]
     fn notify_connected_increments_generation() {
         let env_urls = LeaderEnvUrls {
-            grok_ws_url: "wss://test.invalid".into(),
-            grok_ws_origin: "https://test.invalid".into(),
+            axon_ws_url: "wss://test.invalid".into(),
+            axon_ws_origin: "https://test.invalid".into(),
         };
         let (status_tx, status_rx) = LeaderReconnector::status_channel();
         let reconnector = LeaderReconnector::new(
@@ -1839,8 +1839,8 @@ mod tests {
         let handle = spawn_leader_server(sock_path.clone()).await.unwrap();
         tokio::time::sleep(Duration::from_millis(50)).await;
         let env_urls = LeaderEnvUrls {
-            grok_ws_url: "wss://test.invalid".into(),
-            grok_ws_origin: "https://test.invalid".into(),
+            axon_ws_url: "wss://test.invalid".into(),
+            axon_ws_origin: "https://test.invalid".into(),
         };
         let (status_tx, mut status_rx) = LeaderReconnector::status_channel();
         let reconnector = LeaderReconnector::new(
@@ -1882,8 +1882,8 @@ mod tests {
     #[tokio::test]
     async fn reconnector_bounded_fails_after_max_attempts() {
         let env_urls = LeaderEnvUrls {
-            grok_ws_url: "wss://test.invalid".into(),
-            grok_ws_origin: "https://test.invalid".into(),
+            axon_ws_url: "wss://test.invalid".into(),
+            axon_ws_origin: "https://test.invalid".into(),
         };
         let (status_tx, mut status_rx) = LeaderReconnector::status_channel();
         let reconnector = LeaderReconnector::new(
@@ -1917,8 +1917,8 @@ mod tests {
     #[tokio::test]
     async fn reconnector_cancelled_returns_error() {
         let env_urls = LeaderEnvUrls {
-            grok_ws_url: "wss://test.invalid".into(),
-            grok_ws_origin: "https://test.invalid".into(),
+            axon_ws_url: "wss://test.invalid".into(),
+            axon_ws_origin: "https://test.invalid".into(),
         };
         let (status_tx, _status_rx) = LeaderReconnector::status_channel();
         let reconnector = LeaderReconnector::new(
@@ -2108,7 +2108,7 @@ mod tests {
         let temp = TempDir::new().unwrap();
         let bin_dir = temp.path().join("bin");
         std::fs::create_dir_all(&bin_dir).unwrap();
-        std::fs::write(bin_dir.join("grok"), "fake-binary").unwrap();
+        std::fs::write(bin_dir.join("axon"), "fake-binary").unwrap();
         let result = resolve_binary_with_home(temp.path()).unwrap();
         let current = std::env::current_exe().unwrap();
         assert_eq!(result, current);
@@ -2125,9 +2125,9 @@ mod tests {
         let temp = TempDir::new().unwrap();
         let bin_dir = temp.path().join("bin");
         std::fs::create_dir_all(&bin_dir).unwrap();
-        let target_v2 = bin_dir.join("grok-v2");
+        let target_v2 = bin_dir.join("axon-v2");
         std::fs::write(&target_v2, "new-binary").unwrap();
-        std::os::unix::fs::symlink(&target_v2, bin_dir.join("grok")).unwrap();
+        std::os::unix::fs::symlink(&target_v2, bin_dir.join("axon")).unwrap();
         let result = resolve_binary_with_home(temp.path()).unwrap();
         let current = std::env::current_exe().unwrap();
         assert_eq!(result, current);
@@ -2138,11 +2138,11 @@ mod tests {
         let temp = TempDir::new().unwrap();
         let bin_dir = temp.path().join("bin");
         std::fs::create_dir_all(&bin_dir).unwrap();
-        let new_target = bin_dir.join("grok-v2");
+        let new_target = bin_dir.join("axon-v2");
         std::fs::write(&new_target, "new-binary").unwrap();
-        let managed = bin_dir.join("grok");
+        let managed = bin_dir.join("axon");
         std::os::unix::fs::symlink(&new_target, &managed).unwrap();
-        let stale_target = bin_dir.join("grok-v1");
+        let stale_target = bin_dir.join("axon-v1");
         std::fs::write(&stale_target, "old-binary").unwrap();
         let result = resolve_binary_impl(temp.path(), Some(stale_target)).unwrap();
         assert_eq!(result, managed);
@@ -2152,7 +2152,7 @@ mod tests {
         let temp = TempDir::new().unwrap();
         let bin_dir = temp.path().join("bin");
         std::fs::create_dir_all(&bin_dir).unwrap();
-        std::fs::write(bin_dir.join(managed_grok_bin_name()), "managed").unwrap();
+        std::fs::write(bin_dir.join(managed_axon_bin_name()), "managed").unwrap();
         let dev_exe = std::env::current_exe().unwrap();
         let result = resolve_binary_impl(temp.path(), Some(dev_exe.clone())).unwrap();
         assert_eq!(result, dev_exe);
@@ -2162,7 +2162,7 @@ mod tests {
         let temp = TempDir::new().unwrap();
         let bin_dir = temp.path().join("bin");
         std::fs::create_dir_all(&bin_dir).unwrap();
-        let managed = bin_dir.join(managed_grok_bin_name());
+        let managed = bin_dir.join(managed_axon_bin_name());
         std::fs::write(&managed, "managed").unwrap();
         let result = resolve_binary_impl(temp.path(), None).unwrap();
         assert_eq!(result, managed);

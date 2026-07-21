@@ -5,7 +5,7 @@
 //! `internal_pipeline_consumed_otel_vars = true`, and `external::init` MUST
 //! refuse to activate — otherwise the same standard vars could point both the
 //! internally-authed firehose and the customer collector at one endpoint,
-//! leaking xAI credentials. Here we prove the refusal end-to-end: even with a
+//! leaking Axon credentials. Here we prove the refusal end-to-end: even with a
 //! fully valid double opt-in pointed at a live collector, nothing is exported.
 
 mod otlp_collector;

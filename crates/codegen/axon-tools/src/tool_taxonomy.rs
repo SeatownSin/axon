@@ -2,7 +2,7 @@
 //! `_meta` envelope.
 //!
 //! Depends only on `ToolKind`/`ToolNamespace` + `serde`/`serde_json` (no
-//! `ToolInput`, proto, or runtime). A future `xai-tool-taxonomy` leaf crate
+//! `ToolInput`, proto, or runtime). A future `axon-tool-taxonomy` leaf crate
 //! would need those two (dependency-free) enums moved here too — coherence ties
 //! the inherent impls to the enum definitions. The `ToolInput`-coupled
 //! projection lives in [`crate::normalization`].
@@ -22,9 +22,9 @@ pub mod field {
     pub const PATTERN: &str = "pattern";
 }
 /// The single `_meta` key holding the canonical tool identity as one nested
-/// object (mirroring `x.ai/mcp_tool`). Consumers deserialize it into
+/// object (mirroring `axon/mcp_tool`). Consumers deserialize it into
 /// [`CanonicalToolMeta`].
-pub const TOOL_META_KEY: &str = "x.ai/tool";
+pub const TOOL_META_KEY: &str = "axon/tool";
 /// Version of the canonical tool `_meta` contract. Bump on any breaking change
 /// to keys or value shapes so consumers can adapt.
 pub const TOOL_META_VERSION: u32 = 1;
@@ -33,7 +33,7 @@ impl ToolKind {
     /// function of the kind, so equivalent tools across toolsets share it
     /// (`read_file` and `Read` → `Read`; `run_terminal_cmd` and `Shell` →
     /// `Run Command`). Display only; the model's tool name is `name` in
-    /// `x.ai/tool`. Exhaustive, so a new `ToolKind` must add a label to compile.
+    /// `axon/tool`. Exhaustive, so a new `ToolKind` must add a label to compile.
     pub fn presentation_name(self) -> &'static str {
         match self {
             ToolKind::Read => "Read",
@@ -148,11 +148,11 @@ pub struct ToolIdentity {
 /// as one nested object under [`TOOL_META_KEY`].
 ///
 /// ```json
-/// "x.ai/tool": {
+/// "axon/tool": {
 ///   "version": 1,
 ///   "name": "read_file",
 ///   "kind": "read",
-///   "namespace": "grok_build",
+///   "namespace": "axon_build",
 ///   "label": "Read",
 ///   "read_only": true,
 ///   "input": { "path": "..." }
@@ -161,7 +161,7 @@ pub struct ToolIdentity {
 ///
 /// Consumer contract:
 /// - **`label`** is the cross-harness grouping/display key: equivalent tools
-///   share it (grok `read_file` → `"Read"`).
+///   share it (axon `read_file` → `"Read"`).
 /// - **`kind`** is a finer discriminator (`metadata.kind()`), *not* guaranteed
 ///   equal for equivalent ops across harnesses (listing is `list` in one
 ///   toolset, `list_dir` in another); prefer `label` to join, tolerate unknowns.
@@ -184,7 +184,7 @@ pub struct ToolIdentity {
 ///   `namespace` is a closed enum (no `other` sink), so a new toolset fails
 ///   strict typed deserialization of the whole envelope — intentional, to force
 ///   typed consumers with exhaustive matches to update. Out-of-tree consumers
-///   should read `namespace` loosely (as a string) and, on any `x.ai/tool`
+///   should read `namespace` loosely (as a string) and, on any `axon/tool`
 ///   parse failure, treat it as absent and fall back to `raw_input` + the ACP
 ///   `kind`. `version` bumps only on removal or meaning change.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
@@ -217,7 +217,7 @@ impl CanonicalToolMeta {
         }
     }
     /// Attach under [`TOOL_META_KEY`], preserving existing `_meta` keys
-    /// (`bash_mode`, `backend`, `x.ai/mcp_tool`, …).
+    /// (`bash_mode`, `backend`, `axon/mcp_tool`, …).
     pub fn merge_into(&self, existing: Option<serde_json::Value>) -> serde_json::Value {
         debug_assert!(
             matches!(existing, None | Some(serde_json::Value::Object(_))),
@@ -245,7 +245,7 @@ mod tests {
     fn identity(kind: ToolKind) -> ToolIdentity {
         ToolIdentity {
             tool_kind: kind,
-            namespace: ToolNamespace::GrokBuild,
+            namespace: ToolNamespace::AxonBuild,
             presentation_name: kind.presentation_name(),
             read_only: kind.is_read_only(),
         }
@@ -264,9 +264,9 @@ mod tests {
         use strum::IntoEnumIterator;
         fn wire_and_pascal(ns: ToolNamespace) -> (&'static str, &'static str) {
             match ns {
-                ToolNamespace::GrokBuild => ("grok_build", "GrokBuild"),
-                ToolNamespace::GrokBuildConcise => ("grok_build_concise", "GrokBuildConcise"),
-                ToolNamespace::GrokBuildHashline => ("grok_build_hashline", "GrokBuildHashline"),
+                ToolNamespace::AxonBuild => ("axon_build", "AxonBuild"),
+                ToolNamespace::AxonBuildConcise => ("axon_build_concise", "AxonBuildConcise"),
+                ToolNamespace::AxonBuildHashline => ("axon_build_hashline", "AxonBuildHashline"),
                 ToolNamespace::Codex => ("codex", "Codex"),
                 ToolNamespace::OpenCode => ("opencode", "OpenCode"),
                 ToolNamespace::MCP => ("mcp", "MCP"),
@@ -317,7 +317,7 @@ mod tests {
         assert_eq!(t["version"], serde_json::json!(TOOL_META_VERSION));
         assert_eq!(t["name"], "read_file");
         assert_eq!(t["kind"], "read");
-        assert_eq!(t["namespace"], "grok_build");
+        assert_eq!(t["namespace"], "axon_build");
         assert_eq!(t["label"], "Read");
         assert_eq!(t["read_only"], true);
         assert_eq!(t["input"]["path"], "/a");

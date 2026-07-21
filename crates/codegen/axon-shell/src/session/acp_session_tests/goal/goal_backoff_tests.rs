@@ -463,8 +463,8 @@ async fn handle_turn_end_verified_complete_during_drain_skips_bail_nudge() {
             let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
             *actor.goal_update_rx.borrow_mut() = Some(rx);
             tx.send(
-                axon_tools::implementations::grok_build::update_goal::envelope_for_test(
-                    axon_tools::implementations::grok_build::update_goal::UpdateGoalInput {
+                axon_tools::implementations::axon_build::update_goal::envelope_for_test(
+                    axon_tools::implementations::axon_build::update_goal::UpdateGoalInput {
                         completed: Some(true),
                         message: None,
                         blocked_reason: None,
@@ -1440,8 +1440,8 @@ async fn drain_goal_updates_blocked_reason_transitions_after_three_attempts() {
                 let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
                 *actor.goal_update_rx.borrow_mut() = Some(rx);
                 tx.send(
-                    axon_tools::implementations::grok_build::update_goal::envelope_for_test(
-                        axon_tools::implementations::grok_build::update_goal::UpdateGoalInput {
+                    axon_tools::implementations::axon_build::update_goal::envelope_for_test(
+                        axon_tools::implementations::axon_build::update_goal::UpdateGoalInput {
                             completed: None,
                             message: Some("longer body".into()),
                             blocked_reason: Some("short label".into()),
@@ -1483,8 +1483,8 @@ async fn drain_goal_updates_blocked_reason_rejected_below_threshold() {
             let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
             *actor.goal_update_rx.borrow_mut() = Some(rx);
             tx.send(
-                axon_tools::implementations::grok_build::update_goal::envelope_for_test(
-                    axon_tools::implementations::grok_build::update_goal::UpdateGoalInput {
+                axon_tools::implementations::axon_build::update_goal::envelope_for_test(
+                    axon_tools::implementations::axon_build::update_goal::UpdateGoalInput {
                         completed: None,
                         message: None,
                         blocked_reason: Some("only label".into()),
@@ -1584,8 +1584,8 @@ async fn drain_goal_updates_blocked_reason_against_non_active_does_not_stash_pau
             let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
             *actor.goal_update_rx.borrow_mut() = Some(rx);
             tx.send(
-                axon_tools::implementations::grok_build::update_goal::envelope_for_test(
-                    axon_tools::implementations::grok_build::update_goal::UpdateGoalInput {
+                axon_tools::implementations::axon_build::update_goal::envelope_for_test(
+                    axon_tools::implementations::axon_build::update_goal::UpdateGoalInput {
                         completed: None,
                         message: Some("body".into()),
                         blocked_reason: Some("would-block".into()),
@@ -1629,7 +1629,7 @@ async fn drain_goal_updates_completes_after_blocked_does_not_leak_pause_message(
                     .store(2, Ordering::Relaxed);
                 let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
                 *actor.goal_update_rx.borrow_mut() = Some(rx);
-                tx.send(axon_tools::implementations::grok_build::update_goal::envelope_for_test(axon_tools::implementations::grok_build::update_goal::UpdateGoalInput {
+                tx.send(axon_tools::implementations::axon_build::update_goal::envelope_for_test(axon_tools::implementations::axon_build::update_goal::UpdateGoalInput {
                         completed: None,
                         message: None,
                         blocked_reason: Some("blk".into()),
@@ -1645,7 +1645,7 @@ async fn drain_goal_updates_completes_after_blocked_does_not_leak_pause_message(
                 // accepts complete() from any paused variant (including
                 // Blocked), and the pause_message
                 // is cleared during the transition.
-                tx.send(axon_tools::implementations::grok_build::update_goal::envelope_for_test(axon_tools::implementations::grok_build::update_goal::UpdateGoalInput {
+                tx.send(axon_tools::implementations::axon_build::update_goal::envelope_for_test(axon_tools::implementations::axon_build::update_goal::UpdateGoalInput {
 
                         completed: Some(true),
                         message: None,
@@ -1679,8 +1679,8 @@ async fn drain_goal_updates_skips_subsequent_completed_after_block() {
             let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
             *actor.goal_update_rx.borrow_mut() = Some(rx);
             tx.send(
-                axon_tools::implementations::grok_build::update_goal::envelope_for_test(
-                    axon_tools::implementations::grok_build::update_goal::UpdateGoalInput {
+                axon_tools::implementations::axon_build::update_goal::envelope_for_test(
+                    axon_tools::implementations::axon_build::update_goal::UpdateGoalInput {
                         completed: None,
                         message: None,
                         blocked_reason: Some("X".into()),
@@ -1689,8 +1689,8 @@ async fn drain_goal_updates_skips_subsequent_completed_after_block() {
             )
             .unwrap();
             tx.send(
-                axon_tools::implementations::grok_build::update_goal::envelope_for_test(
-                    axon_tools::implementations::grok_build::update_goal::UpdateGoalInput {
+                axon_tools::implementations::axon_build::update_goal::envelope_for_test(
+                    axon_tools::implementations::axon_build::update_goal::UpdateGoalInput {
                         completed: Some(true),
                         message: None,
                         blocked_reason: None,
@@ -2269,8 +2269,8 @@ async fn drain_goal_updates_message_only_does_not_change_status() {
             let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
             *actor.goal_update_rx.borrow_mut() = Some(rx);
             tx.send(
-                axon_tools::implementations::grok_build::update_goal::envelope_for_test(
-                    axon_tools::implementations::grok_build::update_goal::UpdateGoalInput {
+                axon_tools::implementations::axon_build::update_goal::envelope_for_test(
+                    axon_tools::implementations::axon_build::update_goal::UpdateGoalInput {
                         completed: None,
                         message: Some("Running tests...".into()),
                         blocked_reason: None,
@@ -2304,7 +2304,7 @@ async fn drain_goal_updates_message_only_does_not_change_status() {
 /// producing an ack"). The drain must instead reply with a clean ack.
 #[tokio::test(flavor = "current_thread")]
 async fn drain_goal_updates_harness_disabled_does_not_drop_ack() {
-    use axon_tools::implementations::grok_build::update_goal::{
+    use axon_tools::implementations::axon_build::update_goal::{
         RejectReason, UpdateGoalAck, UpdateGoalInput,
     };
     let local = tokio::task::LocalSet::new();
@@ -2384,8 +2384,8 @@ async fn drain_goal_updates_blocked_reason_takes_precedence_over_completed() {
             let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
             *actor.goal_update_rx.borrow_mut() = Some(rx);
             tx.send(
-                axon_tools::implementations::grok_build::update_goal::envelope_for_test(
-                    axon_tools::implementations::grok_build::update_goal::UpdateGoalInput {
+                axon_tools::implementations::axon_build::update_goal::envelope_for_test(
+                    axon_tools::implementations::axon_build::update_goal::UpdateGoalInput {
                         completed: Some(true),
                         message: None,
                         blocked_reason: Some("stuck".into()),
@@ -2415,8 +2415,8 @@ async fn drain_goal_updates_blocked_reason_takes_precedence_over_completed() {
 // E2E suite using `MockSpawner` lives separately.
 
 fn make_completed_cmd()
--> axon_tools::implementations::grok_build::update_goal::UpdateGoalEnvelope {
-    let input = axon_tools::implementations::grok_build::update_goal::UpdateGoalInput {
+-> axon_tools::implementations::axon_build::update_goal::UpdateGoalEnvelope {
+    let input = axon_tools::implementations::axon_build::update_goal::UpdateGoalInput {
         completed: Some(true),
         message: None,
         blocked_reason: None,
@@ -2980,8 +2980,8 @@ async fn drain_goal_updates_completed_resets_blocked_streak() {
             let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
             *actor.goal_update_rx.borrow_mut() = Some(rx);
             tx.send(
-                axon_tools::implementations::grok_build::update_goal::envelope_for_test(
-                    axon_tools::implementations::grok_build::update_goal::UpdateGoalInput {
+                axon_tools::implementations::axon_build::update_goal::envelope_for_test(
+                    axon_tools::implementations::axon_build::update_goal::UpdateGoalInput {
                         completed: Some(true),
                         message: None,
                         blocked_reason: None,
@@ -3175,18 +3175,18 @@ fn spawn_notif_with_model(
     subagent_id: &str,
     resumed_from: Option<&str>,
     model: Option<&str>,
-) -> XaiSessionNotification {
+) -> AxonSessionNotification {
     let mut notif = spawn_notif(subagent_id, resumed_from);
-    if let XaiSessionUpdate::SubagentSpawned { model: m, .. } = &mut notif.update {
+    if let AxonSessionUpdate::SubagentSpawned { model: m, .. } = &mut notif.update {
         *m = model.map(str::to_string);
     }
     notif
 }
 
-fn spawn_notif(subagent_id: &str, resumed_from: Option<&str>) -> XaiSessionNotification {
-    XaiSessionNotification {
+fn spawn_notif(subagent_id: &str, resumed_from: Option<&str>) -> AxonSessionNotification {
+    AxonSessionNotification {
         session_id: acp::SessionId::new("test-actor"),
-        update: XaiSessionUpdate::SubagentSpawned {
+        update: AxonSessionUpdate::SubagentSpawned {
             subagent_id: subagent_id.into(),
             parent_session_id: "test-actor".into(),
             parent_prompt_id: None,
@@ -3205,10 +3205,10 @@ fn spawn_notif(subagent_id: &str, resumed_from: Option<&str>) -> XaiSessionNotif
     }
 }
 
-fn finish_notif(subagent_id: &str, tokens_used: u64) -> XaiSessionNotification {
-    XaiSessionNotification {
+fn finish_notif(subagent_id: &str, tokens_used: u64) -> AxonSessionNotification {
+    AxonSessionNotification {
         session_id: acp::SessionId::new("test-actor"),
-        update: XaiSessionUpdate::SubagentFinished {
+        update: AxonSessionUpdate::SubagentFinished {
             subagent_id: subagent_id.into(),
             child_session_id: subagent_id.into(),
             status: "completed".into(),
@@ -3292,7 +3292,7 @@ async fn goal_tokens_used_cross_session_resume_anchors_at_zero() {
             let actor = make_test_actor_with_active_goal().await;
             // Parent id is unknown to this process; anchor falls back to 0.
             actor
-                .handle_xai_session_notification(spawn_notif("x", Some("from-prior-session")))
+                .handle_axon_session_notification(spawn_notif("x", Some("from-prior-session")))
                 .await;
             let anchor = actor
                 .subagent_token_records
@@ -3327,14 +3327,14 @@ async fn goal_tokens_used_monotonic_under_out_of_order_events() {
         .run_until(async {
             let actor = make_test_actor_with_active_goal().await;
             actor
-                .handle_xai_session_notification(spawn_notif("a", None))
+                .handle_axon_session_notification(spawn_notif("a", None))
                 .await;
             actor
-                .handle_xai_session_notification(finish_notif("a", 50_000))
+                .handle_axon_session_notification(finish_notif("a", 50_000))
                 .await;
             // Stale event with smaller cumulative arrives second.
             actor
-                .handle_xai_session_notification(finish_notif("a", 40_000))
+                .handle_axon_session_notification(finish_notif("a", 40_000))
                 .await;
             assert_eq!(
                 actor
@@ -3358,13 +3358,13 @@ async fn integration_subagent_spawn_resume_uses_parent_anchor() {
         .run_until(async {
             let actor = make_test_actor_with_active_goal().await;
             actor
-                .handle_xai_session_notification(spawn_notif("a", None))
+                .handle_axon_session_notification(spawn_notif("a", None))
                 .await;
             actor
-                .handle_xai_session_notification(finish_notif("a", 50_000))
+                .handle_axon_session_notification(finish_notif("a", 50_000))
                 .await;
             actor
-                .handle_xai_session_notification(spawn_notif("a1", Some("a")))
+                .handle_axon_session_notification(spawn_notif("a1", Some("a")))
                 .await;
             let rec = actor
                 .subagent_token_records
@@ -3375,7 +3375,7 @@ async fn integration_subagent_spawn_resume_uses_parent_anchor() {
             assert_eq!(rec.0, 50_000, "child anchor = parent.last");
             assert_eq!(rec.1, 50_000, "child last seeded to anchor at spawn");
             actor
-                .handle_xai_session_notification(finish_notif("a1", 80_000))
+                .handle_axon_session_notification(finish_notif("a1", 80_000))
                 .await;
             // Total marginal: 50k (a) + 30k (a1) = 80k.
             assert_eq!(actor.goal_tokens_used(0), 80_000);
@@ -3390,10 +3390,10 @@ async fn subagent_spawn_captures_effective_model_id() {
         .run_until(async {
             let actor = make_test_actor_with_active_goal().await;
             actor
-                .handle_xai_session_notification(spawn_notif_with_model(
+                .handle_axon_session_notification(spawn_notif_with_model(
                     "a",
                     None,
-                    Some("grok-4.5"),
+                    Some("axon-4.5"),
                 ))
                 .await;
             let model = actor
@@ -3401,7 +3401,7 @@ async fn subagent_spawn_captures_effective_model_id() {
                 .lock()
                 .get("a")
                 .and_then(|r| r.model.clone());
-            assert_eq!(model.as_deref(), Some("grok-4.5"));
+            assert_eq!(model.as_deref(), Some("axon-4.5"));
         })
         .await;
 }
@@ -3413,7 +3413,7 @@ async fn subagent_spawn_absent_model_captured_as_none() {
         .run_until(async {
             let actor = make_test_actor_with_active_goal().await;
             actor
-                .handle_xai_session_notification(spawn_notif_with_model("a", None, None))
+                .handle_axon_session_notification(spawn_notif_with_model("a", None, None))
                 .await;
             let model = actor
                 .subagent_token_records
@@ -3431,17 +3431,17 @@ async fn goal_tokens_by_model_breaks_down_active_goal_records() {
     local
         .run_until(async {
             let actor = make_test_actor_with_active_goal().await;
-            insert_record_with_model(&actor, "a", Some("test-goal"), 0, 100, Some("grok-4"));
-            insert_record_with_model(&actor, "b", Some("test-goal"), 0, 400, Some("grok-3"));
+            insert_record_with_model(&actor, "a", Some("test-goal"), 0, 100, Some("axon-4"));
+            insert_record_with_model(&actor, "b", Some("test-goal"), 0, 400, Some("axon-3"));
             // No captured model → folds under the supplied current model.
             insert_record_with_model(&actor, "c", Some("test-goal"), 0, 50, None);
             // A record from another goal must be excluded.
-            insert_record_with_model(&actor, "d", Some("other-goal"), 0, 999, Some("grok-3"));
+            insert_record_with_model(&actor, "d", Some("other-goal"), 0, 999, Some("axon-3"));
             // A FINISHED record under the active goal must be excluded from the
             // LIVE active-window breakdown (the per-model analogue of the
-            // finished/in-flight split in goal_tokens). If it leaked, grok-4
+            // finished/in-flight split in goal_tokens). If it leaked, axon-4
             // would be 800 and sort first.
-            insert_record_with_model(&actor, "e", Some("test-goal"), 0, 700, Some("grok-4"));
+            insert_record_with_model(&actor, "e", Some("test-goal"), 0, 700, Some("axon-4"));
             actor
                 .subagent_token_records
                 .lock()
@@ -3452,8 +3452,8 @@ async fn goal_tokens_by_model_breaks_down_active_goal_records() {
             assert_eq!(
                 out,
                 vec![
-                    ("grok-3".to_owned(), 400),
-                    ("grok-4".to_owned(), 100),
+                    ("axon-3".to_owned(), 400),
+                    ("axon-4".to_owned(), 100),
                     ("cur-model".to_owned(), 50),
                 ]
             );
@@ -3467,7 +3467,7 @@ async fn goal_tokens_by_model_empty_without_active_goal() {
     local
         .run_until(async {
             let actor = make_test_actor_with_active_goal().await;
-            insert_record_with_model(&actor, "a", Some("test-goal"), 0, 100, Some("grok-4"));
+            insert_record_with_model(&actor, "a", Some("test-goal"), 0, 100, Some("axon-4"));
             // Drop the orchestration: with no active goal the breakdown is
             // empty regardless of any lingering records.
             actor.goal_tracker.lock().clear();
@@ -3558,7 +3558,7 @@ async fn integration_subagent_spawn_captures_active_goal_id() {
         .run_until(async {
             let actor = make_test_actor_with_active_goal().await;
             actor
-                .handle_xai_session_notification(spawn_notif("a", None))
+                .handle_axon_session_notification(spawn_notif("a", None))
                 .await;
             let goal_id = actor
                 .subagent_token_records
@@ -3771,8 +3771,8 @@ async fn blocked_streak_reaches_pause_across_successful_turns() {
             let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
             *actor.goal_update_rx.borrow_mut() = Some(rx);
             let blocked = || {
-                axon_tools::implementations::grok_build::update_goal::envelope_for_test(
-                    axon_tools::implementations::grok_build::update_goal::UpdateGoalInput {
+                axon_tools::implementations::axon_build::update_goal::envelope_for_test(
+                    axon_tools::implementations::axon_build::update_goal::UpdateGoalInput {
                         completed: None,
                         message: None,
                         blocked_reason: Some("cannot reach service".into()),
@@ -3806,10 +3806,10 @@ async fn blocked_streak_reaches_pause_across_successful_turns() {
         .await;
 }
 
-fn progress_notif(subagent_id: &str, tokens_used: u64) -> XaiSessionNotification {
-    XaiSessionNotification {
+fn progress_notif(subagent_id: &str, tokens_used: u64) -> AxonSessionNotification {
+    AxonSessionNotification {
         session_id: acp::SessionId::new("test-actor"),
-        update: XaiSessionUpdate::SubagentProgress {
+        update: AxonSessionUpdate::SubagentProgress {
             subagent_id: subagent_id.into(),
             parent_session_id: "test-actor".into(),
             child_session_id: subagent_id.into(),
@@ -3851,7 +3851,7 @@ async fn subagent_progress_advances_goal_tokens_live_without_double_count() {
                 None,
             );
             actor
-                .handle_xai_session_notification(spawn_notif("a", None))
+                .handle_axon_session_notification(spawn_notif("a", None))
                 .await;
             // Count (and drain) goal_updated notifications delivered to the
             // gateway. Progress-tick emits are gateway-only now, so coalescing
@@ -3863,7 +3863,7 @@ async fn subagent_progress_advances_goal_tokens_live_without_double_count() {
                         let axon_acp_lib::AcpClientMessage::ExtNotification(args) = msg else {
                             continue;
                         };
-                        if args.request.method.as_ref() != "x.ai/session_notification" {
+                        if args.request.method.as_ref() != "axon/session_notification" {
                             continue;
                         }
                         let Ok(v) =
@@ -3887,7 +3887,7 @@ async fn subagent_progress_advances_goal_tokens_live_without_double_count() {
             while persistence_rx.try_recv().is_ok() {}
 
             actor
-                .handle_xai_session_notification(progress_notif("a", 30_000))
+                .handle_axon_session_notification(progress_notif("a", 30_000))
                 .await;
             assert_eq!(
                 actor.goal_tokens_used(0),
@@ -3916,7 +3916,7 @@ async fn subagent_progress_advances_goal_tokens_live_without_double_count() {
 
             // Coalescing: a replayed (non-advancing) tick must emit nothing.
             actor
-                .handle_xai_session_notification(progress_notif("a", 30_000))
+                .handle_axon_session_notification(progress_notif("a", 30_000))
                 .await;
             assert_eq!(
                 count_gateway_goal_updated(&mut gateway_rx),
@@ -3929,7 +3929,7 @@ async fn subagent_progress_advances_goal_tokens_live_without_double_count() {
             );
 
             actor
-                .handle_xai_session_notification(finish_notif("a", 50_000))
+                .handle_axon_session_notification(finish_notif("a", 50_000))
                 .await;
             assert_eq!(
                 actor.goal_tokens_used(0),
@@ -3948,10 +3948,10 @@ async fn subagent_progress_advances_goal_tokens_live_without_double_count() {
             );
             // The SubagentProgress notification itself must never persist.
             while let Ok(msg) = persistence_rx.try_recv() {
-                if let PersistenceMsg::Update(crate::session::storage::SessionUpdate::Xai(n)) = msg
+                if let PersistenceMsg::Update(crate::session::storage::SessionUpdate::Axon(n)) = msg
                 {
                     assert!(
-                        !matches!(n.update, XaiSessionUpdate::SubagentProgress { .. }),
+                        !matches!(n.update, AxonSessionUpdate::SubagentProgress { .. }),
                         "SubagentProgress must never be persisted",
                     );
                 }
@@ -3986,12 +3986,12 @@ async fn subagent_progress_live_tokens_monotonic_across_child_compaction() {
                 None,
             );
             actor
-                .handle_xai_session_notification(spawn_notif("a", None))
+                .handle_axon_session_notification(spawn_notif("a", None))
                 .await;
 
             // Climb to a 100k high-water.
             actor
-                .handle_xai_session_notification(progress_notif("a", 100_000))
+                .handle_axon_session_notification(progress_notif("a", 100_000))
                 .await;
             assert_eq!(
                 actor
@@ -4005,7 +4005,7 @@ async fn subagent_progress_live_tokens_monotonic_across_child_compaction() {
 
             // Child compaction: the next tick reports a LOWER cumulative.
             actor
-                .handle_xai_session_notification(progress_notif("a", 60_000))
+                .handle_axon_session_notification(progress_notif("a", 60_000))
                 .await;
             assert_eq!(
                 actor
@@ -4042,8 +4042,8 @@ async fn setup_goal_resets_streaks_from_previous_goal() {
             let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
             *actor.goal_update_rx.borrow_mut() = Some(rx);
             tx.send(
-                axon_tools::implementations::grok_build::update_goal::envelope_for_test(
-                    axon_tools::implementations::grok_build::update_goal::UpdateGoalInput {
+                axon_tools::implementations::axon_build::update_goal::envelope_for_test(
+                    axon_tools::implementations::axon_build::update_goal::UpdateGoalInput {
                         completed: None,
                         message: None,
                         blocked_reason: Some("blk".into()),
@@ -4073,26 +4073,26 @@ async fn subagent_progress_edge_ticks_cannot_corrupt_token_records() {
         .run_until(async {
             let actor = make_test_actor_with_active_goal().await;
             actor
-                .handle_xai_session_notification(spawn_notif("a", None))
+                .handle_axon_session_notification(spawn_notif("a", None))
                 .await;
             actor
-                .handle_xai_session_notification(progress_notif("a", 30_000))
+                .handle_axon_session_notification(progress_notif("a", 30_000))
                 .await;
             // Decreasing tick: ratchet holds.
             actor
-                .handle_xai_session_notification(progress_notif("a", 10_000))
+                .handle_axon_session_notification(progress_notif("a", 10_000))
                 .await;
             assert_eq!(actor.goal_tokens_used(0), 30_000, "ratchet must hold");
             // Unknown subagent id: dropped, nothing recorded.
             actor
-                .handle_xai_session_notification(progress_notif("ghost", 99_000))
+                .handle_axon_session_notification(progress_notif("ghost", 99_000))
                 .await;
             assert_eq!(actor.goal_tokens_used(0), 30_000);
             assert!(!actor.subagent_token_records.lock().contains_key("ghost"));
             // Record tagged to a DIFFERENT goal: tick ignored entirely.
             insert_record(&actor, "foreign", Some("other-goal"), 0, 1_000);
             actor
-                .handle_xai_session_notification(progress_notif("foreign", 70_000))
+                .handle_axon_session_notification(progress_notif("foreign", 70_000))
                 .await;
             assert_eq!(
                 actor
@@ -4107,10 +4107,10 @@ async fn subagent_progress_edge_ticks_cannot_corrupt_token_records() {
             assert_eq!(actor.goal_tokens_used(0), 30_000);
             // Tick after finish: sealed record ignores it.
             actor
-                .handle_xai_session_notification(finish_notif("a", 35_000))
+                .handle_axon_session_notification(finish_notif("a", 35_000))
                 .await;
             actor
-                .handle_xai_session_notification(progress_notif("a", 80_000))
+                .handle_axon_session_notification(progress_notif("a", 80_000))
                 .await;
             assert_eq!(
                 actor.goal_tokens_used(0),

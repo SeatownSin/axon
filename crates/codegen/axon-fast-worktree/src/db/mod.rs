@@ -114,9 +114,9 @@ pub struct WorktreeDb {
 }
 
 impl WorktreeDb {
-    /// Open (or create) the DB at `grok_home/worktrees.db`.
-    pub fn open(grok_home: &Path) -> Result<Self> {
-        Self::open_at(&grok_home.join("worktrees.db"))
+    /// Open (or create) the DB at `axon_home/worktrees.db`.
+    pub fn open(axon_home: &Path) -> Result<Self> {
+        Self::open_at(&axon_home.join("worktrees.db"))
     }
 
     /// Open with an explicit path.
@@ -203,13 +203,13 @@ impl WorktreeDb {
 
     /// Open the default DB at `~/.axon/worktrees.db`.
     ///
-    /// Discovers grok home via `$AXON_HOME`, falling back to the canonicalized
-    /// `$HOME/.axon` (matching `axon_config::grok_home`).
+    /// Discovers axon home via `$AXON_HOME`, falling back to the canonicalized
+    /// `$HOME/.axon` (matching `axon_config::axon_home`).
     /// Path is resolved fresh each call (~1µs env var read) to support
     /// test overrides. Each call opens its own connection — callers in hot
     /// paths should cache the `WorktreeDb` instance.
     pub fn open_default() -> Result<Self> {
-        Self::open(&resolve_grok_home()?)
+        Self::open(&resolve_axon_home()?)
     }
 
     /// Open an in-memory DB (for tests).
@@ -337,14 +337,14 @@ pub fn now_epoch_secs() -> i64 {
         .as_secs() as i64
 }
 
-pub fn resolve_grok_home() -> Result<PathBuf> {
+pub fn resolve_axon_home() -> Result<PathBuf> {
     if let Ok(v) = std::env::var("AXON_HOME") {
         return Ok(PathBuf::from(v));
     }
     let home = PathBuf::from(std::env::var("HOME").context("neither $AXON_HOME nor $HOME is set")?);
     // Canonicalize the home dir so worktree paths share the same physical .axon
     // tree as trust/hooks even when it is symlinked. The dunce canonicalization
-    // must stay in sync with axon_config::default_grok_home();
+    // must stay in sync with axon_config::default_axon_home();
     // home resolution deliberately differs ($HOME here vs std::env::home_dir()).
     Ok(dunce::canonicalize(&home).unwrap_or(home).join(".axon"))
 }
@@ -364,21 +364,21 @@ static AXON_HOME_ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 /// `Drop` restores `AXON_HOME` before `_lock` releases, so the env is correct
 /// before another waiting setter proceeds.
 #[cfg(test)]
-pub(crate) struct GrokHomeFixture {
+pub(crate) struct AxonHomeFixture {
     _lock: std::sync::MutexGuard<'static, ()>,
     prev: Option<std::ffi::OsString>,
-    /// The isolated grok home; pass to `WorktreeDb::open` to read the same DB
+    /// The isolated axon home; pass to `WorktreeDb::open` to read the same DB
     /// `open_default()` writes to.
     pub home: PathBuf,
     _tmp: tempfile::TempDir,
 }
 
 #[cfg(test)]
-impl GrokHomeFixture {
+impl AxonHomeFixture {
     pub(crate) fn new() -> Self {
         let lock = AXON_HOME_ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let tmp = tempfile::TempDir::new().unwrap();
-        let home = tmp.path().join("grok-home");
+        let home = tmp.path().join("axon-home");
         std::fs::create_dir_all(&home).unwrap();
         // Warm up the DB (journal-mode conversion + schema) before exposing it
         // via AXON_HOME, sparing the test hot loop set_journal_mode's retry
@@ -398,7 +398,7 @@ impl GrokHomeFixture {
 }
 
 #[cfg(test)]
-impl Drop for GrokHomeFixture {
+impl Drop for AxonHomeFixture {
     fn drop(&mut self) {
         unsafe {
             match self.prev.take() {

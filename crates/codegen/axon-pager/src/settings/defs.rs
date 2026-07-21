@@ -12,7 +12,7 @@ use crate::appearance::TextSelection;
 use crate::appearance::permission_cursor::DefaultSelectedPermission;
 
 use axon_shell::agent::config::UiConfig;
-use axon_tools::implementations::grok_build::ask_user_question;
+use axon_tools::implementations::axon_build::ask_user_question;
 
 // ---------------------------------------------------------------------------
 // Int bounds for `max_thoughts_width`.
@@ -134,7 +134,7 @@ const CODING_DATA_SHARING_CHOICES: &[EnumChoice] = &[
     EnumChoice {
         canonical: "opt-in",
         display: "Opt in",
-        description: "Allow SpaceXAI to retain coding session data for model training and product improvement.",
+        description: "Allow SpaceAXON to retain coding session data for model training and product improvement.",
     },
     EnumChoice {
         canonical: "opt-out",
@@ -304,12 +304,12 @@ const SCREEN_MODE_CHOICES: &[EnumChoice] = &[
     EnumChoice {
         canonical: "fullscreen",
         display: "Fullscreen",
-        description: "Open plain grok in the standard fullscreen TUI. Default when unset.",
+        description: "Open plain axon in the standard fullscreen TUI. Default when unset.",
     },
     EnumChoice {
         canonical: "minimal",
         display: "Minimal",
-        description: "Open plain grok in scrollback-native (minimal) mode.",
+        description: "Open plain axon in scrollback-native (minimal) mode.",
     },
 ];
 
@@ -332,8 +332,8 @@ const VOICE_CAPTURE_MODE_CHOICES: &[EnumChoice] = &[
 
 // Voice STT language choices for the settings modal.
 //
-// Concrete codes must match `axon_voice::STT_LANGUAGES` (official Grok STT
-// catalog — https://docs.x.ai/developers/model-capabilities/audio/speech-to-text).
+// Concrete codes must match `axon_voice::STT_LANGUAGES` (official Axon STT
+// catalog — https://docs.blocked.invalid/developers/model-capabilities/audio/speech-to-text).
 // `auto` is client-only; the voice crate resolves it to a concrete code before
 // the STT handshake. Order: English (default), System, then remaining languages
 // A–Z by English name. A registry unit test locks this list to the voice crate.
@@ -544,7 +544,7 @@ pub fn default_settings() -> Vec<SettingMeta> {
             category: SettingCategory::Appearance,
             owner: SettingOwner::Shell,
             label: "Default screen mode",
-            description: "How plain grok opens next time: Fullscreen (default when unset) or \
+            description: "How plain axon opens next time: Fullscreen (default when unset) or \
                           Minimal. Writes [ui] screen_mode in config.toml. Restart required. \
                           Switch this session only with /minimal or /fullscreen.",
             keywords: &[
@@ -835,7 +835,7 @@ pub fn default_settings() -> Vec<SettingMeta> {
             owner: SettingOwner::Shell,
             label: "Default model",
             description: "Model used for new sessions. Changing this also switches the active session. Pick `(no override)` to clear.",
-            keywords: &["model", "default", "agent", "llm", "grok", "switch"],
+            keywords: &["model", "default", "agent", "llm", "axon", "switch"],
             kind: SettingKind::DynamicEnum {
                 default: "",
                 source: DynamicEnumSource::ActiveModelCatalog,
@@ -1134,7 +1134,7 @@ pub fn default_settings() -> Vec<SettingMeta> {
             category: SettingCategory::Privacy,
             owner: SettingOwner::Shell,
             label: "Coding data sharing",
-            description: "Controls whether SpaceXAI may retain and train on coding session \
+            description: "Controls whether SpaceAXON may retain and train on coding session \
                           data. Does not affect product analytics; see Configuration and \
                           Monitoring docs.",
             keywords: &[
@@ -1370,14 +1370,14 @@ pub fn default_settings() -> Vec<SettingMeta> {
         },
         // SHELL-owned, persisted to `[ui].voice_stt_language`. Live-applied to
         // the next voice capture (no restart). Default English; System (`auto`)
-        // follows the process locale when it maps to a Grok STT language.
+        // follows the process locale when it maps to a Axon STT language.
         // Catalog = official STT languages (see axon_voice::STT_LANGUAGES).
         SettingMeta {
             key: "voice_stt_language",
             category: SettingCategory::Editor,
             owner: SettingOwner::Shell,
             label: "Voice language",
-            description: "Speech-to-text language for voice dictation (Grok STT). \
+            description: "Speech-to-text language for voice dictation (Axon STT). \
                           English by default; System uses your locale when supported. \
                           Sets formatting language for numbers and currencies.",
             keywords: &["voice", "language", "locale", "dictation", "stt", "speech"],

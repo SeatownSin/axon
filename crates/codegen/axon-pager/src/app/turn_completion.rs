@@ -1,9 +1,9 @@
 //! Finalizing a turn from a terminal turn signal.
 //!
 //! The pager learns a turn reached its terminal outcome from two rails: the
-//! fire-and-forget `x.ai/session/prompt_complete` broadcast (the one-release
+//! fire-and-forget `axon/session/prompt_complete` broadcast (the one-release
 //! compat path for not-yet-upgraded leaders) and the durable, persisted+replayed
-//! `XaiSessionUpdate::TurnCompleted`. Both converge on
+//! `AxonSessionUpdate::TurnCompleted`. Both converge on
 //! [`finalize_turn_from_terminal`] so the turn-finalize behavior lives in one
 //! place — and so a viewer that re-attaches mid-turn can finalize the turn from
 //! replay instead of staying stuck on "Waiting…".

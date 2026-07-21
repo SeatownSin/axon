@@ -203,7 +203,7 @@ pub(crate) fn dispatch_open_transcript_pager(app: &mut AppView) {
         return;
     };
 
-    let path = std::env::temp_dir().join(format!("grok-transcript-{}.md", uuid::Uuid::new_v4()));
+    let path = std::env::temp_dir().join(format!("axon-transcript-{}.md", uuid::Uuid::new_v4()));
     match std::fs::write(&path, content) {
         Ok(()) => {
             app.pending_pager_path = Some(path);
@@ -521,8 +521,8 @@ pub(super) fn dispatch_dump_input_log(app: &mut AppView) -> Vec<Effect> {
         }
     };
 
-    let grok_home = axon_tools::util::grok_home::grok_home();
-    let logs_dir = grok_home.join("logs");
+    let axon_home = axon_tools::util::axon_home::axon_home();
+    let logs_dir = axon_home.join("logs");
     let _ = std::fs::create_dir_all(&logs_dir);
     let ts = now.format("%Y%m%d-%H%M%S");
     let path = logs_dir.join(format!("input-debug-{ts}.json"));
@@ -720,7 +720,7 @@ pub(super) fn handle_skills_toggle_done(
             }
         }
     }
-    // The toggle effect already called x.ai/skills/refresh-baseline
+    // The toggle effect already called blocked.invalid/skills/refresh-baseline
     // which triggers the session to reload skills and push an
     // AvailableCommandsUpdate notification with the updated list.
     vec![]

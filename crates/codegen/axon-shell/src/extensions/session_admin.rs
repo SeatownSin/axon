@@ -4,18 +4,18 @@
 //! persistent or shared agent state but are not part of the per-turn prompt
 //! lifecycle:
 //!
-//! - `x.ai/session/rename`                  rename a session locally + remote
-//! - `x.ai/session/delete`                  delete a session locally + remote
-//! - `x.ai/session/update_mcp_servers`      mid-session MCP server swap
-//! - `x.ai/session/fork`                    fork a session into a new one
-//! - `x.ai/internal/reload_all_mcp_servers` config hot-reload, all sessions
-//! - `x.ai/internal/reload_project_mcp_servers` config hot-reload, cwd-scoped
-//! - `x.ai/internal/reload_skills`          skills file watcher fan-out
-//! - `x.ai/internal/reload_models`          model list hot-reload from config.toml
-//! - `x.ai/internal/reload_models_cache`    model catalog hot-reload from disk cache
-//! - `x.ai/internal/auth_cleared`           auth hot-clear cleanup
-//! - `x.ai/plugins/reload`                  rebuild shared plugin registry
-//! - `x.ai/commands/list`                   list slash commands
+//! - `axon/session/rename`                  rename a session locally + remote
+//! - `axon/session/delete`                  delete a session locally + remote
+//! - `axon/session/update_mcp_servers`      mid-session MCP server swap
+//! - `axon/session/fork`                    fork a session into a new one
+//! - `axon/internal/reload_all_mcp_servers` config hot-reload, all sessions
+//! - `axon/internal/reload_project_mcp_servers` config hot-reload, cwd-scoped
+//! - `axon/internal/reload_skills`          skills file watcher fan-out
+//! - `axon/internal/reload_models`          model list hot-reload from config.toml
+//! - `axon/internal/reload_models_cache`    model catalog hot-reload from disk cache
+//! - `axon/internal/auth_cleared`           auth hot-clear cleanup
+//! - `axon/plugins/reload`                  rebuild shared plugin registry
+//! - `axon/commands/list`                   list slash commands
 
 use std::path::Path;
 use std::sync::Arc;
@@ -36,20 +36,20 @@ use axon_telemetry::id::agent_id;
 #[tracing::instrument(skip_all, fields(method = %args.method))]
 pub async fn handle(agent: &MvpAgent, args: &acp::ExtRequest) -> ExtResult {
     match args.method.as_ref() {
-        "x.ai/session/rename" => handle_session_rename(agent, args).await,
-        "x.ai/session/delete" => handle_session_delete(agent, args).await,
-        "x.ai/session/update_mcp_servers" => handle_update_mcp_servers(agent, args).await,
-        "x.ai/session/fork" => handle_session_fork(agent, args).await,
-        "x.ai/internal/reload_all_mcp_servers" => handle_reload_all_mcp_servers(agent).await,
-        "x.ai/internal/reload_project_mcp_servers" => {
+        "axon/session/rename" => handle_session_rename(agent, args).await,
+        "axon/session/delete" => handle_session_delete(agent, args).await,
+        "axon/session/update_mcp_servers" => handle_update_mcp_servers(agent, args).await,
+        "axon/session/fork" => handle_session_fork(agent, args).await,
+        "axon/internal/reload_all_mcp_servers" => handle_reload_all_mcp_servers(agent).await,
+        "axon/internal/reload_project_mcp_servers" => {
             handle_reload_project_mcp_servers(agent, args).await
         }
-        "x.ai/internal/reload_skills" => handle_reload_skills(agent),
-        "x.ai/internal/reload_models" => handle_reload_models(agent),
-        "x.ai/internal/reload_models_cache" => handle_reload_models_cache(agent),
-        "x.ai/internal/auth_cleared" => handle_auth_cleared(agent),
-        "x.ai/plugins/reload" => handle_plugins_reload(agent).await,
-        "x.ai/commands/list" => handle_commands_list(agent, args).await,
+        "axon/internal/reload_skills" => handle_reload_skills(agent),
+        "axon/internal/reload_models" => handle_reload_models(agent),
+        "axon/internal/reload_models_cache" => handle_reload_models_cache(agent),
+        "axon/internal/auth_cleared" => handle_auth_cleared(agent),
+        "axon/plugins/reload" => handle_plugins_reload(agent).await,
+        "axon/commands/list" => handle_commands_list(agent, args).await,
         _ => Err(acp::Error::method_not_found()),
     }
 }
@@ -176,7 +176,7 @@ async fn notify_session_title(agent: &MvpAgent, session_id: acp::SessionId, titl
     };
     if let Ok(params) = serde_json::value::to_raw_value(&notification) {
         let ext_notification =
-            acp::ExtNotification::new("x.ai/session_notification", params.into());
+            acp::ExtNotification::new("axon/session_notification", params.into());
         let _ = agent.gateway.ext_notification(ext_notification).await;
     }
 }
@@ -202,7 +202,7 @@ async fn rename_chat_conversation(
         .await
         .map_err(|e| match e {
             ConvError::NoOauth => acp::Error::invalid_request()
-                .data("chat session rename requires xAI OAuth credentials"),
+                .data("chat session rename requires Axon OAuth credentials"),
             ConvError::Http { status: 404 } => acp::Error::invalid_request()
                 .data(format!("conversation not found: {conversation_id}")),
             other => acp::Error::internal_error()
@@ -295,7 +295,7 @@ async fn soft_delete_chat_conversation(agent: &MvpAgent, conversation_id: &str) 
         .await
         .map_err(|e| match e {
             ConvError::NoOauth => acp::Error::invalid_request()
-                .data("chat session delete requires xAI OAuth credentials"),
+                .data("chat session delete requires Axon OAuth credentials"),
             other => acp::Error::internal_error()
                 .data(format!("chat conversation soft-delete failed: {other}")),
         })?;
@@ -642,7 +642,7 @@ async fn handle_plugins_reload(agent: &MvpAgent) -> ExtResult {
         let remote_settings = agent.cfg.borrow().remote_settings.clone();
         crate::agent::folder_trust::resolve_and_record(c, remote_settings.as_ref(), false)
     });
-    // Explicit desktop `x.ai/plugins/reload`: force a full local-install re-copy.
+    // Explicit desktop `axon/plugins/reload`: force a full local-install re-copy.
     agent
         .plugin_registry_handle()
         .reload(session_cwd.as_deref(), &disk_cfg, project_trusted, true);
@@ -667,7 +667,7 @@ async fn handle_commands_list(agent: &MvpAgent, args: &acp::ExtRequest) -> ExtRe
     // For a given cwd, compute the plugin registry the same way a session would
     // at spawn time (via build_for_cwd) and the same way reload_plugins_impl does
     // (ancestor project config walk + vendor compat merge). This is required so
-    // that `x.ai/commands/list` (the pull used by grok-desktop after session
+    // that `axon/commands/list` (the pull used by axon-desktop after session
     // start) returns plugin-provided slash commands for the target cwd.
     //
     // The shared snapshot is only populated at agent boot (using process CWD)

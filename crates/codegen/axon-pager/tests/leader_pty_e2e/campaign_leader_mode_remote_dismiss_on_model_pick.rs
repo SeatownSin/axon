@@ -41,17 +41,17 @@ async fn campaign_leader_mode_remote_dismiss_on_model_pick() {
     // Seed config.toml with the user's own default model; a fixed leader
     // socket under the shared AXON_HOME so every spawn elects/attaches to the
     // same leader (mirrors `LeaderCluster`).
-    let grok_home = content.home().join(".axon");
-    std::fs::create_dir_all(&grok_home).expect("create AXON_HOME");
+    let axon_home = content.home().join(".axon");
+    std::fs::create_dir_all(&axon_home).expect("create AXON_HOME");
     std::fs::write(
-        grok_home.join("config.toml"),
+        axon_home.join("config.toml"),
         format!("[models]\ndefault = \"{CONFIG_MODEL}\"\n"),
     )
     .expect("write config.toml");
-    let socket = grok_home.join("leader-e2e.sock");
+    let socket = axon_home.join("leader-e2e.sock");
     let socket = socket.to_str().expect("socket path is utf-8").to_owned();
 
-    // Session (OAuth) auth, not the harness's default XAI_API_KEY: the
+    // Session (OAuth) auth, not the harness's default AXON_API_KEY: the
     // settings fetch requires `auth_manager.auth()` — in ApiKey/BYOK mode the
     // pager never requests `/v1/settings`, so a remote campaign would be
     // structurally unreachable (see `spawn_polling_session`'s doc).
@@ -70,7 +70,7 @@ async fn campaign_leader_mode_remote_dismiss_on_model_pick() {
         )
         .expect("spawn leader-mode pager")
     };
-    let state_path = grok_home.join("campaigns_state.json");
+    let state_path = axon_home.join("campaigns_state.json");
     let dismissed = |state_path: &std::path::Path| {
         std::fs::read_to_string(state_path)
             .map(|s| s.contains(CAMPAIGN_ID))
@@ -124,7 +124,7 @@ async fn campaign_leader_mode_remote_dismiss_on_model_pick() {
     // no-re-nudge reboot in-process). A fresh same-leader-socket client is
     // deliberately not asserted on-screen here: reattach paint timing is the
     // one flaky piece and adds no coverage over the disk + sibling asserts.
-    let config = std::fs::read_to_string(grok_home.join("config.toml")).expect("read config.toml");
+    let config = std::fs::read_to_string(axon_home.join("config.toml")).expect("read config.toml");
     assert!(
         config.contains(&format!("default = \"{CONFIG_MODEL}\"")),
         "the user's pick must be persisted to config.toml:\n{config}"

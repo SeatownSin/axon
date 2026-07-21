@@ -9,7 +9,7 @@ use std::io;
 use std::path::Path;
 
 use crate::extensions::notification::{
-    CompactionCheckpointFile, CompactionCheckpointInfo, SessionUpdate as XaiSessionUpdate,
+    CompactionCheckpointFile, CompactionCheckpointInfo, SessionUpdate as AxonSessionUpdate,
 };
 use crate::sampling::ConversationItem;
 use crate::session::storage::{SessionUpdate, UpdatesIterator};
@@ -61,7 +61,7 @@ pub fn find_latest_compaction_checkpoint(
             continue;
         };
 
-        if env.method != Some("_x.ai/session/update") {
+        if env.method != Some("_axon/session/update") {
             continue;
         }
 
@@ -72,7 +72,7 @@ pub fn find_latest_compaction_checkpoint(
         if let Ok(notification) = serde_json::from_str::<
             crate::extensions::notification::SessionNotification,
         >(raw_params.get())
-            && let XaiSessionUpdate::CompactionCheckpoint(info) = notification.update
+            && let AxonSessionUpdate::CompactionCheckpoint(info) = notification.update
         {
             latest = Some(*info);
         }
@@ -245,19 +245,19 @@ impl ReplayState {
         session_dir: &Path,
     ) -> io::Result<ReplayAction> {
         match update {
-            SessionUpdate::Xai(notification) => {
+            SessionUpdate::Axon(notification) => {
                 match &notification.update {
-                    XaiSessionUpdate::CompactionCheckpoint(info) => {
+                    AxonSessionUpdate::CompactionCheckpoint(info) => {
                         return self.handle_checkpoint(info, session_dir);
                     }
-                    XaiSessionUpdate::RewindMarker {
+                    AxonSessionUpdate::RewindMarker {
                         target_prompt_index,
                         ..
                     } => {
                         self.handle_rewind_marker(*target_prompt_index);
                         return Ok(ReplayAction::Continue);
                     }
-                    // Other xAI notifications are informational — skip them.
+                    // Other Axon notifications are informational — skip them.
                     _ => {}
                 }
             }
@@ -627,7 +627,7 @@ mod tests {
     use super::*;
     use crate::extensions::notification::{
         AutoContinueInfo, CompactionCheckpointFile, CompactionCheckpointInfo,
-        SessionNotification as XaiNotification, SessionUpdate as XaiSessionUpdate,
+        SessionNotification as AxonNotification, SessionUpdate as AxonSessionUpdate,
     };
     use agent_client_protocol as acp;
     use tempfile::TempDir;
@@ -693,9 +693,9 @@ mod tests {
     }
 
     fn make_rewind_marker(target: usize) -> SessionUpdate {
-        SessionUpdate::Xai(Box::new(XaiNotification {
+        SessionUpdate::Axon(Box::new(AxonNotification {
             session_id: acp::SessionId::new("test"),
-            update: XaiSessionUpdate::RewindMarker {
+            update: AxonSessionUpdate::RewindMarker {
                 target_prompt_index: target,
                 created_at: "2024-01-01T00:00:00Z".to_string(),
             },
@@ -708,9 +708,9 @@ mod tests {
         prompt_index_at_compaction: usize,
         auto_continue: Option<AutoContinueInfo>,
     ) -> SessionUpdate {
-        SessionUpdate::Xai(Box::new(XaiNotification {
+        SessionUpdate::Axon(Box::new(AxonNotification {
             session_id: acp::SessionId::new("test"),
-            update: XaiSessionUpdate::CompactionCheckpoint(Box::new(CompactionCheckpointInfo {
+            update: AxonSessionUpdate::CompactionCheckpoint(Box::new(CompactionCheckpointInfo {
                 checkpoint_id: checkpoint_id.to_string(),
                 prompt_index_at_compaction,
                 checkpoint_file: format!("compaction_checkpoints/{checkpoint_id}.json"),

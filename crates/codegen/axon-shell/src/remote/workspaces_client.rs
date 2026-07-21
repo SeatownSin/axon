@@ -4,7 +4,7 @@ use serde::Deserialize;
 
 use crate::auth::AuthManager;
 
-const AXON_WEB_URL: &str = "https://grok.com";
+const AXON_WEB_URL: &str = "https://blocked.invalid";
 
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -70,14 +70,14 @@ impl WorkspacesClient {
         .unwrap_or_else(|| AXON_WEB_URL.to_string());
         Self {
             http: crate::http::shared_client(),
-            base_url: crate::util::block_xai_base_url(base_url, "workspaces backend"),
+            base_url: crate::util::block_axon_base_url(base_url, "workspaces backend"),
             auth,
         }
     }
 
     pub async fn list_workspaces(&self, q: &WsQuery) -> Result<ListWorkspacesPage, WsError> {
         let auth = self.auth.auth().await.map_err(|_| WsError::NoOauth)?;
-        if !auth.is_xai_auth() {
+        if !auth.is_axon_auth() {
             return Err(WsError::NoOauth);
         }
 
@@ -99,13 +99,13 @@ impl WorkspacesClient {
             .query(&query)
             .header("Authorization", format!("Bearer {}", auth.key))
             .header(
-                "X-XAI-Token-Auth",
-                self.auth.grok_com_config().token_header.clone(),
+                "X-AXON-Token-Auth",
+                self.auth.axon_com_config().token_header.clone(),
             )
             .header("x-userid", &auth.user_id)
-            .header("x-grok-client-version", axon_version::VERSION)
+            .header("x-axon-client-version", axon_version::VERSION)
             .header(
-                "x-grok-client-identifier",
+                "x-axon-client-identifier",
                 crate::http::process_client_identifier(),
             )
             .header(

@@ -1,9 +1,9 @@
-//! grok-build's L5 wiring onto the shared full-replace engine
+//! axon-build's L5 wiring onto the shared full-replace engine
 //! (`axon_compaction::code_compaction`).
 //!
 //! The shared engine drives the sample → retry → degenerate/failure
 //! classification loop via [`sample_full_replace_summary`](axon_compaction::sample_full_replace_summary);
-//! this module adapts grok-build's transport and telemetry to its two seams:
+//! this module adapts axon-build's transport and telemetry to its two seams:
 //!
 //! - [`ShellCompactionSampler`] wraps
 //!   [`generate_session_compact`](crate::session::helpers::session_compact::generate_session_compact)
@@ -43,7 +43,7 @@ use crate::session::helpers::session_compact::{
 };
 
 /// Wraps `generate_session_compact` as the shared engine's
-/// [`CompactionSampler`] for grok-build's full-replace pass.
+/// [`CompactionSampler`] for axon-build's full-replace pass.
 ///
 /// Holds the per-call request context the seam does not carry (tools, client,
 /// session, config) and stashes the last successful [`CompactOutput`] so the
@@ -52,8 +52,8 @@ use crate::session::helpers::session_compact::{
 ///
 /// The summarization prompt is selected here by `use_short_prompt` (the
 /// short-prompt harness uses the short self-summarization prompt; everyone
-/// else the structured grok-build prompt), so the shared `CompactionPrompt`
-/// the engine passes is ignored — the engine builds the grok-build prompt,
+/// else the structured axon-build prompt), so the shared `CompactionPrompt`
+/// the engine passes is ignored — the engine builds the axon-build prompt,
 /// which equals what `build_compaction_chat_history(.., false)` appends, and
 /// the short-prompt harness needs its own variant the engine can't produce.
 pub(crate) struct ShellCompactionSampler {
@@ -122,7 +122,7 @@ impl CompactionSampler for ShellCompactionSampler {
         _timeout: Duration,
     ) -> Result<LlmCompactionOutput, CompactionSampleError> {
         // Append the harness-selected summarization prompt as the final user
-        // message (compat short vs structured grok-build), ignoring the shared
+        // message (compat short vs structured axon-build), ignoring the shared
         // engine's `_prompt` (see the struct doc).
         let chat_history = build_compaction_chat_history(
             turns.to_vec(),
@@ -156,7 +156,7 @@ impl CompactionSampler for ShellCompactionSampler {
     }
 }
 
-/// Map grok-build's [`CompactFailure`] onto the shared engine's
+/// Map axon-build's [`CompactFailure`] onto the shared engine's
 /// [`CompactionSampleError`] so the shared retry loop classifies it the same
 /// way the in-shell loop did:
 ///
@@ -212,7 +212,7 @@ struct ObserverState {
     last_error_msg: Option<String>,
 }
 
-/// [`FullReplaceObserver`] that reproduces grok-build's per-attempt telemetry:
+/// [`FullReplaceObserver`] that reproduces axon-build's per-attempt telemetry:
 /// `CompactionAttempt` rows, rejection counters, the `CompactionRetryDegraded`
 /// event, and the warn/error tracing — without the shared engine depending on
 /// a telemetry backend.

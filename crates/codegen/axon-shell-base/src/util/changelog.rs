@@ -1,7 +1,7 @@
 //! Changelog fetching from CDN with local disk cache.
 //!
 //! Both markdown (`*.external.md`) and JSON (`*.external.json`) changelogs
-//! are published per-version to the CDN at `x.ai/cli/changelogs/`.
+//! are published per-version to the CDN at `axon/cli/changelogs/`.
 //!
 //! `ChangelogManager::fetch()` retrieves both formats in parallel and
 //! returns a `Changelog` with optional markdown + structured entries.
@@ -12,7 +12,7 @@
 use std::path::PathBuf;
 
 /// CDN base for all changelogs (proxies to GCS, cache-friendly).
-const CHANGELOG_BASE: &str = "https://x.ai/cli/changelogs";
+const CHANGELOG_BASE: &str = "https://blocked.invalid/cli/changelogs";
 const FETCH_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(3);
 
 /// A single structured changelog entry from the published JSON changelog.
@@ -70,14 +70,14 @@ impl ChangelogManager {
     }
 
     /// Resolve cache paths from the live process environment (not the
-    /// `grok_home()` OnceLock). A seeded `$AXON_HOME` set on the pager
+    /// `axon_home()` OnceLock). A seeded `$AXON_HOME` set on the pager
     /// process is always honoured even if some earlier init path cached a
     /// different home.
     fn from_env_home() -> Self {
         let home = std::env::var_os("AXON_HOME")
             .map(std::path::PathBuf::from)
             .filter(|p| !p.as_os_str().is_empty())
-            .unwrap_or_else(crate::util::grok_home::grok_home);
+            .unwrap_or_else(crate::util::axon_home::axon_home);
         Self {
             md_cache: home.join("CHANGELOG.md"),
             json_cache: home.join("CHANGELOG.json"),
@@ -102,8 +102,8 @@ impl ChangelogManager {
         // Always re-resolve from env so a caller holding an older manager
         // (or OnceLock lag) still reads the live harness home.
         //
-        // Forced offline: the changelog CDN is xAI infrastructure
-        // (`x.ai/cli/changelogs`), which this build never contacts. Only
+        // Forced offline: the changelog CDN is Axon infrastructure
+        // (`axon/cli/changelogs`), which this build never contacts. Only
         // previously cached notes (if any) are shown.
         Self::from_env_home().fetch_with(true, CHANGELOG_BASE)
     }
@@ -257,7 +257,7 @@ mod tests {
     #[test]
     fn offline_mode_reads_seeded_disk_cache_only() {
         let tmp = tempfile::tempdir().unwrap();
-        let home = tmp.path().join("grok-home");
+        let home = tmp.path().join("axon-home");
         std::fs::create_dir_all(&home).unwrap();
         std::fs::write(home.join("CHANGELOG.md"), "# seeded offline md\n").unwrap();
         std::fs::write(
@@ -281,7 +281,7 @@ mod tests {
     #[test]
     fn cdn_miss_falls_back_to_env_home_disk_cache() {
         let tmp = tempfile::tempdir().unwrap();
-        let home = tmp.path().join("grok-home-fallback");
+        let home = tmp.path().join("axon-home-fallback");
         std::fs::create_dir_all(&home).unwrap();
         std::fs::write(home.join("CHANGELOG.md"), "# fallback md\n").unwrap();
 

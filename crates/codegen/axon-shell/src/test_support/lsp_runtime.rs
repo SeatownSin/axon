@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot};
 use axon_acp_lib::AcpAgentGatewaySender as GatewaySender;
-use axon_tools::implementations::grok_build::task::types::{SubagentRequest, SubagentResult};
+use axon_tools::implementations::axon_build::task::types::{SubagentRequest, SubagentResult};
 pub(crate) type GatewayOut = <acp::AgentSide as axon_acp_lib::AcpSide>::OutMessage;
 pub(crate) fn test_gateway() -> GatewaySender {
     let (tx, _rx) = mpsc::unbounded_channel();
@@ -125,8 +125,8 @@ pub(crate) fn ctx_with_toggle(toggle: HashMap<String, bool>) -> SubagentSpawnCon
         image_description_model: crate::test_support::TEST_MODEL.to_owned(),
         workspace_ops: axon_workspace::WorkspaceOps::for_test(),
         auth_manager: Arc::new(crate::auth::AuthManager::new(
-            std::path::Path::new("/tmp/nonexistent-grok-test"),
-            crate::auth::GrokComConfig::default(),
+            std::path::Path::new("/tmp/nonexistent-axon-test"),
+            crate::auth::AxonComConfig::default(),
         )),
         attribution_callback: None,
         parent_agent_name: None,

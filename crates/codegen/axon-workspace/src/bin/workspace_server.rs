@@ -12,7 +12,7 @@ use axon_workspace::diag_server;
 use axon_workspace::preview_supervisor::{self, PreviewArgs, PreviewVisibility};
 /// OTLP `service.name` for this binary's exported traces/logs/metrics and
 /// direct-OTLP fastrace export. Single source so the call sites can't drift.
-const SERVICE_NAME: &str = "prod_grok_workspace";
+const SERVICE_NAME: &str = "prod_axon_workspace";
 const EXIT_SERVER_ID_INVALID: i32 = 3;
 const INVALID_SERVER_ID_MARKER: &str = "workspace-server: invalid --server-id";
 fn server_id_startup_error(id: &str) -> Option<String> {
@@ -21,7 +21,7 @@ fn server_id_startup_error(id: &str) -> Option<String> {
         .map(|e| format!("{INVALID_SERVER_ID_MARKER} {id:?}: {e}"))
 }
 #[derive(Parser)]
-#[command(name = "xai-workspace-server")]
+#[command(name = "axon-workspace-server")]
 #[command(about = "Standalone workspace ToolServer for the server connection")]
 struct Args {
     /// Print the capability manifest as JSON to stdout and exit 0. Legacy
@@ -29,7 +29,7 @@ struct Args {
     /// launcher a definitive feature probe.
     #[arg(long)]
     capabilities: bool,
-    #[arg(long, default_value = "wss://computer-hub.grok.com/v1/tools")]
+    #[arg(long, default_value = "wss://computer-hub.blocked.invalid/v1/tools")]
     hub_url: String,
     #[arg(long)]
     auth_config: Option<PathBuf>,
@@ -90,7 +90,7 @@ struct Args {
         action = clap::ArgAction::Set,
     )]
     project_lsp_trusted: bool,
-    /// Confine `x.ai/fs/*` resolution to the workspace root (reject `..`,
+    /// Confine `axon/fs/*` resolution to the workspace root (reject `..`,
     /// absolute-outside-root, symlink escapes). On by default: the standalone
     /// server always backs a remote-sandbox workspace, a real tenant boundary.
     /// Override with `AXON_WORKSPACE_CONFINE_FS_TO_ROOT=false` (e.g. local dev).
@@ -121,7 +121,7 @@ struct Args {
     preview: PreviewCliArgs,
 }
 /// Preview-proxy supervision flags. Forwarded 1:1 to the
-/// `/usr/local/bin/xai-grok-preview-proxy` child (see `cli.rs` for the proxy's
+/// `/usr/local/bin/axon-axon-preview-proxy` child (see `cli.rs` for the proxy's
 /// flag names). Off by default — when `--preview-enabled` is absent the
 /// supervisor is never started and startup is byte-for-byte the non-preview
 /// path.
@@ -450,17 +450,17 @@ mod tests {
     use super::*;
     #[test]
     fn capabilities_flag_parses_and_defaults_off() {
-        let args = Args::try_parse_from(["xai-workspace-server"]).unwrap();
+        let args = Args::try_parse_from(["axon-workspace-server"]).unwrap();
         assert!(!args.capabilities);
-        let args = Args::try_parse_from(["xai-workspace-server", "--capabilities"]).unwrap();
+        let args = Args::try_parse_from(["axon-workspace-server", "--capabilities"]).unwrap();
         assert!(args.capabilities);
     }
     #[test]
     fn project_lsp_trust_defaults_off_and_is_opt_in() {
         unsafe { std::env::remove_var("AXON_WORKSPACE_PROJECT_LSP_TRUSTED") };
-        let args = Args::try_parse_from(["xai-workspace-server"]).unwrap();
+        let args = Args::try_parse_from(["axon-workspace-server"]).unwrap();
         assert!(!args.project_lsp_trusted);
-        let args = Args::try_parse_from(["xai-workspace-server", "--project-lsp-trusted", "true"])
+        let args = Args::try_parse_from(["axon-workspace-server", "--project-lsp-trusted", "true"])
             .unwrap();
         assert!(args.project_lsp_trusted);
     }
@@ -477,7 +477,7 @@ mod tests {
             #[arg(long)]
             daemonize: bool,
         }
-        let err = LegacyArgs::try_parse_from(["xai-workspace-server", "--capabilities"])
+        let err = LegacyArgs::try_parse_from(["axon-workspace-server", "--capabilities"])
             .expect_err("a legacy binary must reject the flag");
         assert_eq!(err.kind(), clap::error::ErrorKind::UnknownArgument);
         assert_ne!(
@@ -488,7 +488,7 @@ mod tests {
     }
     #[test]
     fn daemonize_defaults_are_inert() {
-        let args = Args::try_parse_from(["xai-workspace-server"]).unwrap();
+        let args = Args::try_parse_from(["axon-workspace-server"]).unwrap();
         assert!(!args.daemonize);
         assert_eq!(args.log_file, PathBuf::from(daemonize::DEFAULT_LOG_PATH));
         assert_eq!(
@@ -500,7 +500,7 @@ mod tests {
     #[test]
     fn ready_file_is_accepted_as_a_deprecated_no_op() {
         let args =
-            Args::try_parse_from(["xai-workspace-server", "--ready-file", "/tmp/x.ready"]).unwrap();
+            Args::try_parse_from(["axon-workspace-server", "--ready-file", "/tmp/x.ready"]).unwrap();
         assert_eq!(args.ready_file, Some(PathBuf::from("/tmp/x.ready")));
     }
     #[test]
@@ -517,7 +517,7 @@ mod tests {
     }
     #[test]
     fn argv_rejection_exit_code_is_distinct_from_server_id_exit_code() {
-        let err = Args::try_parse_from(["xai-workspace-server", "--flag-from-the-future"])
+        let err = Args::try_parse_from(["axon-workspace-server", "--flag-from-the-future"])
             .err()
             .expect("unknown argv must be rejected");
         assert_eq!(err.exit_code(), 2, "clap argv rejection exits 2");
@@ -527,7 +527,7 @@ mod tests {
     }
     #[test]
     fn preview_defaults_are_inert() {
-        let args = Args::try_parse_from(["xai-workspace-server"]).unwrap();
+        let args = Args::try_parse_from(["axon-workspace-server"]).unwrap();
         assert!(!args.preview.preview_enabled);
         let cfg = args.preview.into_preview_args(PathBuf::from("/workspace"));
         assert!(!cfg.enabled);
@@ -539,7 +539,7 @@ mod tests {
     #[test]
     fn preview_flags_parse_and_lower_to_supervisor_config() {
         let args = Args::try_parse_from([
-            "xai-workspace-server",
+            "axon-workspace-server",
             "--preview-enabled",
             "--preview-port",
             "6014",
@@ -550,7 +550,7 @@ mod tests {
             "--preview-instance-suffix",
             ".inst.example",
             "--preview-auth-redirect",
-            "https://grok.com/preview-auth",
+            "https://blocked.invalid/preview-auth",
             "--preview-allow-public",
             "--preview-workspace-server-port",
             "8470",
@@ -565,7 +565,7 @@ mod tests {
         assert_eq!(cfg.instance_suffix.as_deref(), Some(".inst.example"));
         assert_eq!(
             cfg.auth_redirect.as_deref(),
-            Some("https://grok.com/preview-auth")
+            Some("https://blocked.invalid/preview-auth")
         );
         assert!(cfg.allow_public);
         assert_eq!(cfg.workspace_server_port, Some(8470));
@@ -582,7 +582,7 @@ mod tests {
                 "--instance-suffix",
                 ".inst.example",
                 "--auth-redirect",
-                "https://grok.com/preview-auth",
+                "https://blocked.invalid/preview-auth",
                 "--allow-public",
                 "--workspace-server-port",
                 "8470",
@@ -592,7 +592,7 @@ mod tests {
     #[test]
     fn preview_visibility_rejects_invalid_value() {
         let err = Args::try_parse_from([
-            "xai-workspace-server",
+            "axon-workspace-server",
             "--preview-enabled",
             "--preview-visibility",
             "nobody",
@@ -604,7 +604,7 @@ mod tests {
     #[test]
     fn preview_visibility_owner_parses_and_lowers() {
         let args = Args::try_parse_from([
-            "xai-workspace-server",
+            "axon-workspace-server",
             "--preview-enabled",
             "--preview-visibility",
             "owner",

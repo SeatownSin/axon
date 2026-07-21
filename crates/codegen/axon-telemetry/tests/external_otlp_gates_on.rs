@@ -22,7 +22,7 @@ use axon_telemetry::external::{self, ExternalOtelRemotePolicy, IdentityAttrs};
 
 // Secret shapes — MUST be scrubbed everywhere, even inside gated content.
 const SECRET_KEY: &str = "sk-LEAKaaaaaaaaaaaaaaaa1234567890";
-const SECRET_MODEL: &str = "grok-4-sk-LEAKmodel1234567890abcd";
+const SECRET_MODEL: &str = "axon-4-sk-LEAKmodel1234567890abcd";
 // Benign markers — with the gate ON these MUST appear on the wire (proving the
 // gated field is actually exported, not just that the scrub ran).
 const PROMPT_MARK: &str = "promptbodymarker";
@@ -74,9 +74,9 @@ fn external_stream_gates_on_end_to_end() {
 
     axon_telemetry::log_event(axon_telemetry::events::SessionHarness {
         session_id: "sess-gates-on".into(),
-        client_identifier: Some("grok-pager".into()),
-        model_id: "grok-4".into(),
-        agent_name: "grok-build-plan".into(),
+        client_identifier: Some("axon-pager".into()),
+        model_id: "axon-4".into(),
+        agent_name: "axon-build-plan".into(),
         permission_mode: axon_telemetry::enums::PermissionMode::Ask,
         mcp_server_names: vec!["internal-mcp".into()],
         plugin_names: vec![],
@@ -90,7 +90,7 @@ fn external_stream_gates_on_end_to_end() {
     });
     axon_telemetry::log_event(axon_telemetry::events::PromptSubmitted {
         prompt_length: 100,
-        model_id: "grok-4".into(),
+        model_id: "axon-4".into(),
         client_identifier: None,
         screen_mode: None,
         prompt_text: Some(format!("refactor {PROMPT_MARK} with key {SECRET_KEY} now")),
@@ -127,21 +127,21 @@ fn external_stream_gates_on_end_to_end() {
 
     // ── Resource + scope ────────────────────────────────────────────────
     let records = col::log_records(&collected);
-    let harness = col::find_event(&collected, "grok_code.session_start")
+    let harness = col::find_event(&collected, "axon_code.session_start")
         .expect("session_start must be present");
-    assert_eq!(harness.scope_name, "ai.xai.grok_code");
+    assert_eq!(harness.scope_name, "ai.axon.axon_code");
     assert_eq!(
         harness
             .resource
             .get("service.name")
             .and_then(|v| v.as_str()),
-        Some("grok-cli"),
-        "service.name=grok-cli is a wire commitment"
+        Some("axon-cli"),
+        "service.name=axon-cli is a wire commitment"
     );
     assert_eq!(
         harness
             .resource
-            .get("grok_code.schema.version")
+            .get("axon_code.schema.version")
             .and_then(|v| v.as_str()),
         Some("v1")
     );
@@ -173,7 +173,7 @@ fn external_stream_gates_on_end_to_end() {
     );
 
     // ── Prompt gate ON: text present, secret still scrubbed ─────────────
-    let prompt = col::find_event(&collected, "grok_code.user_prompt").expect("user_prompt present");
+    let prompt = col::find_event(&collected, "axon_code.user_prompt").expect("user_prompt present");
     let prompt_text = prompt
         .attrs
         .get("prompt")
@@ -189,7 +189,7 @@ fn external_stream_gates_on_end_to_end() {
     );
 
     // ── Tool details gate ON: verbatim name + gated path/params, scrubbed ─
-    let tool = col::find_event(&collected, "grok_code.tool_result").expect("tool_result present");
+    let tool = col::find_event(&collected, "axon_code.tool_result").expect("tool_result present");
     assert_eq!(
         tool.attrs.get("tool_name").and_then(|v| v.as_str()),
         Some("github__create_issue"),
@@ -219,7 +219,7 @@ fn external_stream_gates_on_end_to_end() {
     );
 
     // ── Metrics: cumulative temporality + app.version + scrubbed model ──
-    let tokens = col::find_metric(&collected, "grok_code.token.usage");
+    let tokens = col::find_metric(&collected, "axon_code.token.usage");
     assert!(!tokens.is_empty(), "token.usage must export");
     for p in &tokens {
         assert_eq!(
@@ -242,7 +242,7 @@ fn external_stream_gates_on_end_to_end() {
             "metric model must be scrubbed: {model:?}"
         );
     }
-    let sessions = col::find_metric(&collected, "grok_code.session.count");
+    let sessions = col::find_metric(&collected, "axon_code.session.count");
     // SessionHarness has no session.count metric; that comes from SessionNew —
     // not emitted here, so just confirm token.usage identity coverage above.
     let _ = sessions;
@@ -269,7 +269,7 @@ fn external_stream_gates_on_end_to_end() {
     );
     axon_telemetry::log_event(axon_telemetry::events::PromptSubmitted {
         prompt_length: 1,
-        model_id: "grok-4".into(),
+        model_id: "axon-4".into(),
         client_identifier: None,
         screen_mode: None,
         prompt_text: Some("post-kill".into()),

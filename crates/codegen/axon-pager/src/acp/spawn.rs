@@ -1,6 +1,6 @@
 //! Agent spawning — creates the agent process and ACP channels.
 //!
-//! Simplified to only support GrokShell (in-process) mode.
+//! Simplified to only support AxonShell (in-process) mode.
 //! Subprocess and remote modes can be added later if needed.
 
 use std::rc::Rc;
@@ -16,7 +16,7 @@ use axon_acp_lib::{
 use axon_shell::{
     agent::{MvpAgent, config::Config as AgentConfig, models::RefreshStrategy},
     auth::AuthManager,
-    util::grok_home::grok_home,
+    util::axon_home::axon_home,
 };
 
 /// Result of spawning a child agent.
@@ -30,20 +30,20 @@ pub struct SpawnedAgent {
     pub auth_manager: std::sync::Arc<AuthManager>,
 }
 
-/// Spawn a GrokShell agent in a background thread.
+/// Spawn a AxonShell agent in a background thread.
 ///
 /// Returns the ACP client channel for communication and a cancellation token.
-pub async fn spawn_grok_shell(
+pub async fn spawn_axon_shell(
     agent_config: AgentConfig,
     cancel: &CancellationToken,
     memory_config: Option<axon_shell::config::MemoryConfig>,
 ) -> Result<SpawnedAgent> {
     let auth_manager = std::sync::Arc::new(AuthManager::new(
-        &grok_home(),
-        agent_config.grok_com_config.clone(),
+        &axon_home(),
+        agent_config.axon_com_config.clone(),
     ));
     auth_manager.configure_refresher(
-        agent_config.grok_com_config.auth_provider_command.clone(),
+        agent_config.axon_com_config.auth_provider_command.clone(),
         None,
     );
     // Pause token refreshes across system sleep so an OIDC refresh can't

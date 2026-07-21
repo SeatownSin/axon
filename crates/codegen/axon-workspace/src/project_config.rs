@@ -42,8 +42,8 @@ pub(crate) fn find_mcp_json_files_in(chain_dirs: &[PathBuf]) -> Vec<PathBuf> {
 }
 
 /// True when `config_path` is `$AXON_HOME/config.toml` (user tier, not project).
-fn is_user_grok_config_file(config_path: &Path) -> bool {
-    let Some(user_home) = axon_config::user_grok_home() else {
+fn is_user_axon_config_file(config_path: &Path) -> bool {
+    let Some(user_home) = axon_config::user_axon_home() else {
         return false;
     };
     let user_config = user_home.join("config.toml");
@@ -79,7 +79,7 @@ pub(crate) fn find_project_configs_in(chain_dirs: &[PathBuf]) -> Vec<PathBuf> {
         .iter()
         .rev()
         .map(|dir| dir.join(".axon").join("config.toml"))
-        .filter(|config_path| config_path.is_file() && !is_user_grok_config_file(config_path))
+        .filter(|config_path| config_path.is_file() && !is_user_axon_config_file(config_path))
         .collect()
 }
 
@@ -88,8 +88,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn find_project_configs_excludes_user_grok_config_file() {
-        let Some(user_home) = axon_config::user_grok_home() else {
+    fn find_project_configs_excludes_user_axon_config_file() {
+        let Some(user_home) = axon_config::user_axon_home() else {
             return;
         };
         let user_config = user_home.join("config.toml");
@@ -98,10 +98,10 @@ mod tests {
             let home = std::env::home_dir().expect("home dir");
             let from_home = find_project_configs(&home);
             assert!(
-                !from_home.iter().any(|p| is_user_grok_config_file(p)),
+                !from_home.iter().any(|p| is_user_axon_config_file(p)),
                 "user config leaked into project configs: {from_home:?}"
             );
-            assert!(is_user_grok_config_file(&user_config));
+            assert!(is_user_axon_config_file(&user_config));
         }
 
         let tmp = tempfile::tempdir().unwrap();
@@ -110,6 +110,6 @@ mod tests {
         std::fs::write(project.join(".axon/config.toml"), "# project\n").unwrap();
         let found = find_project_configs(&project);
         assert_eq!(found.len(), 1);
-        assert!(!is_user_grok_config_file(&found[0]));
+        assert!(!is_user_axon_config_file(&found[0]));
     }
 }

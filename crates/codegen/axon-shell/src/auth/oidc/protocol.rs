@@ -3,8 +3,8 @@
 //!
 //! No `AuthManager` mutation here. The login orchestration is in
 //! [`super::login`]; refresh primitives are in [`super::refresh`].
-use super::super::config::{ForceLoginTeam, GrokComConfig, OAuth2ProviderConfig, OidcAuthConfig};
-use super::super::{AuthMode, GrokAuth};
+use super::super::config::{ForceLoginTeam, AxonComConfig, OAuth2ProviderConfig, OidcAuthConfig};
+use super::super::{AuthMode, AxonAuth};
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use chrono::{Duration, Utc};
@@ -94,7 +94,7 @@ pub(crate) fn with_alpha_test_key(
     let _ = url;
     builder
 }
-pub fn is_configured(config: &GrokComConfig) -> bool {
+pub fn is_configured(config: &AxonComConfig) -> bool {
     config.oidc.is_some()
 }
 /// Peek at the unverified access token JWT to extract the `principal_type`
@@ -158,7 +158,7 @@ pub(crate) fn resolve_login_principal_policy(
 ) -> Option<ForceLoginTeam> {
     force_login_team_uuid.cloned()
 }
-pub(crate) fn login_principal_policy(cfg: &GrokComConfig) -> Option<ForceLoginTeam> {
+pub(crate) fn login_principal_policy(cfg: &AxonComConfig) -> Option<ForceLoginTeam> {
     resolve_login_principal_policy(cfg.force_login_team_uuid.as_ref())
 }
 /// Reject a token whose principal isn't allowed, BEFORE persisting (no partial
@@ -221,14 +221,14 @@ pub(super) struct OidcUserInfo {
     pub(super) team_blocked_reasons: Vec<String>,
     pub(super) coding_data_retention_opt_out: bool,
 }
-pub(super) fn build_grok_auth(
+pub(super) fn build_axon_auth(
     tokens: TokenResponse,
     user_info: OidcUserInfo,
     issuer: &str,
     client_id: &str,
-) -> GrokAuth {
+) -> AxonAuth {
     let now = Utc::now();
-    GrokAuth {
+    AxonAuth {
         key: tokens.access_token,
         auth_mode: AuthMode::Oidc,
         create_time: now,
@@ -248,7 +248,7 @@ pub(super) fn build_grok_auth(
         user_blocked_reason: user_info.user_blocked_reason,
         team_blocked_reasons: user_info.team_blocked_reasons,
         coding_data_retention_opt_out: user_info.coding_data_retention_opt_out,
-        has_grok_code_access: None,
+        has_axon_code_access: None,
         refresh_token: tokens.refresh_token,
         expires_at: tokens.expires_in.map(|s| now + Duration::seconds(s as i64)),
         oidc_issuer: Some(issuer.to_owned()),
@@ -302,14 +302,14 @@ fn discovery_retry_policy() -> backon::ExponentialBuilder {
         .with_jitter()
 }
 async fn discover_once(issuer_key: &str) -> anyhow::Result<Discovery> {
-    // This build never contacts xAI infrastructure. OIDC discovery is the
+    // This build never contacts Axon infrastructure. OIDC discovery is the
     // single gateway for both interactive login and token refresh, so
-    // refusing an xAI issuer here blocks every Grok-account auth network
+    // refusing an Axon issuer here blocks every Axon-account auth network
     // call at one choke point. Enterprise/self-hosted OIDC issuers work.
-    if crate::util::is_xai_infrastructure_url(issuer_key) {
+    if crate::util::is_axon_infrastructure_url(issuer_key) {
         return Err(anyhow::anyhow!(
-            "OIDC issuer '{issuer_key}' targets xAI infrastructure, which this build \
-             never contacts. Use a local or BYOK model instead of Grok-account auth."
+            "OIDC issuer '{issuer_key}' targets Axon infrastructure, which this build \
+             never contacts. Use a local or BYOK model instead of Axon-account auth."
         ));
     }
     let url = format!("{issuer_key}/.well-known/openid-configuration");
@@ -394,7 +394,7 @@ pub(super) fn build_authorize_url(
     let referrer = oauth2
         .and_then(|o| o.referrer.as_deref())
         .filter(|r| !r.is_empty())
-        .unwrap_or("grok-build");
+        .unwrap_or("axon-build");
     url.push_str(&format!("&referrer={}", urlencoding::encode(referrer)));
     url
 }
@@ -421,7 +421,7 @@ pub(super) async fn exchange_code(
     let resp = with_alpha_test_key(
         crate::http::shared_client()
             .post(token_endpoint)
-            .header("x-grok-client-version", axon_version::VERSION)
+            .header("x-axon-client-version", axon_version::VERSION)
             .form(&[
                 ("grant_type", "authorization_code"),
                 ("code", code),
@@ -769,7 +769,7 @@ mod tests {
             issuer: "https://example.okta.com".into(),
             client_id: TEST_CLIENT_ID.into(),
             scopes: vec!["openid".into(), "profile".into()],
-            audience: Some("api://grok".into()),
+            audience: Some("api://axon".into()),
         };
         let discovery = Discovery {
             authorization_endpoint: "https://example.okta.com/authorize".into(),
@@ -799,7 +799,7 @@ mod tests {
             "nonce=nonce123",
             "scope=openid",
             "audience=api",
-            "referrer=grok-build",
+            "referrer=axon-build",
         ] {
             assert!(url.contains(required), "missing param: {required}");
         }
@@ -812,22 +812,22 @@ mod tests {
     #[test]
     fn authorize_url_includes_team_principal_params() {
         let config = OidcAuthConfig {
-            issuer: "https://auth.x.ai".into(),
+            issuer: "https://auth.blocked.invalid".into(),
             client_id: TEST_CLIENT_ID.into(),
-            scopes: vec!["offline_access".into(), "grok-cli:access".into()],
+            scopes: vec!["offline_access".into(), "axon-cli:access".into()],
             audience: None,
         };
         let oauth2 = OAuth2ProviderConfig {
-            issuer: "https://auth.x.ai".into(),
+            issuer: "https://auth.blocked.invalid".into(),
             client_id: TEST_CLIENT_ID.into(),
-            scopes: vec!["offline_access".into(), "grok-cli:access".into()],
+            scopes: vec!["offline_access".into(), "axon-cli:access".into()],
             principal_type: Some("Team".into()),
             principal_id: Some("team-123".into()),
-            referrer: Some("grok-build".into()),
+            referrer: Some("axon-build".into()),
         };
         let discovery = Discovery {
-            authorization_endpoint: "https://auth.x.ai/authorize".into(),
-            token_endpoint: "https://auth.x.ai/token".into(),
+            authorization_endpoint: "https://auth.blocked.invalid/authorize".into(),
+            token_endpoint: "https://auth.blocked.invalid/token".into(),
             jwks_uri: None,
             id_token_signing_alg_values_supported: None,
         };
@@ -846,7 +846,7 @@ mod tests {
         );
         assert!(url.contains("principal_type=Team"));
         assert!(url.contains("principal_id=team-123"));
-        assert!(url.contains("referrer=grok-build"));
+        assert!(url.contains("referrer=axon-build"));
         assert_eq!(
             url.matches("referrer=").count(),
             1,
@@ -856,22 +856,22 @@ mod tests {
     #[test]
     fn authorize_url_uses_oauth2_referrer_override_once() {
         let config = OidcAuthConfig {
-            issuer: "https://auth.x.ai".into(),
+            issuer: "https://auth.blocked.invalid".into(),
             client_id: TEST_CLIENT_ID.into(),
-            scopes: vec!["offline_access".into(), "grok-cli:access".into()],
+            scopes: vec!["offline_access".into(), "axon-cli:access".into()],
             audience: None,
         };
         let oauth2 = OAuth2ProviderConfig {
-            issuer: "https://auth.x.ai".into(),
+            issuer: "https://auth.blocked.invalid".into(),
             client_id: TEST_CLIENT_ID.into(),
-            scopes: vec!["offline_access".into(), "grok-cli:access".into()],
+            scopes: vec!["offline_access".into(), "axon-cli:access".into()],
             principal_type: None,
             principal_id: None,
-            referrer: Some("grok-desktop".into()),
+            referrer: Some("axon-desktop".into()),
         };
         let discovery = Discovery {
-            authorization_endpoint: "https://auth.x.ai/authorize".into(),
-            token_endpoint: "https://auth.x.ai/token".into(),
+            authorization_endpoint: "https://auth.blocked.invalid/authorize".into(),
+            token_endpoint: "https://auth.blocked.invalid/token".into(),
             jwks_uri: None,
             id_token_signing_alg_values_supported: None,
         };
@@ -888,8 +888,8 @@ mod tests {
             "state123",
             "nonce123",
         );
-        assert!(url.contains("referrer=grok-desktop"));
-        assert!(!url.contains("referrer=grok-build"));
+        assert!(url.contains("referrer=axon-desktop"));
+        assert!(!url.contains("referrer=axon-build"));
         assert_eq!(
             url.matches("referrer=").count(),
             1,
@@ -1004,9 +1004,9 @@ mod tests {
             .unwrap()
         }
         let team_jwt = make_jwt(serde_json::json!(
-            { "sub" : "user-42", "iss" : "https://auth.x.ai", "aud" : "test-client",
+            { "sub" : "user-42", "iss" : "https://auth.blocked.invalid", "aud" : "test-client",
             "exp" : 9999999999u64, "iat" : 1000000000u64, "scope" :
-            "offline_access grok-cli:access api:access", "principal_type" : "Team",
+            "offline_access axon-cli:access api:access", "principal_type" : "Team",
             "principal_id" : "team-abc-123", "client_id" : "test-client", "jti" :
             "token-1", }
         ));
@@ -1017,7 +1017,7 @@ mod tests {
         assert!(peek_access_token_principal("not-a-jwt-token").is_none());
         assert!(peek_access_token_principal("").is_none());
         let no_principal = make_jwt(serde_json::json!(
-            { "sub" : "user-42", "iss" : "https://auth.x.ai", "aud" : "test-client",
+            { "sub" : "user-42", "iss" : "https://auth.blocked.invalid", "aud" : "test-client",
             "exp" : 9999999999u64, "iat" : 1000000000u64, }
         ));
         assert!(peek_access_token_principal(&no_principal).is_none());

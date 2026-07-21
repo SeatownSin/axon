@@ -80,11 +80,11 @@ pub enum TraceUploadReason {
     ZdrTeam,
     /// `[telemetry] trace_upload = false` in config.
     FeatureOff,
-    /// No grok.com auth or deployment key.
+    /// No blocked.invalid auth or deployment key.
     NoCredentials,
     /// Direct-to-bucket S3 upload.
     DirectS3,
-    /// Proxy mode via grok.com auth.
+    /// Proxy mode via blocked.invalid auth.
     Proxy,
     /// Direct GCS with service account key.
     DirectGcs,
@@ -121,7 +121,7 @@ mod tests {
 
     use super::TraceUploadReason;
 
-    /// The `grok-shell-doom_loop_recovery` Mixpanel event's name and
+    /// The `axon-shell-doom_loop_recovery` Mixpanel event's name and
     /// property keys are dashboard contracts — pin them.
     #[test]
     fn doom_loop_recovery_event_shape_is_stable() {
@@ -133,7 +133,7 @@ mod tests {
             attempts: 2,
             accepted_after_budget: true,
             top_trigger: Some("tail_repetition:4@thinking".to_string()),
-            model: "grok-4.5".to_string(),
+            model: "axon-4.5".to_string(),
         })
         .unwrap();
         assert_eq!(
@@ -144,7 +144,7 @@ mod tests {
                 "attempts": 2,
                 "accepted_after_budget": true,
                 "top_trigger": "tail_repetition:4@thinking",
-                "model": "grok-4.5",
+                "model": "axon-4.5",
             })
         );
         let no_trigger = serde_json::to_value(super::DoomLoopRecovery {
@@ -153,7 +153,7 @@ mod tests {
             attempts: 1,
             accepted_after_budget: false,
             top_trigger: None,
-            model: "grok-4.5".to_string(),
+            model: "axon-4.5".to_string(),
         })
         .unwrap();
         assert!(no_trigger.get("top_trigger").is_none(), "None is omitted");

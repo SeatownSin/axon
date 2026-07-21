@@ -35,7 +35,7 @@ fn reset() {
 
 #[tokio::test]
 #[serial]
-async fn write_version_cache_creates_file_at_grok_home() {
+async fn write_version_cache_creates_file_at_axon_home() {
     let _ = test_home();
     reset();
 
@@ -135,7 +135,7 @@ async fn write_version_cache_records_recent_timestamp() {
 // writes the file directly so we can control the timestamp.
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Write a `GrokVersion`-shaped JSON file with an arbitrary timestamp.
+/// Write a `AxonVersion`-shaped JSON file with an arbitrary timestamp.
 fn write_cache_with_timestamp(version: &str, ts: time::OffsetDateTime) {
     let ts_str = ts
         .format(&time::format_description::well_known::Rfc3339)
@@ -154,7 +154,7 @@ fn write_cache_with_timestamp(version: &str, ts: time::OffsetDateTime) {
 /// Re-implement the cache-freshness check using the public API. We can't
 /// import the private `is_version_cache_fresh` directly, but we can verify
 /// its on-disk contract: file shape + freshness logic via the public
-/// `GrokVersion` JSON layout.
+/// `AxonVersion` JSON layout.
 async fn cache_is_fresh() -> bool {
     // Mirror the implementation: look at version.json under AXON_HOME,
     // parse, and check the TTL.
@@ -218,7 +218,7 @@ async fn version_cache_missing_file_is_not_fresh() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// version.json wire format — the on-disk file is read by every grok launch.
+// version.json wire format — the on-disk file is read by every axon launch.
 // ─────────────────────────────────────────────────────────────────────────────
 
 #[tokio::test]
@@ -277,13 +277,13 @@ async fn write_version_cache_idempotent_for_same_version() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// get_installed_grok_version env override
+// get_installed_axon_version env override
 //
 // The function honors `AXON_TEST_VERSION` for testing. We exercise it
 // via the public re-export only — no private items leaked.
 // ─────────────────────────────────────────────────────────────────────────────
 //
-// Note: `get_installed_grok_version` is not re-exported from `lib.rs`, but
+// Note: `get_installed_axon_version` is not re-exported from `lib.rs`, but
 // it's `pub` from `version` module and accessible via `version::`.
 
 #[tokio::test]
@@ -295,7 +295,7 @@ async fn get_installed_version_uses_env_var_override() {
     unsafe {
         std::env::set_var("AXON_TEST_VERSION", "9.9.9");
     }
-    let v = axon_update::version::get_installed_grok_version();
+    let v = axon_update::version::get_installed_axon_version();
     assert_eq!(v, "9.9.9");
     unsafe {
         std::env::remove_var("AXON_TEST_VERSION");
@@ -311,7 +311,7 @@ async fn get_installed_version_falls_back_to_cargo_pkg_version_when_env_unset() 
     unsafe {
         std::env::remove_var("AXON_TEST_VERSION");
     }
-    let v = axon_update::version::get_installed_grok_version();
+    let v = axon_update::version::get_installed_axon_version();
     // The compile-time CARGO_PKG_VERSION must be a parseable semver string.
     let _: semver::Version = v
         .parse()
@@ -328,13 +328,13 @@ async fn get_installed_version_with_env_var_takes_precedence() {
         unsafe {
             std::env::remove_var("AXON_TEST_VERSION");
         }
-        axon_update::version::get_installed_grok_version()
+        axon_update::version::get_installed_axon_version()
     };
 
     unsafe {
         std::env::set_var("AXON_TEST_VERSION", "0.0.0-test");
     }
-    let overridden = axon_update::version::get_installed_grok_version();
+    let overridden = axon_update::version::get_installed_axon_version();
     assert_ne!(real, overridden);
     assert_eq!(overridden, "0.0.0-test");
 
@@ -352,7 +352,7 @@ async fn get_installed_version_handles_alpha_prerelease_in_env() {
     unsafe {
         std::env::set_var("AXON_TEST_VERSION", "0.1.200-alpha.5");
     }
-    let v = axon_update::version::get_installed_grok_version();
+    let v = axon_update::version::get_installed_axon_version();
     assert_eq!(v, "0.1.200-alpha.5");
     unsafe {
         std::env::remove_var("AXON_TEST_VERSION");
@@ -370,7 +370,7 @@ async fn get_installed_version_does_not_validate_env_var_format() {
     unsafe {
         std::env::set_var("AXON_TEST_VERSION", "not-a-version");
     }
-    let v = axon_update::version::get_installed_grok_version();
+    let v = axon_update::version::get_installed_axon_version();
     assert_eq!(v, "not-a-version");
     unsafe {
         std::env::remove_var("AXON_TEST_VERSION");

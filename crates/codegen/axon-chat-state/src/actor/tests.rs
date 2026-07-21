@@ -908,7 +908,7 @@ async fn update_sampling_config_is_queryable() {
     let h = TestHarness::new();
     let new_config = SamplingConfig {
         base_url: "https://new.example.com".to_string(),
-        model: "grok-3".to_string(),
+        model: "axon-3".to_string(),
         max_completion_tokens: Some(4096),
         temperature: Some(0.5),
         top_p: None,
@@ -921,7 +921,7 @@ async fn update_sampling_config_is_queryable() {
     h.handle.update_sampling_config(new_config.clone());
 
     let config = h.handle.get_sampling_config().await.unwrap();
-    assert_eq!(config.model, "grok-3");
+    assert_eq!(config.model, "axon-3");
     assert_eq!(config.context_window, NonZeroU64::new(200_000).unwrap());
 }
 
@@ -1155,8 +1155,8 @@ async fn build_request_includes_all_messages() {
         .await
         .unwrap();
     assert_eq!(request.items.len(), 2);
-    assert_eq!(request.x_grok_conv_id, Some("conv-1".to_string()));
-    assert_eq!(request.x_grok_req_id, Some("req-1".to_string()));
+    assert_eq!(request.x_axon_conv_id, Some("conv-1".to_string()));
+    assert_eq!(request.x_axon_req_id, Some("req-1".to_string()));
 }
 
 #[tokio::test]
@@ -1293,7 +1293,7 @@ async fn build_request_with_tool_definitions() {
 async fn build_request_uses_sampling_config() {
     let config = SamplingConfig {
         base_url: "https://api.example.com".to_string(),
-        model: "grok-3".to_string(),
+        model: "axon-3".to_string(),
         max_completion_tokens: Some(8192),
         temperature: Some(0.7),
         top_p: Some(0.9),
@@ -1311,7 +1311,7 @@ async fn build_request_uses_sampling_config() {
         .await
         .unwrap();
 
-    assert_eq!(request.model, Some("grok-3".to_string()));
+    assert_eq!(request.model, Some("axon-3".to_string()));
     assert_eq!(request.temperature, Some(0.7));
     assert_eq!(request.max_output_tokens, Some(8192));
     assert_eq!(request.top_p, Some(0.9));
@@ -1485,7 +1485,7 @@ async fn parallel_tool_calls_accept_first_reject_second_skip_third() {
                     arguments: r#"{"command":"cargo test"}"#.into(),
                 },
             ],
-            model_id: Some("grok-3".to_string()),
+            model_id: Some("axon-3".to_string()),
             model_fingerprint: None,
             reasoning_effort: None,
         });
@@ -1771,7 +1771,7 @@ async fn dangling_tool_calls_after_crash_are_repaired_on_load() {
                     arguments: r#"{"command":"cargo test"}"#.into(),
                 },
             ],
-            model_id: Some("grok-3".to_string()),
+            model_id: Some("axon-3".to_string()),
             model_fingerprint: None,
             reasoning_effort: None,
         }),
@@ -3366,13 +3366,13 @@ async fn get_last_model_metadata_returns_both_fields() {
         ConversationItem::Assistant(axon_sampling_types::AssistantItem {
             content: "hello".into(),
             tool_calls: vec![],
-            model_id: Some("grok-4.5".into()),
+            model_id: Some("axon-4.5".into()),
             model_fingerprint: Some("fp_abc123".into()),
             reasoning_effort: None,
         }),
     ]);
     let meta = h.handle.get_last_model_metadata().await;
-    assert_eq!(meta.resolved_model_id.as_deref(), Some("grok-4.5"));
+    assert_eq!(meta.resolved_model_id.as_deref(), Some("axon-4.5"));
     assert_eq!(meta.model_fingerprint.as_deref(), Some("fp_abc123"));
 }
 
@@ -3397,7 +3397,7 @@ async fn sampling_config_survives_compaction_replacement() {
 
     let config = SamplingConfig {
         base_url: "https://api.example.com".to_string(),
-        model: "grok-build".to_string(),
+        model: "axon-build".to_string(),
         max_completion_tokens: None,
         temperature: Some(0.7),
         top_p: Some(0.95),
@@ -3415,7 +3415,7 @@ async fn sampling_config_survives_compaction_replacement() {
             ConversationItem::Assistant(axon_sampling_types::AssistantItem {
                 content: "I'll fix it.".into(),
                 tool_calls: vec![],
-                model_id: Some("grok-4.5".into()),
+                model_id: Some("axon-4.5".into()),
                 model_fingerprint: Some("fp_abc123".into()),
                 reasoning_effort: None,
             }),
@@ -3425,12 +3425,12 @@ async fn sampling_config_survives_compaction_replacement() {
 
     // Pre-compaction: everything correct.
     let pre = h.handle.get_sampling_config().await.unwrap();
-    assert_eq!(pre.model, "grok-build");
+    assert_eq!(pre.model, "axon-build");
     assert_eq!(pre.context_window.get(), 500_000);
     assert_eq!(pre.api_backend, ApiBackend::Responses);
 
     let pre_meta = h.handle.get_last_model_metadata().await;
-    assert_eq!(pre_meta.resolved_model_id.as_deref(), Some("grok-4.5"));
+    assert_eq!(pre_meta.resolved_model_id.as_deref(), Some("axon-4.5"));
     assert_eq!(pre_meta.model_fingerprint.as_deref(), Some("fp_abc123"));
 
     // Simulate compaction: replace conversation with compacted history.
@@ -3443,7 +3443,7 @@ async fn sampling_config_survives_compaction_replacement() {
     // Post-compaction: SamplingConfig MUST be preserved.
     let post = h.handle.get_sampling_config().await.unwrap();
     assert_eq!(
-        post.model, "grok-build",
+        post.model, "axon-build",
         "BUG: model changed after compaction"
     );
     assert_eq!(
@@ -3472,7 +3472,7 @@ async fn sampling_config_survives_compaction_replacement() {
 
 /// After compaction, the `build_session_info` display path uses
 /// `get_sampling_config().model` as the source-of-truth model slug.
-/// If that model slug is e.g. "grok-build" and not in the ModelState
+/// If that model slug is e.g. "axon-build" and not in the ModelState
 /// catalog with a display name, the pager shows the raw slug. This
 /// test verifies the pager's `current_model_name()` behavior when the
 /// model ID doesn't match any catalog entry.
@@ -3480,7 +3480,7 @@ async fn sampling_config_survives_compaction_replacement() {
 async fn model_metadata_lost_after_compaction_then_recovered_on_next_turn() {
     let config = SamplingConfig {
         base_url: "https://api.example.com".to_string(),
-        model: "grok-build".to_string(),
+        model: "axon-build".to_string(),
         max_completion_tokens: None,
         temperature: Some(0.7),
         top_p: Some(0.95),
@@ -3498,7 +3498,7 @@ async fn model_metadata_lost_after_compaction_then_recovered_on_next_turn() {
             ConversationItem::Assistant(axon_sampling_types::AssistantItem {
                 content: "done".into(),
                 tool_calls: vec![],
-                model_id: Some("grok-4.5".into()),
+                model_id: Some("axon-4.5".into()),
                 model_fingerprint: Some("fp_acd3142484d3ad6f".into()),
                 reasoning_effort: None,
             }),
@@ -3508,7 +3508,7 @@ async fn model_metadata_lost_after_compaction_then_recovered_on_next_turn() {
 
     // Before compaction: metadata present.
     let meta = h.handle.get_last_model_metadata().await;
-    assert_eq!(meta.resolved_model_id.as_deref(), Some("grok-4.5"));
+    assert_eq!(meta.resolved_model_id.as_deref(), Some("axon-4.5"));
     assert_eq!(
         meta.model_fingerprint.as_deref(),
         Some("fp_acd3142484d3ad6f")
@@ -3533,7 +3533,7 @@ async fn model_metadata_lost_after_compaction_then_recovered_on_next_turn() {
             axon_sampling_types::AssistantItem {
                 content: "working on it".into(),
                 tool_calls: vec![],
-                model_id: Some("grok-4.5".into()),
+                model_id: Some("axon-4.5".into()),
                 model_fingerprint: Some("fp_acd3142484d3ad6f".into()),
                 reasoning_effort: None,
             },
@@ -3541,7 +3541,7 @@ async fn model_metadata_lost_after_compaction_then_recovered_on_next_turn() {
 
     // Metadata recovered.
     let meta = h.handle.get_last_model_metadata().await;
-    assert_eq!(meta.resolved_model_id.as_deref(), Some("grok-4.5"));
+    assert_eq!(meta.resolved_model_id.as_deref(), Some("axon-4.5"));
     assert_eq!(
         meta.model_fingerprint.as_deref(),
         Some("fp_acd3142484d3ad6f")
@@ -3565,10 +3565,10 @@ async fn model_metadata_lost_after_compaction_then_recovered_on_next_turn() {
 async fn context_window_downgrade_triggers_auto_compact() {
     use axon_sampling_types::ApiBackend;
 
-    // Initial config: 500k context, Responses backend (matches grok-4.5)
+    // Initial config: 500k context, Responses backend (matches axon-4.5)
     let config = SamplingConfig {
-        base_url: "https://api.x.ai/v1".to_string(),
-        model: "grok-4.5".to_string(),
+        base_url: "https://api.blocked.invalid/v1".to_string(),
+        model: "axon-4.5".to_string(),
         max_completion_tokens: None,
         temperature: Some(0.7),
         top_p: Some(0.95),
@@ -3607,7 +3607,7 @@ async fn context_window_downgrade_triggers_auto_compact() {
         128_000,
         "context_window should be overwritten by update_sampling_config"
     );
-    assert_eq!(post.model, "grok-4.5", "model slug must not change");
+    assert_eq!(post.model, "axon-4.5", "model slug must not change");
     assert_eq!(
         post.api_backend,
         ApiBackend::Responses,
@@ -3937,7 +3937,7 @@ async fn prefix_stable_after_model_switch() {
         .push_user_message(ConversationItem::user("continue"));
 
     let new_config = SamplingConfig {
-        model: "grok-3-mini".to_string(),
+        model: "axon-3-mini".to_string(),
         ..test_config()
     };
     h.handle.update_sampling_config(new_config);
@@ -4320,7 +4320,7 @@ async fn prefix_stable_after_session_resume() {
 }
 
 // ============================================================================
-// Out-of-band history repair (x.ai/session/repair)
+// Out-of-band history repair (blocked.invalid/session/repair)
 // ============================================================================
 
 /// Bricked-session shape: an orphaned tool result survives load (the eager

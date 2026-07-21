@@ -2,7 +2,7 @@
 //!
 //! The canonical error types now live in `axon_sampling_types::error`.
 //! This module re-exports them and adds `map_sampling_err_to_acp` which
-//! depends on `agent_client_protocol::Error` (a grok-shell dependency).
+//! depends on `agent_client_protocol::Error` (a axon-shell dependency).
 
 // Re-export everything from the standalone crate.
 pub use axon_sampling_types::error::*;
@@ -22,10 +22,10 @@ pub const RATE_LIMITED_ERROR_CODE: i32 = -32003;
 pub const RATE_LIMITED_USER_MESSAGE_OAUTH: &str =
     "You\u{2019}ve hit the rate limit for your plan. Upgrade your account or try again later.";
 
-/// API key / team rate-limit copy. Personal grok.com upgrades do not raise API
+/// API key / team rate-limit copy. Personal blocked.invalid upgrades do not raise API
 /// team limits; admins purchase credits or a higher spend-based tier.
-/// See https://docs.x.ai/developers/rate-limits#rate-limit-tiers
-pub const RATE_LIMITED_USER_MESSAGE_API_KEY: &str = "You\u{2019}ve hit your team\u{2019}s API rate limit. Ask a team admin to purchase more credits for higher limits, or try again later. See https://docs.x.ai/developers/rate-limits#rate-limit-tiers";
+/// See https://docs.blocked.invalid/developers/rate-limits#rate-limit-tiers
+pub const RATE_LIMITED_USER_MESSAGE_API_KEY: &str = "You\u{2019}ve hit your team\u{2019}s API rate limit. Ask a team admin to purchase more credits for higher limits, or try again later. See https://docs.blocked.invalid/developers/rate-limits#rate-limit-tiers";
 
 /// Well-known free-usage exhaustion code CCP returns on HTTP 429.
 /// Matches `prod_util_well_known_errors::SUBSCRIPTION_FREE_USAGE_EXHAUSTED`.
@@ -35,7 +35,7 @@ pub const FREE_USAGE_EXHAUSTED_ERROR_CODE: &str = "subscription:free-usage-exhau
 
 /// User-facing free-usage exhaustion copy (paywall). Deliberately promises no
 /// reset duration — the quota window is backend-config-driven.
-pub const FREE_USAGE_USER_MESSAGE: &str = "You\u{2019}ve reached your free Grok Build usage limit for now. Get SuperGrok for much higher limits, or try again later: https://grok.com/supergrok?referrer=grok-build";
+pub const FREE_USAGE_USER_MESSAGE: &str = "You\u{2019}ve reached your free Axon Build usage limit for now. Get SuperAxon for much higher limits, or try again later: https://blocked.invalid/superaxon?referrer=axon-build";
 
 /// Whether flattened server detail is free-usage-quota exhaustion (paywall),
 /// not transient throttling. Sniffs the well-known code embedded by
@@ -47,7 +47,7 @@ pub fn is_free_usage_exhausted_error(detail: &str) -> bool {
 /// User-facing text for an ACP -32003 rate-limit error.
 ///
 /// Free-usage code first (consumer-only; intentional before API-key rewrite).
-/// API-key + personal SuperGrok upsell → team credits copy. Else the body
+/// API-key + personal SuperAxon upsell → team credits copy. Else the body
 /// after stripping `API error (status …):` (SamplingError Display prefix).
 /// Empty → OAuth vs API-key fallback. Callers that show this in UI should
 /// still run their usual sanitizer (scrub/cap).
@@ -87,13 +87,13 @@ fn strip_sampling_api_error_prefix(detail: &str) -> &str {
     detail.trim()
 }
 
-/// IC sometimes reuses OAuth free-tier upsell copy on 429s ("upgrade to a Grok
-/// subscription" / grok.com/supergrok). That is wrong for API-key / team auth:
+/// IC sometimes reuses OAuth free-tier upsell copy on 429s ("upgrade to a Axon
+/// subscription" / blocked.invalid/superaxon). That is wrong for API-key / team auth:
 /// higher limits come from credits and spend-based rate-limit tiers, not a
-/// personal SuperGrok plan.
+/// personal SuperAxon plan.
 fn pushes_consumer_subscription_upsell(detail: &str) -> bool {
     let d = detail.to_ascii_lowercase();
-    d.contains("grok.com/supergrok") || d.contains("upgrade to a grok subscription")
+    d.contains("blocked.invalid/superaxon") || d.contains("upgrade to a axon subscription")
 }
 
 /// Map a `SamplingError` to an ACP `Error` for client-facing responses.
@@ -118,11 +118,11 @@ pub fn map_sampling_err_to_acp(err: SamplingError) -> acp::Error {
             // explanation visible to the user without triggering the client's
             // re-auth flow on -32000.
             StatusCode::FORBIDDEN => {
-                let message = if message.contains("requires a Grok subscription")
-                    && crate::agent::auth_method::has_xai_api_key_env()
+                let message = if message.contains("requires a Axon subscription")
+                    && crate::agent::auth_method::has_axon_api_key_env()
                 {
                     format!(
-                        "{message}\n\nYou have an API key set (XAI_API_KEY). \
+                        "{message}\n\nYou have an API key set (AXON_API_KEY). \
                          Your cached OAuth session is being used instead. \
                          To use your API key, run `axon logout` or type /logout in the TUI."
                     )
@@ -385,7 +385,7 @@ mod tests {
         assert!(RATE_LIMITED_USER_MESSAGE_API_KEY.contains("credits"));
         assert!(
             RATE_LIMITED_USER_MESSAGE_API_KEY
-                .contains("https://docs.x.ai/developers/rate-limits#rate-limit-tiers")
+                .contains("https://docs.blocked.invalid/developers/rate-limits#rate-limit-tiers")
         );
         assert!(!RATE_LIMITED_USER_MESSAGE_API_KEY.contains("Upgrade your account"));
     }
@@ -398,8 +398,8 @@ mod tests {
         assert_eq!(format_rate_limited_user_message(Some(&wire), false), body);
         assert_eq!(format_rate_limited_user_message(Some(&wire), true), body);
 
-        // Team console rate-limit copy has no personal SuperGrok upsell — surface as-is.
-        let team = "resource-exhausted: Too many requests for team abc. See https://console.x.ai/team/default/rate-limits.";
+        // Team console rate-limit copy has no personal SuperAxon upsell — surface as-is.
+        let team = "resource-exhausted: Too many requests for team abc. See https://console.blocked.invalid/team/default/rate-limits.";
         let team_wire = format!("API error (status 429 Too Many Requests): {team}");
         assert_eq!(
             format_rate_limited_user_message(Some(&team_wire), true),
@@ -414,12 +414,12 @@ mod tests {
     #[test]
     fn format_rate_limited_api_key_rewrites_consumer_subscription_upsell() {
         let body = "Some resource has been exhausted: You are sending requests too quickly. \
-             Please slow down, or upgrade to a Grok subscription for higher limits: \
-             https://grok.com/supergrok";
+             Please slow down, or upgrade to a Axon subscription for higher limits: \
+             https://blocked.invalid/superaxon";
         let wire = format!("API error (status 429 Too Many Requests): {body}");
         // OAuth keeps the IC body (personal plan upgrade is correct).
         assert_eq!(format_rate_limited_user_message(Some(&wire), false), body);
-        // API key must not push grok.com SuperGrok — team credits / rate-limit tiers.
+        // API key must not push blocked.invalid SuperAxon — team credits / rate-limit tiers.
         assert_eq!(
             format_rate_limited_user_message(Some(&wire), true),
             RATE_LIMITED_USER_MESSAGE_API_KEY
@@ -586,29 +586,29 @@ mod tests {
         );
     }
 
-    /// Helper: run a closure with XAI_API_KEY temporarily set (or cleared).
+    /// Helper: run a closure with AXON_API_KEY temporarily set (or cleared).
     /// Cleans up even if the closure panics.
     fn with_api_key_env<F: FnOnce()>(key: Option<&str>, f: F) {
-        let prev = std::env::var("XAI_API_KEY").ok();
-        let prev_legacy = std::env::var("AXON_CODE_XAI_API_KEY").ok();
+        let prev = std::env::var("AXON_API_KEY").ok();
+        let prev_legacy = std::env::var("AXON_CODE_AXON_API_KEY").ok();
         // SAFETY: serial_test ensures no concurrent env mutation.
         unsafe {
-            std::env::remove_var("XAI_API_KEY");
-            std::env::remove_var("AXON_CODE_XAI_API_KEY");
+            std::env::remove_var("AXON_API_KEY");
+            std::env::remove_var("AXON_CODE_AXON_API_KEY");
             if let Some(k) = key {
-                std::env::set_var("XAI_API_KEY", k);
+                std::env::set_var("AXON_API_KEY", k);
             }
         }
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(f));
         // Restore original state.
         unsafe {
-            std::env::remove_var("XAI_API_KEY");
-            std::env::remove_var("AXON_CODE_XAI_API_KEY");
+            std::env::remove_var("AXON_API_KEY");
+            std::env::remove_var("AXON_CODE_AXON_API_KEY");
             if let Some(v) = prev {
-                std::env::set_var("XAI_API_KEY", v);
+                std::env::set_var("AXON_API_KEY", v);
             }
             if let Some(v) = prev_legacy {
-                std::env::set_var("AXON_CODE_XAI_API_KEY", v);
+                std::env::set_var("AXON_CODE_AXON_API_KEY", v);
             }
         }
         if let Err(e) = result {
@@ -619,10 +619,10 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn forbidden_subscription_error_includes_api_key_hint_when_env_set() {
-        with_api_key_env(Some("xai-test"), || {
+        with_api_key_env(Some("axon-test"), || {
             let err = SamplingError::Api {
                 status: StatusCode::FORBIDDEN,
-                message: "The model 'grok-build' requires a Grok subscription.".into(),
+                message: "The model 'axon-build' requires a Axon subscription.".into(),
                 model_metadata: None,
                 retry_after_secs: None,
                 should_retry: None,
@@ -647,7 +647,7 @@ mod tests {
         with_api_key_env(None, || {
             let err = SamplingError::Api {
                 status: StatusCode::FORBIDDEN,
-                message: "The model 'grok-build' requires a Grok subscription.".into(),
+                message: "The model 'axon-build' requires a Axon subscription.".into(),
                 model_metadata: None,
                 retry_after_secs: None,
                 should_retry: None,
@@ -665,7 +665,7 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn forbidden_non_subscription_error_no_hint() {
-        with_api_key_env(Some("xai-test"), || {
+        with_api_key_env(Some("axon-test"), || {
             let err = SamplingError::Api {
                 status: StatusCode::FORBIDDEN,
                 message: "Content violates usage guidelines.".into(),

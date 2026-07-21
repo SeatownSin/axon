@@ -616,7 +616,7 @@ pub(in crate::app::dispatch) fn dispatch_trigger_deep_search(
     }
 }
 /// Chat-mode replacement for local deep search: refetch the session list
-/// with the picker query pushed down as `x.ai/session/list` `query`.
+/// with the picker query pushed down as `axon/session/list` `query`.
 /// Keystrokes are coalesced through [`Effect::DebounceSessionSearch`]; a
 /// forced search (Ctrl+/) or a cleared query fetches immediately. Every
 /// trigger bumps `session_picker_list_seq`, so stale in-flight debounces

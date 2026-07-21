@@ -1,10 +1,10 @@
-//! Grok Speech-to-Text language codes.
+//! Axon Speech-to-Text language codes.
 //!
 //! Source of truth for the `language` query/form parameter on
-//! `https://api.x.ai/v1/stt` and `wss://api.x.ai/v1/stt`.
+//! `https://api.blocked.invalid/v1/stt` and `wss://api.blocked.invalid/v1/stt`.
 //!
 //! Official catalog (25 languages):
-//! <https://docs.x.ai/developers/model-capabilities/audio/speech-to-text#supported-languages>
+//! <https://docs.blocked.invalid/developers/model-capabilities/audio/speech-to-text#supported-languages>
 //!
 //! Per the docs, the model can transcribe these languages regardless of the
 //! parameter; setting `language` enables Inverse Text Normalization (numbers,
@@ -29,7 +29,7 @@ pub const STT_LANGUAGE_AUTO: &str = "auto";
 /// Default STT language when unset or unrecognized.
 pub const STT_LANGUAGE_DEFAULT: &str = "en";
 
-/// Official Grok STT languages (docs.x.ai), sorted by English name.
+/// Official Axon STT languages (docs.blocked.invalid), sorted by English name.
 ///
 /// Keep this list in lockstep with the public docs. Adding a code that the API
 /// does not list will not break transcription, but ITN formatting may not apply.
@@ -237,7 +237,7 @@ mod tests {
         let docs: HashSet<&str> = DOCS_CODES.iter().copied().collect();
         assert_eq!(
             ours, docs,
-            "STT_LANGUAGES drifted from docs.x.ai supported languages"
+            "STT_LANGUAGES drifted from docs.blocked.invalid supported languages"
         );
     }
 

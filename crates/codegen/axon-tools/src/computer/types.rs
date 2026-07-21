@@ -237,7 +237,7 @@ impl TaskSnapshot {
 
 /// Result of killing a terminal task.
 ///
-/// Serialized over the wire in the `x.ai/task/kill` ext response
+/// Serialized over the wire in the `axon/task/kill` ext response
 /// (`axon-shell::extensions::task::KillTaskResponse`) and deserialized
 /// by clients (axon-pager), so it derives both serde directions.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]

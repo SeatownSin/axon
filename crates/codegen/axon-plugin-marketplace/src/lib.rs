@@ -23,13 +23,13 @@ pub use error::MarketplaceError;
 pub use scanner::scan_marketplace;
 pub use types::*;
 
-/// Display name of the official xAI marketplace source.
-pub const OFFICIAL_SOURCE_NAME: &str = "xAI Official";
+/// Display name of the official Axon marketplace source.
+pub const OFFICIAL_SOURCE_NAME: &str = "Axon Official";
 
-/// Git URL of the official xAI marketplace source. Auto-registered on first run.
+/// Git URL of the official Axon marketplace source. Auto-registered on first run.
 pub const OFFICIAL_SOURCE_GIT_URL: &str = "https://github.com/xai-org/plugin-marketplace.git";
 
-/// Whether `url` is the official xAI marketplace source, normalizing case, a
+/// Whether `url` is the official Axon marketplace source, normalizing case, a
 /// `www.` prefix, a trailing `/` or `.git`, and HTTPS/SSH forms before comparing.
 pub fn is_official_source_url(url: &str) -> bool {
     canonical_github_owner_repo(url).as_deref() == Some("xai-org/plugin-marketplace")
@@ -101,7 +101,7 @@ mod tests {
     #[test]
     fn is_official_matches_noncanonical_forms() {
         assert!(is_official_source_url(
-            "https://GitHub.com/XAI-org/Plugin-Marketplace"
+            "https://GitHub.com/AXON-org/Plugin-Marketplace"
         ));
         assert!(is_official_source_url(
             "https://github.com/xai-org/plugin-marketplace/"
@@ -116,7 +116,7 @@ mod tests {
             "https://www.github.com/xai-org/plugin-marketplace.git"
         ));
         assert!(is_official_source_url(
-            "git@github.com:XAI-org/plugin-marketplace.git"
+            "git@github.com:AXON-org/plugin-marketplace.git"
         ));
     }
 }

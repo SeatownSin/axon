@@ -67,7 +67,7 @@ impl MermaidEngine for MmdcEngine {
         // failure), not `Unsupported` (which connotes "this input/engine isn't
         // supported"); spawn failure stays `Unsupported` (engine unavailable).
         let dir = tempfile::Builder::new()
-            .prefix("xai-mermaid-")
+            .prefix("axon-mermaid-")
             .tempdir()
             .map_err(|e| MermaidError::Rasterize(format!("could not create temp dir: {e}")))?;
         let input = dir.path().join("diagram.mmd");

@@ -24,7 +24,7 @@ pub(super) fn dispatch_logout(_app: &mut AppView) -> Vec<Effect> {
 /// On the eager-auth path (cached token), login_method_id is never set
 /// because the user skipped the login screen.
 ///
-/// Does **not** invent `grok.com` when no interactive method is advertised
+/// Does **not** invent `blocked.invalid` when no interactive method is advertised
 /// (e.g. `preferred_method=api_key` with no key — empty `auth_methods`).
 /// Callers already surface "No login method available" when this leaves
 /// `login_method_id` unset.
@@ -379,7 +379,7 @@ pub(super) fn handle_auth_complete(
 
         // Subscription/paywall polling, billing prefetch, and the
         // post-login changelog prefetch are removed: all three queried
-        // xAI infrastructure, which this build never contacts.
+        // Axon infrastructure, which this build never contacts.
 
         // ZDR-blocked users stay on the welcome screen — discard any
         // deferred startup (they cannot start a session).

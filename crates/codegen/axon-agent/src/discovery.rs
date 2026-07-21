@@ -72,17 +72,17 @@ pub enum SubagentSource {
 ///    `visible == callable` guarantee)
 /// 4. Filter: remove agents toggled off via `[subagents.toggle]`
 pub fn all_subagents(cwd: &Path, toggle: &HashMap<String, bool>) -> Vec<SubagentEntry> {
-    let grok = axon_config::user_grok_home();
-    all_subagents_with_home(cwd, toggle, dirs::home_dir().as_deref(), grok.as_deref())
+    let axon = axon_config::user_axon_home();
+    all_subagents_with_home(cwd, toggle, dirs::home_dir().as_deref(), axon.as_deref())
 }
 
 fn all_subagents_with_home(
     cwd: &Path,
     toggle: &HashMap<String, bool>,
     home: Option<&Path>,
-    grok_home: Option<&Path>,
+    axon_home: Option<&Path>,
 ) -> Vec<SubagentEntry> {
-    let discovered = discover_with_home(cwd, home, grok_home);
+    let discovered = discover_with_home(cwd, home, axon_home);
     merge_subagents(discovered, toggle)
 }
 
@@ -190,55 +190,55 @@ fn merge_subagents(
 ///
 /// Deduplicates by name — higher-priority definitions win.
 /// User-level agent directories in priority order: user axon agents, `.claude`
-/// compat agents, then bundled. `.axon` dirs resolve from `grok_home`
+/// compat agents, then bundled. `.axon` dirs resolve from `axon_home`
 /// (AXON_HOME-aware) plus the legacy literal `~/.axon` when AXON_HOME points
 /// elsewhere; `.claude` resolves from `home`.
 pub(crate) fn user_agent_dirs(
     home: Option<&Path>,
-    grok_home: Option<&Path>,
+    axon_home: Option<&Path>,
 ) -> Vec<(std::path::PathBuf, AgentScope)> {
-    // Legacy literal ~/.axon, included only when it differs from grok_home
+    // Legacy literal ~/.axon, included only when it differs from axon_home
     // (i.e. AXON_HOME points elsewhere) so agents left in the old location are
     // still discovered and stay consistent with scope_from_path classification.
-    let legacy_grok = home
+    let legacy_axon = home
         .map(|h| h.join(".axon"))
-        .filter(|legacy| grok_home != Some(legacy.as_path()));
+        .filter(|legacy| axon_home != Some(legacy.as_path()));
 
     let mut dirs = Vec::new();
-    if let Some(g) = grok_home {
+    if let Some(g) = axon_home {
         dirs.push((g.join("agents"), AgentScope::User));
     }
-    if let Some(l) = &legacy_grok {
+    if let Some(l) = &legacy_axon {
         dirs.push((l.join("agents"), AgentScope::User));
     }
     if let Some(h) = home {
         dirs.push((h.join(".claude").join("agents"), AgentScope::User));
     }
-    if let Some(g) = grok_home {
+    if let Some(g) = axon_home {
         dirs.push((g.join("bundled").join("agents"), AgentScope::Bundled));
     }
-    if let Some(l) = &legacy_grok {
+    if let Some(l) = &legacy_axon {
         dirs.push((l.join("bundled").join("agents"), AgentScope::Bundled));
     }
     dirs
 }
 
 pub fn discover(cwd: &Path) -> Vec<AgentDefinition> {
-    let grok = axon_config::user_grok_home();
-    discover_with_home(cwd, dirs::home_dir().as_deref(), grok.as_deref())
+    let axon = axon_config::user_axon_home();
+    discover_with_home(cwd, dirs::home_dir().as_deref(), axon.as_deref())
 }
 
 fn discover_with_home(
     cwd: &Path,
     home: Option<&Path>,
-    grok_home: Option<&Path>,
+    axon_home: Option<&Path>,
 ) -> Vec<AgentDefinition> {
     let mut definitions = Vec::new();
     let mut seen_names = std::collections::HashSet::new();
 
     load_project_definitions(cwd, &mut definitions, &mut seen_names);
 
-    for (dir, scope) in user_agent_dirs(home, grok_home) {
+    for (dir, scope) in user_agent_dirs(home, axon_home) {
         if dir.is_dir() {
             load_definitions_from_dir(&dir, scope, &mut definitions, &mut seen_names);
         }
@@ -251,14 +251,14 @@ fn discover_with_home(
 ///
 /// Checks built-ins first, then user-level dirs, then bundled.
 pub fn by_name(name: &str) -> Option<AgentDefinition> {
-    let grok = axon_config::user_grok_home();
-    by_name_with_home(name, dirs::home_dir().as_deref(), grok.as_deref())
+    let axon = axon_config::user_axon_home();
+    by_name_with_home(name, dirs::home_dir().as_deref(), axon.as_deref())
 }
 
 fn by_name_with_home(
     name: &str,
     home: Option<&Path>,
-    grok_home: Option<&Path>,
+    axon_home: Option<&Path>,
 ) -> Option<AgentDefinition> {
     // Check built-ins first — type-safe via BuiltinAgentName strum enum
     if let Ok(builtin) = BuiltinAgentName::from_str(name) {
@@ -266,7 +266,7 @@ fn by_name_with_home(
     }
 
     {
-        let home_dirs = user_agent_dirs(home, grok_home);
+        let home_dirs = user_agent_dirs(home, axon_home);
         for (agents_dir, scope) in home_dirs {
             if let Some(def) = load_definition_by_name(
                 &agents_dir,
@@ -287,21 +287,21 @@ fn by_name_with_home(
 /// Project-level `.axon/agents/` has highest priority, then falls back
 /// to built-ins, user-level, and finally bundled definitions.
 pub fn by_name_in_cwd(name: &str, cwd: &Path) -> Option<AgentDefinition> {
-    let grok = axon_config::user_grok_home();
-    by_name_in_cwd_with_home(name, cwd, dirs::home_dir().as_deref(), grok.as_deref())
+    let axon = axon_config::user_axon_home();
+    by_name_in_cwd_with_home(name, cwd, dirs::home_dir().as_deref(), axon.as_deref())
 }
 
 fn by_name_in_cwd_with_home(
     name: &str,
     cwd: &Path,
     home: Option<&Path>,
-    grok_home: Option<&Path>,
+    axon_home: Option<&Path>,
 ) -> Option<AgentDefinition> {
     if let Some(def) = load_project_definition_by_name(name, cwd) {
         return Some(def);
     }
 
-    by_name_with_home(name, home, grok_home)
+    by_name_with_home(name, home, axon_home)
 }
 
 /// Return all built-in subagent definitions.
@@ -363,13 +363,13 @@ pub fn all_subagents_with_plugins(
     toggle: &HashMap<String, bool>,
     plugins: Option<&crate::plugins::PluginRegistry>,
 ) -> Vec<SubagentEntry> {
-    let grok = axon_config::user_grok_home();
+    let axon = axon_config::user_axon_home();
     all_subagents_with_plugins_and_home(
         cwd,
         toggle,
         plugins,
         dirs::home_dir().as_deref(),
-        grok.as_deref(),
+        axon.as_deref(),
     )
 }
 
@@ -378,9 +378,9 @@ fn all_subagents_with_plugins_and_home(
     toggle: &HashMap<String, bool>,
     plugins: Option<&crate::plugins::PluginRegistry>,
     home: Option<&Path>,
-    grok_home: Option<&Path>,
+    axon_home: Option<&Path>,
 ) -> Vec<SubagentEntry> {
-    let discovered = discover_with_home(cwd, home, grok_home);
+    let discovered = discover_with_home(cwd, home, axon_home);
     let mut entries = merge_subagents(discovered, toggle);
 
     // Append plugin agents under qualified names
@@ -450,13 +450,13 @@ pub fn by_name_in_cwd_with_plugins(
     cwd: &Path,
     plugins: Option<&crate::plugins::PluginRegistry>,
 ) -> Option<AgentDefinition> {
-    let grok = axon_config::user_grok_home();
+    let axon = axon_config::user_axon_home();
     by_name_in_cwd_with_plugins_and_home(
         name,
         cwd,
         plugins,
         dirs::home_dir().as_deref(),
-        grok.as_deref(),
+        axon.as_deref(),
     )
 }
 
@@ -465,10 +465,10 @@ fn by_name_in_cwd_with_plugins_and_home(
     cwd: &Path,
     plugins: Option<&crate::plugins::PluginRegistry>,
     home: Option<&Path>,
-    grok_home: Option<&Path>,
+    axon_home: Option<&Path>,
 ) -> Option<AgentDefinition> {
     // First try native resolution (project > built-in > user > bundled)
-    if let Some(def) = by_name_in_cwd_with_home(name, cwd, home, grok_home) {
+    if let Some(def) = by_name_in_cwd_with_home(name, cwd, home, axon_home) {
         return Some(def);
     }
 
@@ -533,7 +533,7 @@ fn by_name_in_cwd_with_plugins_and_home(
     None
 }
 
-/// Expand `${CLAUDE_PLUGIN_ROOT}` / `${CLAUDE_PLUGIN_DATA}` (and the Grok
+/// Expand `${CLAUDE_PLUGIN_ROOT}` / `${CLAUDE_PLUGIN_DATA}` (and the Axon
 /// aliases) in a plugin agent's body so the model receives absolute paths,
 /// matching the expected load-time resolution for these variables.
 fn substitute_plugin_vars(def: &mut AgentDefinition, plugin: &crate::plugins::LoadedPlugin) {
@@ -675,8 +675,8 @@ mod tests {
         use crate::plugins::PluginOrigin;
         match scope {
             PluginScope::CliOverride => PluginOrigin::CliOverride,
-            PluginScope::Project => PluginOrigin::ProjectGrok,
-            PluginScope::User => PluginOrigin::UserGrok,
+            PluginScope::Project => PluginOrigin::ProjectAxon,
+            PluginScope::User => PluginOrigin::UserAxon,
             PluginScope::ConfigPath => PluginOrigin::ConfigPath,
         }
     }
@@ -763,31 +763,31 @@ mod tests {
     }
 
     #[test]
-    fn user_agent_dirs_includes_legacy_grok_when_grok_home_differs() {
+    fn user_agent_dirs_includes_legacy_axon_when_axon_home_differs() {
         let home = Path::new("/home/u");
-        let grok = Path::new("/custom/grokhome");
-        let paths: Vec<_> = user_agent_dirs(Some(home), Some(grok))
+        let axon = Path::new("/custom/axonhome");
+        let paths: Vec<_> = user_agent_dirs(Some(home), Some(axon))
             .into_iter()
             .map(|(p, _)| p)
             .collect();
-        assert!(paths.contains(&grok.join("agents")));
+        assert!(paths.contains(&axon.join("agents")));
         assert!(paths.contains(&home.join(".axon").join("agents")));
         assert!(paths.contains(&home.join(".claude").join("agents")));
-        assert!(paths.contains(&grok.join("bundled").join("agents")));
+        assert!(paths.contains(&axon.join("bundled").join("agents")));
         assert!(paths.contains(&home.join(".axon").join("bundled").join("agents")));
     }
 
     #[test]
-    fn user_agent_dirs_dedups_legacy_when_grok_home_is_dot_grok() {
+    fn user_agent_dirs_dedups_legacy_when_axon_home_is_dot_axon() {
         let home = Path::new("/home/u");
-        let grok = home.join(".axon");
-        let count = user_agent_dirs(Some(home), Some(&grok))
+        let axon = home.join(".axon");
+        let count = user_agent_dirs(Some(home), Some(&axon))
             .into_iter()
-            .filter(|(p, _)| *p == grok.join("agents"))
+            .filter(|(p, _)| *p == axon.join("agents"))
             .count();
         assert_eq!(
             count, 1,
-            "no duplicate ~/.axon/agents when grok_home == ~/.axon"
+            "no duplicate ~/.axon/agents when axon_home == ~/.axon"
         );
     }
 
@@ -807,10 +807,10 @@ mod tests {
     }
 
     #[test]
-    fn test_by_name_builtin_grok_build() {
-        let def = by_name("grok-build");
+    fn test_by_name_builtin_axon_build() {
+        let def = by_name("axon-build");
         assert!(def.is_some());
-        assert_eq!(def.unwrap().name, "grok-build");
+        assert_eq!(def.unwrap().name, "axon-build");
     }
 
     #[test]
@@ -1004,19 +1004,19 @@ mod tests {
         let agents_dir = tmp.path().join(".axon").join("agents");
         fs::create_dir_all(&agents_dir).unwrap();
 
-        // Create a project-level "grok-build" that shadows the built-in
+        // Create a project-level "axon-build" that shadows the built-in
         write_agent_file(
             &agents_dir,
-            "grok-build.md",
-            "grok-build",
-            "Custom grok-build",
+            "axon-build.md",
+            "axon-build",
+            "Custom axon-build",
         );
 
-        let def = by_name_in_cwd("grok-build", tmp.path());
+        let def = by_name_in_cwd("axon-build", tmp.path());
         assert!(def.is_some());
         let def = def.unwrap();
-        assert_eq!(def.name, "grok-build");
-        assert_eq!(def.description, "Custom grok-build");
+        assert_eq!(def.name, "axon-build");
+        assert_eq!(def.description, "Custom axon-build");
     }
 
     #[test]
@@ -1024,10 +1024,10 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         // No .axon/agents/ directory — should fall back to built-in
 
-        let def = by_name_in_cwd("grok-build", tmp.path());
+        let def = by_name_in_cwd("axon-build", tmp.path());
         assert!(def.is_some());
         let def = def.unwrap();
-        assert_eq!(def.name, "grok-build");
+        assert_eq!(def.name, "axon-build");
         // Should be the built-in, not a custom one
         assert_eq!(def.scope, AgentScope::BuiltIn);
     }
@@ -1048,11 +1048,11 @@ mod tests {
     #[test]
     fn test_orchestrator_from_str_resolves() {
         use std::str::FromStr;
-        let variant = BuiltinAgentName::from_str("grok-build-orchestrator")
-            .expect("from_str must resolve grok-build-orchestrator");
-        assert_eq!(variant, BuiltinAgentName::GrokBuildOrchestrator);
+        let variant = BuiltinAgentName::from_str("axon-build-orchestrator")
+            .expect("from_str must resolve axon-build-orchestrator");
+        assert_eq!(variant, BuiltinAgentName::AxonBuildOrchestrator);
         let def = variant.definition();
-        assert_eq!(def.name, "grok-build-orchestrator");
+        assert_eq!(def.name, "axon-build-orchestrator");
         assert!(
             def.prompt_body.is_some(),
             "orchestrator must have prompt_body"
@@ -1067,9 +1067,9 @@ mod tests {
     #[test]
     fn test_orchestrator_by_name_in_cwd() {
         let tmp = tempfile::tempdir().unwrap();
-        let def = by_name_in_cwd("grok-build-orchestrator", tmp.path())
-            .expect("by_name_in_cwd must find grok-build-orchestrator");
-        assert_eq!(def.name, "grok-build-orchestrator");
+        let def = by_name_in_cwd("axon-build-orchestrator", tmp.path())
+            .expect("by_name_in_cwd must find axon-build-orchestrator");
+        assert_eq!(def.name, "axon-build-orchestrator");
         assert!(def.prompt_body.is_some());
     }
 
@@ -1461,7 +1461,7 @@ mod tests {
         let registry = make_plugin_registry("plugin-one", PluginScope::User, vec![]);
         let plugin = registry.get("plugin-one").unwrap();
 
-        let mut def = AgentDefinition::default_grok_build();
+        let mut def = AgentDefinition::default_axon_build();
         def.prompt_body = Some("Body ${CLAUDE_PLUGIN_ROOT}/x".to_string());
         def.system_prompt =
             TemplateOverride::Custom("Data at ${CLAUDE_PLUGIN_DATA}/db".to_string());

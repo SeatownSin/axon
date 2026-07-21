@@ -463,7 +463,7 @@ mod tests {
         // Final state is intact and reflects the last write.
         let content = std::fs::read_to_string(&state_path).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&content).unwrap();
-        assert!(parsed["state"]["grok_build.WebCitation"].is_object());
+        assert!(parsed["state"]["axon_build.WebCitation"].is_object());
     }
 
     #[tokio::test]
@@ -487,8 +487,8 @@ mod tests {
         assert!(state_path.exists());
         let content = std::fs::read_to_string(&state_path).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&content).unwrap();
-        // Should have "state" category with "grok_build.WebCitation" key
-        assert!(parsed["state"]["grok_build.WebCitation"].is_object());
+        // Should have "state" category with "axon_build.WebCitation" key
+        assert!(parsed["state"]["axon_build.WebCitation"].is_object());
     }
 
     #[tokio::test]
@@ -516,7 +516,7 @@ mod tests {
 
         let content = std::fs::read_to_string(state_path).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&content).unwrap();
-        assert_eq!(parsed["state"]["grok_build.WebCitation"]["counter"], 2);
+        assert_eq!(parsed["state"]["axon_build.WebCitation"]["counter"], 2);
     }
 
     #[tokio::test]
@@ -540,7 +540,7 @@ mod tests {
 
         let content = std::fs::read_to_string(state_path).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&content).unwrap();
-        assert_eq!(parsed["state"]["grok_build.WebCitation"]["counter"], 7);
+        assert_eq!(parsed["state"]["axon_build.WebCitation"]["counter"], 7);
     }
 
     #[tokio::test]
@@ -571,7 +571,7 @@ mod tests {
 
         let content = std::fs::read_to_string(state_path).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&content).unwrap();
-        assert_eq!(parsed["state"]["grok_build.WebCitation"]["counter"], 2);
+        assert_eq!(parsed["state"]["axon_build.WebCitation"]["counter"], 2);
     }
 
     #[tokio::test]

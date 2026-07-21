@@ -438,7 +438,7 @@ fn resolve_hunk_tracker_mode(
 /// its history). Sessions not found locally are restored from remote storage.
 ///
 /// Returns `Ok(true)` when the user accepted a pending update. The caller
-/// should print a message telling the user to relaunch `grok`.
+/// should print a message telling the user to relaunch `axon`.
 pub async fn run(
     args: PagerArgs,
     bg_update_rx: Option<
@@ -451,17 +451,17 @@ pub async fn run(
     let startup_start = std::time::Instant::now();
     let raw_config = axon_shell::config::load_effective_config()
         .map_err(|e| anyhow::anyhow!("Failed to load config: {e}"))?;
-    let grok_com_config =
+    let axon_com_config =
         match axon_shell::agent::config::Config::new_from_toml_cfg(&raw_config) {
-            Ok(c) => c.grok_com_config,
+            Ok(c) => c.axon_com_config,
             Err(e) => {
                 tracing::warn!(
                     error = % e, "failed to parse config for auth refresh, using defaults"
                 );
-                axon_shell::auth::GrokComConfig::default()
+                axon_shell::auth::AxonComConfig::default()
             }
         };
-    let refreshed_auth = axon_shell::auth::try_ensure_fresh_auth(&grok_com_config).await;
+    let refreshed_auth = axon_shell::auth::try_ensure_fresh_auth(&axon_com_config).await;
     let early_prefetch =
         axon_shell::agent::models::start_early_prefetch_with_auth(refreshed_auth);
     axon_shell::agent::mvp_agent::warm_async_http_client();
@@ -476,7 +476,7 @@ pub async fn run(
     axon_shell::util::config::set_remote_campaigns_from_settings(remote_settings.as_ref());
     let raw_config = axon_shell::config::load_effective_config()
         .map_err(|e| anyhow::anyhow!("Failed to load config: {e}"))?;
-    // First-run local-model setup. This build has no xAI login, so a fresh
+    // First-run local-model setup. This build has no Axon login, so a fresh
     // install with no usable model would dead-end at the (removed) login
     // screen. Runs before the terminal is put in raw mode; if it writes a
     // model, reload config so the TUI starts straight into a session; if the
@@ -811,7 +811,7 @@ fn print_exit_resume_hint(info: &ExitInfo, max_width: usize, w: &mut impl Write)
     if info.minimal {
         let _ = writeln!(w, "  axon --minimal --resume {}", info.session_id);
     } else {
-        let _ = writeln!(w, "  grok --resume {}", info.session_id);
+        let _ = writeln!(w, "  axon --resume {}", info.session_id);
     }
 }
 /// Screen-mode relaunch failure fallback (same quit tail as plain resume).
@@ -1381,16 +1381,16 @@ pub(crate) fn set_terminal_title(title: &str) {
 }
 /// Sanitized/truncated window title. Strips control characters: crossterm's
 /// `SetTitle` emits the string raw inside an OSC sequence, so an embedded
-/// BEL/ESC (titles can arrive from grok.com conversation metadata) would
+/// BEL/ESC (titles can arrive from blocked.invalid conversation metadata) would
 /// terminate the OSC early and let the remainder inject arbitrary escape
 /// sequences into the terminal.
 fn terminal_title_string(title: &str) -> String {
     let sanitized: String = title.chars().filter(|c| !c.is_control()).collect();
     if sanitized.is_empty() {
-        "grok".into()
+        "axon".into()
     } else {
         let truncated: String = sanitized.chars().take(80 - 6).collect();
-        format!("{} - grok", truncated)
+        format!("{} - axon", truncated)
     }
 }
 fn set_panic_hook(mode: ScreenMode) {
@@ -1466,11 +1466,11 @@ mod tests {
     fn terminal_title_strips_control_characters() {
         assert_eq!(
             terminal_title_string("evil\x07\x1b]52;c;payload\x07title"),
-            "evil]52;c;payloadtitle - grok"
+            "evil]52;c;payloadtitle - axon"
         );
-        assert_eq!(terminal_title_string("\x07\x1b\x00"), "grok");
-        assert_eq!(terminal_title_string(""), "grok");
-        assert_eq!(terminal_title_string("My chat"), "My chat - grok");
+        assert_eq!(terminal_title_string("\x07\x1b\x00"), "axon");
+        assert_eq!(terminal_title_string(""), "axon");
+        assert_eq!(terminal_title_string("My chat"), "My chat - axon");
     }
     #[test]
     fn hunk_tracker_mode_nothing_set_is_none() {
@@ -1561,24 +1561,24 @@ mod tests {
     }
     #[test]
     fn cli_leader_and_no_leader_conflict() {
-        let result = try_parse_pager(&["grok-pager", "--leader", "--no-leader"]);
+        let result = try_parse_pager(&["axon-pager", "--leader", "--no-leader"]);
         assert!(result.is_err());
     }
     #[test]
     fn cli_leader_flag_parses() {
-        let args = try_parse_pager(&["grok-pager", "--leader"]).unwrap();
+        let args = try_parse_pager(&["axon-pager", "--leader"]).unwrap();
         assert!(args.leader);
         assert!(!args.no_leader);
     }
     #[test]
     fn cli_no_leader_flag_parses() {
-        let args = try_parse_pager(&["grok-pager", "--no-leader"]).unwrap();
+        let args = try_parse_pager(&["axon-pager", "--no-leader"]).unwrap();
         assert!(!args.leader);
         assert!(args.no_leader);
     }
     #[test]
     fn cli_neither_leader_flag_defaults_false() {
-        let args = try_parse_pager(&["grok-pager"]).unwrap();
+        let args = try_parse_pager(&["axon-pager"]).unwrap();
         assert!(!args.leader);
         assert!(!args.no_leader);
     }
@@ -1593,13 +1593,13 @@ mod tests {
     /// main() must reject the combination at runtime.
     #[test]
     fn cli_top_level_leader_with_agent_subcommand_parses_flag() {
-        let args = try_parse_pager(&["grok-pager", "--leader", "agent"]).unwrap();
+        let args = try_parse_pager(&["axon-pager", "--leader", "agent"]).unwrap();
         assert!(args.leader);
         assert!(matches!(args.command, Some(Command::Agent(_))));
     }
     #[test]
     fn cli_top_level_no_leader_with_agent_subcommand_parses_flag() {
-        let args = try_parse_pager(&["grok-pager", "--no-leader", "agent"]).unwrap();
+        let args = try_parse_pager(&["axon-pager", "--no-leader", "agent"]).unwrap();
         assert!(args.no_leader);
         assert!(matches!(args.command, Some(Command::Agent(_))));
     }
@@ -1659,73 +1659,73 @@ mod tests {
     }
     #[test]
     fn cli_resume_parses_session_id() {
-        let args = try_parse_pager(&["grok-pager", "--resume", "abc-123"]).unwrap();
+        let args = try_parse_pager(&["axon-pager", "--resume", "abc-123"]).unwrap();
         assert_eq!(args.session_to_resume(), Some("abc-123"));
     }
     #[test]
     fn cli_short_r_parses_session_id() {
-        let args = try_parse_pager(&["grok-pager", "-r", "abc-123"]).unwrap();
+        let args = try_parse_pager(&["axon-pager", "-r", "abc-123"]).unwrap();
         assert_eq!(args.session_to_resume(), Some("abc-123"));
     }
     #[test]
     fn cli_load_alias_parses_session_id() {
-        let args = try_parse_pager(&["grok-pager", "--load", "abc-123"]).unwrap();
+        let args = try_parse_pager(&["axon-pager", "--load", "abc-123"]).unwrap();
         assert_eq!(args.session_to_resume(), Some("abc-123"));
     }
     #[test]
     fn cli_resume_preferred_over_load() {
-        let mut args = try_parse_pager(&["grok-pager", "--resume", "from-resume"]).unwrap();
+        let mut args = try_parse_pager(&["axon-pager", "--resume", "from-resume"]).unwrap();
         args.load_session = Some("from-load".into());
         assert_eq!(args.session_to_resume(), Some("from-resume"));
     }
     #[test]
     fn cli_continue_flag_parses() {
-        let args = try_parse_pager(&["grok-pager", "--continue"]).unwrap();
+        let args = try_parse_pager(&["axon-pager", "--continue"]).unwrap();
         assert!(args.continue_last_session);
         assert_eq!(args.session_to_resume(), None);
     }
     #[test]
     fn cli_continue_short_c_parses() {
-        let args = try_parse_pager(&["grok-pager", "-c"]).unwrap();
+        let args = try_parse_pager(&["axon-pager", "-c"]).unwrap();
         assert!(args.continue_last_session);
     }
     #[test]
     fn cli_resume_no_id_sets_empty_sentinel() {
-        let args = try_parse_pager(&["grok-pager", "--resume"]).unwrap();
+        let args = try_parse_pager(&["axon-pager", "--resume"]).unwrap();
         assert_eq!(args.resume_session.as_deref(), Some(""));
         assert!(args.resume_most_recent());
         assert_eq!(args.session_to_resume(), None);
     }
     #[test]
     fn cli_short_r_no_id_sets_empty_sentinel() {
-        let args = try_parse_pager(&["grok-pager", "-r"]).unwrap();
+        let args = try_parse_pager(&["axon-pager", "-r"]).unwrap();
         assert_eq!(args.resume_session.as_deref(), Some(""));
         assert!(args.resume_most_recent());
     }
     #[test]
     fn cli_resume_with_id_is_not_most_recent() {
-        let args = try_parse_pager(&["grok-pager", "--resume", "abc-123"]).unwrap();
+        let args = try_parse_pager(&["axon-pager", "--resume", "abc-123"]).unwrap();
         assert!(!args.resume_most_recent());
         assert_eq!(args.session_to_resume(), Some("abc-123"));
     }
     #[test]
     fn cli_no_resume_is_not_most_recent() {
-        let args = try_parse_pager(&["grok-pager"]).unwrap();
+        let args = try_parse_pager(&["axon-pager"]).unwrap();
         assert!(!args.resume_most_recent());
     }
     #[test]
     fn cli_continue_conflicts_with_resume() {
-        let result = try_parse_pager(&["grok-pager", "--continue", "--resume", "abc"]);
+        let result = try_parse_pager(&["axon-pager", "--continue", "--resume", "abc"]);
         assert!(result.is_err());
     }
     #[test]
     fn cli_continue_conflicts_with_load() {
-        let result = try_parse_pager(&["grok-pager", "--continue", "--load", "abc"]);
+        let result = try_parse_pager(&["axon-pager", "--continue", "--load", "abc"]);
         assert!(result.is_err());
     }
     #[test]
     fn cli_no_session_flags_defaults() {
-        let args = try_parse_pager(&["grok-pager"]).unwrap();
+        let args = try_parse_pager(&["axon-pager"]).unwrap();
         assert!(!args.continue_last_session);
         assert!(args.worktree.is_none());
         assert_eq!(args.session_to_resume(), None);
@@ -1735,7 +1735,7 @@ mod tests {
     /// binary given that flag fails clap parsing instead of silently ignoring.
     #[test]
     fn cli_chat_flag_rejected_without_feature() {
-        assert!(try_parse_pager(&["grok-pager", "--chat"]).is_err());
+        assert!(try_parse_pager(&["axon-pager", "--chat"]).is_err());
     }
     #[test]
     fn chat_mode_leader_guard_truth_table() {
@@ -1752,49 +1752,49 @@ mod tests {
     }
     #[test]
     fn cli_worktree_flag_parses() {
-        let args = try_parse_pager(&["grok-pager", "--worktree"]).unwrap();
+        let args = try_parse_pager(&["axon-pager", "--worktree"]).unwrap();
         assert_eq!(args.worktree.as_deref(), Some(""));
     }
     #[test]
     fn cli_worktree_short_w_parses() {
-        let args = try_parse_pager(&["grok-pager", "-w"]).unwrap();
+        let args = try_parse_pager(&["axon-pager", "-w"]).unwrap();
         assert_eq!(args.worktree.as_deref(), Some(""));
     }
     #[test]
     fn cli_worktree_with_label() {
-        let args = try_parse_pager(&["grok-pager", "-w", "my-label"]).unwrap();
+        let args = try_parse_pager(&["axon-pager", "-w", "my-label"]).unwrap();
         assert_eq!(args.worktree.as_deref(), Some("my-label"));
     }
     #[test]
     fn cli_worktree_long_with_label() {
-        let args = try_parse_pager(&["grok-pager", "--worktree", "fix-bug"]).unwrap();
+        let args = try_parse_pager(&["axon-pager", "--worktree", "fix-bug"]).unwrap();
         assert_eq!(args.worktree.as_deref(), Some("fix-bug"));
     }
     #[test]
     fn cli_worktree_with_empty_string() {
-        let args = try_parse_pager(&["grok-pager", "-w", ""]).unwrap();
+        let args = try_parse_pager(&["axon-pager", "-w", ""]).unwrap();
         assert_eq!(args.worktree.as_deref(), Some(""));
     }
     #[test]
     fn cli_worktree_with_resume_parses() {
-        let args = try_parse_pager(&["grok-pager", "-w", "--resume", "abc"]).unwrap();
+        let args = try_parse_pager(&["axon-pager", "-w", "--resume", "abc"]).unwrap();
         assert_eq!(args.worktree.as_deref(), Some(""));
         assert_eq!(args.session_to_resume(), Some("abc"));
     }
     #[test]
     fn cli_worktree_label_with_resume() {
-        let args = try_parse_pager(&["grok-pager", "-w", "my-label", "--resume", "abc"]).unwrap();
+        let args = try_parse_pager(&["axon-pager", "-w", "my-label", "--resume", "abc"]).unwrap();
         assert_eq!(args.worktree.as_deref(), Some("my-label"));
         assert_eq!(args.session_to_resume(), Some("abc"));
     }
     #[test]
     fn cli_worktree_default_none() {
-        let args = try_parse_pager(&["grok-pager"]).unwrap();
+        let args = try_parse_pager(&["axon-pager"]).unwrap();
         assert!(args.worktree.is_none());
     }
     #[test]
     fn cli_session_id_parses() {
-        let args = try_parse_pager(&["grok-pager", "--session-id", "my-id"]).unwrap();
+        let args = try_parse_pager(&["axon-pager", "--session-id", "my-id"]).unwrap();
         assert_eq!(args.session_id.as_deref(), Some("my-id"));
         assert!(matches!(
             args.session_startup_intent().unwrap(),
@@ -1803,44 +1803,44 @@ mod tests {
     }
     #[test]
     fn cli_session_id_short_s_parses() {
-        let args = try_parse_pager(&["grok-pager", "-s", "my-id"]).unwrap();
+        let args = try_parse_pager(&["axon-pager", "-s", "my-id"]).unwrap();
         assert_eq!(args.session_id.as_deref(), Some("my-id"));
     }
     #[test]
     fn cli_session_id_with_resume_requires_fork() {
-        let args = try_parse_pager(&["grok-pager", "-s", "a", "--resume", "b"]).unwrap();
+        let args = try_parse_pager(&["axon-pager", "-s", "a", "--resume", "b"]).unwrap();
         assert!(args.session_startup_intent().is_err());
     }
     #[test]
     fn cli_session_id_with_continue_requires_fork() {
-        let args = try_parse_pager(&["grok-pager", "-s", "a", "--continue"]).unwrap();
+        let args = try_parse_pager(&["axon-pager", "-s", "a", "--continue"]).unwrap();
         assert!(args.session_startup_intent().is_err());
     }
     #[test]
     fn cli_session_id_with_resume_and_fork_ok() {
         let args =
-            try_parse_pager(&["grok-pager", "-s", "a", "--resume", "b", "--fork-session"]).unwrap();
+            try_parse_pager(&["axon-pager", "-s", "a", "--resume", "b", "--fork-session"]).unwrap();
         assert!(args.session_startup_intent().is_ok());
     }
     #[test]
     fn cli_session_id_default_none() {
-        let args = try_parse_pager(&["grok-pager"]).unwrap();
+        let args = try_parse_pager(&["axon-pager"]).unwrap();
         assert!(args.session_id.is_none());
     }
     #[test]
     fn cli_no_alt_screen_flag_parses() {
-        let args = try_parse_pager(&["grok-pager", "--no-alt-screen"]).unwrap();
+        let args = try_parse_pager(&["axon-pager", "--no-alt-screen"]).unwrap();
         assert!(args.no_alt_screen);
     }
     #[test]
     fn cli_no_alt_screen_default_false() {
-        let args = try_parse_pager(&["grok-pager"]).unwrap();
+        let args = try_parse_pager(&["axon-pager"]).unwrap();
         assert!(!args.no_alt_screen);
     }
     #[test]
-    fn cli_command_name_is_grok() {
+    fn cli_command_name_is_axon() {
         use clap::CommandFactory;
-        assert_eq!(PagerArgs::command().get_name(), "grok");
+        assert_eq!(PagerArgs::command().get_name(), "axon");
     }
     #[test]
     fn cli_help_output_header() {
@@ -1850,9 +1850,9 @@ mod tests {
         assert_eq!(
             first_5,
             vec![
-                "Grok Build TUI",
+                "Axon Build TUI",
                 "",
-                "Usage: grok [OPTIONS] [PROMPT] [COMMAND]",
+                "Usage: axon [OPTIONS] [PROMPT] [COMMAND]",
                 "",
                 "Arguments:",
             ]
@@ -1863,12 +1863,12 @@ mod tests {
     #[test]
     fn cli_completions_parses() {
         use clap_complete::Shell;
-        let args = try_parse_pager(&["grok-pager", "completions", "zsh"]).unwrap();
+        let args = try_parse_pager(&["axon-pager", "completions", "zsh"]).unwrap();
         assert!(matches!(
             args.command,
             Some(Command::Completions { shell: Shell::Zsh })
         ));
-        let args = try_parse_pager(&["grok-pager", "completions", "bash"]).unwrap();
+        let args = try_parse_pager(&["axon-pager", "completions", "bash"]).unwrap();
         assert!(matches!(
             args.command,
             Some(Command::Completions { shell: Shell::Bash })
@@ -1898,7 +1898,7 @@ mod tests {
         print_exit_resume_hint(&bare_exit_info("sess-abc", false), 80, &mut buf);
         assert_eq!(
             String::from_utf8(buf).unwrap(),
-            "\nResume this session with:\n  grok --resume sess-abc\n"
+            "\nResume this session with:\n  axon --resume sess-abc\n"
         );
     }
     #[test]
@@ -1932,7 +1932,7 @@ mod tests {
                 "  Pinned the seed; 200 consecutive green runs.\n",
                 "\n",
                 "Resume this session with:\n",
-                "  grok --resume sess-abc\n",
+                "  axon --resume sess-abc\n",
             )
         );
     }
@@ -1953,7 +1953,7 @@ mod tests {
         assert!(out.contains(&format!("\n{}…\n", "t".repeat(19))));
         assert!(out.contains(&format!("\n> {}…\n", "p".repeat(17))));
         assert!(out.contains(&format!("\n  {}…\n", "r".repeat(17))));
-        assert!(out.contains("  grok --resume sess-abc\n"));
+        assert!(out.contains("  axon --resume sess-abc\n"));
     }
     #[test]
     fn print_relaunch_failure_hint_writes_expected_lines() {

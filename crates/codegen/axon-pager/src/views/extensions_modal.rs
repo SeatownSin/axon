@@ -199,11 +199,11 @@ pub fn plugin_group(plugin: &axon_hooks_plugins_types::PluginInfo) -> PluginGrou
     use axon_hooks_plugins_types::{PluginOrigin, PluginScope};
 
     match &plugin.origin {
-        Some(PluginOrigin::ProjectGrok) => PluginGroup::new(0, "origin:project", "Project"),
+        Some(PluginOrigin::ProjectAxon) => PluginGroup::new(0, "origin:project", "Project"),
         Some(PluginOrigin::ProjectClaude) => {
             PluginGroup::new(1, "origin:project-claude", "Project (Claude)")
         }
-        Some(PluginOrigin::UserGrok) => PluginGroup::new(2, "origin:user", "User"),
+        Some(PluginOrigin::UserAxon) => PluginGroup::new(2, "origin:user", "User"),
         Some(PluginOrigin::UserClaude)
         | Some(PluginOrigin::ClaudeInstalled { marketplace: None }) => {
             PluginGroup::new(3, "origin:user-claude", "User (Claude)")
@@ -221,7 +221,7 @@ pub fn plugin_group(plugin: &axon_hooks_plugins_types::PluginInfo) -> PluginGrou
             ..
         }) => PluginGroup {
             rank: 5,
-            key: format!("grok-mp:{source}"),
+            key: format!("axon-mp:{source}"),
             label: source.clone(),
         },
         Some(PluginOrigin::MarketplaceInstall {
@@ -237,7 +237,7 @@ pub fn plugin_group(plugin: &axon_hooks_plugins_types::PluginInfo) -> PluginGrou
                 }
                 Some(source) => PluginGroup {
                     rank: 5,
-                    key: format!("grok-mp:{source}"),
+                    key: format!("axon-mp:{source}"),
                     label: source.to_string(),
                 },
                 None => PluginGroup::new(2, "origin:user", "User"),
@@ -627,7 +627,7 @@ pub enum ButtonAction {
     ReloadSkills,
     /// Refresh MCP server list (re-fetch from shell).
     RefreshMcpList,
-    /// Open grok.com connectors page (MCP tab: press `o`).
+    /// Open blocked.invalid connectors page (MCP tab: press `o`).
     OpenManagedConnectors,
     /// Update (fetch latest from source) the selected plugin.
     UpdateSelectedPlugin,
@@ -2195,9 +2195,9 @@ pub(crate) fn mcp_section_children_hidden(
 /// Returns `(label, is_custom)` where `is_custom` means the source was added
 /// via hooks-paths and can be removed.
 pub fn derive_source_label(source_dir: &str) -> (String, bool) {
-    let grok = axon_config::grok_home();
+    let axon = axon_config::axon_home();
     let source_path = std::path::Path::new(source_dir);
-    // Plugin / installed-plugin dirs, under the user grok home (AXON_HOME-aware)
+    // Plugin / installed-plugin dirs, under the user axon home (AXON_HOME-aware)
     // or a project-scoped `{cwd}/.axon/<subdir>/`. Returns the first path
     // component after the subdir (the plugin's install directory name).
     let plugin_name = |subdir: &str| -> Option<String> {
@@ -2207,8 +2207,8 @@ pub fn derive_source_label(source_dir: &str) -> (String, bool) {
                 .map(|c| c.as_os_str().to_string_lossy().into_owned())
                 .filter(|s| !s.is_empty())
         };
-        // User grok home (AXON_HOME-aware).
-        if let Ok(rest) = source_path.strip_prefix(grok.join(subdir))
+        // User axon home (AXON_HOME-aware).
+        if let Ok(rest) = source_path.strip_prefix(axon.join(subdir))
             && let Some(name) = first_comp(rest)
         {
             return Some(name);
@@ -2228,7 +2228,7 @@ pub fn derive_source_label(source_dir: &str) -> (String, bool) {
         return (format!("Plugin: {name}"), false);
     }
     // Global hooks under $AXON_HOME/hooks
-    let global_hooks = grok.join("hooks");
+    let global_hooks = axon.join("hooks");
     let global_str = global_hooks.display().to_string();
     if source_dir == global_str || source_dir.starts_with(&format!("{global_str}/")) {
         return ("Global hooks".into(), false);
@@ -2243,8 +2243,8 @@ pub fn derive_source_label(source_dir: &str) -> (String, bool) {
     }
     // Custom directory — removable
     let display = {
-        if let Ok(rest) = source_path.strip_prefix(&grok) {
-            let prefix = crate::util::display_grok_home_prefix();
+        if let Ok(rest) = source_path.strip_prefix(&axon) {
+            let prefix = crate::util::display_axon_home_prefix();
             let rest_str = rest.to_string_lossy();
             let rest_trimmed = rest_str.strip_prefix('/').unwrap_or(&rest_str);
             format!("Custom: {prefix}/{rest_trimmed}")
@@ -2311,8 +2311,8 @@ fn skill_source_str(skill: &SkillInfo) -> String {
     if let Some(ref cs) = skill.config_source {
         match cs {
             axon_tools::types::config_source::ConfigSource::User { path } => {
-                if crate::util::is_under_user_grok_home(path) {
-                    crate::util::display_user_grok_path("skills")
+                if crate::util::is_under_user_axon_home(path) {
+                    crate::util::display_user_axon_path("skills")
                 } else if path.display().to_string().contains("/.claude/") {
                     "~/.claude/skills".into()
                 } else {
@@ -3918,7 +3918,7 @@ mod tests {
     fn derive_source_label_detects_project_scoped_plugins() {
         // Regression: project-scoped `{cwd}/.axon/plugins/<name>/` must label as
         // a (non-removable) plugin, not a removable "Custom" source. The user
-        // grok-home branch is AXON_HOME-aware; this covers the project fallback.
+        // axon-home branch is AXON_HOME-aware; this covers the project fallback.
         let (label, is_custom) = derive_source_label("/repo/work/.axon/plugins/my-plugin/hooks");
         assert_eq!(label, "Plugin: my-plugin");
         assert!(!is_custom);
@@ -4260,7 +4260,7 @@ mod tests {
         use crate::views::mcps_modal::McpWireSource;
 
         let servers = vec![
-            make_mcp_server_for_rows("grok_com_linear", McpWireSource::Managed, vec![]),
+            make_mcp_server_for_rows("axon_com_linear", McpWireSource::Managed, vec![]),
             make_mcp_server_for_rows("local-srv", McpWireSource::Local, vec![]),
         ];
         let mut collapsed = std::collections::HashSet::new();
@@ -4275,11 +4275,11 @@ mod tests {
         assert!(
             rows.labels
                 .iter()
-                .any(|l| l.starts_with("Managed by grok.com")),
+                .any(|l| l.starts_with("Managed by blocked.invalid")),
             "managed section header must appear"
         );
         assert!(
-            !rows.labels.iter().any(|l| l == "grok_com_linear"),
+            !rows.labels.iter().any(|l| l == "axon_com_linear"),
             "servers in collapsed managed section must be omitted"
         );
         assert!(
@@ -4413,7 +4413,7 @@ mod tests {
             is_managed_gateway: false,
         };
         let servers = vec![
-            server("grok_com_x", None),
+            server("axon_com_x", None),
             server("local-srv", None),
             server("alpha-srv", Some("alpha")),
             server("beta-srv", Some("beta")),
@@ -6565,14 +6565,14 @@ mod tests {
     fn plugin_group_maps_each_origin_variant() {
         use axon_hooks_plugins_types::PluginOrigin;
         for (origin, rank, key, label) in [
-            (PluginOrigin::ProjectGrok, 0, "origin:project", "Project"),
+            (PluginOrigin::ProjectAxon, 0, "origin:project", "Project"),
             (
                 PluginOrigin::ProjectClaude,
                 1,
                 "origin:project-claude",
                 "Project (Claude)",
             ),
-            (PluginOrigin::UserGrok, 2, "origin:user", "User"),
+            (PluginOrigin::UserAxon, 2, "origin:user", "User"),
             (
                 PluginOrigin::UserClaude,
                 3,
@@ -6595,12 +6595,12 @@ mod tests {
             ),
             (
                 PluginOrigin::MarketplaceInstall {
-                    source_name: Some("xAI Official".into()),
+                    source_name: Some("Axon Official".into()),
                     git_url: Some("https://example.com/r.git".into()),
                 },
                 5,
-                "grok-mp:xAI Official",
-                "xAI Official",
+                "axon-mp:Axon Official",
+                "Axon Official",
             ),
             (
                 PluginOrigin::MarketplaceInstall {
@@ -6657,10 +6657,10 @@ mod tests {
         assert_eq!(plugin_group(&config).key, "origin:config");
 
         let mut mp = make_plugin("mp-tool");
-        mp.marketplace_source = Some("xAI Official".into());
+        mp.marketplace_source = Some("Axon Official".into());
         let group = plugin_group(&mp);
-        assert_eq!(group.key, "grok-mp:xAI Official");
-        assert_eq!(group.label, "xAI Official");
+        assert_eq!(group.key, "axon-mp:Axon Official");
+        assert_eq!(group.label, "Axon Official");
 
         let mut direct = make_plugin("direct-tool");
         direct.marketplace_source = Some("git: owner/repo".into());
@@ -6675,8 +6675,8 @@ mod tests {
         );
         assert_eq!(plugin_group(&unknown).key, "origin:user");
 
-        unknown.marketplace_source = Some("xAI Official".into());
-        assert_eq!(plugin_group(&unknown).key, "grok-mp:xAI Official");
+        unknown.marketplace_source = Some("Axon Official".into());
+        assert_eq!(plugin_group(&unknown).key, "axon-mp:Axon Official");
     }
 
     #[test]
@@ -6689,7 +6689,7 @@ mod tests {
                     marketplace: "claude-market".into(),
                 },
             ),
-            make_plugin_with_origin("user-tool", PluginOrigin::UserGrok),
+            make_plugin_with_origin("user-tool", PluginOrigin::UserAxon),
             make_plugin_with_origin("claude-tool", PluginOrigin::UserClaude),
         ]);
         let buf = render_plugins_into_buffer(&mut state, 100, 40);
@@ -6722,7 +6722,7 @@ mod tests {
     fn plugins_render_multiple_plugins_under_one_group() {
         use axon_hooks_plugins_types::PluginOrigin;
         let mut state = plugins_modal_state(vec![
-            make_plugin_with_origin("solo-tool", PluginOrigin::UserGrok),
+            make_plugin_with_origin("solo-tool", PluginOrigin::UserAxon),
             make_plugin_with_origin(
                 "catalog-tool",
                 PluginOrigin::ClaudeMarketplace {
@@ -6778,7 +6778,7 @@ mod tests {
     #[test]
     fn plugins_collapsed_group_hides_rows_and_search_forces_open() {
         use axon_hooks_plugins_types::PluginOrigin;
-        let mut plugin = make_plugin_with_origin("user-tool", PluginOrigin::UserGrok);
+        let mut plugin = make_plugin_with_origin("user-tool", PluginOrigin::UserAxon);
         plugin.root = "/opt/p1".into();
         let mut state = plugins_modal_state(vec![plugin]);
         state.plugins_collapsed_groups.insert("origin:user".into());
@@ -6801,14 +6801,14 @@ mod tests {
         let mut direct = make_plugin("direct-tool");
         direct.marketplace_source = Some("git: owner/repo".into());
         let mut mp = make_plugin("official-tool");
-        mp.marketplace_source = Some("xAI Official".into());
+        mp.marketplace_source = Some("Axon Official".into());
         let plain = make_plugin("plain-tool");
 
         let mut state = plugins_modal_state(vec![direct, mp, plain]);
         let buf = render_plugins_into_buffer(&mut state, 100, 40);
 
         assert_eq!(buffer_count(&buf, "User (1 plugin)"), 1);
-        assert_eq!(buffer_count(&buf, "xAI Official (1 plugin)"), 1);
+        assert_eq!(buffer_count(&buf, "Axon Official (1 plugin)"), 1);
         assert_eq!(buffer_count(&buf, "Direct installs (1 plugin)"), 1);
     }
 
@@ -6818,7 +6818,7 @@ mod tests {
         let mut disabled = make_plugin_with_origin("off-tool", PluginOrigin::UserClaude);
         disabled.enabled = false;
         let mut state = plugins_modal_state(vec![
-            make_plugin_with_origin("user-tool", PluginOrigin::UserGrok),
+            make_plugin_with_origin("user-tool", PluginOrigin::UserAxon),
             disabled,
         ]);
         state.plugins_filter = StatusFilter::Disabled;

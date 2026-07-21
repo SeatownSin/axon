@@ -192,8 +192,8 @@ async fn get_authenticated_json<T: serde::de::DeserializeOwned>(
         .get(url)
         .timeout(std::time::Duration::from_secs(10))
         .header("Authorization", format!("Bearer {}", auth_key))
-        .header("X-XAI-Token-Auth", "xai-grok-cli")
-        .header("x-grok-client-version", axon_version::VERSION)
+        .header("X-AXON-Token-Auth", "axon-axon-cli")
+        .header("x-axon-client-version", axon_version::VERSION)
         .send()
         .await
     {
@@ -291,7 +291,7 @@ impl ManagedMcpState {
 
     /// Clear every server's reactive re-auth cooldown. Invoked only by the
     /// proactive background refresh after a fresh fetch, so a parked (terminal)
-    /// connector re-authorized on grok.com can retry. The reactive path must NOT
+    /// connector re-authorized on blocked.invalid can retry. The reactive path must NOT
     /// trigger this: a still-rejected token would reset its own attempt cap each
     /// attempt and loop instead of going terminal.
     pub fn clear_reauth_cooldowns(&mut self) {
@@ -474,8 +474,8 @@ pub async fn call_gateway_tool(
         .post(&url)
         .timeout(GATEWAY_TOOL_CALL_TIMEOUT)
         .header("Authorization", format!("Bearer {}", auth_key))
-        .header("X-XAI-Token-Auth", "xai-grok-cli")
-        .header("x-grok-client-version", axon_version::VERSION)
+        .header("X-AXON-Token-Auth", "axon-axon-cli")
+        .header("x-axon-client-version", axon_version::VERSION)
         .json(&request)
         .send()
         .await
@@ -685,20 +685,20 @@ pub async fn get_or_fetch_gateway_tool_catalog(
 
 /// Namespace prefix for managed MCP servers.
 ///
-/// Servers with names starting with this prefix are managed by grok.com —
+/// Servers with names starting with this prefix are managed by blocked.invalid —
 /// their OAuth credentials are stored server-side.
 /// Servers without this prefix are user-managed (local keychain, config.toml headers, etc.).
 ///
 /// Examples:
-///   `grok_com_linear`  → managed by grok.com
-///   `grok_com_slack`   → managed by grok.com
+///   `axon_com_linear`  → managed by blocked.invalid
+///   `axon_com_slack`   → managed by blocked.invalid
 ///   `my_company_api`   → user-managed (local)
 ///
 /// Single source of truth lives in `axon-workspace` (which matches policy
 /// `serverName`s against it); re-exported here so the two never drift.
 pub use axon_workspace::permission::resolution::MANAGED_MCP_PREFIX;
 
-/// `"Linear"` -> `"grok_com_linear"`. Shares normalization and the
+/// `"Linear"` -> `"axon_com_linear"`. Shares normalization and the
 /// `MANAGED_MCP_NAME_MAX_CHARS` cap with policy matching (`mcp_name_matches`) so
 /// the runtime name and a policy `serverName` never drift.
 pub fn to_managed_name(display_name: &str) -> String {
@@ -733,10 +733,10 @@ pub fn managed_token_is_stale(
 /// Returns `true` if this server should use server-side managed credentials.
 ///
 /// Both conditions must hold:
-/// 1. Server name starts with `MANAGED_MCP_PREFIX` ("grok_com_")
+/// 1. Server name starts with `MANAGED_MCP_PREFIX` ("axon_com_")
 /// 2. Server URL matches a managed config endpoint
 ///
-/// This prevents false injection if a user accidentally names a server `grok_com_*`
+/// This prevents false injection if a user accidentally names a server `axon_com_*`
 /// but it's not actually in the catalog, and prevents injecting into servers
 /// that happen to share a URL but aren't opted in to managed auth.
 pub fn should_inject_managed_auth(
@@ -755,7 +755,7 @@ pub fn normalize_url(url: &str) -> String {
 /// Key for managed config lookup: (normalized_url, scope, scope_id).
 type ManagedConfigKey = (String, Option<String>, Option<String>);
 
-/// Inject managed OAuth headers into `grok_com_`-prefixed MCP servers.
+/// Inject managed OAuth headers into `axon_com_`-prefixed MCP servers.
 ///
 /// Matches on endpoint URL + scope from `X-Connector-Scope` headers.
 /// Falls back to URL-only match when no scope headers are present (backward compat).
@@ -1365,14 +1365,14 @@ mod tests {
     fn reauth_first_attempt_allowed_then_backs_off() {
         let mut state = ManagedMcpState::default();
         let now = Utc::now();
-        assert!(state.reauth_allowed("grok_com_slack", now));
-        assert!(!state.reauth_is_terminal("grok_com_slack"));
+        assert!(state.reauth_allowed("axon_com_slack", now));
+        assert!(!state.reauth_is_terminal("axon_com_slack"));
 
-        state.record_reauth_failure("grok_com_slack", now);
+        state.record_reauth_failure("axon_com_slack", now);
         // 2^1 = 2s backoff: not eligible now, eligible after the window.
-        assert!(!state.reauth_allowed("grok_com_slack", now));
-        assert!(state.reauth_allowed("grok_com_slack", now + chrono::Duration::seconds(2)));
-        assert!(!state.reauth_is_terminal("grok_com_slack"));
+        assert!(!state.reauth_allowed("axon_com_slack", now));
+        assert!(state.reauth_allowed("axon_com_slack", now + chrono::Duration::seconds(2)));
+        assert!(!state.reauth_is_terminal("axon_com_slack"));
     }
 
     /// Backoff escalates per failure and is capped at
@@ -1406,11 +1406,11 @@ mod tests {
         let mut state = ManagedMcpState::default();
         let now = Utc::now();
         for _ in 0..MAX_REACTIVE_REAUTH_ATTEMPTS {
-            state.record_reauth_failure("grok_com_slack", now);
+            state.record_reauth_failure("axon_com_slack", now);
         }
-        assert!(state.reauth_is_terminal("grok_com_slack"));
+        assert!(state.reauth_is_terminal("axon_com_slack"));
         // Even far past any backoff window, a terminal server stays ineligible.
-        assert!(!state.reauth_allowed("grok_com_slack", now + chrono::Duration::seconds(3600)));
+        assert!(!state.reauth_allowed("axon_com_slack", now + chrono::Duration::seconds(3600)));
     }
 
     /// A successful reactive re-auth resets that server's cooldown so the next
@@ -1420,13 +1420,13 @@ mod tests {
         let mut state = ManagedMcpState::default();
         let now = Utc::now();
         for _ in 0..MAX_REACTIVE_REAUTH_ATTEMPTS {
-            state.record_reauth_failure("grok_com_slack", now);
+            state.record_reauth_failure("axon_com_slack", now);
         }
-        assert!(state.reauth_is_terminal("grok_com_slack"));
+        assert!(state.reauth_is_terminal("axon_com_slack"));
 
-        state.record_reauth_success("grok_com_slack");
-        assert!(state.reauth_allowed("grok_com_slack", now));
-        assert!(!state.reauth_is_terminal("grok_com_slack"));
+        state.record_reauth_success("axon_com_slack");
+        assert!(state.reauth_allowed("axon_com_slack", now));
+        assert!(!state.reauth_is_terminal("axon_com_slack"));
     }
 
     /// `complete_fetch` must NOT clear the reactive cooldown: the reactive path
@@ -1440,11 +1440,11 @@ mod tests {
         {
             let mut state = handle.blocking_lock();
             for _ in 0..MAX_REACTIVE_REAUTH_ATTEMPTS {
-                state.record_reauth_failure("grok_com_slack", now);
-                state.record_reauth_failure("grok_com_linear", now);
+                state.record_reauth_failure("axon_com_slack", now);
+                state.record_reauth_failure("axon_com_linear", now);
             }
-            assert!(state.reauth_is_terminal("grok_com_slack"));
-            assert!(state.reauth_is_terminal("grok_com_linear"));
+            assert!(state.reauth_is_terminal("axon_com_slack"));
+            assert!(state.reauth_is_terminal("axon_com_linear"));
 
             // A fetch (the reactive path's re-fetch) must leave the cooldown intact.
             // refresh_ctx = None so no background task is spawned in the test.
@@ -1453,15 +1453,15 @@ mod tests {
                 &handle,
                 None,
             );
-            assert!(state.reauth_is_terminal("grok_com_slack"));
-            assert!(state.reauth_is_terminal("grok_com_linear"));
+            assert!(state.reauth_is_terminal("axon_com_slack"));
+            assert!(state.reauth_is_terminal("axon_com_linear"));
 
             // The explicit proactive-refresh clear resets every server.
             state.clear_reauth_cooldowns();
-            assert!(state.reauth_allowed("grok_com_slack", now));
-            assert!(state.reauth_allowed("grok_com_linear", now));
-            assert!(!state.reauth_is_terminal("grok_com_slack"));
-            assert!(!state.reauth_is_terminal("grok_com_linear"));
+            assert!(state.reauth_allowed("axon_com_slack", now));
+            assert!(state.reauth_allowed("axon_com_linear", now));
+            assert!(!state.reauth_is_terminal("axon_com_slack"));
+            assert!(!state.reauth_is_terminal("axon_com_linear"));
         }
     }
 }

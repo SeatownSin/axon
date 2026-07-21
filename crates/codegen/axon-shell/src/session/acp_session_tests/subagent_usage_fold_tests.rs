@@ -88,7 +88,7 @@ async fn subagent_usage_fold_attribution_gate() {
 #[test]
 fn usage_drain_outcome_policy_matches_freeze_and_cancel() {
     use super::turn::UsageDrainOutcome;
-    use axon_tools::implementations::grok_build::task::types::SubagentOutstandingReply;
+    use axon_tools::implementations::axon_build::task::types::SubagentOutstandingReply;
 
     let none = UsageDrainOutcome::from_outstanding_reply(None);
     assert!(none.fail_closed);
@@ -342,12 +342,12 @@ async fn snapshot_ors_ledger_incomplete_even_when_reply_complete() {
 /// queued reply, repeating the last one; other events are ignored.
 fn scripted_outstanding_responder(
     replies: Vec<
-        axon_tools::implementations::grok_build::task::types::SubagentOutstandingReply,
+        axon_tools::implementations::axon_build::task::types::SubagentOutstandingReply,
     >,
 ) -> tokio::sync::mpsc::UnboundedSender<
-    axon_tools::implementations::grok_build::task::types::SubagentEvent,
+    axon_tools::implementations::axon_build::task::types::SubagentEvent,
 > {
-    use axon_tools::implementations::grok_build::task::types::SubagentEvent;
+    use axon_tools::implementations::axon_build::task::types::SubagentEvent;
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<SubagentEvent>();
     tokio::task::spawn_local(async move {
         let mut queue = replies.into_iter();
@@ -367,7 +367,7 @@ fn scripted_outstanding_responder(
 /// ledgers are marked incomplete.
 #[tokio::test(flavor = "current_thread")]
 async fn freeze_timeout_marks_report_and_both_ledgers() {
-    use axon_tools::implementations::grok_build::task::types::SubagentOutstandingReply;
+    use axon_tools::implementations::axon_build::task::types::SubagentOutstandingReply;
     tokio::task::LocalSet::new()
         .run_until(async {
             let mut actor = make_actor().await;
@@ -406,7 +406,7 @@ async fn freeze_timeout_marks_report_and_both_ledgers() {
 /// because its fold still lands on the session ledger at completion.
 #[tokio::test(flavor = "current_thread")]
 async fn freeze_background_only_flags_report_not_ledgers() {
-    use axon_tools::implementations::grok_build::task::types::SubagentOutstandingReply;
+    use axon_tools::implementations::axon_build::task::types::SubagentOutstandingReply;
     tokio::task::LocalSet::new()
         .run_until(async {
             let mut actor = make_actor().await;
@@ -448,7 +448,7 @@ async fn freeze_background_only_flags_report_not_ledgers() {
 #[tokio::test(flavor = "current_thread")]
 async fn finalize_background_only_flags_report_not_ledgers() {
     use super::turn::UsageDrainOutcome;
-    use axon_tools::implementations::grok_build::task::types::SubagentOutstandingReply;
+    use axon_tools::implementations::axon_build::task::types::SubagentOutstandingReply;
 
     tokio::task::LocalSet::new()
         .run_until(async {
@@ -585,7 +585,7 @@ async fn apply_miss_matching_pin_stains_prompt_and_session() {
 /// Sticky (session-only) is report-only on freeze: session ledger stays complete.
 #[tokio::test(flavor = "current_thread")]
 async fn freeze_sticky_only_flags_report_not_ledgers() {
-    use axon_tools::implementations::grok_build::task::types::SubagentOutstandingReply;
+    use axon_tools::implementations::axon_build::task::types::SubagentOutstandingReply;
     tokio::task::LocalSet::new()
         .run_until(async {
             let mut actor = make_actor().await;
@@ -639,7 +639,7 @@ async fn freeze_sticky_only_flags_report_not_ledgers() {
 /// A fold landing mid-drain completes cleanly: no incomplete flag anywhere.
 #[tokio::test(flavor = "current_thread")]
 async fn freeze_completes_when_fold_lands_mid_drain() {
-    use axon_tools::implementations::grok_build::task::types::SubagentOutstandingReply;
+    use axon_tools::implementations::axon_build::task::types::SubagentOutstandingReply;
     tokio::task::LocalSet::new()
         .run_until(async {
             let mut actor = make_actor().await;

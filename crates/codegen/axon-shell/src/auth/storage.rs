@@ -2,7 +2,7 @@ use std::fs::File;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 
-use super::model::{API_KEY_SCOPE, AuthMode, AuthStore, GrokAuth, lookup_auth};
+use super::model::{API_KEY_SCOPE, AuthMode, AuthStore, AxonAuth, lookup_auth};
 
 /// RAII guard for an exclusive advisory lock on `auth.json.lock`.
 /// The lock is released when the inner `File` is dropped (closing the FD).
@@ -351,10 +351,10 @@ fn restore_prior_bytes(auth_file: &Path, bytes: &[u8]) -> std::io::Result<()> {
 }
 
 /// Read a single auth token from `auth.json` by scope key.
-/// Falls back to the legacy `https://accounts.x.ai/sign-in` scope key
+/// Falls back to the legacy `https://accounts.blocked.invalid/sign-in` scope key
 /// when the requested scope is not found (devbox auth.json migration).
-pub fn read_token_by_scope(grok_home: &Path, scope: &str) -> anyhow::Result<String> {
-    let path = grok_home.join("auth.json");
+pub fn read_token_by_scope(axon_home: &Path, scope: &str) -> anyhow::Result<String> {
+    let path = axon_home.join("auth.json");
     let store =
         read_auth_json(&path).map_err(|_| anyhow::anyhow!("Not logged in. Run `axon login`."))?;
     lookup_auth(&store, scope).map(|a| a.key).ok_or_else(|| {
@@ -362,23 +362,23 @@ pub fn read_token_by_scope(grok_home: &Path, scope: &str) -> anyhow::Result<Stri
     })
 }
 
-/// Read the API key from the `xai::api_key` scope in auth.json.
-pub fn read_api_key(grok_home: &Path) -> Option<String> {
-    let path = grok_home.join("auth.json");
+/// Read the API key from the `axon::api_key` scope in auth.json.
+pub fn read_api_key(axon_home: &Path) -> Option<String> {
+    let path = axon_home.join("auth.json");
     let map = read_auth_json(&path).ok()?;
     map.get(API_KEY_SCOPE).map(|a| a.key.clone())
 }
 
-/// Store a plain API key in auth.json under the `xai::api_key` scope.
+/// Store a plain API key in auth.json under the `axon::api_key` scope.
 ///
 /// Uses the corrupt-recovery reader so a malformed auth.json (e.g. from a
 /// previous crash) can be healed when the user sets an API key.
-pub fn store_api_key(grok_home: &Path, api_key: &str) -> std::io::Result<()> {
-    let path = grok_home.join("auth.json");
+pub fn store_api_key(axon_home: &Path, api_key: &str) -> std::io::Result<()> {
+    let path = axon_home.join("auth.json");
     let mut map = read_auth_json_or_empty_recovering_corrupt(&path)?;
     map.insert(
         API_KEY_SCOPE.to_owned(),
-        GrokAuth {
+        AxonAuth {
             key: api_key.to_owned(),
             auth_mode: AuthMode::ApiKey,
             ..Default::default()
@@ -387,9 +387,9 @@ pub fn store_api_key(grok_home: &Path, api_key: &str) -> std::io::Result<()> {
     write_auth_json(&path, &map)
 }
 
-/// Remove the `xai::api_key` scope from auth.json.
-pub fn clear_api_key(grok_home: &Path) -> std::io::Result<()> {
-    let path = grok_home.join("auth.json");
+/// Remove the `axon::api_key` scope from auth.json.
+pub fn clear_api_key(axon_home: &Path) -> std::io::Result<()> {
+    let path = axon_home.join("auth.json");
     if let Ok(mut map) = read_auth_json(&path) {
         map.remove(API_KEY_SCOPE);
         if map.is_empty() {
@@ -409,7 +409,7 @@ mod write_fallback_tests {
         let mut map = AuthStore::new();
         map.insert(
             API_KEY_SCOPE.to_owned(),
-            GrokAuth {
+            AxonAuth {
                 key: "secret-key".to_owned(),
                 auth_mode: AuthMode::ApiKey,
                 ..Default::default()
@@ -547,7 +547,7 @@ mod write_fallback_tests {
         let mut replacement = AuthStore::new();
         replacement.insert(
             API_KEY_SCOPE.to_owned(),
-            GrokAuth {
+            AxonAuth {
                 key: "replacement-key".to_owned(),
                 auth_mode: AuthMode::ApiKey,
                 ..Default::default()

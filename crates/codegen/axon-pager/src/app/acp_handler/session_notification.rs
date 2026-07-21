@@ -51,7 +51,7 @@ pub(super) fn confirm_context_used(view: &mut AgentView, used: u64) {
     refresh_context_used(view, used);
     view.session.note_context_used(used);
 }
-/// Replay gate shared by the ACP and xAI session-update paths. Returns `true`
+/// Replay gate shared by the ACP and Axon session-update paths. Returns `true`
 /// when the update must be dropped.
 ///
 /// Replay is only expected while a `session/load` is in flight for this agent
@@ -101,7 +101,7 @@ pub(super) fn advance_reconnect_cursor(agent: &mut AgentView, meta: &mut Notific
         agent.last_seen_event_id = Some(id);
     }
 }
-/// Handle `x.ai/session_notification` and replay-path `x.ai/session/update`.
+/// Handle `axon/session_notification` and replay-path `axon/session/update`.
 ///
 /// Routes by `session_id` so events for an inactive agent still mutate that
 /// agent's state. The redraw decision is gated on whether the matched agent
@@ -112,16 +112,16 @@ pub(super) fn handle_session_notification(notif: &acp::ExtNotification, app: &mu
         return false;
     };
     match &session_notif.update {
-        XaiSessionUpdate::TaskBackgrounded { .. } => {
+        AxonSessionUpdate::TaskBackgrounded { .. } => {
             return handle_task_backgrounded(notif, app);
         }
-        XaiSessionUpdate::TaskCompleted { .. } => {
+        AxonSessionUpdate::TaskCompleted { .. } => {
             return handle_task_completed(notif, app);
         }
-        XaiSessionUpdate::ScheduledTaskCreated { .. } => {
+        AxonSessionUpdate::ScheduledTaskCreated { .. } => {
             return handle_scheduled_task_created(notif, app);
         }
-        XaiSessionUpdate::ScheduledTaskDeleted { .. } => {
+        AxonSessionUpdate::ScheduledTaskDeleted { .. } => {
             return handle_scheduled_task_deleted(notif, app);
         }
         _ => {}
@@ -133,7 +133,7 @@ pub(super) fn handle_session_notification(notif: &acp::ExtNotification, app: &mu
             tracing::debug!(
                 session_id = session_notif.session_id.0.as_ref(),
                 method = notif.method.as_ref(),
-                "load-race: x.ai/session_notification DROPPED — no agent matches session_id"
+                "load-race: blocked.invalid/session_notification DROPPED — no agent matches session_id"
             );
             return false;
         }
@@ -159,22 +159,22 @@ pub(super) fn handle_session_notification(notif: &acp::ExtNotification, app: &mu
         agent,
         &meta,
         session_notif.session_id.0.as_ref(),
-        "x.ai/session/update",
+        "axon/session/update",
     ) {
         return false;
     }
     if !meta.is_replay
         && meta.event_seq.is_some_and(|seq| {
             agent
-                .last_applied_xai_event_seq
+                .last_applied_axon_event_seq
                 .is_some_and(|last| seq <= last)
         })
     {
         tracing::debug!(
             session_id = session_notif.session_id.0.as_ref(),
             event_seq = meta.event_seq,
-            last_applied = agent.last_applied_xai_event_seq,
-            "x.ai/session update DROPPED by dedup highwater (event_seq <= last_applied)"
+            last_applied = agent.last_applied_axon_event_seq,
+            "axon/session update DROPPED by dedup highwater (event_seq <= last_applied)"
         );
         return false;
     }
@@ -182,32 +182,32 @@ pub(super) fn handle_session_notification(notif: &acp::ExtNotification, app: &mu
     let mut terminal_outcome: Option<super::super::turn_completion::TerminalApply> = None;
     let root_session_id: &str = session_notif.session_id.0.as_ref();
     let changed = match session_notif.update {
-        ref update @ (XaiSessionUpdate::AutoCompactStarted { .. }
-        | XaiSessionUpdate::AutoCompactCompleted { .. }
-        | XaiSessionUpdate::AutoCompactFailed { .. }
-        | XaiSessionUpdate::AutoCompactCancelled { .. }
-        | XaiSessionUpdate::RetryState(_)
-        | XaiSessionUpdate::ImageDropped { .. }
-        | XaiSessionUpdate::MemoryFlushCompleted { .. }
-        | XaiSessionUpdate::MemoryDreamCompleted { .. }
-        | XaiSessionUpdate::MemorySessionSaved { .. }) => {
+        ref update @ (AxonSessionUpdate::AutoCompactStarted { .. }
+        | AxonSessionUpdate::AutoCompactCompleted { .. }
+        | AxonSessionUpdate::AutoCompactFailed { .. }
+        | AxonSessionUpdate::AutoCompactCancelled { .. }
+        | AxonSessionUpdate::RetryState(_)
+        | AxonSessionUpdate::ImageDropped { .. }
+        | AxonSessionUpdate::MemoryFlushCompleted { .. }
+        | AxonSessionUpdate::MemoryDreamCompleted { .. }
+        | AxonSessionUpdate::MemorySessionSaved { .. }) => {
             let changed = apply_session_event(
                 update,
                 &mut agent.session,
                 &mut agent.scrollback,
                 is_api_key_auth,
             );
-            if let XaiSessionUpdate::AutoCompactCompleted { tokens_after, .. } = update {
+            if let AxonSessionUpdate::AutoCompactCompleted { tokens_after, .. } = update {
                 refresh_context_used(agent, *tokens_after);
                 agent.todo.update_todos(Vec::new());
             }
             changed
         }
-        XaiSessionUpdate::ImageCompressed {
+        AxonSessionUpdate::ImageCompressed {
             ref images,
             ref message,
         } => apply_image_compressed(agent, images, message),
-        XaiSessionUpdate::TurnCompleted {
+        AxonSessionUpdate::TurnCompleted {
             prompt_id,
             stop_reason,
             agent_result,
@@ -241,7 +241,7 @@ pub(super) fn handle_session_notification(notif: &acp::ExtNotification, app: &mu
                 false
             }
         }
-        XaiSessionUpdate::SubagentSpawned {
+        AxonSessionUpdate::SubagentSpawned {
             subagent_id,
             child_session_id,
             subagent_type,
@@ -457,7 +457,7 @@ pub(super) fn handle_session_notification(notif: &acp::ExtNotification, app: &mu
             agent.maybe_push_parked_marker();
             true
         }
-        XaiSessionUpdate::SubagentProgress {
+        AxonSessionUpdate::SubagentProgress {
             child_session_id,
             duration_ms,
             turn_count,
@@ -495,7 +495,7 @@ pub(super) fn handle_session_notification(notif: &acp::ExtNotification, app: &mu
             sync_subagent_activity(agent, &child_session_id, activity_label);
             true
         }
-        XaiSessionUpdate::SubagentFinished {
+        AxonSessionUpdate::SubagentFinished {
             child_session_id,
             status,
             error,
@@ -593,7 +593,7 @@ pub(super) fn handle_session_notification(notif: &acp::ExtNotification, app: &mu
             }
             true
         }
-        XaiSessionUpdate::HookAnnotation { message } => {
+        AxonSessionUpdate::HookAnnotation { message } => {
             if app.appearance.disable_plugins {
                 return false;
             }
@@ -605,7 +605,7 @@ pub(super) fn handle_session_notification(notif: &acp::ExtNotification, app: &mu
                 }));
             true
         }
-        XaiSessionUpdate::HookExecution {
+        AxonSessionUpdate::HookExecution {
             event_name,
             tool_name: _tool_name,
             prompt_id: batch_prompt_id,
@@ -695,7 +695,7 @@ pub(super) fn handle_session_notification(notif: &acp::ExtNotification, app: &mu
             }
             true
         }
-        XaiSessionUpdate::HooksChanged {
+        AxonSessionUpdate::HooksChanged {
             hooks,
             project_trusted,
             load_errors,
@@ -713,7 +713,7 @@ pub(super) fn handle_session_notification(notif: &acp::ExtNotification, app: &mu
                 false
             }
         }
-        XaiSessionUpdate::PluginsChanged { plugins } => {
+        AxonSessionUpdate::PluginsChanged { plugins } => {
             if let Some(ref mut modal) = agent.extensions_modal {
                 use crate::views::extensions_modal::TabDataState;
                 modal.seed_plugin_groups_once(&plugins);
@@ -728,12 +728,12 @@ pub(super) fn handle_session_notification(notif: &acp::ExtNotification, app: &mu
                 false
             }
         }
-        XaiSessionUpdate::SessionSummaryGenerated { session_summary } => {
+        AxonSessionUpdate::SessionSummaryGenerated { session_summary } => {
             agent.generated_session_title =
                 Some(crate::util::decode_html_entities(&session_summary).into_owned());
             true
         }
-        XaiSessionUpdate::SessionRecap { summary, auto } => {
+        AxonSessionUpdate::SessionRecap { summary, auto } => {
             use crate::scrollback::block::RenderBlock;
             use crate::scrollback::blocks::SessionEvent;
             if should_drop_late_auto_recap(auto, meta.is_replay, agent.session.state.is_idle()) {
@@ -748,7 +748,7 @@ pub(super) fn handle_session_notification(notif: &acp::ExtNotification, app: &mu
                 true
             }
         }
-        XaiSessionUpdate::SessionRecapUnavailable => {
+        AxonSessionUpdate::SessionRecapUnavailable => {
             if meta.is_replay {
                 false
             } else if let Some(pending_id) = agent.pending_recap_entry.take() {
@@ -761,7 +761,7 @@ pub(super) fn handle_session_notification(notif: &acp::ExtNotification, app: &mu
                 false
             }
         }
-        XaiSessionUpdate::ModelAutoSwitched {
+        AxonSessionUpdate::ModelAutoSwitched {
             previous_model_id,
             new_model_id,
             reason,
@@ -801,7 +801,7 @@ pub(super) fn handle_session_notification(notif: &acp::ExtNotification, app: &mu
             ));
             true
         }
-        XaiSessionUpdate::ModelChanged {
+        AxonSessionUpdate::ModelChanged {
             model_id,
             reasoning_effort,
         } => {
@@ -852,7 +852,7 @@ pub(super) fn handle_session_notification(notif: &acp::ExtNotification, app: &mu
             }
             actually_changed
         }
-        XaiSessionUpdate::MemoryFiles { files } => {
+        AxonSessionUpdate::MemoryFiles { files } => {
             let entries = crate::views::memory_modal::build_entries(files);
             let modal_state = crate::views::memory_modal::MemoryModalState::new(entries);
             agent.active_modal = Some(crate::views::modal::ActiveModal::MemoryBrowser {
@@ -860,7 +860,7 @@ pub(super) fn handle_session_notification(notif: &acp::ExtNotification, app: &mu
             });
             true
         }
-        XaiSessionUpdate::GoalUpdated {
+        AxonSessionUpdate::GoalUpdated {
             goal_id,
             objective,
             status,
@@ -966,7 +966,7 @@ pub(super) fn handle_session_notification(notif: &acp::ExtNotification, app: &mu
                 true
             }
         }
-        XaiSessionUpdate::InteractionResolved { tool_call_id } => {
+        AxonSessionUpdate::InteractionResolved { tool_call_id } => {
             agent.dismiss_resolved_interaction(&tool_call_id)
         }
         _ => {
@@ -999,7 +999,7 @@ pub(super) fn handle_session_notification(notif: &acp::ExtNotification, app: &mu
         if let Some(seq) = meta.event_seq
             && !meta.is_replay
         {
-            agent.last_applied_xai_event_seq = Some(seq);
+            agent.last_applied_axon_event_seq = Some(seq);
         }
         if let Some(id) = meta.event_id {
             agent.last_seen_event_id = Some(id);
@@ -1012,25 +1012,25 @@ pub(super) fn handle_session_notification(notif: &acp::ExtNotification, app: &mu
     }
     changed && is_active
 }
-/// Handle an xAI session notification that targets a child (subagent) session.
+/// Handle an Axon session notification that targets a child (subagent) session.
 ///
 /// Events like compaction, retry, and memory flush are emitted by the child's
 /// `acp_session` with the *child's* `session_id`. This routes them to the
 /// correct child view and updates `SubagentInfo` where appropriate.
 pub(super) fn handle_child_session_notification(
-    update: XaiSessionUpdate,
+    update: AxonSessionUpdate,
     child_sid: &str,
     agent: &mut AgentView,
     is_api_key_auth: bool,
 ) -> bool {
     match update {
-        XaiSessionUpdate::AutoCompactStarted { .. }
-        | XaiSessionUpdate::AutoCompactCompleted { .. }
-        | XaiSessionUpdate::AutoCompactFailed { .. }
-        | XaiSessionUpdate::AutoCompactCancelled { .. }
-        | XaiSessionUpdate::RetryState(_) => {
+        AxonSessionUpdate::AutoCompactStarted { .. }
+        | AxonSessionUpdate::AutoCompactCompleted { .. }
+        | AxonSessionUpdate::AutoCompactFailed { .. }
+        | AxonSessionUpdate::AutoCompactCancelled { .. }
+        | AxonSessionUpdate::RetryState(_) => {
             let compact_tokens = match &update {
-                XaiSessionUpdate::AutoCompactCompleted { tokens_after, .. } => Some(*tokens_after),
+                AxonSessionUpdate::AutoCompactCompleted { tokens_after, .. } => Some(*tokens_after),
                 _ => None,
             };
             let mut changed = false;
@@ -1056,9 +1056,9 @@ pub(super) fn handle_child_session_notification(
             }
             changed
         }
-        ref update @ (XaiSessionUpdate::MemoryFlushCompleted { .. }
-        | XaiSessionUpdate::MemoryDreamCompleted { .. }
-        | XaiSessionUpdate::MemorySessionSaved { .. }) => {
+        ref update @ (AxonSessionUpdate::MemoryFlushCompleted { .. }
+        | AxonSessionUpdate::MemoryDreamCompleted { .. }
+        | AxonSessionUpdate::MemorySessionSaved { .. }) => {
             if let Some(child_view) = agent.subagent_views.get_mut(child_sid) {
                 apply_session_event(
                     update,
@@ -1082,20 +1082,20 @@ pub(super) fn handle_child_session_notification(
 /// rewind stash, which a fixture setting fields directly would miss.
 #[cfg(test)]
 pub(crate) fn apply_session_event_for_test(
-    update: &XaiSessionUpdate,
+    update: &AxonSessionUpdate,
     session: &mut AgentSession,
     scrollback: &mut crate::scrollback::state::ScrollbackState,
 ) -> bool {
     apply_session_event(update, session, scrollback, false)
 }
 pub(super) fn apply_session_event(
-    update: &XaiSessionUpdate,
+    update: &AxonSessionUpdate,
     session: &mut AgentSession,
     scrollback: &mut crate::scrollback::state::ScrollbackState,
     is_api_key_auth: bool,
 ) -> bool {
     match update {
-        XaiSessionUpdate::AutoCompactStarted { percentage, .. } => {
+        AxonSessionUpdate::AutoCompactStarted { percentage, .. } => {
             tracing::info!("Auto-compact started: {percentage}% context used");
             session.in_flight_prompt = None;
             session.set_compaction_activity(Some(TurnActivity::AutoCompacting));
@@ -1106,7 +1106,7 @@ pub(super) fn apply_session_event(
             ));
             true
         }
-        XaiSessionUpdate::AutoCompactCompleted {
+        AxonSessionUpdate::AutoCompactCompleted {
             tokens_before,
             tokens_after,
             elapsed_ms,
@@ -1127,7 +1127,7 @@ pub(super) fn apply_session_event(
             }
             true
         }
-        XaiSessionUpdate::AutoCompactFailed { error } => {
+        AxonSessionUpdate::AutoCompactFailed { error } => {
             tracing::error!(error = % error, "Auto-compaction failed");
             session.set_compaction_activity(None);
             scrollback.push_block(RenderBlock::session_event(SessionEvent::CompactionFailed {
@@ -1135,7 +1135,7 @@ pub(super) fn apply_session_event(
             }));
             true
         }
-        XaiSessionUpdate::AutoCompactCancelled { .. } => {
+        AxonSessionUpdate::AutoCompactCancelled { .. } => {
             tracing::info!("Auto-compact cancelled");
             session.set_compaction_activity(None);
             scrollback.push_block(RenderBlock::session_event(
@@ -1143,12 +1143,12 @@ pub(super) fn apply_session_event(
             ));
             true
         }
-        XaiSessionUpdate::RetryState(retry) => {
+        AxonSessionUpdate::RetryState(retry) => {
             tracing::debug!("Retry state: {retry:?}");
             apply_retry_state(retry, session, scrollback, is_api_key_auth);
             true
         }
-        XaiSessionUpdate::ImageDropped { notes } => {
+        AxonSessionUpdate::ImageDropped { notes } => {
             let message = notes.join("\n");
             tracing::info!("Image dropped: {message}");
             scrollback.push_block(RenderBlock::system(message));

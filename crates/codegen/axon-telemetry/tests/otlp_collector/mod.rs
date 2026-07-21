@@ -272,7 +272,7 @@ fn kvs_to_map(
 pub struct RecordView {
     pub event_name: String,
     pub attrs: HashMap<String, AttrVal>,
-    /// `service.name`, `grok_code.schema.version`, … from the owning resource.
+    /// `service.name`, `axon_code.schema.version`, … from the owning resource.
     pub resource: HashMap<String, AttrVal>,
     pub scope_name: String,
     pub has_body: bool,

@@ -216,7 +216,7 @@ async fn drop_recap_after_cancel_auto_silent_manual_unavailable() {
 fn drained_session_recap(rx: &mut tokio::sync::mpsc::UnboundedReceiver<PersistenceMsg>) -> bool {
     let mut saw = false;
     while let Ok(msg) = rx.try_recv() {
-        if let PersistenceMsg::Update(crate::session::storage::SessionUpdate::Xai(n)) = msg
+        if let PersistenceMsg::Update(crate::session::storage::SessionUpdate::Axon(n)) = msg
             && matches!(
                 n.update,
                 crate::extensions::notification::SessionUpdate::SessionRecap { .. }
@@ -305,13 +305,13 @@ async fn manual_recap_never_mutates_conversation() {
 }
 
 /// Drain the persistence channel and report whether a `SessionRecapUnavailable`
-/// xAI update was emitted.
+/// Axon update was emitted.
 fn drained_recap_unavailable(
     rx: &mut tokio::sync::mpsc::UnboundedReceiver<PersistenceMsg>,
 ) -> bool {
     let mut saw = false;
     while let Ok(msg) = rx.try_recv() {
-        if let PersistenceMsg::Update(crate::session::storage::SessionUpdate::Xai(n)) = msg
+        if let PersistenceMsg::Update(crate::session::storage::SessionUpdate::Axon(n)) = msg
             && matches!(
                 n.update,
                 crate::extensions::notification::SessionUpdate::SessionRecapUnavailable
@@ -423,9 +423,9 @@ async fn manual_recap_generation_failure_persists_request_artifact() {
                         "artifact must include the recap request items"
                     );
                     assert!(
-                        artifact.x_grok_req_id.starts_with("xai-recap-"),
+                        artifact.x_axon_req_id.starts_with("axon-recap-"),
                         "req id: {}",
-                        artifact.x_grok_req_id
+                        artifact.x_axon_req_id
                     );
                     saw_recap_request = true;
                 }
@@ -537,7 +537,7 @@ async fn manual_recap_over_budget_trims_persisted_request_and_is_display_only() 
 /// Over-budget recap serializes to a well-formed Anthropic Messages payload:
 /// system preserved, reasoning stripped, no dangling `tool_use`/`tool_result`, no
 /// `tool_result` before the appended instruction. (Messages is the strictest
-/// shape, so it also covers the laxer grok ChatCompletions/Responses shapes.)
+/// shape, so it also covers the laxer axon ChatCompletions/Responses shapes.)
 #[test]
 fn over_budget_recap_serializes_to_well_formed_messages_request() {
     use crate::session::helpers::session_recap;
@@ -576,7 +576,7 @@ fn over_budget_recap_serializes_to_well_formed_messages_request() {
         ConversationItem::tool_result("c2", "z".repeat(40_000)),     // trailing run
     ];
 
-    // grok backend => strip_reasoning=false; the over-budget branch strips anyway.
+    // axon backend => strip_reasoning=false; the over-budget branch strips anyway.
     let items = session_recap::budget_recap_items(conv, "system-reminder", false, 8_000);
     let req = ConversationRequest::from_items(items);
     let msg = axon_sampling_types::build_messages_request(&req);

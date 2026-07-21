@@ -165,7 +165,7 @@ pub struct MarketplaceEntry {
     pub domains: Vec<String>,
     /// Homepage URL (from index).
     pub homepage: Option<String>,
-    /// Relative path within marketplace (e.g., "plugins/xai-code-review").
+    /// Relative path within marketplace (e.g., "plugins/axon-code-review").
     pub relative_path: String,
     /// Number of skills discovered.
     pub skill_count: usize,

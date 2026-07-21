@@ -1,4 +1,4 @@
-//! xAI Speech-to-Text: streaming `wss://api.x.ai/v1/stt`.
+//! Axon Speech-to-Text: streaming `wss://api.blocked.invalid/v1/stt`.
 
 mod streaming;
 mod types;

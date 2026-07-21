@@ -9,7 +9,7 @@ use serial_test::serial;
 use std::sync::Arc as StdArc;
 use std::sync::atomic::{AtomicUsize, Ordering as SeqOrd};
 use tempfile::TempDir;
-use axon_tools::implementations::grok_build::task::types::{SubagentEvent, SubagentResult};
+use axon_tools::implementations::axon_build::task::types::{SubagentEvent, SubagentResult};
 
 /// Spawn behaviour knobs for the planner-coordinator stub.
 enum SpawnBehaviour {
@@ -183,7 +183,7 @@ fn drain_goal_planning_flags(
 ) -> Vec<Option<bool>> {
     let mut out = Vec::new();
     while let Ok(msg) = rx.try_recv() {
-        if let PersistenceMsg::Update(crate::session::storage::SessionUpdate::Xai(n)) = msg
+        if let PersistenceMsg::Update(crate::session::storage::SessionUpdate::Axon(n)) = msg
             && let crate::extensions::notification::SessionUpdate::GoalUpdated { planning, .. } =
                 n.update
         {

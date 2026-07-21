@@ -35,14 +35,14 @@ fn is_container_no_display() -> bool {
 /// clipboard sequences, and writes their payload to the *real* (local) system
 /// clipboard (see `axon-pager`'s `pty_wrap` module). It advertises this to
 /// the wrapped program via an environment variable so the
-/// inner `grok` knows its OSC 52 writes are reliably intercepted and copied,
+/// inner `axon` knows its OSC 52 writes are reliably intercepted and copied,
 /// even when the inner terminal brand is misdetected (e.g. over SSH, where only
 /// `TERM` propagates and Apple Terminal / unknown brands look OSC-52-incapable).
 ///
 /// Two names are accepted: the canonical `AXON_OSC52_SINK` (inherited by local
 /// children) and the `LC_`-prefixed `LC_AXON_OSC52_SINK`, which the default
 /// OpenSSH client/server configs forward (`SendEnv LANG LC_*` /
-/// `AcceptEnv LANG LC_*`) so the signal survives the hop into a remote `grok`.
+/// `AcceptEnv LANG LC_*`) so the signal survives the hop into a remote `axon`.
 pub fn osc52_sink_active() -> bool {
     static SINK: OnceLock<bool> = OnceLock::new();
     *SINK.get_or_init(|| {
@@ -374,7 +374,7 @@ fn decision_for_legs(legs: &ClipboardWriteLegs, text: &str) -> ClipboardFeedback
     trust::resolve_copy_decision(legs, text, clipboard_environment(legs))
 }
 
-/// Write text and return a toast; emits `grok-shell-clipboard_copy` when enabled.
+/// Write text and return a toast; emits `axon-shell-clipboard_copy` when enabled.
 pub fn copy_text(text: &str) -> CopyResult {
     let started = std::time::Instant::now();
     let route = clipboard_route();

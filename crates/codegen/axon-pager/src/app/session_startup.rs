@@ -26,7 +26,7 @@ pub enum DeferredSessionStartup {
         parent_cwd: Option<PathBuf>,
         new_session_id: Option<String>,
     },
-    /// Fresh plain Grok session whose first prompt resumes a foreign tool session.
+    /// Fresh plain Axon session whose first prompt resumes a foreign tool session.
     ForeignResume {
         tool: axon_workspace::foreign_sessions::ForeignSessionTool,
         native_id: String,
@@ -53,7 +53,7 @@ impl DeferredStartupActions {
         std::mem::take(self)
     }
 }
-/// Build `x.ai/session/fork` params shared by TUI effects and headless.
+/// Build `axon/session/fork` params shared by TUI effects and headless.
 ///
 /// `new_cwd` is the write namespace for the child (parent session cwd when
 /// cross-cwd); preflight must use the same path via [`effective_fork_new_cwd`].
@@ -82,8 +82,8 @@ pub fn fork_session_params(
 /// Mirrors in-session `/fork` reading `agent.session.is_worktree`.
 pub fn parent_session_is_worktree(session_id: &str, cwd: &Path) -> bool {
     let cwd_str = cwd.to_string_lossy();
-    let sessions_root = axon_shell::util::grok_home::grok_home().join("sessions");
-    let encoded = axon_shell::util::grok_home::encode_cwd_dirname(&cwd_str);
+    let sessions_root = axon_shell::util::axon_home::axon_home().join("sessions");
+    let encoded = axon_shell::util::axon_home::encode_cwd_dirname(&cwd_str);
     let summary_path = sessions_root
         .join(encoded)
         .join(session_id)
@@ -114,7 +114,7 @@ pub fn parent_session_is_worktree(session_id: &str, cwd: &Path) -> bool {
     }
     false
 }
-/// Parse `newSessionId` from an `x.ai/session/fork` ACP response body.
+/// Parse `newSessionId` from an `axon/session/fork` ACP response body.
 pub fn fork_response_new_session_id(resp_json: &str) -> Option<String> {
     let v: serde_json::Value = serde_json::from_str(resp_json).unwrap_or_default();
     if v.get("error").is_some_and(|e| !e.is_null()) {
@@ -375,7 +375,7 @@ pub struct MaterializeCtx {
     pub has_worktree: bool,
     /// When true, attempt remote restore if the session is not on disk.
     pub allow_remote_restore: bool,
-    /// Process-wide flag: resume targets are grok.com conversations, not
+    /// Process-wide flag: resume targets are blocked.invalid conversations, not
     /// the local disk store. Always `false` without the optional feature;
     /// setting it anyway errors rather than silently falling back to disk.
     pub chat_mode: bool,
@@ -404,12 +404,12 @@ async fn most_recent_session_id(cwd: &str) -> anyhow::Result<(String, Option<Str
     let first = summaries.first().ok_or_else(|| {
         anyhow::anyhow!(
             "No session found for current directory. \
-             Use 'grok' to start a new session."
+             Use 'axon' to start a new session."
         )
     })?;
     Ok((first.info.id.to_string(), first.display_title_opt()))
 }
-/// `AuthManager` for direct grok.com calls made outside the agent (pre-ACP
+/// `AuthManager` for direct blocked.invalid calls made outside the agent (pre-ACP
 /// `--continue` conversation listing, the GCS restore effect). Wires the
 /// auth-provider refresher before the first `auth()`: without it, environments
 /// that mint credentials via `auth_provider_command` report `NoOauth`.
@@ -417,11 +417,11 @@ pub(crate) fn pre_acp_auth_manager(
     agent_config: &axon_shell::agent::config::Config,
 ) -> std::sync::Arc<axon_shell::auth::AuthManager> {
     let auth = std::sync::Arc::new(axon_shell::auth::AuthManager::new(
-        &axon_shell::util::grok_home::grok_home(),
-        agent_config.grok_com_config.clone(),
+        &axon_shell::util::axon_home::axon_home(),
+        agent_config.axon_com_config.clone(),
     ));
     auth.configure_refresher(
-        agent_config.grok_com_config.auth_provider_command.clone(),
+        agent_config.axon_com_config.auth_provider_command.clone(),
         None,
     );
     auth
@@ -621,18 +621,18 @@ async fn resolve_existing_session(
     use axon_shell::agent::session_registry_client::SessionRegistryClient;
     use axon_shell::auth::{AuthManager, ensure_authenticated_or_noninteractive};
     use axon_shell::session::restore::restore_session_with_storage;
-    use axon_shell::util::grok_home::grok_home;
+    use axon_shell::util::axon_home::axon_home;
     let deployment_key = agent_config.endpoints.deployment_key.clone();
     ensure_authenticated_or_noninteractive(
-        &agent_config.grok_com_config,
+        &agent_config.axon_com_config,
         deployment_key.is_some(),
         None,
     )
     .await
     .map_err(|e| anyhow::anyhow!("Failed to authenticate for session restore: {}", e))?;
     let auth_manager = std::sync::Arc::new(AuthManager::new(
-        &grok_home(),
-        agent_config.grok_com_config.clone(),
+        &axon_home(),
+        agent_config.axon_com_config.clone(),
     ));
     let registry_client =
         SessionRegistryClient::new(agent_config.endpoints.proxy_url(), String::new())
@@ -646,7 +646,7 @@ async fn resolve_existing_session(
         Some(auth_manager),
         None,
         None,
-        "grok-pager",
+        "axon-pager",
     );
     let progress: axon_shell::session::restore::ProgressCallback =
         Box::new(|event| eprintln!("  {}", event.display_line()));
@@ -707,14 +707,14 @@ mod tests {
     #[test]
     fn intent_default_is_new_auto() {
         assert_eq!(
-            parse(&["grok"]).session_startup_intent().unwrap(),
+            parse(&["axon"]).session_startup_intent().unwrap(),
             SessionStartupIntent::NewAuto
         );
     }
     #[test]
     fn intent_resume_id() {
         assert_eq!(
-            parse(&["grok", "--resume", "abc"])
+            parse(&["axon", "--resume", "abc"])
                 .session_startup_intent()
                 .unwrap(),
             SessionStartupIntent::Resume {
@@ -726,7 +726,7 @@ mod tests {
     #[test]
     fn intent_resume_empty_is_most_recent() {
         assert_eq!(
-            parse(&["grok", "--resume"])
+            parse(&["axon", "--resume"])
                 .session_startup_intent()
                 .unwrap(),
             SessionStartupIntent::Resume {
@@ -738,7 +738,7 @@ mod tests {
     #[test]
     fn intent_continue() {
         assert_eq!(
-            parse(&["grok", "-c"]).session_startup_intent().unwrap(),
+            parse(&["axon", "-c"]).session_startup_intent().unwrap(),
             SessionStartupIntent::Resume {
                 session_id: None,
                 most_recent_for_cwd: true,
@@ -748,7 +748,7 @@ mod tests {
     #[test]
     fn intent_session_id_alone_is_new_with_id() {
         assert_eq!(
-            parse(&["grok", "--session-id", "my-id"])
+            parse(&["axon", "--session-id", "my-id"])
                 .session_startup_intent()
                 .unwrap(),
             SessionStartupIntent::NewWithId {
@@ -758,7 +758,7 @@ mod tests {
     }
     #[test]
     fn intent_session_id_with_resume_without_fork_errors() {
-        let err = parse(&["grok", "-r", "a", "-s", "b"])
+        let err = parse(&["axon", "-r", "a", "-s", "b"])
             .session_startup_intent()
             .unwrap_err();
         assert_eq!(err, StartupFlagError::SessionIdRequiresFork);
@@ -766,7 +766,7 @@ mod tests {
     #[test]
     fn intent_fork_with_resume() {
         assert_eq!(
-            parse(&["grok", "-r", "old", "--fork-session"])
+            parse(&["axon", "-r", "old", "--fork-session"])
                 .session_startup_intent()
                 .unwrap(),
             SessionStartupIntent::ForkFrom {
@@ -779,7 +779,7 @@ mod tests {
     #[test]
     fn intent_fork_with_resume_and_new_id() {
         assert_eq!(
-            parse(&["grok", "-r", "old", "--fork-session", "-s", "new"])
+            parse(&["axon", "-r", "old", "--fork-session", "-s", "new"])
                 .session_startup_intent()
                 .unwrap(),
             SessionStartupIntent::ForkFrom {
@@ -791,21 +791,21 @@ mod tests {
     }
     #[test]
     fn intent_fork_alone_errors() {
-        let err = parse(&["grok", "--fork-session"])
+        let err = parse(&["axon", "--fork-session"])
             .session_startup_intent()
             .unwrap_err();
         assert_eq!(err, StartupFlagError::ForkRequiresResumeOrContinue);
     }
     #[test]
     fn intent_fork_with_worktree_errors() {
-        let err = parse(&["grok", "-r", "a", "--fork-session", "-w"])
+        let err = parse(&["axon", "-r", "a", "--fork-session", "-w"])
             .session_startup_intent()
             .unwrap_err();
         assert_eq!(err, StartupFlagError::ForkWithWorktree);
     }
     #[test]
     fn intent_from_flags_matches_pager_args() {
-        let args = parse(&["grok", "-r", "old", "--fork-session", "-s", "new"]);
+        let args = parse(&["axon", "-r", "old", "--fork-session", "-s", "new"]);
         let from_flags = session_startup_intent_from_flags(SessionStartupFlags {
             session_id: Some("new"),
             resume_session_id: Some("old"),
@@ -906,7 +906,7 @@ mod tests {
     }
     #[test]
     fn materialize_ctx_chat_mode_from_args() {
-        assert!(!MaterializeCtx::from_pager_args(&parse(&["grok"])).chat_mode);
+        assert!(!MaterializeCtx::from_pager_args(&parse(&["axon"])).chat_mode);
     }
     /// Explicit-id resume under `--chat` passes the id through untouched:
     /// no disk resolution, no GCS restore (the cwd does not even exist).
@@ -1030,8 +1030,8 @@ mod tests {
         let cwd = tempfile::tempdir().expect("cwd tempdir");
         let cwd_str = cwd.path().to_string_lossy().to_string();
         let id = "aaaaaaaa-1111-2222-3333-444444444444";
-        let encoded = axon_shell::util::grok_home::encode_cwd_dirname(&cwd_str);
-        let sessions_cwd_dir = axon_shell::util::grok_home::grok_home()
+        let encoded = axon_shell::util::axon_home::encode_cwd_dirname(&cwd_str);
+        let sessions_cwd_dir = axon_shell::util::axon_home::axon_home()
             .join("sessions")
             .join(&encoded);
         struct RmDirOnDrop(std::path::PathBuf);

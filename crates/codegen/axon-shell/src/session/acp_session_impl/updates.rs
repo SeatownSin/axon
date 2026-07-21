@@ -1,5 +1,5 @@
 //! Outbound update emission concern for `SessionActor`: `send_update` and
-//! its buffered/transient/direct variants, xAI-notification handling, and
+//! its buffered/transient/direct variants, Axon-notification handling, and
 //! the gateway-bridge dispatch shims.
 use super::*;
 /// Exit code reported on the `SubagentStop` hook payload; unknown statuses report none.
@@ -163,19 +163,19 @@ impl SessionActor {
             .event_tx
             .send(SessionEvent::Notification(notification.into()));
     }
-    /// Producer for the **high-frequency streaming path** with an xAI
+    /// Producer for the **high-frequency streaming path** with an Axon
     /// extension payload. Routes through `event_tx` -> `ReplayBuffer` ->
     /// `emit_buffered` so chunks get merged + debounced + emitted.
     ///
-    /// For one-shot xAI events (RetryState, ImageCompressed, HookExecution,
-    /// AutoCompactCompleted, etc.), use `send_xai_notification` instead.
+    /// For one-shot Axon events (RetryState, ImageCompressed, HookExecution,
+    /// AutoCompactCompleted, etc.), use `send_axon_notification` instead.
     ///
-    /// The frequency-based split (`send_buffered_xai_update` vs `send_xai_notification`)
+    /// The frequency-based split (`send_buffered_axon_update` vs `send_axon_notification`)
     /// mirrors the ACP-side split between `send_update` (high-frequency,
     /// buffered) and `emit_notification_direct` (low-frequency, direct).
-    pub(super) async fn send_buffered_xai_update(&self, update: XaiSessionUpdate) {
+    pub(super) async fn send_buffered_axon_update(&self, update: AxonSessionUpdate) {
         self.close_rewind_window().await;
-        let notification = XaiSessionNotification {
+        let notification = AxonSessionNotification {
             session_id: self.session_info.id.clone(),
             update,
             meta: None,
@@ -207,7 +207,7 @@ impl SessionActor {
     ///
     /// - **ACP** (`AgentMessageChunk`, `AgentThoughtChunk`) ->
     ///   delegates to `emit_notification_direct` (persists + gateway).
-    /// - **xAI** (`ToolCallDeltaChunk`) -> inlines a gateway
+    /// - **Axon** (`ToolCallDeltaChunk`) -> inlines a gateway
     ///   forward as `ExtNotification` only. Two deliberate omissions:
     ///   (1) no persistence -- per-chunk deltas have no replay value
     ///   because the canonical `acp::SessionUpdate::ToolCall` (with
@@ -218,8 +218,8 @@ impl SessionActor {
             SessionNotification::Acp(n) => {
                 self.emit_notification_direct(*n).await;
             }
-            SessionNotification::Xai(n) => {
-                self.log_outbound_xai_buffered(&n);
+            SessionNotification::Axon(n) => {
+                self.log_outbound_axon_buffered(&n);
                 if self
                     .notifications
                     .gateway_enabled
@@ -230,26 +230,26 @@ impl SessionActor {
                     self.notifications
                         .gateway
                         .forward_fire_and_forget(acp::ExtNotification::new(
-                            "x.ai/session_notification",
+                            "axon/session_notification",
                             params.into(),
                         ));
                 }
             }
         }
     }
-    /// Tracing log for buffered xAI notifications emerging from
+    /// Tracing log for buffered Axon notifications emerging from
     /// emit_buffered. Mirrors `log_outbound_notification` for ACP.
     /// Visible with `RUST_LOG=acp_event=info`.
-    fn log_outbound_xai_buffered(&self, notification: &XaiSessionNotification) {
+    fn log_outbound_axon_buffered(&self, notification: &AxonSessionNotification) {
         if !matches!(
             notification.update,
-            XaiSessionUpdate::ToolCallDeltaChunk { .. }
+            AxonSessionUpdate::ToolCallDeltaChunk { .. }
         ) {
             return;
         }
         tracing::info!(
-            target : "acp_event", event = "xai_buffered_notification_sent", session_id =
-            % self.session_info.id, "Sending buffered xAI session notification"
+            target : "acp_event", event = "axon_buffered_notification_sent", session_id =
+            % self.session_info.id, "Sending buffered Axon session notification"
         );
     }
     fn log_outbound_notification(&self, notification: &acp::SessionNotification) {
@@ -398,18 +398,18 @@ impl SessionActor {
         let agent_timestamp_ms = chrono::Utc::now().timestamp_millis();
         json!({ "eventId" : event_id, "agentTimestampMs" : agent_timestamp_ms, })
     }
-    /// Handle xAI session notifications - store them in persistence
+    /// Handle Axon session notifications - store them in persistence
     /// These are client-side events (like diff reviews) that should be part of session history.
     /// Exception: `SubagentProgress` ticks are transient and return before the store.
-    pub(super) async fn handle_xai_session_notification(
+    pub(super) async fn handle_axon_session_notification(
         &self,
-        mut notification: XaiSessionNotification,
+        mut notification: AxonSessionNotification,
     ) {
         if !matches!(
             notification.update,
-            XaiSessionUpdate::SubagentProgress { .. }
+            AxonSessionUpdate::SubagentProgress { .. }
         ) {
-            tracing::debug!("storing xAI session notification");
+            tracing::debug!("storing Axon session notification");
         }
         {
             let mut meta_map = notification.meta.take().and_then(|v| match v {
@@ -420,7 +420,7 @@ impl SessionActor {
             notification.meta = meta_map.map(serde_json::Value::Object);
         }
         match &notification.update {
-            XaiSessionUpdate::SubagentSpawned {
+            AxonSessionUpdate::SubagentSpawned {
                 subagent_id,
                 subagent_type,
                 description,
@@ -506,7 +506,7 @@ impl SessionActor {
                     .await;
                 }
             }
-            XaiSessionUpdate::SubagentFinished {
+            AxonSessionUpdate::SubagentFinished {
                 subagent_id,
                 status,
                 duration_ms,
@@ -569,7 +569,7 @@ impl SessionActor {
                     );
                 }
             }
-            XaiSessionUpdate::SubagentProgress {
+            AxonSessionUpdate::SubagentProgress {
                 subagent_id,
                 turn_count,
                 tool_call_count,
@@ -642,14 +642,14 @@ impl SessionActor {
             .notifications
             .persistence_tx
             .send(PersistenceMsg::Update(
-                crate::session::storage::SessionUpdate::Xai(Box::new(notification)),
+                crate::session::storage::SessionUpdate::Axon(Box::new(notification)),
             ));
     }
-    /// Persist an xAI extension notification to `updates.jsonl` **without** sending it
+    /// Persist an Axon extension notification to `updates.jsonl` **without** sending it
     /// to the gateway/UI. Used for internal bookkeeping updates like `CompactionCheckpoint`
     /// and `RewindMarker` that are only relevant during replay.
-    pub(super) fn persist_xai_update_only(&self, update: XaiSessionUpdate) {
-        let notification = XaiSessionNotification {
+    pub(super) fn persist_axon_update_only(&self, update: AxonSessionUpdate) {
+        let notification = AxonSessionNotification {
             session_id: self.session_info.id.clone(),
             update,
             meta: Some(self.build_notification_meta()),
@@ -658,11 +658,11 @@ impl SessionActor {
             .notifications
             .persistence_tx
             .send(PersistenceMsg::Update(
-                crate::session::storage::SessionUpdate::Xai(Box::new(notification)),
+                crate::session::storage::SessionUpdate::Axon(Box::new(notification)),
             ))
             .is_err()
         {
-            tracing::warn!("Failed to send xAI update to persistence channel");
+            tracing::warn!("Failed to send Axon update to persistence channel");
         }
     }
     /// Dispatch a `Notification` hook for a user-attention event.
@@ -696,18 +696,18 @@ impl SessionActor {
         )
         .await;
     }
-    /// Send an xAI extension notification to the client
+    /// Send an Axon extension notification to the client
     #[tracing::instrument(skip_all)]
-    pub(super) async fn send_xai_notification(&self, update: XaiSessionUpdate) {
-        self.send_xai_notification_with_extra_meta(update, None)
+    pub(super) async fn send_axon_notification(&self, update: AxonSessionUpdate) {
+        self.send_axon_notification_with_extra_meta(update, None)
             .await;
     }
-    /// [`Self::send_xai_notification`] with caller-supplied `_meta` keys merged
+    /// [`Self::send_axon_notification`] with caller-supplied `_meta` keys merged
     /// into the standard eventId/timestamp meta. Caller keys win on collision.
     #[tracing::instrument(skip_all)]
-    pub(super) async fn send_xai_notification_with_extra_meta(
+    pub(super) async fn send_axon_notification_with_extra_meta(
         &self,
-        update: XaiSessionUpdate,
+        update: AxonSessionUpdate,
         extra_meta: Option<serde_json::Map<String, serde_json::Value>>,
     ) {
         self.close_rewind_window().await;
@@ -718,7 +718,7 @@ impl SessionActor {
             }
             meta
         };
-        let notification = XaiSessionNotification {
+        let notification = AxonSessionNotification {
             session_id: self.session_info.id.clone(),
             update,
             meta: Some(meta),
@@ -727,14 +727,14 @@ impl SessionActor {
             .notifications
             .persistence_tx
             .send(PersistenceMsg::Update(
-                crate::session::storage::SessionUpdate::Xai(Box::new(notification.clone())),
+                crate::session::storage::SessionUpdate::Axon(Box::new(notification.clone())),
             ));
         let params = serde_json::to_value(&notification)
             .and_then(|v| serde_json::value::to_raw_value(&v))
             .ok();
         if let Some(params) = params {
             let ext_notification =
-                acp::ExtNotification::new("x.ai/session_notification", params.into());
+                acp::ExtNotification::new("axon/session_notification", params.into());
             self.notifications
                 .gateway
                 .forward_fire_and_forget(ext_notification);
@@ -748,21 +748,21 @@ impl SessionActor {
     }
 }
 #[cfg(test)]
-mod xai_event_id_stamping_tests {
+mod axon_event_id_stamping_tests {
     use super::support::create_test_actor;
     use super::*;
-    fn persisted_xai_event_id(
+    fn persisted_axon_event_id(
         prx: &mut tokio::sync::mpsc::UnboundedReceiver<PersistenceMsg>,
     ) -> String {
         loop {
-            match prx.try_recv().expect("an xAI line must be persisted") {
-                PersistenceMsg::Update(crate::session::storage::SessionUpdate::Xai(notif)) => {
+            match prx.try_recv().expect("an Axon line must be persisted") {
+                PersistenceMsg::Update(crate::session::storage::SessionUpdate::Axon(notif)) => {
                     return notif
                         .meta
                         .as_ref()
                         .and_then(|m| m.get("eventId"))
                         .and_then(|v| v.as_str())
-                        .expect("persisted xAI lines must carry an eventId")
+                        .expect("persisted Axon lines must carry an eventId")
                         .to_string();
                 }
                 _ => continue,
@@ -770,12 +770,12 @@ mod xai_event_id_stamping_tests {
         }
     }
     /// Persisted⇒stamped chokepoint at the actor: both actor persist paths —
-    /// `send_xai_notification` (own emission) and
-    /// `handle_xai_session_notification` (inbound/forwarded, meta-less) —
+    /// `send_axon_notification` (own emission) and
+    /// `handle_axon_session_notification` (inbound/forwarded, meta-less) —
     /// must put an `eventId` on the persisted line. An id-less line degrades
     /// every later cursor reconnect of the session to a full replay.
     #[tokio::test]
-    async fn actor_persisted_xai_lines_carry_event_id() {
+    async fn actor_persisted_axon_lines_carry_event_id() {
         let local = tokio::task::LocalSet::new();
         local
             .run_until(async {
@@ -785,28 +785,28 @@ mod xai_event_id_stamping_tests {
                     tokio::sync::mpsc::unbounded_channel::<PersistenceMsg>();
                 let actor = create_test_actor(0, 256_000, 85, gateway_tx, persistence_tx).await;
                 actor
-                    .send_xai_notification(XaiSessionUpdate::HookAnnotation {
+                    .send_axon_notification(AxonSessionUpdate::HookAnnotation {
                         message: "own emission".into(),
                     })
                     .await;
-                let own_id = persisted_xai_event_id(&mut prx);
+                let own_id = persisted_axon_event_id(&mut prx);
                 assert!(own_id.starts_with("test-actor-"));
                 actor
-                    .handle_xai_session_notification(XaiSessionNotification {
+                    .handle_axon_session_notification(AxonSessionNotification {
                         session_id: acp::SessionId::new("test-actor"),
-                        update: XaiSessionUpdate::HookAnnotation {
+                        update: AxonSessionUpdate::HookAnnotation {
                             message: "inbound".into(),
                         },
                         meta: None,
                     })
                     .await;
-                let inbound_id = persisted_xai_event_id(&mut prx);
+                let inbound_id = persisted_axon_event_id(&mut prx);
                 assert!(inbound_id.starts_with("test-actor-"));
                 assert_ne!(own_id, inbound_id);
-                actor.persist_xai_update_only(XaiSessionUpdate::HookAnnotation {
+                actor.persist_axon_update_only(AxonSessionUpdate::HookAnnotation {
                     message: "persist-only".into(),
                 });
-                let persist_only_id = persisted_xai_event_id(&mut prx);
+                let persist_only_id = persisted_axon_event_id(&mut prx);
                 assert!(persist_only_id.starts_with("test-actor-"));
                 assert_ne!(inbound_id, persist_only_id);
             })

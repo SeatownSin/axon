@@ -1,7 +1,7 @@
 use agent_client_protocol as acp;
 use tokio::sync::{mpsc, oneshot};
 
-use crate::extensions::notification::SessionNotification as XaiSessionNotification;
+use crate::extensions::notification::SessionNotification as AxonSessionNotification;
 use acp::SessionNotification as AcpSessionNotification;
 
 /// Notification destined for the high-frequency event ReplayBuffer).
@@ -11,19 +11,19 @@ use acp::SessionNotification as AcpSessionNotification;
 /// debounced + merged, and emerges through `emit_buffered` without
 /// firing per-chunk hooks or persistence writes.
 ///
-/// One-shot xAI events (RetryState, ImageCompressed, HookExecution,
-/// etc.) take the direct `send_xai_notification` path for per-event hooks and persistence.
+/// One-shot Axon events (RetryState, ImageCompressed, HookExecution,
+/// etc.) take the direct `send_axon_notification` path for per-event hooks and persistence.
 #[derive(Debug, Clone)]
 pub(crate) enum SessionNotification {
     Acp(Box<AcpSessionNotification>),
-    Xai(Box<XaiSessionNotification>),
+    Axon(Box<AxonSessionNotification>),
 }
 
 impl SessionNotification {
     pub(crate) fn session_id(&self) -> &acp::SessionId {
         match self {
             Self::Acp(n) => &n.session_id,
-            Self::Xai(n) => &n.session_id,
+            Self::Axon(n) => &n.session_id,
         }
     }
 
@@ -35,7 +35,7 @@ impl SessionNotification {
                 n.update,
                 acp::SessionUpdate::AgentMessageChunk(_) | acp::SessionUpdate::AgentThoughtChunk(_)
             ),
-            Self::Xai(n) => matches!(
+            Self::Axon(n) => matches!(
                 n.update,
                 crate::extensions::notification::SessionUpdate::ToolCallDeltaChunk { .. }
             ),
@@ -50,7 +50,7 @@ impl SessionNotification {
                 .as_ref()
                 .and_then(|m| m.get("agentTimestampMs"))
                 .and_then(|v| v.as_u64()),
-            Self::Xai(n) => n
+            Self::Axon(n) => n
                 .meta
                 .as_ref()
                 .and_then(|m| m.get("agentTimestampMs"))
@@ -75,9 +75,9 @@ impl From<AcpSessionNotification> for SessionNotification {
     }
 }
 
-impl From<XaiSessionNotification> for SessionNotification {
-    fn from(n: XaiSessionNotification) -> Self {
-        Self::Xai(Box::new(n))
+impl From<AxonSessionNotification> for SessionNotification {
+    fn from(n: AxonSessionNotification) -> Self {
+        Self::Axon(Box::new(n))
     }
 }
 
@@ -88,7 +88,7 @@ impl SessionNotification {
     pub(crate) fn expect_acp(&self) -> &AcpSessionNotification {
         match self {
             Self::Acp(n) => n,
-            Self::Xai(_) => panic!("expected Acp notification, got Xai"),
+            Self::Axon(_) => panic!("expected Acp notification, got Axon"),
         }
     }
 
@@ -97,7 +97,7 @@ impl SessionNotification {
     pub(crate) fn into_acp(self) -> AcpSessionNotification {
         match self {
             Self::Acp(n) => *n,
-            Self::Xai(_) => panic!("expected Acp notification, got Xai"),
+            Self::Axon(_) => panic!("expected Acp notification, got Axon"),
         }
     }
 }

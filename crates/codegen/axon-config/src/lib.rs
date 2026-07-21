@@ -1,13 +1,13 @@
-//! Config file loading for Grok.
+//! Config file loading for Axon.
 //!
 //! Merge order (lowest → highest priority):
-//! 1. `/etc/grok/managed_config.toml`
+//! 1. `/etc/axon/managed_config.toml`
 //! 2. `$AXON_HOME/managed_config.toml`
 //! 3. `$AXON_HOME/config.toml`
 //! 4. `$AXON_HOME/requirements.toml` (cloud cache; Ed25519-signed at rest once a
 //!    key is embedded — see [`signed_policy`] — below the OS-protected layers)
-//! 5. `/etc/grok/requirements.toml`
-//! 6. macOS MDM managed preferences (`ai.x.grok`, admin-forced) — macOS only
+//! 5. `/etc/axon/requirements.toml`
+//! 6. macOS MDM managed preferences (`ai.x.axon`, admin-forced) — macOS only
 //!
 //! Each layer applies its own [`[[version_overrides]]`](version_overrides)
 //! before merge. Requirements layers (#4–#6) may opt into fail-closed startup;
@@ -48,8 +48,8 @@ pub use managed_cache::{
 };
 pub use paths::{
     claude_managed_settings_path, claude_managed_settings_probe_path, decode_cwd_from_dirname,
-    default_grok_home, encode_cwd_dirname, ensure_sessions_cwd_dir, grok_application,
-    grok_application_in, grok_home, sessions_cwd_dir, system_config_dir, user_grok_home,
+    default_axon_home, encode_cwd_dirname, ensure_sessions_cwd_dir, axon_application,
+    axon_application_in, axon_home, sessions_cwd_dir, system_config_dir, user_axon_home,
 };
 pub use validation::{
     RequirementsError, RequirementsLayer, RequirementsSource, load_merged_requirements,

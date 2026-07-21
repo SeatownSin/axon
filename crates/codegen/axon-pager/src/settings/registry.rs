@@ -4,7 +4,7 @@
 
 use agent_client_protocol as acp;
 use axon_shell::agent::config::UiConfig;
-use axon_tools::implementations::grok_build::ask_user_question;
+use axon_tools::implementations::axon_build::ask_user_question;
 
 // ---------------------------------------------------------------------------
 // Types
@@ -321,7 +321,7 @@ pub fn canonical_voice_capture_mode(value: Option<&str>) -> &'static str {
 /// Canonicalize a raw voice STT language to a settings choice.
 ///
 /// Delegates to [`axon_voice::canonicalize_stt_language`] so the pager and
-/// the STT client share one catalog (official Grok STT languages + client-only
+/// the STT client share one catalog (official Axon STT languages + client-only
 /// `auto`). Unknown/blank/`None` → `en`.
 pub fn canonical_voice_stt_language(value: Option<&str>) -> &'static str {
     axon_voice::canonicalize_stt_language(value)

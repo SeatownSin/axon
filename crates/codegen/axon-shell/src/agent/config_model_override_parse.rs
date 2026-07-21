@@ -292,8 +292,8 @@ mod tests {
     fn duplicate_compactions_keys_keeps_model() {
         let cfg = parse_cfg(
             r#"
-            [model."grok-4.5"]
-            model = "grok-4.5"
+            [model."axon-4.5"]
+            model = "axon-4.5"
             env_key = "ANTHROPIC_AUTH_TOKEN"
             compactions_remaining = 1
             send_compactions_remaining = true
@@ -301,8 +301,8 @@ mod tests {
         );
         let model = cfg
             .config_models
-            .get("grok-4.5")
-            .expect("grok-4.5 must remain in catalog");
+            .get("axon-4.5")
+            .expect("axon-4.5 must remain in catalog");
         assert_eq!(
             model.compactions_remaining,
             Some(CompactionsRemaining::Fixed(1))
@@ -312,19 +312,19 @@ mod tests {
                 && w.field.as_deref() == Some("send_compactions_remaining")
         }));
         let resolved = crate::agent::config::resolve_model_list(&cfg, None);
-        assert!(resolved.contains_key("grok-4.5"));
+        assert!(resolved.contains_key("axon-4.5"));
     }
 
     #[test]
     fn legacy_alias_alone_parses_without_warning() {
         let cfg = parse_cfg(
             r#"
-            [model."grok-4.5"]
-            model = "grok-4.5"
+            [model."axon-4.5"]
+            model = "axon-4.5"
             send_compactions_remaining = 2
             "#,
         );
-        let model = cfg.config_models.get("grok-4.5").unwrap();
+        let model = cfg.config_models.get("axon-4.5").unwrap();
         assert_eq!(
             model.compactions_remaining,
             Some(CompactionsRemaining::Fixed(2))
@@ -336,17 +336,17 @@ mod tests {
     fn invalid_reasoning_effort_skips_field_keeps_model() {
         let cfg = parse_cfg(
             r#"
-            [model."grok-4.5"]
-            model = "grok-4.5"
+            [model."axon-4.5"]
+            model = "axon-4.5"
             env_key = "ANTHROPIC_AUTH_TOKEN"
             reasoning_effort = "not-a-level"
             "#,
         );
         let model = cfg
             .config_models
-            .get("grok-4.5")
-            .expect("grok-4.5 must remain in catalog");
-        assert_eq!(model.model.as_deref(), Some("grok-4.5"));
+            .get("axon-4.5")
+            .expect("axon-4.5 must remain in catalog");
+        assert_eq!(model.model.as_deref(), Some("axon-4.5"));
         assert!(model.reasoning_effort.is_none());
         assert!(cfg.model_override_warnings.iter().any(|w| {
             w.kind == ModelOverrideWarningKind::InvalidValue
@@ -358,14 +358,14 @@ mod tests {
     fn unknown_field_warns_but_keeps_known_fields() {
         let (models, warnings) = parse_raw(
             r#"
-            [model."grok-4.5"]
-            model = "grok-4.5"
+            [model."axon-4.5"]
+            model = "axon-4.5"
             env_key = "TOKEN"
             future_field = 1
             "#,
         );
-        let entry = models.get("grok-4.5").unwrap();
-        assert_eq!(entry.model.as_deref(), Some("grok-4.5"));
+        let entry = models.get("axon-4.5").unwrap();
+        assert_eq!(entry.model.as_deref(), Some("axon-4.5"));
         assert_eq!(
             entry.env_key.as_ref().and_then(|k| k.primary()),
             Some("TOKEN")
@@ -373,7 +373,7 @@ mod tests {
         assert_eq!(
             warnings,
             vec![ModelOverrideWarning {
-                model_key: Some("grok-4.5".to_owned()),
+                model_key: Some("axon-4.5".to_owned()),
                 field: Some("future_field".to_owned()),
                 kind: ModelOverrideWarningKind::UnknownField,
                 reason: "unknown field".to_owned(),
@@ -472,7 +472,7 @@ mod tests {
 
     #[test]
     fn non_table_model_section_warns_and_is_ignored() {
-        let (models, warnings) = parse_raw(r#"model = "grok-4""#);
+        let (models, warnings) = parse_raw(r#"model = "axon-4""#);
         assert!(models.is_empty());
         assert_eq!(warnings.len(), 1);
         assert_eq!(warnings[0].kind, ModelOverrideWarningKind::NotATable);

@@ -20,7 +20,7 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::time::Instant;
 impl AgentView {
     /// Bind this view to a root session id, resetting the per-session
-    /// reconnect cursor and both dedup highwaters (ACP + xAI) when the id
+    /// reconnect cursor and both dedup highwaters (ACP + Axon) when the id
     /// actually changes — all three are meaningless against another session's
     /// event-id history (a stale cursor relies on exact-match failure for
     /// safety; a stale highwater could dedup-drop the new session's events
@@ -29,7 +29,7 @@ impl AgentView {
         if self.session.session_id.as_ref() != Some(&session_id) {
             self.last_seen_event_id = None;
             self.last_applied_event_seq = None;
-            self.last_applied_xai_event_seq = None;
+            self.last_applied_axon_event_seq = None;
             self.clear_minimal_btw_lifecycle();
         }
         self.session.session_id = Some(session_id);
@@ -78,7 +78,7 @@ impl AgentView {
             attached_as_viewer: false,
             self_originated_prompt_ids: VecDeque::new(),
             last_applied_event_seq: None,
-            last_applied_xai_event_seq: None,
+            last_applied_axon_event_seq: None,
             last_seen_event_id: None,
             session_reload: None,
             unexpected_replay_drops: 0,
@@ -376,7 +376,7 @@ impl AgentView {
             todo: std::mem::take(&mut self.todo),
             last_seen_event_id: self.last_seen_event_id.clone(),
             last_applied_event_seq: self.last_applied_event_seq,
-            last_applied_xai_event_seq: self.last_applied_xai_event_seq,
+            last_applied_axon_event_seq: self.last_applied_axon_event_seq,
             saw_replay: false,
             saw_todo_update: false,
         });
@@ -415,7 +415,7 @@ impl AgentView {
         self.session.start_turn(&mut self.scrollback);
     }
     /// Adopt the in-flight turn another client is driving, conveyed by the
-    /// `session/load` response meta (`x.ai/runningPromptId`): enter
+    /// `session/load` response meta (`axon/runningPromptId`): enter
     /// TurnRunning and match subsequent live deltas. No user-prompt block is
     /// pushed — the turn's prompt and prior chunks arrived via the replay.
     pub(crate) fn adopt_running_prompt(&mut self, prompt_id: String) {
@@ -535,7 +535,7 @@ impl AgentView {
             self.todo = reload.todo;
             self.last_seen_event_id = reload.last_seen_event_id;
             self.last_applied_event_seq = reload.last_applied_event_seq;
-            self.last_applied_xai_event_seq = reload.last_applied_xai_event_seq;
+            self.last_applied_axon_event_seq = reload.last_applied_axon_event_seq;
             dropped_heavy = true;
         }
         self.session.loading_replay = false;

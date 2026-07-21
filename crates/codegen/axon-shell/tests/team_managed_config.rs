@@ -3,7 +3,7 @@
 //! the cli-chat-proxy deployment-config route.
 //!
 //! Every test here MUST be `#[serial]`: they share one process-global
-//! `AXON_HOME` (the `grok_home` `OnceLock` allows a single value per process)
+//! `AXON_HOME` (the `axon_home` `OnceLock` allows a single value per process)
 //! and mutate that directory + process env, so concurrent tests would race.
 
 use std::io::{BufRead, BufReader, Write};
@@ -20,7 +20,7 @@ fn team_identity(id: &str) -> ServingIdentity {
     ServingIdentity::Team(id.to_owned())
 }
 
-/// Shared temp dir used as AXON_HOME for the whole test binary (the grok_home
+/// Shared temp dir used as AXON_HOME for the whole test binary (the axon_home
 /// `OnceLock` only allows one value per process). Also scrubs/installs the env
 /// this suite depends on, before any test thread reads it.
 fn test_home() -> &'static PathBuf {
@@ -277,7 +277,7 @@ fn write_team_auth(home: &std::path::Path, team_id: &str) {
 /// Like [`write_team_auth`] but with an explicit `expires_at`, so tests can
 /// simulate a routine cold-start where the persisted access token is expired.
 fn write_team_auth_expiry(home: &std::path::Path, team_id: &str, expires_at: &str) {
-    let scope = axon_shell::auth::GrokComConfig::default().auth_scope();
+    let scope = axon_shell::auth::AxonComConfig::default().auth_scope();
     let auth = serde_json::json!({
         scope: {
             "key": "team-session-token",
@@ -295,7 +295,7 @@ fn write_team_auth_expiry(home: &std::path::Path, team_id: &str, expires_at: &st
 /// Write an `auth.json` with an EXPIRED `external`-mode team principal, so a configured refresher
 /// drives `AuthManager::auth()`. Models the cold-start where the persisted token is expired but refreshable.
 fn write_expired_external_team_auth(home: &std::path::Path, team_id: &str) {
-    let scope = axon_shell::auth::GrokComConfig::default().auth_scope();
+    let scope = axon_shell::auth::AxonComConfig::default().auth_scope();
     let auth = serde_json::json!({
         scope: {
             "key": "stale-team-token",
@@ -651,7 +651,7 @@ async fn served_then_deleted_refetches_best_effort() {
     // (cache hit). The expired-refreshable path is covered by `expired_refreshable_team_token_heals_after_auth_refresh`.
     let auth_manager = std::sync::Arc::new(axon_shell::auth::AuthManager::new(
         &home,
-        axon_shell::auth::GrokComConfig::default(),
+        axon_shell::auth::AxonComConfig::default(),
     ));
     axon_shell::managed_config::ensure_managed_policy_present(&auth_manager).await;
     assert!(
@@ -704,7 +704,7 @@ async fn expired_refreshable_team_token_heals_after_auth_refresh() {
     // A real AuthManager whose refresher mints a fresh team token, persisted by `auth()`.
     let auth_manager = std::sync::Arc::new(axon_shell::auth::AuthManager::new(
         &home,
-        axon_shell::auth::GrokComConfig::default(),
+        axon_shell::auth::AxonComConfig::default(),
     ));
     auth_manager.configure_refresher(
         Some(r#"echo '{"access_token":"refreshed-team-token","expires_in":3600}'"#.to_string()),
@@ -752,7 +752,7 @@ async fn expired_team_token_without_successful_refresh_stays_failed_closed() {
     // A refresher that always fails -> `auth()` cannot produce a principal.
     let auth_manager = std::sync::Arc::new(axon_shell::auth::AuthManager::new(
         &home,
-        axon_shell::auth::GrokComConfig::default(),
+        axon_shell::auth::AxonComConfig::default(),
     ));
     auth_manager.configure_refresher(Some("false".to_string()), None);
 
@@ -804,7 +804,7 @@ async fn managed_policy_gate_fails_closed_on_deleted_policy_offline() {
     write_config(&home, &err_url);
     let auth_manager = std::sync::Arc::new(axon_shell::auth::AuthManager::new(
         &home,
-        axon_shell::auth::GrokComConfig::default(),
+        axon_shell::auth::AxonComConfig::default(),
     ));
     axon_shell::managed_config::ensure_managed_policy_present(&auth_manager).await;
     assert!(
@@ -862,7 +862,7 @@ async fn bootstrap_fails_closed_when_managed_policy_compromised() {
     let cfg = axon_shell::agent::config::Config::default();
     let auth_manager = std::sync::Arc::new(axon_shell::auth::AuthManager::new(
         &home,
-        axon_shell::auth::GrokComConfig::default(),
+        axon_shell::auth::AxonComConfig::default(),
     ));
     // `bootstrap`'s Ok type isn't `Debug`, so match rather than `expect_err`.
     let err = match axon_shell::agent::init::bootstrap(&cfg, &auth_manager, None) {
@@ -1030,7 +1030,7 @@ async fn deployment_key_served_then_deleted_heals_online() {
     // The mock still serves, so the best-effort session-start refresh restores it; the gate then allows.
     let auth_manager = std::sync::Arc::new(axon_shell::auth::AuthManager::new(
         &home,
-        axon_shell::auth::GrokComConfig::default(),
+        axon_shell::auth::AxonComConfig::default(),
     ));
     axon_shell::managed_config::ensure_managed_policy_present(&auth_manager).await;
     assert!(
@@ -1078,7 +1078,7 @@ async fn identity_change_permits_offline_team_switch_and_purges_prior_team() {
     write_team_auth(&home, "team-b");
     let auth_manager = std::sync::Arc::new(axon_shell::auth::AuthManager::new(
         &home,
-        axon_shell::auth::GrokComConfig::default(),
+        axon_shell::auth::AxonComConfig::default(),
     ));
     axon_shell::managed_config::ensure_managed_policy_present(&auth_manager).await;
 
@@ -1506,7 +1506,7 @@ async fn personal_login_is_noop() {
     let (url, count, _) = spawn_mock_seq(vec![(200, team_config_body())]);
     write_config(&home, &url);
     // A signed-in USER principal (no team_id, principal_type absent).
-    let scope = axon_shell::auth::GrokComConfig::default().auth_scope();
+    let scope = axon_shell::auth::AxonComConfig::default().auth_scope();
     let auth = serde_json::json!({
         scope: {
             "key": "personal-token",
@@ -1921,7 +1921,7 @@ async fn post_login_pins_authenticated_team_over_disk() {
     write_team_auth(&home, "team-disk");
 
     // But we just authenticated as a different team with a distinct token.
-    let pinned: axon_shell::auth::GrokAuth = serde_json::from_value(serde_json::json!({
+    let pinned: axon_shell::auth::AxonAuth = serde_json::from_value(serde_json::json!({
         "key": "pinned-token",
         "auth_mode": "oidc",
         "create_time": "2026-01-01T00:00:00Z",
@@ -2008,7 +2008,7 @@ async fn deploy_key_machine_never_gate_purges_on_team_switch() {
     write_team_auth(&home, "team-b");
     let auth_manager = std::sync::Arc::new(axon_shell::auth::AuthManager::new(
         &home,
-        axon_shell::auth::GrokComConfig::default(),
+        axon_shell::auth::AxonComConfig::default(),
     ));
     axon_shell::managed_config::ensure_managed_policy_present(&auth_manager).await;
 

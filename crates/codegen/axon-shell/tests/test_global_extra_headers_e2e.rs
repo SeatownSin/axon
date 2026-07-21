@@ -1,6 +1,6 @@
 //! End-to-end test for the global `[models]` defaults.
 //!
-//! Runs the built grok binary against the mock inference server with a
+//! Runs the built axon binary against the mock inference server with a
 //! caller-owned `$AXON_HOME` whose `config.toml` sets every global `[models]`
 //! default. Asserts the turn succeeds with all of them set and that the
 //! wire-observable one — `extra_headers` — reaches the `/v1/chat/completions`
@@ -31,10 +31,10 @@ async fn global_models_config_reaches_inference_request() {
     let workdir = git_workdir();
     let home = tempfile::TempDir::new().unwrap();
 
-    let grok_home = home.path().join(".axon");
-    std::fs::create_dir_all(&grok_home).expect("create .axon home");
+    let axon_home = home.path().join(".axon");
+    std::fs::create_dir_all(&axon_home).expect("create .axon home");
     std::fs::write(
-        grok_home.join("config.toml"),
+        axon_home.join("config.toml"),
         r#"[models]
 extra_headers = { "X-Request-Tags" = "team=example,env=prod" }
 temperature = 0.5
@@ -47,7 +47,7 @@ stream_tool_calls = true
     )
     .expect("write config.toml");
 
-    let mut cmd = tokio::process::Command::new(grok_binary());
+    let mut cmd = tokio::process::Command::new(axon_binary());
     cmd.args(["-p", "say hi", "--yolo", "--output-format", "json"])
         .arg("--cwd")
         .arg(workdir.path())
@@ -57,7 +57,7 @@ stream_tool_calls = true
         .stderr(std::process::Stdio::piped())
         .kill_on_drop(true);
     axon_test_support::env::test_env_cmd_tokio(&mut cmd, &server.url(), home.path());
-    cmd.env("AXON_HOME", grok_home);
+    cmd.env("AXON_HOME", axon_home);
     // Don't attach to a developer's ambient leader; spawn fresh against the mock.
     cmd.env_remove("AXON_LEADER_SOCKET");
 

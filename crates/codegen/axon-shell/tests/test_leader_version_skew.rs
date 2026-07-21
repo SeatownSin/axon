@@ -5,14 +5,14 @@
 //! Binaries are resolved per role:
 //! - `AXON_BINARY_LEADER` — the binary that elects the initial leader
 //!   (typically the latest released stable, e.g. fetched from
-//!   `https://storage.googleapis.com/grok-build-public-artifacts/cli/grok-<ver>-linux-x86_64`).
+//!   `https://storage.googleapis.com/axon-build-public-artifacts/cli/axon-<ver>-linux-x86_64`).
 //! - `AXON_BINARY_CLIENT` — the second client (typically a freshly built main).
 //!
 //! All tests are `#[ignore]`d: they need two pre-built binaries and spawn real
 //! leader subprocesses. On-demand today — no CI lane runs them; invoke with:
 //!
 //! ```bash
-//! AXON_BINARY_LEADER=/path/to/grok-old AXON_BINARY_CLIENT=/path/to/grok-new \
+//! AXON_BINARY_LEADER=/path/to/axon-old AXON_BINARY_CLIENT=/path/to/axon-new \
 //!   cargo test -p axon-shell --test test_leader_version_skew -- --ignored --nocapture
 //! ```
 
@@ -202,7 +202,7 @@ async fn old_client_adopts_new_leader_and_still_functions() {
                 .expect("old client prompt on new leader failed");
 
             // The leader records the client/leader version mismatch (the
-            // x.ai/leader/version_mismatch notification's server-side warn).
+            // blocked.invalid/leader/version_mismatch notification's server-side warn).
             let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
             let mut saw_mismatch = false;
             while tokio::time::Instant::now() < deadline {
@@ -260,7 +260,7 @@ async fn relaunch_for_update_drives_real_old_leader_to_exit() {
             // The update-signal body, against the sandboxed socket.
             let control = LeaderClient::connect(
                 home.path().join(".axon").join("leader.sock"),
-                "grok-pager-update",
+                "axon-pager-update",
                 ClientMode::Stdio,
                 ClientCapabilities::default(),
             )

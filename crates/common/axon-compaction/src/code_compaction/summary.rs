@@ -3,7 +3,7 @@
 //! Moved verbatim from `axon-chat-state`'s `compaction_utils`. Covers:
 //!
 //! - cleaning the compaction model's raw output ([`format_compact_summary`]),
-//! - the grok-build continuation carrier ([`format_compact_summary_content`]),
+//! - the axon-build continuation carrier ([`format_compact_summary_content`]),
 //! - the canonical `<user_query>` wrapping ([`wrap_user_query`]).
 
 /// Clean the compaction model's raw output into the plain-text `Summary:`

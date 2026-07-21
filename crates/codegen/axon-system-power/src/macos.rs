@@ -141,7 +141,7 @@ impl Listener {
         let stop = Arc::new(AtomicBool::new(false));
         let stop_thread = stop.clone();
         let handle = thread::Builder::new()
-            .name("xai-power-listener".into())
+            .name("axon-power-listener".into())
             .spawn(move || run_thread(callback, tx, stop_thread))
             .ok()?;
 

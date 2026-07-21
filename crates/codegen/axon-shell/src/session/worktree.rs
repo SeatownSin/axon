@@ -9,7 +9,7 @@ use anyhow::{Context, Result};
 use std::path::Path;
 use axon_workspace::session::git::find_git_root_from_path;
 pub use axon_workspace::worktree::*;
-const WORKTREE_LOG: &str = "xai_worktree";
+const WORKTREE_LOG: &str = "axon_worktree";
 impl From<ShellWorktreeType> for WorktreeType {
     fn from(t: ShellWorktreeType) -> Self {
         match t {
@@ -427,7 +427,7 @@ pub async fn rehydrate_session_in_worktree(
             req.repo_root
         );
     }
-    let session_summary_exists = crate::util::grok_home::sessions_cwd_dir(&req.source_cwd)
+    let session_summary_exists = crate::util::axon_home::sessions_cwd_dir(&req.source_cwd)
         .join(&req.session_id)
         .join("summary.json")
         .exists();
@@ -873,7 +873,7 @@ mod tests {
         let root = tmp.path();
         let exact_cwd = "/project/main";
         let sibling_cwd = "/project/worktree-1";
-        let encoded = crate::util::grok_home::encode_cwd_dirname(sibling_cwd);
+        let encoded = crate::util::axon_home::encode_cwd_dirname(sibling_cwd);
         let session_dir = root.join(&encoded).join("sess-remote-123");
         std::fs::create_dir_all(&session_dir).unwrap();
         std::fs::write(session_dir.join("summary.json"), b"{}").unwrap();
@@ -1148,7 +1148,7 @@ mod tests {
             .unwrap();
         let list_out = String::from_utf8_lossy(&stash_list.stdout).into_owned();
         assert!(
-            list_out.contains("grok: pre-restore-code sess-dirty-wt"),
+            list_out.contains("axon: pre-restore-code sess-dirty-wt"),
             "stash list missing session label: {list_out}"
         );
     }

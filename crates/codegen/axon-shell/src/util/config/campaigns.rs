@@ -14,7 +14,7 @@ use axon_config::campaigns::{
 use axon_config::config_override::{PatchPath, patch_touches_any};
 use axon_config::{
     CampaignsState, ConfigLayers, campaigns_state_path, load_dismissed_ids_from_home,
-    user_grok_home,
+    user_axon_home,
 };
 use axon_config_types::{CampaignOverride, RemoteSettings};
 
@@ -56,7 +56,7 @@ pub fn load_dismissed_ids() -> HashSet<String> {
 }
 
 pub fn dismiss_campaign_ids(ids: impl IntoIterator<Item = String>) {
-    let Some(home) = user_grok_home() else {
+    let Some(home) = user_axon_home() else {
         return;
     };
     if let Err(e) = dismiss_campaign_ids_at(&home, ids) {
@@ -74,7 +74,7 @@ fn dismiss_campaign_ids_at(
     let _guard = DISMISS_LOCK.lock().unwrap_or_else(|p| p.into_inner());
     let path = campaigns_state_path(home);
     // Cross-process advisory lock over the read-modify-write: in leader mode
-    // several grok processes share `$AXON_HOME`; the in-process mutex alone would
+    // several axon processes share `$AXON_HOME`; the in-process mutex alone would
     // let them lose-update the set. Best-effort; a lock failure still proceeds.
     let lock = std::fs::OpenOptions::new()
         .create(true)

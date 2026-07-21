@@ -9,12 +9,12 @@ use std::path::PathBuf;
 /// If optional workspace env vars are set, returns the user's config directory
 /// when the resolved path exists on disk. Unset or missing paths yield `None`.
 pub fn optional_workspace_user_dir() -> Option<PathBuf> {
-    let root = std::env::var("XAI_ROOT").ok()?;
-    let user = std::env::var("XAI_USER").ok()?;
+    let root = std::env::var("AXON_ROOT").ok()?;
+    let user = std::env::var("AXON_USER").ok()?;
     resolve_workspace_user_dir(&root, &workspace_user_relpath(&user))
 }
 
-/// Map `$XAI_USER` to a path relative to the workspace root.
+/// Map `$AXON_USER` to a path relative to the workspace root.
 ///
 /// A bare username is nested one level under `x/` so it cannot collide with an
 /// unrelated same-named directory at the workspace root. Values that already

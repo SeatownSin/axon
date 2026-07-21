@@ -343,7 +343,7 @@ pub(in crate::app::dispatch) fn set_ask_user_question_timeout_enabled(
     app: &mut AppView,
     new: bool,
 ) -> Vec<Effect> {
-    use axon_tools::implementations::grok_build::ask_user_question;
+    use axon_tools::implementations::axon_build::ask_user_question;
     let prev_state = app.ask_user_question_timeout_enabled;
     let prev_effective =
         prev_state.unwrap_or(ask_user_question::DEFAULT_ASK_USER_QUESTION_TIMEOUT_ENABLED);
@@ -1338,8 +1338,8 @@ pub(in crate::app::dispatch) fn set_auto_dark_theme(app: &mut AppView, new: Stri
         .as_deref()
         .and_then(crate::theme::canonical_name)
         .filter(|s| *s != "auto")
-        // No prior config: fall back to GrokNight (the default).
-        .unwrap_or_else(|| crate::theme::ThemeKind::GrokNight.display_name());
+        // No prior config: fall back to AxonNight (the default).
+        .unwrap_or_else(|| crate::theme::ThemeKind::AxonNight.display_name());
     let new_canonical = match crate::theme::canonical_name(&new) {
         Some(c) if c != crate::theme::ThemeKind::Auto.display_name() => c,
         _ => {
@@ -1452,7 +1452,7 @@ pub(in crate::app::dispatch) fn set_auto_light_theme(
         .as_deref()
         .and_then(crate::theme::canonical_name)
         .filter(|s| *s != "auto")
-        .unwrap_or_else(|| crate::theme::ThemeKind::GrokDay.display_name());
+        .unwrap_or_else(|| crate::theme::ThemeKind::AxonDay.display_name());
     let new_canonical = match crate::theme::canonical_name(&new) {
         Some(c) if c != crate::theme::ThemeKind::Auto.display_name() => c,
         _ => {
@@ -1562,7 +1562,7 @@ pub(in crate::app::dispatch) fn set_default_model_inner(
     // or `/clear` creates a fresh session by cloning `app.models`
     // (`dispatch_new_session_inner_with_id`), so without this the new session —
     // and the welcome card it commits — would show the previous default until
-    // the next `x.ai/models/update` roundtrip.
+    // the next `axon/models/update` roundtrip.
     if app.models.available.contains_key(id) {
         app.models.set_current(id.clone(), None);
     }
@@ -1642,7 +1642,7 @@ pub(in crate::app::dispatch) fn set_default_model(
 
     // Persist the **model ID** (catalog key), not the display name.
     // The shell's `resolve_default_model` matches by slug / map key,
-    // so persisting the human-readable name (e.g. "Grok Build")
+    // so persisting the human-readable name (e.g. "Axon Build")
     // would silently fail to resolve on the next startup.
     //
     // Chat (`--chat` / AXON_CHAT_MODE) catalogs use opaque `/rest/modes`
@@ -1930,7 +1930,7 @@ pub(in crate::app::dispatch) fn set_max_thoughts_width(app: &mut AppView, new: i
 /// (`show_tips`, `auto_update`, ask_user_question timeout).
 /// Matches the consumer's `.unwrap_or(...)` fallback.
 pub(super) fn pr13_effective_default(key: &str) -> Option<bool> {
-    use axon_tools::implementations::grok_build::ask_user_question;
+    use axon_tools::implementations::axon_build::ask_user_question;
     match key {
         "show_tips" => Some(true),
         "auto_update" => Some(true),

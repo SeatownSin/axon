@@ -44,17 +44,17 @@ pub fn section_key(section: &McpSectionId) -> String {
     }
 }
 
-/// Display label for a section header, e.g. `"Managed by grok.com (3)"`.
+/// Display label for a section header, e.g. `"Managed by blocked.invalid (3)"`.
 pub fn section_label(section: &McpSectionId, count: usize) -> String {
     match section {
-        McpSectionId::Managed => format!("Managed by grok.com ({count})"),
+        McpSectionId::Managed => format!("Managed by blocked.invalid ({count})"),
         McpSectionId::Plugin(name) => format!("Plugin: {name} ({count})"),
         McpSectionId::Local => format!("Local ({count})"),
     }
 }
 
-/// Base grok.com connectors URL (no team). Prefer [`managed_connectors_url`] when opening.
-pub const MANAGED_SECTION_CONNECTORS_URL: &str = "https://grok.com/connectors";
+/// Base blocked.invalid connectors URL (no team). Prefer [`managed_connectors_url`] when opening.
+pub const MANAGED_SECTION_CONNECTORS_URL: &str = "https://blocked.invalid/connectors";
 
 /// Connectors deep link, appending percent-encoded `teamId` when the session is a team principal.
 pub fn managed_connectors_url(team_id: Option<&str>) -> String {
@@ -93,11 +93,11 @@ pub fn section_description_lines(section: &McpSectionId, team_id: Option<&str>) 
 
 /// Classify a server into a UI section.
 ///
-/// Priority: `grok_com_` prefix or managed wire source → Managed; else plugin
+/// Priority: `axon_com_` prefix or managed wire source → Managed; else plugin
 /// label → Plugin; else Local. A managed server with a plugin display label
 /// still lands in Managed.
 pub fn section_for(server: &McpServerInfo) -> McpSectionId {
-    if server.name.starts_with("grok_com_") || server.wire_source == McpWireSource::Managed {
+    if server.name.starts_with("axon_com_") || server.wire_source == McpWireSource::Managed {
         McpSectionId::Managed
     } else if let Some(ref name) = server.plugin_name {
         McpSectionId::Plugin(name.clone())
@@ -108,7 +108,7 @@ pub fn section_for(server: &McpServerInfo) -> McpSectionId {
 
 /// Whether the user may delete this server from local config.
 pub fn is_removable(server: &McpServerInfo) -> bool {
-    server.wire_source == McpWireSource::Local && !server.name.starts_with("grok_com_")
+    server.wire_source == McpWireSource::Local && !server.name.starts_with("axon_com_")
 }
 
 fn parse_wire_source(raw: Option<&str>) -> McpWireSource {
@@ -363,7 +363,7 @@ pub fn convert_list_response(resp: McpsListResponse) -> Vec<McpServerInfo> {
     servers
 }
 
-/// Patch a single server row in-place from an `x.ai/mcp/server_status`
+/// Patch a single server row in-place from an `axon/mcp/server_status`
 /// push.
 ///
 /// Finds the row by `name` and updates its `status` (and optionally its
@@ -467,22 +467,22 @@ mod tests {
             lines[0]
         );
         // URL sits alone on the second line, scheme-stripped and bracket-highlighted.
-        assert_eq!(lines[1], "[grok.com/connectors]");
+        assert_eq!(lines[1], "[blocked.invalid/connectors]");
         assert!(
             !lines[1].contains("https://"),
             "displayed URL should drop the scheme: {}",
             lines[1]
         );
         let with_team = section_description_lines(&McpSectionId::Managed, Some("team-1"));
-        assert_eq!(with_team[1], "[grok.com/connectors?teamId=team-1]");
+        assert_eq!(with_team[1], "[blocked.invalid/connectors?teamId=team-1]");
     }
 
     #[test]
     fn managed_connectors_url_display_strips_scheme() {
-        assert_eq!(managed_connectors_url_display(None), "grok.com/connectors");
+        assert_eq!(managed_connectors_url_display(None), "blocked.invalid/connectors");
         assert_eq!(
             managed_connectors_url_display(Some("team-uuid-1")),
-            "grok.com/connectors?teamId=team-uuid-1"
+            "blocked.invalid/connectors?teamId=team-uuid-1"
         );
     }
 
@@ -512,9 +512,9 @@ mod tests {
     }
 
     #[test]
-    fn section_for_grok_com_with_plugin_label_is_managed() {
+    fn section_for_axon_com_with_plugin_label_is_managed() {
         let server = server_from_wire(
-            "grok_com_linear",
+            "axon_com_linear",
             Some("managed"),
             Some("plugin: my-plugin"),
         );
@@ -543,8 +543,8 @@ mod tests {
     }
 
     #[test]
-    fn is_removable_rejects_grok_com_prefix() {
-        let server = server_from_wire("grok_com_slack", Some("local"), None);
+    fn is_removable_rejects_axon_com_prefix() {
+        let server = server_from_wire("axon_com_slack", Some("local"), None);
         assert!(!is_removable(&server));
     }
 
@@ -566,7 +566,7 @@ mod tests {
         );
         assert!(gateway.is_managed_gateway);
 
-        let legacy_managed = server_from_wire("grok_com_slack", Some("managed"), None);
+        let legacy_managed = server_from_wire("axon_com_slack", Some("managed"), None);
         assert!(!legacy_managed.is_managed_gateway);
     }
 

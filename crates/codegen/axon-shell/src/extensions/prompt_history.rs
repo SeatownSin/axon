@@ -1,4 +1,4 @@
-//! `x.ai/prompt_history` extension handler.
+//! `axon/prompt_history` extension handler.
 //!
 //! Returns the user-prompt history for a given cwd. Three paths:
 //! - **fast path** (no ids): reads the per-CWD `prompt_history.jsonl` file
@@ -45,7 +45,7 @@ struct PromptHistoryResponse {
 #[tracing::instrument(skip_all, fields(method = %args.method))]
 pub async fn handle(_agent: &MvpAgent, args: &acp::ExtRequest) -> ExtResult {
     match args.method.as_ref() {
-        "x.ai/prompt_history" => handle_prompt_history(args).await,
+        "axon/prompt_history" => handle_prompt_history(args).await,
         _ => Err(acp::Error::method_not_found()),
     }
 }
@@ -122,7 +122,7 @@ async fn load_session_prompts(
     summaries.sort_by(|a, b| a.updated_at.cmp(&b.updated_at));
 
     // Load only user prompts using the optimized method (avoids loading full session data)
-    let root_dir = crate::util::grok_home::grok_home();
+    let root_dir = crate::util::axon_home::axon_home();
     let storage = JsonlStorageAdapter::with_root(root_dir);
 
     // Load prompts from sessions with bounded concurrency using stream

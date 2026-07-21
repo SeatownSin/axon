@@ -166,7 +166,7 @@ async fn read_agents_config_with_options(
         working_directory,
         workspace_user_dir,
         compat,
-        axon_tools::util::grok_home::grok_home(),
+        axon_tools::util::axon_home::axon_home(),
         dirs::home_dir(),
     )
     .await
@@ -178,7 +178,7 @@ async fn read_agents_config_with_roots(
     working_directory: &str,
     workspace_user_dir: Option<&Path>,
     compat: CompatConfig,
-    grok_home: PathBuf,
+    axon_home: PathBuf,
     home_dir: Option<PathBuf>,
 ) -> Vec<AgentConfigFile> {
     let cwd = PathBuf::from(working_directory);
@@ -190,7 +190,7 @@ async fn read_agents_config_with_roots(
     let project_rules_dirs = compat.rules_dirs();
 
     let mut home_roots = Vec::new();
-    add_discovery_root(&mut home_roots, grok_home, true, HOME_RULES_DIRS);
+    add_discovery_root(&mut home_roots, axon_home, true, HOME_RULES_DIRS);
     if let Some(home) = home_dir {
         if compat.claude.agents || compat.claude.rules {
             add_discovery_root(
@@ -318,7 +318,7 @@ pub fn format_agents_md_section(configs: &[AgentConfigFile]) -> Option<String> {
 pub const LEGACY_AGENTS_MD_REMINDER_PREFIX: &str =
     "\n\n<system-reminder>\nAs you answer the user's questions, you can use the following context";
 
-/// Open/close `system-reminder` (Grok) or `system_reminder` (Cursor/IDE), case-insensitive.
+/// Open/close `system-reminder` (Axon) or `system_reminder` (Cursor/IDE), case-insensitive.
 /// Shared with unit tests so CI fails if the pattern is ever invalid or too narrow.
 const SYSTEM_REMINDER_TAG_PATTERN: &str = r"(?i)<(\s*/?\s*system[-_]reminder)";
 
@@ -610,10 +610,10 @@ mod tests {
     #[tokio::test]
     async fn home_and_project_rules_have_stable_order_without_doubled_paths() {
         let tmp = tempfile::tempdir().unwrap();
-        let grok_home = tmp.path().join("custom-grok-home");
+        let axon_home = tmp.path().join("custom-axon-home");
         let home = tmp.path().join("home");
         let repo = tmp.path().join("repo");
-        fs::create_dir_all(grok_home.join("rules")).unwrap();
+        fs::create_dir_all(axon_home.join("rules")).unwrap();
         fs::create_dir_all(home.join(".claude/rules")).unwrap();
         fs::create_dir_all(home.join(".cursor/rules")).unwrap();
         fs::create_dir_all(repo.join(".axon/rules")).unwrap();
@@ -622,19 +622,19 @@ mod tests {
         init_git_repo(&repo);
 
         for (path, content) in [
-            (grok_home.join("rules/b.md"), "grok-b"),
-            (grok_home.join("rules/a.md"), "grok-a"),
+            (axon_home.join("rules/b.md"), "axon-b"),
+            (axon_home.join("rules/a.md"), "axon-a"),
             (home.join(".claude/rules/a.md"), "claude-a"),
             (home.join(".cursor/rules/a.md"), "cursor-a"),
             (repo.join("AGENTS.md"), "repo-named"),
-            (repo.join(".axon/rules/a.md"), "repo-grok"),
+            (repo.join(".axon/rules/a.md"), "repo-axon"),
             (repo.join(".claude/rules/a.md"), "repo-claude"),
             (repo.join(".cursor/rules/a.md"), "repo-cursor"),
         ] {
             fs::write(path, content).unwrap();
         }
         for path in [
-            grok_home.join(".axon/rules/doubled.md"),
+            axon_home.join(".axon/rules/doubled.md"),
             home.join(".claude/.claude/rules/doubled.md"),
             home.join(".cursor/.cursor/rules/doubled.md"),
         ] {
@@ -646,7 +646,7 @@ mod tests {
             repo.to_str().unwrap(),
             None,
             CompatConfig::default(),
-            grok_home,
+            axon_home,
             Some(home),
         )
         .await;
@@ -657,12 +657,12 @@ mod tests {
         assert_eq!(
             contents,
             vec![
-                "grok-a",
-                "grok-b",
+                "axon-a",
+                "axon-b",
                 "claude-a",
                 "cursor-a",
                 "repo-named",
-                "repo-grok",
+                "repo-axon",
                 "repo-claude",
                 "repo-cursor",
             ]
@@ -677,10 +677,10 @@ mod tests {
     #[tokio::test]
     async fn vendor_home_agents_and_rules_cells_are_independent() {
         let tmp = tempfile::tempdir().unwrap();
-        let grok_home = tmp.path().join("grok-home");
+        let axon_home = tmp.path().join("axon-home");
         let home = tmp.path().join("home");
         let cwd = tmp.path().join("project");
-        fs::create_dir_all(&grok_home).unwrap();
+        fs::create_dir_all(&axon_home).unwrap();
         fs::create_dir_all(&cwd).unwrap();
         for vendor in [".claude", ".cursor"] {
             let vendor_home = home.join(vendor);
@@ -696,7 +696,7 @@ mod tests {
             cwd.to_str().unwrap(),
             None,
             rules_only,
-            grok_home.clone(),
+            axon_home.clone(),
             Some(home.clone()),
         )
         .await;
@@ -720,7 +720,7 @@ mod tests {
             cwd.to_str().unwrap(),
             None,
             agents_only,
-            grok_home,
+            axon_home,
             Some(home),
         )
         .await;
@@ -739,7 +739,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn nested_grok_home_keeps_project_role_in_repo_order() {
+    async fn nested_axon_home_keeps_project_role_in_repo_order() {
         let tmp = tempfile::tempdir().unwrap();
         let repo = tmp.path().join("repo");
         let nested = repo.join("nested");
@@ -774,7 +774,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn overlapping_grok_home_and_project_root_merges_roles() {
+    async fn overlapping_axon_home_and_project_root_merges_roles() {
         let tmp = tempfile::tempdir().unwrap();
         let repo = tmp.path().join("repo");
         fs::create_dir_all(repo.join("rules")).unwrap();
@@ -782,7 +782,7 @@ mod tests {
         fs::create_dir_all(repo.join(".claude/rules")).unwrap();
         init_git_repo(&repo);
         fs::write(repo.join("rules/home.md"), "home-rule").unwrap();
-        fs::write(repo.join(".axon/rules/project.md"), "project-grok-rule").unwrap();
+        fs::write(repo.join(".axon/rules/project.md"), "project-axon-rule").unwrap();
         fs::write(repo.join(".claude/rules/project.md"), "project-claude-rule").unwrap();
         fs::create_dir_all(repo.join(".axon/.axon/rules")).unwrap();
         fs::write(repo.join(".axon/.axon/rules/doubled.md"), "doubled").unwrap();
@@ -795,7 +795,7 @@ mod tests {
             None,
         )
         .await;
-        for expected in ["home-rule", "project-grok-rule", "project-claude-rule"] {
+        for expected in ["home-rule", "project-axon-rule", "project-claude-rule"] {
             assert_eq!(
                 configs
                     .iter()
@@ -811,10 +811,10 @@ mod tests {
     #[tokio::test]
     async fn vendor_home_repo_overlap_keeps_project_named_role() {
         let tmp = tempfile::tempdir().unwrap();
-        let grok_home = tmp.path().join("grok-home");
+        let axon_home = tmp.path().join("axon-home");
         let home = tmp.path().join("home");
         let repo = home.join(".claude");
-        fs::create_dir_all(&grok_home).unwrap();
+        fs::create_dir_all(&axon_home).unwrap();
         fs::create_dir_all(repo.join("rules")).unwrap();
         fs::create_dir_all(repo.join(".claude/rules")).unwrap();
         init_git_repo(&repo);
@@ -828,7 +828,7 @@ mod tests {
             repo.to_str().unwrap(),
             None,
             compat,
-            grok_home,
+            axon_home,
             Some(home),
         )
         .await;
@@ -875,10 +875,10 @@ mod tests {
     #[tokio::test]
     async fn rule_frontmatter_is_stripped_but_named_frontmatter_is_preserved() {
         let tmp = tempfile::tempdir().unwrap();
-        let grok_home = tmp.path().join("custom-grok-home");
+        let axon_home = tmp.path().join("custom-axon-home");
         let home = tmp.path().join("home");
         let repo = tmp.path().join("repo");
-        fs::create_dir_all(grok_home.join("rules")).unwrap();
+        fs::create_dir_all(axon_home.join("rules")).unwrap();
         fs::create_dir_all(home.join(".claude/rules")).unwrap();
         fs::create_dir_all(home.join(".cursor/rules")).unwrap();
         fs::create_dir_all(repo.join(".axon/rules")).unwrap();
@@ -888,10 +888,10 @@ mod tests {
 
         let frontmatter = |body: &str| format!("---\nglobs: ['*.rs']\n---\n{body}");
         for (path, body) in [
-            (grok_home.join("rules/global.md"), "custom-home-body"),
+            (axon_home.join("rules/global.md"), "custom-home-body"),
             (home.join(".claude/rules/global.md"), "claude-body"),
             (home.join(".cursor/rules/global.md"), "cursor-body"),
-            (repo.join(".axon/rules/project.md"), "grok-project-body"),
+            (repo.join(".axon/rules/project.md"), "axon-project-body"),
             (repo.join(".claude/rules/project.md"), "claude-project-body"),
             (repo.join(".cursor/rules/project.md"), "cursor-project-body"),
         ] {
@@ -903,7 +903,7 @@ mod tests {
             repo.to_str().unwrap(),
             None,
             CompatConfig::default(),
-            grok_home,
+            axon_home,
             Some(home),
         )
         .await;
@@ -911,7 +911,7 @@ mod tests {
             "custom-home-body",
             "claude-body",
             "cursor-body",
-            "grok-project-body",
+            "axon-project-body",
             "claude-project-body",
             "cursor-project-body",
         ] {

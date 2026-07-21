@@ -127,8 +127,8 @@ pub(super) fn reseed_tip_for_new_session(app: &mut AppView) {
     if !matches!(app.active_view, ActiveView::Agent(_)) || app.tips.is_empty() {
         return;
     }
-    let grok_home = axon_tools::util::grok_home::grok_home();
-    app.tip = axon_shell::util::tips::pick_and_advance(&app.tips, &grok_home);
+    let axon_home = axon_tools::util::axon_home::axon_home();
+    app.tip = axon_shell::util::tips::pick_and_advance(&app.tips, &axon_home);
 }
 
 /// Switch to the welcome screen, clearing ephemeral per-visit state. Use for

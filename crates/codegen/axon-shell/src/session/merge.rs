@@ -1,6 +1,6 @@
 //! Merged session listing — combines local and remote session data.
 //!
-//! Used by both the ACP `x.ai/session/list` handler and the `axon sessions`
+//! Used by both the ACP `axon/session/list` handler and the `axon sessions`
 //! CLI command. Deduplicates by session ID (remote wins), filters local
 //! results by query, and sorts by the same key the picker UI displays
 //! (`last_active_at` falling back to `updated_at`) descending.
@@ -351,7 +351,7 @@ mod tests {
             head_commit: None,
             head_branch: None,
             request_id: None,
-            grok_home: None,
+            axon_home: None,
             last_active_at: None,
             generated_title: None,
             title_is_manual: false,
@@ -938,13 +938,13 @@ mod tests {
             "2026-03-01T00:00:00Z",
             Some("Implement retry logic"),
             Some("feature/retry"),
-            Some("/home/dev/xai"),
+            Some("/home/dev/axon"),
             Some("retry-feature"),
         )];
         let merged = merge(Vec::new(), local, None, &[], 20);
         assert_eq!(merged[0].summary, "Implement retry logic");
         assert_eq!(merged[0].branch.as_deref(), Some("feature/retry"));
-        assert_eq!(merged[0].repo_name.as_deref(), Some("xai"));
+        assert_eq!(merged[0].repo_name.as_deref(), Some("axon"));
         assert_eq!(merged[0].worktree_label.as_deref(), Some("retry-feature"));
     }
 

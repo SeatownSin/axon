@@ -7,7 +7,7 @@
 //!
 //! The three **common** active-agent sections (background tasks, TODO list,
 //! running subagents) are formatted by
-//! [`axon_compaction::reminder`] so grok-chat and grok-build stay in lockstep.
+//! [`axon_compaction::reminder`] so axon-chat and axon-build stay in lockstep.
 //! Harness-only sections (edited files, AGENTS.md, skills, MCP, memory) stay here.
 
 use std::path::PathBuf;

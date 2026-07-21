@@ -315,7 +315,7 @@ mod bind_config_tests {
     /// resolved to a toolset, and never widened to the default in strict mode.
     #[test]
     fn presets_are_never_resolved() {
-        for preset in ["explore", "grok-computer", "bogus"] {
+        for preset in ["explore", "axon-computer", "bogus"] {
             let cfg = WorkspaceBindConfig::from_metadata(&serde_json::json!({ "preset" : preset }));
             assert!(
                 matches!(cfg.resolve(&all_known, false), ResolvedToolset::UseDefault),
@@ -429,11 +429,11 @@ mod bind_config_tests {
     #[test]
     fn tools_entries_resolve_to_tool_server_config() {
         let v = serde_json::json!(
-            { "preset" : "explore", "tools" : [{ "id" : "GrokBuild:grep", "params_json" :
+            { "preset" : "explore", "tools" : [{ "id" : "AxonBuild:grep", "params_json" :
             "{\"max_results\":50}", "name_override" : "search", "params_name_overrides" :
             { "pattern" : "query" }, "behavior_version" : "legacy-0.4.10",
             "description_override" : "Search the codebase", }, { "id" :
-            "GrokBuild:read_file" },], }
+            "AxonBuild:read_file" },], }
         );
         let cfg = WorkspaceBindConfig::from_metadata(&v);
         let ResolvedToolset::Toolset(resolved) = cfg.resolve(&all_known, false) else {
@@ -447,7 +447,7 @@ mod bind_config_tests {
         );
         assert_eq!(toolset.tools.len(), 2);
         let grep = &toolset.tools[0];
-        assert_eq!(grep.id, "GrokBuild:grep");
+        assert_eq!(grep.id, "AxonBuild:grep");
         assert_eq!(
             grep.params,
             serde_json::json!({ "max_results" : 50 })
@@ -465,7 +465,7 @@ mod bind_config_tests {
             Some("Search the codebase")
         );
         assert_eq!(grep.kind, None);
-        assert_eq!(toolset.tools[1].id, "GrokBuild:read_file");
+        assert_eq!(toolset.tools[1].id, "AxonBuild:read_file");
     }
     #[test]
     fn explicit_tool_config_wins_over_tools_entries() {
@@ -730,7 +730,7 @@ pub struct WorkspaceConfig {
     /// can connect to the server after construction via
     /// [`WorkspaceHandle::connect_hub`](crate::handle::WorkspaceHandle::connect_hub).
     pub hub_config: Option<HubConfig>,
-    /// Auth provider for xAI service calls made from workspace-scoped code.
+    /// Auth provider for Axon service calls made from workspace-scoped code.
     /// `None` for workspaces that do not configure service auth.
     pub auth_provider: Option<axon_computer_hub_sdk::SharedAuthProvider>,
     /// Metadata attached to the tool server registration.
@@ -749,7 +749,7 @@ pub struct WorkspaceConfig {
     /// widening to `default_tool_config`. Set by sandbox-launched standalone
     /// servers; local/CLI embedders keep the default-catalog fallback.
     pub require_explicit_toolset: bool,
-    /// Confine `x.ai/fs/*` / `workspace.fs_*` resolution to the workspace root
+    /// Confine `axon/fs/*` / `workspace.fs_*` resolution to the workspace root
     /// (reject `..`, absolute-outside-root, symlink escapes). Default `false`
     /// (unconfined) — set to `true` only by the workspace server on a remote
     /// sandbox, where the root is a real tenant boundary.

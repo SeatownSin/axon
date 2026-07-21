@@ -3,7 +3,7 @@
 
 mod response;
 
-use crate::auth::GrokAuth;
+use crate::auth::AxonAuth;
 pub use response::ManagedConfigError;
 use response::{ApplyOutcome, ManagedConfigResponse, ManagedConfigSource, verify_signed_envelope};
 
@@ -104,14 +104,14 @@ fn remove_managed_path(path: &std::path::Path) -> std::io::Result<bool> {
 
 /// A team principal is eligible to fetch only if non-expired (an expired token
 /// would just 401).
-fn eligible_team_principal(auth: GrokAuth) -> Option<GrokAuth> {
+fn eligible_team_principal(auth: AxonAuth) -> Option<AxonAuth> {
     (auth.is_team_principal() && !crate::auth::is_expired(&auth)).then_some(auth)
 }
 
 /// The eligible team principal in `auth.json`, or `None`. Single-team: managed
-/// config is a grok.com feature with one grok.com auth.
-fn read_active_team_auth() -> Option<GrokAuth> {
-    let home = crate::util::grok_home::grok_home();
+/// config is a blocked.invalid feature with one blocked.invalid auth.
+fn read_active_team_auth() -> Option<AxonAuth> {
+    let home = crate::util::axon_home::axon_home();
     let store = crate::auth::read_auth_json(&home.join("auth.json")).ok()?;
     let team = store.values().find(|a| a.is_team_principal())?.clone();
     eligible_team_principal(team)
@@ -125,7 +125,7 @@ pub(crate) fn has_active_team_auth() -> bool {
 /// expired token is not a logout). `Err` = `auth.json` unreadable: callers must
 /// NOT treat that as a logout — it would wipe enforced policy on a read blip.
 fn team_principal_signed_in() -> std::io::Result<bool> {
-    let home = crate::util::grok_home::grok_home();
+    let home = crate::util::axon_home::axon_home();
     match crate::auth::read_auth_json(&home.join("auth.json")) {
         Ok(store) => Ok(store.values().any(|a| a.is_team_principal())),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(false),
@@ -149,7 +149,7 @@ pub fn clear_orphan() {
             return;
         }
     }
-    let home = crate::util::grok_home::grok_home();
+    let home = crate::util::axon_home::axon_home();
     let Some(_lock) = try_lock_managed_config(&home) else {
         return; // another process is syncing; retry next call
     };
@@ -325,10 +325,10 @@ async fn fetch_managed_config_once(
     token: &str,
     source: ManagedConfigSource,
 ) -> Result<ManagedConfigResponse, ManagedConfigError> {
-    // This build never contacts xAI infrastructure; managed configuration
-    // is served from xAI's console backend. Non-xAI mirrors still work.
-    if crate::util::is_xai_infrastructure_url(url) {
-        tracing::debug!(url, "managed config fetch blocked: xAI infrastructure");
+    // This build never contacts Axon infrastructure; managed configuration
+    // is served from Axon's console backend. Non-Axon mirrors still work.
+    if crate::util::is_axon_infrastructure_url(url) {
+        tracing::debug!(url, "managed config fetch blocked: Axon infrastructure");
         return Err(ManagedConfigError::ServerError { status: 0 });
     }
     let resp = match client
@@ -422,7 +422,7 @@ pub fn spawn_sync(cancel: tokio_util::sync::CancellationToken) {
 }
 
 /// Deployment id reported for `deployment_key` on chat requests, credential
-/// snapshots, and OTel: the **server** GrokBuildDeployment UUID (the id
+/// snapshots, and OTel: the **server** AxonBuildDeployment UUID (the id
 /// server-side dashboards filter on) when the managed-config sync marker was
 /// written by this same key (fingerprint match), else UUIDv5 of the key.
 /// `None` key (team/OAuth) → `None`, never a stale marker value.
@@ -509,7 +509,7 @@ impl SyncOutcome {
 /// elapses first.
 async fn sync_bounded(
     budget: SyncBudget,
-    team_override: Option<GrokAuth>,
+    team_override: Option<AxonAuth>,
 ) -> Option<Result<SyncOutcome, ManagedConfigError>> {
     let sync = sync_with_budget(budget, team_override);
     match budget.deadline() {
@@ -525,7 +525,7 @@ enum FetchedConfig {
         body: ManagedConfigResponse,
     },
     Team {
-        auth: Box<GrokAuth>,
+        auth: Box<AxonAuth>,
         body: ManagedConfigResponse,
     },
     /// No deployment key configured and no eligible team signed in.
@@ -537,7 +537,7 @@ enum FetchedConfig {
 /// read-only `axon setup --json` both build on this.
 async fn fetch_for_principal(
     budget: SyncBudget,
-    team_override: Option<GrokAuth>,
+    team_override: Option<AxonAuth>,
 ) -> Result<FetchedConfig, ManagedConfigError> {
     let max_attempts = budget.max_attempts();
     // Resolve from the merged config (managed_config_url > cli_chat_proxy_base_url,
@@ -591,7 +591,7 @@ async fn fetch_for_principal(
 /// [`read_active_team_auth`]. Marker is written under the lock by [`apply_fetched`].
 async fn sync_with_budget(
     budget: SyncBudget,
-    team_override: Option<GrokAuth>,
+    team_override: Option<AxonAuth>,
 ) -> Result<SyncOutcome, ManagedConfigError> {
     match fetch_for_principal(budget, team_override).await? {
         FetchedConfig::DeploymentKey { key, body } => {
@@ -645,7 +645,7 @@ fn apply_fetched(
     let signed_deployment_id = verified
         .as_ref()
         .and_then(|v| v.payload.deployment_id.clone());
-    let home = crate::util::grok_home::grok_home();
+    let home = crate::util::axon_home::axon_home();
     let Some(_lock) = try_lock_managed_config(&home) else {
         tracing::debug!("managed config locked by another process; skipping apply");
         return Ok(ApplyOutcome::Skipped);
@@ -778,7 +778,7 @@ pub enum ManagedConfigSync {
 /// waiting for the background tick. `authenticated` pins the just-logged-in
 /// principal (`None` = on-disk team). Latency-bounded by [`SyncBudget::Login`];
 /// failures are logged, not propagated (the background loop retries).
-pub async fn post_login_sync(authenticated: Option<GrokAuth>) -> ManagedConfigSync {
+pub async fn post_login_sync(authenticated: Option<AxonAuth>) -> ManagedConfigSync {
     clear_orphan();
     if !is_fetch_enabled() {
         return ManagedConfigSync::Skipped;
@@ -862,7 +862,7 @@ pub fn current_serving_identity() -> crate::config::ServingIdentity {
 /// expired window). Must NOT special-case a configured deployment key — that would
 /// disable envelope binding for a real team user. Used at fetch time to bind the envelope.
 pub fn active_team_id_any_expiry() -> Option<String> {
-    let home = crate::util::grok_home::grok_home();
+    let home = crate::util::axon_home::axon_home();
     let store = crate::auth::read_auth_json(&home.join("auth.json")).ok()?;
     store
         .values()
@@ -912,7 +912,7 @@ pub async fn ensure_managed_policy_present(
         .await
         .ok()
         .and_then(Result::ok)
-        .filter(GrokAuth::is_team_principal);
+        .filter(AxonAuth::is_team_principal);
     if !has_principal() {
         return;
     }
@@ -964,7 +964,7 @@ fn purge_prior_tenant_on_identity_change() {
         return;
     };
     // Same home for pre-check, lock, detector, and delete.
-    let home = crate::util::grok_home::grok_home();
+    let home = crate::util::axon_home::axon_home();
     // Unlocked pre-check: common no-switch start takes no lock; re-check under lock before delete.
     if crate::config::confirmed_team_switch_at(&home, &team_id).is_none() {
         return;
@@ -992,7 +992,7 @@ fn bump_managed_rollback_floor() {
     if !axon_config::signed_policy::verification_active() {
         return;
     }
-    let home = crate::util::grok_home::grok_home();
+    let home = crate::util::axon_home::axon_home();
     match try_lock_managed_config(&home) {
         Some(_lock) => {
             axon_config::bump_rollback_floor(&home);

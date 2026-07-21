@@ -164,7 +164,7 @@ mod prefire_state_tests {
             note1: "NOTE1".to_string(),
             prefix_len: 3,
             fingerprint: 42,
-            model_slug: "grok".to_string(),
+            model_slug: "axon".to_string(),
             pass1_latency_ms: 5,
         }
     }

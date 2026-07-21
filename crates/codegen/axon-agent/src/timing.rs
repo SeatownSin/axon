@@ -1,4 +1,4 @@
-const TARGET: &str = "xai_grok_instrumentation";
+const TARGET: &str = "axon_axon_instrumentation";
 
 pub struct TimingGuard {
     name: &'static str,

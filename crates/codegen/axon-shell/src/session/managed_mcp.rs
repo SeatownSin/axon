@@ -240,7 +240,7 @@ pub fn merge_managed_mcp_servers_sourced(
     let toml_claimed_names = crate::util::config::all_toml_mcp_server_names(cwd);
 
     let config_source = ConfigSource::ConfigToml {
-        path: axon_tools::util::grok_home::grok_home().join("config.toml"),
+        path: axon_tools::util::axon_home::axon_home().join("config.toml"),
     };
 
     // Use the TOML-only loader so that entries from imported editor configs
@@ -349,7 +349,7 @@ pub fn merge_managed_mcp_servers_sourced(
     servers.into_values().collect()
 }
 
-/// Auto-create `grok_com_*` entries for managed configs not already in `merged`.
+/// Auto-create `axon_com_*` entries for managed configs not already in `merged`.
 /// Dedup by display name (first scope wins). Skips names in `disabled_names`.
 pub(crate) fn auto_inject_managed_servers_with_disabled(
     merged: &mut Vec<acp::McpServer>,
@@ -520,8 +520,8 @@ mod tests {
         let merged = merge_managed_mcp_servers(vec![], cwd.path(), &managed, None, &compat);
         let slack = merged
             .iter()
-            .find(|s| matches!(s, acp::McpServer::Http(acp::McpServerHttp { name, .. }) if name == "grok_com_slack"));
-        let slack = slack.expect("should have auto-injected grok_com_slack");
+            .find(|s| matches!(s, acp::McpServer::Http(acp::McpServerHttp { name, .. }) if name == "axon_com_slack"));
+        let slack = slack.expect("should have auto-injected axon_com_slack");
         match slack {
             acp::McpServer::Http(acp::McpServerHttp { url, headers, .. }) => {
                 assert_eq!(url, "https://mcp.slack.com/sse");
@@ -645,7 +645,7 @@ mod tests {
         let tagged = apply_mcp_server_policy(
             vec![
                 acp::McpServer::Http(
-                    acp::McpServerHttp::new("grok_com_slack", "https://mcp.slack.com/sse")
+                    acp::McpServerHttp::new("axon_com_slack", "https://mcp.slack.com/sse")
                         .headers(vec![]),
                 ),
                 // Substring-only match must not be denied.
@@ -660,7 +660,7 @@ mod tests {
 
         let slack = tagged
             .iter()
-            .find(|s| mcp_server_name(&s.server) == "grok_com_slack")
+            .find(|s| mcp_server_name(&s.server) == "axon_com_slack")
             .expect("managed server present in policy output");
         assert!(
             matches!(
@@ -748,7 +748,7 @@ mod tests {
         let merged = merge_managed_mcp_servers(vec![], cwd.path(), &managed, None, &compat);
         let linear_count = merged
             .iter()
-            .filter(|s| matches!(s, acp::McpServer::Http(acp::McpServerHttp { name, .. }) if name == "grok_com_linear"))
+            .filter(|s| matches!(s, acp::McpServer::Http(acp::McpServerHttp { name, .. }) if name == "axon_com_linear"))
             .count();
         assert_eq!(linear_count, 1, "should dedup by display name");
     }
@@ -758,7 +758,7 @@ mod tests {
         let managed = vec![make_managed("Slack", "https://mcp.slack.com/sse", "user")];
         let client = vec![acp::McpServer::Http(
             acp::McpServerHttp::new(
-                "grok_com_slack".to_string(),
+                "axon_com_slack".to_string(),
                 "https://mcp.slack.com/sse".to_string(),
             )
             .headers(vec![]),
@@ -768,7 +768,7 @@ mod tests {
         let merged = merge_managed_mcp_servers(client, cwd.path(), &managed, None, &compat);
         let slack_count = merged
             .iter()
-            .filter(|s| matches!(s, acp::McpServer::Http(acp::McpServerHttp { name, .. }) if name == "grok_com_slack"))
+            .filter(|s| matches!(s, acp::McpServer::Http(acp::McpServerHttp { name, .. }) if name == "axon_com_slack"))
             .count();
         assert_eq!(slack_count, 1, "should not duplicate existing server");
     }
@@ -780,16 +780,16 @@ mod tests {
             make_managed("Linear", "https://mcp.linear.app", "user"),
         ];
         let disabled: std::collections::HashSet<String> =
-            ["grok_com_slack".to_string()].into_iter().collect();
+            ["axon_com_slack".to_string()].into_iter().collect();
         let mut merged = vec![];
         auto_inject_managed_servers_with_disabled(&mut merged, &managed, &disabled);
 
         let has_slack = merged
             .iter()
-            .any(|s| matches!(s, acp::McpServer::Http(acp::McpServerHttp { name, .. }) if name == "grok_com_slack"));
+            .any(|s| matches!(s, acp::McpServer::Http(acp::McpServerHttp { name, .. }) if name == "axon_com_slack"));
         let has_linear = merged
             .iter()
-            .any(|s| matches!(s, acp::McpServer::Http(acp::McpServerHttp { name, .. }) if name == "grok_com_linear"));
+            .any(|s| matches!(s, acp::McpServer::Http(acp::McpServerHttp { name, .. }) if name == "axon_com_linear"));
         assert!(!has_slack, "disabled connector should be skipped");
         assert!(has_linear, "non-disabled connector should be injected");
     }
@@ -1008,7 +1008,7 @@ enabled = false
             root: plugin_root.clone(),
             canonical_root: plugin_root.clone(),
             scope: PluginScope::User,
-            origin: axon_agent::plugins::PluginOrigin::UserGrok,
+            origin: axon_agent::plugins::PluginOrigin::UserAxon,
             trusted: true,
             skill_dirs: vec![],
             command_dirs: vec![],
@@ -1076,7 +1076,7 @@ enabled = false
             root: plugin_root.clone(),
             canonical_root: plugin_root.clone(),
             scope: PluginScope::User,
-            origin: axon_agent::plugins::PluginOrigin::UserGrok,
+            origin: axon_agent::plugins::PluginOrigin::UserAxon,
             trusted: true,
             skill_dirs: vec![],
             command_dirs: vec![],
@@ -1150,7 +1150,7 @@ enabled = false
             root: plugin_root.clone(),
             canonical_root: plugin_root.clone(),
             scope: PluginScope::User,
-            origin: axon_agent::plugins::PluginOrigin::UserGrok,
+            origin: axon_agent::plugins::PluginOrigin::UserAxon,
             trusted: true,
             skill_dirs: vec![],
             command_dirs: vec![],

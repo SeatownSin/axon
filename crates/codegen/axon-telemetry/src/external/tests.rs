@@ -202,27 +202,27 @@ fn metric_attr_keys_are_pinned() {
 fn event_names_are_pinned() {
     use schema::ExternalEventName as E;
     let expected: &[(E, &str)] = &[
-        (E::SessionStart, "grok_code.session_start"),
-        (E::SessionEnd, "grok_code.session_end"),
-        (E::UserPrompt, "grok_code.user_prompt"),
-        (E::TurnCompleted, "grok_code.turn_completed"),
-        (E::ApiRequest, "grok_code.api_request"),
-        (E::ApiError, "grok_code.api_error"),
-        (E::ToolResult, "grok_code.tool_result"),
-        (E::ToolDecision, "grok_code.tool_decision"),
-        (E::McpServerConnection, "grok_code.mcp_server_connection"),
+        (E::SessionStart, "axon_code.session_start"),
+        (E::SessionEnd, "axon_code.session_end"),
+        (E::UserPrompt, "axon_code.user_prompt"),
+        (E::TurnCompleted, "axon_code.turn_completed"),
+        (E::ApiRequest, "axon_code.api_request"),
+        (E::ApiError, "axon_code.api_error"),
+        (E::ToolResult, "axon_code.tool_result"),
+        (E::ToolDecision, "axon_code.tool_decision"),
+        (E::McpServerConnection, "axon_code.mcp_server_connection"),
         (
             E::PermissionModeChanged,
-            "grok_code.permission_mode_changed",
+            "axon_code.permission_mode_changed",
         ),
-        (E::SkillActivated, "grok_code.skill_activated"),
-        (E::PluginLoaded, "grok_code.plugin_loaded"),
-        (E::Compaction, "grok_code.compaction"),
-        (E::Subagent, "grok_code.subagent"),
-        (E::Auth, "grok_code.auth"),
-        (E::InternalError, "grok_code.internal_error"),
-        (E::ModelSwitched, "grok_code.model_switched"),
-        (E::ContextualTip, "grok_code.contextual_tip"),
+        (E::SkillActivated, "axon_code.skill_activated"),
+        (E::PluginLoaded, "axon_code.plugin_loaded"),
+        (E::Compaction, "axon_code.compaction"),
+        (E::Subagent, "axon_code.subagent"),
+        (E::Auth, "axon_code.auth"),
+        (E::InternalError, "axon_code.internal_error"),
+        (E::ModelSwitched, "axon_code.model_switched"),
+        (E::ContextualTip, "axon_code.contextual_tip"),
     ];
     assert_eq!(expected.len(), <E as strum::EnumCount>::COUNT);
     for (variant, name) in expected {
@@ -233,19 +233,19 @@ fn event_names_are_pinned() {
 #[test]
 fn client_identifier_allowlist_is_pinned() {
     let expected: &[&str] = &[
-        "grok-pager",
-        "grok-tui",
-        "grok-shell",
-        "grok-web",
-        "grok-desktop",
-        "grok-code-extension",
+        "axon-pager",
+        "axon-tui",
+        "axon-shell",
+        "axon-web",
+        "axon-desktop",
+        "axon-code-extension",
         "nebula",
         "zed",
     ];
     assert_eq!(schema::KNOWN_CLIENT_IDENTIFIERS, expected);
     assert_eq!(
-        schema::sanitize_client_identifier("grok-pager"),
-        "grok-pager"
+        schema::sanitize_client_identifier("axon-pager"),
+        "axon-pager"
     );
     assert_eq!(
         schema::sanitize_client_identifier("Evil Corp Internal Tool v2"),
@@ -302,9 +302,9 @@ fn file_extension_reduction() {
 fn sentinel_session_harness() -> events::SessionHarness {
     events::SessionHarness {
         session_id: "sess-1".into(),
-        client_identifier: Some("grok-pager".into()),
-        model_id: "grok-4".into(),
-        agent_name: "grok-build-plan".into(),
+        client_identifier: Some("axon-pager".into()),
+        model_id: "axon-4".into(),
+        agent_name: "axon-build-plan".into(),
         permission_mode: crate::enums::PermissionMode::Ask,
         mcp_server_names: vec!["secret-server".into(), "other".into()],
         plugin_names: vec!["p1".into()],
@@ -325,7 +325,7 @@ fn session_start_snapshot_counts_not_names() {
     let events = exported_events(&stream);
     assert_eq!(events.len(), 1);
     let ev = &events[0];
-    assert_eq!(ev.0, "grok_code.session_start");
+    assert_eq!(ev.0, "axon_code.session_start");
     let mut keys = attr_keys(ev);
     keys.sort();
     assert_eq!(
@@ -367,7 +367,7 @@ fn session_new_increments_session_count_only() {
     );
     assert!(exported_events(&stream).is_empty(), "metric-only mapping");
     let names = exported_metric_names(&stream);
-    assert_eq!(names, vec!["grok_code.session.count".to_owned()]);
+    assert_eq!(names, vec!["axon_code.session.count".to_owned()]);
 }
 
 #[test]
@@ -376,7 +376,7 @@ fn api_request_snapshot_and_token_usage() {
     emit_event_into(
         &stream,
         &events::ModelResponseReceived {
-            model_id: "grok-4".into(),
+            model_id: "axon-4".into(),
             duration_ms: 1200,
             stop_reason: Some("stop".into()),
             prompt_tokens: Some(100),
@@ -387,14 +387,14 @@ fn api_request_snapshot_and_token_usage() {
     );
     let events = exported_events(&stream);
     let ev = &events[0];
-    assert_eq!(ev.0, "grok_code.api_request");
+    assert_eq!(ev.0, "axon_code.api_request");
     assert_eq!(attr(ev, "input_tokens").as_deref(), Some("100"));
     assert_eq!(attr(ev, "output_tokens").as_deref(), Some("50"));
     assert_eq!(attr(ev, "reasoning_tokens").as_deref(), Some("25"));
     assert_eq!(attr(ev, "cache_read_tokens"), None);
     assert_eq!(
         exported_metric_names(&stream),
-        vec!["grok_code.token.usage"]
+        vec!["axon_code.token.usage"]
     );
 }
 
@@ -410,7 +410,7 @@ fn one_failed_turn_increments_error_count_exactly_once() {
     emit_event_into(
         &stream,
         &events::RateLimitHit {
-            model_id: "grok-4".into(),
+            model_id: "axon-4".into(),
             attempts: 3,
         },
     );
@@ -418,7 +418,7 @@ fn one_failed_turn_increments_error_count_exactly_once() {
         &stream,
         &events::ApiError {
             error_category: "rate_limit".into(),
-            model_id: "grok-4".into(),
+            model_id: "axon-4".into(),
             status_code: Some(429),
             duration_ms: Some(10),
         },
@@ -429,7 +429,7 @@ fn one_failed_turn_increments_error_count_exactly_once() {
             outcome: events::Outcome::Error,
             duration_ms: 10,
             tool_call_count: 0,
-            model_id: "grok-4".into(),
+            model_id: "axon-4".into(),
             cancellation_category: None,
             error_category: Some("rate_limit".into()),
         },
@@ -440,7 +440,7 @@ fn one_failed_turn_increments_error_count_exactly_once() {
         .map(|e| e.0.clone())
         .collect();
     assert_eq!(
-        names.iter().filter(|n| *n == "grok_code.api_error").count(),
+        names.iter().filter(|n| *n == "axon_code.api_error").count(),
         2
     );
     // …but error.count incremented exactly once.
@@ -451,7 +451,7 @@ fn one_failed_turn_increments_error_count_exactly_once() {
         .iter()
         .flat_map(|rm| rm.scope_metrics())
         .flat_map(|s| s.metrics())
-        .filter(|m| m.name() == "grok_code.error.count")
+        .filter(|m| m.name() == "axon_code.error.count")
         .map(|m| match m.data() {
             opentelemetry_sdk::metrics::data::AggregatedMetrics::U64(
                 opentelemetry_sdk::metrics::data::MetricData::Sum(sum),
@@ -471,14 +471,14 @@ fn turn_error_increments_error_count() {
             outcome: events::Outcome::Error,
             duration_ms: 10,
             tool_call_count: 0,
-            model_id: "grok-4".into(),
+            model_id: "axon-4".into(),
             cancellation_category: None,
             error_category: Some("server_error".into()),
         },
     );
     let mut names = exported_metric_names(&stream);
     names.sort();
-    assert_eq!(names, vec!["grok_code.error.count", "grok_code.turn.count"]);
+    assert_eq!(names, vec!["axon_code.error.count", "axon_code.turn.count"]);
 }
 
 #[test]
@@ -496,7 +496,7 @@ fn tool_result_gates_off_collapses_and_reduces() {
     );
     let events = exported_events(&stream);
     let ev = &events[0];
-    assert_eq!(ev.0, "grok_code.tool_result");
+    assert_eq!(ev.0, "axon_code.tool_result");
     assert_eq!(attr(ev, "tool_name").as_deref(), Some("mcp_tool"));
     assert_eq!(attr(ev, "file_extension").as_deref(), Some("rs"));
     assert_eq!(attr(ev, "file_path"), None, "full path is details-gated");
@@ -560,7 +560,7 @@ fn user_prompt_gates_off_drops_text() {
         &stream,
         &events::PromptSubmitted {
             prompt_length: 26,
-            model_id: "grok-4".into(),
+            model_id: "axon-4".into(),
             client_identifier: None,
             screen_mode: Some("minimal".into()),
             prompt_text: Some("CANARY_PROMPT secret user text".into()),
@@ -568,7 +568,7 @@ fn user_prompt_gates_off_drops_text() {
     );
     let events = exported_events(&stream);
     let ev = &events[0];
-    assert_eq!(ev.0, "grok_code.user_prompt");
+    assert_eq!(ev.0, "axon_code.user_prompt");
     assert_eq!(attr(ev, "prompt_length").as_deref(), Some("26"));
     // screen_mode is ungated session metadata, not prompt content.
     assert_eq!(attr(ev, "screen_mode").as_deref(), Some("minimal"));
@@ -590,7 +590,7 @@ fn user_prompt_screen_mode_sanitized_and_optional() {
         &stream,
         &events::PromptSubmitted {
             prompt_length: 5,
-            model_id: "grok-4".into(),
+            model_id: "axon-4".into(),
             client_identifier: None,
             screen_mode: Some("Evil Free Text".into()),
             prompt_text: None,
@@ -600,7 +600,7 @@ fn user_prompt_screen_mode_sanitized_and_optional() {
         &stream,
         &events::PromptSubmitted {
             prompt_length: 5,
-            model_id: "grok-4".into(),
+            model_id: "axon-4".into(),
             client_identifier: None,
             screen_mode: None,
             prompt_text: None,
@@ -618,7 +618,7 @@ fn user_prompt_gate_on_exports_scrubbed_text() {
         &stream,
         &events::PromptSubmitted {
             prompt_length: 10,
-            model_id: "grok-4".into(),
+            model_id: "axon-4".into(),
             client_identifier: None,
             screen_mode: None,
             prompt_text: Some("fix the bug; token sk-CANARYabcdefghij1234567890".into()),
@@ -648,7 +648,7 @@ fn mcp_connection_collapses_server_name_by_default() {
     );
     let events = exported_events(&stream);
     let ev = &events[0];
-    assert_eq!(ev.0, "grok_code.mcp_server_connection");
+    assert_eq!(ev.0, "axon_code.mcp_server_connection");
     assert_eq!(attr(ev, "status").as_deref(), Some("failed"));
     assert_eq!(attr(ev, "mcp_server.name").as_deref(), Some("mcp_server"));
     assert_eq!(attr(ev, "error_type").as_deref(), Some("timeout"));
@@ -673,7 +673,7 @@ fn tool_decision_snapshot() {
     );
     let events = exported_events(&stream);
     let ev = &events[0];
-    assert_eq!(ev.0, "grok_code.tool_decision");
+    assert_eq!(ev.0, "axon_code.tool_decision");
     assert_eq!(attr(ev, "tool_name").as_deref(), Some("run_terminal_cmd"));
     assert_eq!(attr(ev, "decision").as_deref(), Some("deny"));
     assert_eq!(attr(ev, "access_kind").as_deref(), Some("bash"));
@@ -681,7 +681,7 @@ fn tool_decision_snapshot() {
     assert_eq!(attr(ev, "source").as_deref(), Some("user_reject"));
     assert_eq!(
         exported_metric_names(&stream),
-        vec!["grok_code.tool.decision"]
+        vec!["axon_code.tool.decision"]
     );
 }
 
@@ -726,7 +726,7 @@ fn contextual_tip_maps_every_tip_and_action() {
         emit_event_into(&stream, &events::ContextualTip { tip, action });
         let events = exported_events(&stream);
         let ev = &events[0];
-        assert_eq!(ev.0, "grok_code.contextual_tip");
+        assert_eq!(ev.0, "axon_code.contextual_tip");
         assert_eq!(attr(ev, "tip").as_deref(), Some(tip_label));
         assert_eq!(attr(ev, "action").as_deref(), Some(action_label));
     }
@@ -839,7 +839,7 @@ fn validating_metric_exporter_drops_export_on_bad_attr_key() {
         .as_ref()
         .unwrap()
         .meter(schema::SCOPE_NAME);
-    let rogue = meter.u64_counter("grok_code.session.count").build();
+    let rogue = meter.u64_counter("axon_code.session.count").build();
     rogue.add(
         1,
         &[opentelemetry::KeyValue::new("prompt", "CANARY_METRIC_LEAK")],
@@ -875,7 +875,7 @@ fn redacting_log_exporter_drops_record_with_closed_gate_key() {
     use opentelemetry::logs::{LogRecord as _, Logger as _};
     let logger = stream.ext.logger.as_ref().unwrap();
     let mut record = logger.create_log_record();
-    record.set_event_name("grok_code.user_prompt");
+    record.set_event_name("axon_code.user_prompt");
     record.add_attribute("prompt", "CANARY_GATED_LEAK");
     logger.emit(record);
     stream
@@ -898,7 +898,7 @@ fn redacting_log_exporter_drops_record_with_unknown_key() {
     use opentelemetry::logs::{LogRecord as _, Logger as _};
     let logger = stream.ext.logger.as_ref().unwrap();
     let mut record = logger.create_log_record();
-    record.set_event_name("grok_code.api_request");
+    record.set_event_name("axon_code.api_request");
     record.add_attribute("command", "echo CANARY_UNKNOWN_KEY");
     logger.emit(record);
     stream
@@ -981,7 +981,7 @@ fn metric_increments_pass_model_through_scrub_and_attach_session_id() {
     );
     let exported = stream.metrics.get_finished_metrics().unwrap();
     let blob = format!("{exported:?}");
-    assert!(blob.contains("grok_code.token.usage"));
+    assert!(blob.contains("axon_code.token.usage"));
     assert!(
         blob.contains("sess-9"),
         "session.id missing from metric: {blob}"

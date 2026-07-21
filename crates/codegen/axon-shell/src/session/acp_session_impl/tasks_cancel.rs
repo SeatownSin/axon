@@ -191,7 +191,7 @@ impl SessionActor {
 
     fn cancel_subagents_for_prompt_id(&self, parent_prompt_id: &str) {
         if let Some(event_tx) = self.tool_context.subagent_event_tx.clone() {
-            use axon_tools::implementations::grok_build::task::types::{
+            use axon_tools::implementations::axon_build::task::types::{
                 SubagentCancelRequest, SubagentCancelTarget, SubagentEvent,
             };
             let _ = event_tx.send(SubagentEvent::Cancel(SubagentCancelRequest {
@@ -477,7 +477,7 @@ impl SessionActor {
             .borrow()
             .tool_bridge()
             .update_resource(
-                axon_tools::implementations::grok_build::task::types::CurrentPromptIdResource(
+                axon_tools::implementations::axon_build::task::types::CurrentPromptIdResource(
                     String::new(),
                 ),
             )

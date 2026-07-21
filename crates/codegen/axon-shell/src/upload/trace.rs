@@ -1198,7 +1198,7 @@ fn claim_spill_reconcile(state: &std::sync::atomic::AtomicU8, collection_enabled
 /// when data collection is disabled (`None`). Detached so session setup
 /// never waits on disk or cloud I/O.
 pub(crate) fn spawn_startup_spill_reconcile(
-    grok_home: std::path::PathBuf,
+    axon_home: std::path::PathBuf,
     queue: Option<UploadQueue>,
 ) {
     if !claim_spill_reconcile(&SPILL_RECONCILE_STATE, queue.is_some()) {
@@ -1208,13 +1208,13 @@ pub(crate) fn spawn_startup_spill_reconcile(
         match queue {
             Some(queue) => {
                 let report =
-                    axon_workspace::recovery::run_startup_recovery(&grok_home, &queue).await;
+                    axon_workspace::recovery::run_startup_recovery(&axon_home, &queue).await;
                 tracing::info!(?report, "startup spill recovery complete");
                 queue.cleanup_orphans(axon_file_utils::queue::DEFAULT_MAX_AGE);
             }
             None => {
                 let purged = tokio::task::spawn_blocking(move || {
-                    axon_workspace::recovery::purge_spilled_items(&grok_home)
+                    axon_workspace::recovery::purge_spilled_items(&axon_home)
                 })
                 .await;
                 match purged {
@@ -1311,7 +1311,7 @@ pub(crate) fn spawn_purge_stale_upload_scratch() {
         if PURGE_STARTED.swap(true, Ordering::Relaxed) {
             return;
         }
-        let dir = crate::util::grok_home::grok_home()
+        let dir = crate::util::axon_home::axon_home()
             .join("upload_queue")
             .join("scratch");
         let run = move || match purge_stale_upload_scratch_dir(&dir) {
@@ -1340,7 +1340,7 @@ pub(crate) fn spawn_purge_stale_upload_scratch() {
 /// Credentials are re-read on each upload attempt via [`DynamicResolver`].
 /// Session/trace artifacts use this queue for durable spill in every build.
 pub(crate) fn spawn_upload_queue(
-    grok_home: &Path,
+    axon_home: &Path,
     gcs_config: &TraceExportConfig,
     client_version: Option<&str>,
     auth_manager: Arc<crate::auth::AuthManager>,
@@ -1349,7 +1349,7 @@ pub(crate) fn spawn_upload_queue(
         auth_manager,
         base_config: gcs_config.clone(),
     });
-    let queue = UploadQueue::spawn(grok_home, resolver, UploadRetryPolicy::default());
+    let queue = UploadQueue::spawn(axon_home, resolver, UploadRetryPolicy::default());
     if let Some(ver) = client_version {
         queue.with_client_version(ver)
     } else {
@@ -1636,7 +1636,7 @@ mod tests {
             team_id: None,
             client_source: None,
             client_version: None,
-            model: "grok-3".into(),
+            model: "axon-3".into(),
             reasoning_effort: None,
             experiment_id: None,
             host_os: "linux".into(),
@@ -1750,16 +1750,16 @@ mod tests {
     }
     #[test]
     fn dynamic_resolver_refreshes_proxy_token() {
-        use crate::auth::{GrokAuth, GrokComConfig};
+        use crate::auth::{AxonAuth, AxonComConfig};
         use crate::session::repo_changes::UploadMethod;
         use chrono::{Duration, Utc};
         use std::collections::BTreeMap;
         let dir = tempfile::tempdir().unwrap();
-        let grok_com_config = GrokComConfig::default();
-        let scope = grok_com_config.auth_scope();
-        let initial_auth = GrokAuth {
+        let axon_com_config = AxonComConfig::default();
+        let scope = axon_com_config.auth_scope();
+        let initial_auth = AxonAuth {
             key: "initial-token".into(),
-            ..GrokAuth::test_default()
+            ..AxonAuth::test_default()
         };
         let mut store = BTreeMap::new();
         store.insert(scope.clone(), initial_auth);
@@ -1767,7 +1767,7 @@ mod tests {
         std::fs::write(dir.path().join("auth.json"), &auth_json).unwrap();
         let auth_manager = Arc::new(crate::auth::AuthManager::new(
             dir.path(),
-            grok_com_config.clone(),
+            axon_com_config.clone(),
         ));
         let base_config = TraceExportConfig {
             bucket_url: None,
@@ -1795,10 +1795,10 @@ mod tests {
             Some("initial-token"),
             "snapshot should reflect AuthManager.current(), not the stale base_config token"
         );
-        let refreshed_auth = GrokAuth {
+        let refreshed_auth = AxonAuth {
             key: "refreshed-token".into(),
             expires_at: Some(Utc::now() + Duration::hours(1)),
-            ..GrokAuth::test_default()
+            ..AxonAuth::test_default()
         };
         store.insert(scope, refreshed_auth);
         let auth_json = serde_json::to_string_pretty(&store).unwrap();
@@ -1819,17 +1819,17 @@ mod tests {
     }
     #[test]
     fn dynamic_resolver_rereads_disk_on_expired_token() {
-        use crate::auth::{GrokAuth, GrokComConfig};
+        use crate::auth::{AxonAuth, AxonComConfig};
         use crate::session::repo_changes::UploadMethod;
         use chrono::{Duration, Utc};
         use std::collections::BTreeMap;
         let dir = tempfile::tempdir().unwrap();
-        let grok_com_config = GrokComConfig::default();
-        let scope = grok_com_config.auth_scope();
-        let expired_auth = GrokAuth {
+        let axon_com_config = AxonComConfig::default();
+        let scope = axon_com_config.auth_scope();
+        let expired_auth = AxonAuth {
             key: "expired-token".into(),
             expires_at: Some(Utc::now() - Duration::hours(1)),
-            ..GrokAuth::test_default()
+            ..AxonAuth::test_default()
         };
         let mut store = BTreeMap::new();
         store.insert(scope.clone(), expired_auth);
@@ -1837,7 +1837,7 @@ mod tests {
         std::fs::write(dir.path().join("auth.json"), &auth_json).unwrap();
         let auth_manager = Arc::new(crate::auth::AuthManager::new(
             dir.path(),
-            grok_com_config.clone(),
+            axon_com_config.clone(),
         ));
         assert!(auth_manager.current().is_none());
         let resolver = DynamicResolver {
@@ -1857,10 +1857,10 @@ mod tests {
                 },
             },
         };
-        let fresh_auth = GrokAuth {
+        let fresh_auth = AxonAuth {
             key: "fresh-from-chat-flow".into(),
             expires_at: Some(Utc::now() + Duration::hours(1)),
-            ..GrokAuth::test_default()
+            ..AxonAuth::test_default()
         };
         store.insert(scope, fresh_auth);
         let auth_json = serde_json::to_string_pretty(&store).unwrap();
@@ -1881,23 +1881,23 @@ mod tests {
     /// This verifies the error path doesn't panic.
     #[tokio::test]
     async fn resolve_async_falls_back_when_no_refresher() {
-        use crate::auth::{GrokAuth, GrokComConfig};
+        use crate::auth::{AxonAuth, AxonComConfig};
         use crate::session::repo_changes::UploadMethod;
         use chrono::{Duration, Utc};
         use std::collections::BTreeMap;
         let dir = tempfile::tempdir().unwrap();
-        let grok_com_config = GrokComConfig::default();
-        let scope = grok_com_config.auth_scope();
-        let expired_auth = GrokAuth {
+        let axon_com_config = AxonComConfig::default();
+        let scope = axon_com_config.auth_scope();
+        let expired_auth = AxonAuth {
             key: "expired-on-disk".into(),
             expires_at: Some(Utc::now() - Duration::hours(1)),
-            ..GrokAuth::test_default()
+            ..AxonAuth::test_default()
         };
         let mut store = BTreeMap::new();
         store.insert(scope, expired_auth);
         let auth_json = serde_json::to_string_pretty(&store).unwrap();
         std::fs::write(dir.path().join("auth.json"), &auth_json).unwrap();
-        let auth_manager = Arc::new(crate::auth::AuthManager::new(dir.path(), grok_com_config));
+        let auth_manager = Arc::new(crate::auth::AuthManager::new(dir.path(), axon_com_config));
         let resolver = DynamicResolver {
             auth_manager,
             base_config: TraceExportConfig {
@@ -1927,23 +1927,23 @@ mod tests {
     /// token is expired and a valid one exists on disk (written by another flow).
     #[tokio::test]
     async fn resolve_async_picks_up_disk_refreshed_token() {
-        use crate::auth::{GrokAuth, GrokComConfig};
+        use crate::auth::{AxonAuth, AxonComConfig};
         use crate::session::repo_changes::UploadMethod;
         use chrono::{Duration, Utc};
         use std::collections::BTreeMap;
         let dir = tempfile::tempdir().unwrap();
-        let grok_com_config = GrokComConfig::default();
-        let scope = grok_com_config.auth_scope();
-        let valid_auth = GrokAuth {
+        let axon_com_config = AxonComConfig::default();
+        let scope = axon_com_config.auth_scope();
+        let valid_auth = AxonAuth {
             key: "fresh-disk-token".into(),
             expires_at: Some(Utc::now() + Duration::hours(1)),
-            ..GrokAuth::test_default()
+            ..AxonAuth::test_default()
         };
         let mut store = BTreeMap::new();
         store.insert(scope, valid_auth);
         let auth_json = serde_json::to_string_pretty(&store).unwrap();
         std::fs::write(dir.path().join("auth.json"), &auth_json).unwrap();
-        let auth_manager = Arc::new(crate::auth::AuthManager::new(dir.path(), grok_com_config));
+        let auth_manager = Arc::new(crate::auth::AuthManager::new(dir.path(), axon_com_config));
         let resolver = DynamicResolver {
             auth_manager,
             base_config: TraceExportConfig {
@@ -1978,24 +1978,24 @@ mod tests {
     /// `base_config` snapshot.
     #[tokio::test]
     async fn resolve_async_drives_refresh_chain_when_token_expired() {
-        use crate::auth::{GrokAuth, GrokComConfig};
+        use crate::auth::{AxonAuth, AxonComConfig};
         use crate::session::repo_changes::UploadMethod;
         use chrono::{Duration, Utc};
         use std::collections::BTreeMap;
         let dir = tempfile::tempdir().unwrap();
-        let grok_com_config = GrokComConfig::default();
-        let scope = grok_com_config.auth_scope();
-        let expired_auth = GrokAuth {
+        let axon_com_config = AxonComConfig::default();
+        let scope = axon_com_config.auth_scope();
+        let expired_auth = AxonAuth {
             key: "expired-oidc".into(),
             refresh_token: Some("rt-old".into()),
             expires_at: Some(Utc::now() - Duration::hours(1)),
-            ..GrokAuth::test_default()
+            ..AxonAuth::test_default()
         };
         let mut store = BTreeMap::new();
         store.insert(scope, expired_auth);
         let auth_json = serde_json::to_string_pretty(&store).unwrap();
         std::fs::write(dir.path().join("auth.json"), &auth_json).unwrap();
-        let auth_manager = Arc::new(crate::auth::AuthManager::new(dir.path(), grok_com_config));
+        let auth_manager = Arc::new(crate::auth::AuthManager::new(dir.path(), axon_com_config));
         struct FreshRefresher;
         #[async_trait::async_trait]
         impl crate::auth::refresh::TokenRefresher for FreshRefresher {
@@ -2003,11 +2003,11 @@ mod tests {
                 &self,
                 _r: crate::auth::manager::RefreshReason,
             ) -> crate::auth::refresh::RefreshOutcome {
-                crate::auth::refresh::RefreshOutcome::Success(Box::new(crate::auth::GrokAuth {
+                crate::auth::refresh::RefreshOutcome::Success(Box::new(crate::auth::AxonAuth {
                     key: "refresher-fresh-token".into(),
                     expires_at: Some(chrono::Utc::now() + chrono::Duration::hours(1)),
                     refresh_token: Some("rt-new".into()),
-                    ..crate::auth::GrokAuth::test_default()
+                    ..crate::auth::AxonAuth::test_default()
                 }))
             }
         }
@@ -2046,17 +2046,17 @@ mod tests {
     /// without calling the refresher again.
     #[tokio::test]
     async fn proactive_refresh_makes_trace_resolve_a_cache_hit() {
-        use crate::auth::{GrokAuth, GrokComConfig};
+        use crate::auth::{AxonAuth, AxonComConfig};
         use crate::session::repo_changes::UploadMethod;
         use chrono::{Duration, Utc};
         let dir = tempfile::tempdir().unwrap();
-        let grok_com_config = GrokComConfig::default();
-        let auth_manager = Arc::new(crate::auth::AuthManager::new(dir.path(), grok_com_config));
-        auth_manager.hot_swap(GrokAuth {
+        let axon_com_config = AxonComConfig::default();
+        let auth_manager = Arc::new(crate::auth::AuthManager::new(dir.path(), axon_com_config));
+        auth_manager.hot_swap(AxonAuth {
             key: "expired-oidc".into(),
             refresh_token: Some("rt".into()),
             expires_at: Some(Utc::now() - Duration::hours(1)),
-            ..GrokAuth::test_default()
+            ..AxonAuth::test_default()
         });
         let call_count = Arc::new(std::sync::atomic::AtomicU32::new(0));
         let cc = call_count.clone();
@@ -2068,11 +2068,11 @@ mod tests {
                 _: crate::auth::manager::RefreshReason,
             ) -> crate::auth::refresh::RefreshOutcome {
                 self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-                crate::auth::refresh::RefreshOutcome::Success(Box::new(GrokAuth {
+                crate::auth::refresh::RefreshOutcome::Success(Box::new(AxonAuth {
                     key: "proactive-fresh".into(),
                     expires_at: Some(chrono::Utc::now() + Duration::hours(1)),
                     refresh_token: Some("rt-new".into()),
-                    ..GrokAuth::test_default()
+                    ..AxonAuth::test_default()
                 }))
             }
         }
@@ -2120,8 +2120,8 @@ mod tests {
     fn dynamic_resolver_preserves_token_when_auth_unavailable() {
         use crate::session::repo_changes::UploadMethod;
         let dir = tempfile::tempdir().unwrap();
-        let grok_com_config = crate::auth::GrokComConfig::default();
-        let auth_manager = Arc::new(crate::auth::AuthManager::new(dir.path(), grok_com_config));
+        let axon_com_config = crate::auth::AxonComConfig::default();
+        let auth_manager = Arc::new(crate::auth::AuthManager::new(dir.path(), axon_com_config));
         let base_config = TraceExportConfig {
             bucket_url: None,
             service_account_key: None,
@@ -2150,21 +2150,21 @@ mod tests {
     }
     #[test]
     fn dynamic_resolver_noop_for_direct_mode() {
-        use crate::auth::GrokAuth;
+        use crate::auth::AxonAuth;
         use crate::session::repo_changes::UploadMethod;
         use std::collections::BTreeMap;
         let dir = tempfile::tempdir().unwrap();
-        let grok_com_config = crate::auth::GrokComConfig::default();
-        let scope = grok_com_config.auth_scope();
-        let auth = GrokAuth {
+        let axon_com_config = crate::auth::AxonComConfig::default();
+        let scope = axon_com_config.auth_scope();
+        let auth = AxonAuth {
             key: "some-token".into(),
-            ..GrokAuth::test_default()
+            ..AxonAuth::test_default()
         };
         let mut store = BTreeMap::new();
         store.insert(scope, auth);
         let auth_json = serde_json::to_string_pretty(&store).unwrap();
         std::fs::write(dir.path().join("auth.json"), &auth_json).unwrap();
-        let auth_manager = Arc::new(crate::auth::AuthManager::new(dir.path(), grok_com_config));
+        let auth_manager = Arc::new(crate::auth::AuthManager::new(dir.path(), axon_com_config));
         let base_config = TraceExportConfig {
             bucket_url: Some("gs://bucket".into()),
             service_account_key: Some("sa-key".into()),
@@ -2204,7 +2204,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let auth_manager = Arc::new(crate::auth::AuthManager::new(
             dir.path(),
-            crate::auth::GrokComConfig::default(),
+            crate::auth::AxonComConfig::default(),
         ));
         let base_config = TraceExportConfig {
             bucket_url: None,
@@ -2246,12 +2246,12 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let auth_manager = Arc::new(crate::auth::AuthManager::new(
             dir.path(),
-            crate::auth::GrokComConfig::default(),
+            crate::auth::AxonComConfig::default(),
         ));
-        auth_manager.hot_swap(crate::auth::GrokAuth {
+        auth_manager.hot_swap(crate::auth::AxonAuth {
             key: "fresh-token".into(),
             expires_at: Some(chrono::Utc::now() + chrono::Duration::hours(1)),
-            ..crate::auth::GrokAuth::test_default()
+            ..crate::auth::AxonAuth::test_default()
         });
         let resolver = DynamicResolver {
             auth_manager,
@@ -2289,12 +2289,12 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let auth_manager = Arc::new(crate::auth::AuthManager::new(
             dir.path(),
-            crate::auth::GrokComConfig::default(),
+            crate::auth::AxonComConfig::default(),
         ));
-        auth_manager.hot_swap(crate::auth::GrokAuth {
+        auth_manager.hot_swap(crate::auth::AxonAuth {
             key: "session-token".into(),
             expires_at: Some(chrono::Utc::now() + chrono::Duration::hours(1)),
-            ..crate::auth::GrokAuth::test_default()
+            ..crate::auth::AxonAuth::test_default()
         });
         let resolver = DynamicResolver {
             auth_manager,
@@ -2325,8 +2325,8 @@ mod tests {
     async fn spawn_upload_queue_uses_dynamic_resolver_when_auth_manager_provided() {
         use crate::session::repo_changes::UploadMethod;
         let dir = tempfile::tempdir().unwrap();
-        let grok_com_config = crate::auth::GrokComConfig::default();
-        let auth_manager = Arc::new(crate::auth::AuthManager::new(dir.path(), grok_com_config));
+        let axon_com_config = crate::auth::AxonComConfig::default();
+        let auth_manager = Arc::new(crate::auth::AuthManager::new(dir.path(), axon_com_config));
         let gcs_config = TraceExportConfig {
             bucket_url: None,
             service_account_key: None,

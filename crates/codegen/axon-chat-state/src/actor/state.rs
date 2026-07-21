@@ -84,13 +84,13 @@ pub fn estimate_conversation_tokens(items: &[ConversationItem]) -> u64 {
     items.iter().map(estimate_item_tokens).sum()
 }
 
-/// grok-build's [`ItemTokenCounter`](axon_compaction::ItemTokenCounter)
-/// for the shared compaction engine: the bytes/4 estimate grok-build already
+/// axon-build's [`ItemTokenCounter`](axon_compaction::ItemTokenCounter)
+/// for the shared compaction engine: the bytes/4 estimate axon-build already
 /// uses to drive its compaction triggers, exposed through the seam so the
 /// shared budgeting math gets the *same* trusted count.
 ///
 /// Where another host plugs a real BPE tokenizer into the same seam,
-/// grok-build estimates instead, reusing [`estimate_item_tokens`] so the
+/// axon-build estimates instead, reusing [`estimate_item_tokens`] so the
 /// per-variant arithmetic (images, reasoning blobs, tool-call args) stays in
 /// one place.
 pub struct EstimatedItemTokenCounter;

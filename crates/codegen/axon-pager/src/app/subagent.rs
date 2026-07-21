@@ -107,19 +107,19 @@ struct SubagentMetaSlice {
     worktree_path: Option<String>,
 }
 thread_local! {
-    static REPLAY_GROK_HOME : std::cell::RefCell < Option < std::path::PathBuf >> = const
+    static REPLAY_AXON_HOME : std::cell::RefCell < Option < std::path::PathBuf >> = const
     { std::cell::RefCell::new(None) };
 }
-/// Override grok home for disk-replay unit tests (thread-local; production never sets this).
+/// Override axon home for disk-replay unit tests (thread-local; production never sets this).
 #[cfg(test)]
-pub(crate) fn set_replay_grok_home_for_tests(home: Option<std::path::PathBuf>) {
-    REPLAY_GROK_HOME.with(|h| *h.borrow_mut() = home);
+pub(crate) fn set_replay_axon_home_for_tests(home: Option<std::path::PathBuf>) {
+    REPLAY_AXON_HOME.with(|h| *h.borrow_mut() = home);
 }
-fn effective_grok_home() -> std::path::PathBuf {
-    if let Some(home) = REPLAY_GROK_HOME.with(|h| h.borrow().clone()) {
+fn effective_axon_home() -> std::path::PathBuf {
+    if let Some(home) = REPLAY_AXON_HOME.with(|h| h.borrow().clone()) {
         return home;
     }
-    axon_shell::util::grok_home::grok_home()
+    axon_shell::util::axon_home::axon_home()
 }
 /// Best-effort enrichment from the shell's on-disk `meta.json`.
 pub(crate) fn enrich_from_meta(
@@ -127,15 +127,15 @@ pub(crate) fn enrich_from_meta(
     parent_cwd: &std::path::Path,
     parent_session_id: &str,
 ) {
-    enrich_from_meta_with_home(info, &effective_grok_home(), parent_cwd, parent_session_id);
+    enrich_from_meta_with_home(info, &effective_axon_home(), parent_cwd, parent_session_id);
 }
 fn enrich_from_meta_with_home(
     info: &mut SubagentInfo,
-    grok_home: &std::path::Path,
+    axon_home: &std::path::Path,
     parent_cwd: &std::path::Path,
     parent_session_id: &str,
 ) {
-    let meta_path = grok_home
+    let meta_path = axon_home
         .join("sessions")
         .join(urlencoding::encode(&parent_cwd.to_string_lossy()).as_ref())
         .join(parent_session_id)
@@ -170,7 +170,7 @@ pub(crate) fn replay_inherited_updates(
     child_view: &mut crate::app::agent_view::AgentView,
     child_session_id: &str,
 ) {
-    let home = effective_grok_home();
+    let home = effective_axon_home();
     let updates =
         match axon_shell::session::storage::load_updates_for_replay_at(child_session_id, &home)
         {
@@ -691,7 +691,7 @@ mod tests {
             r#"{{"method":"session/update","params":{{"sessionId":"{child_sid}","update":{{"sessionUpdate":"tool_call","toolCallId":"tc1","title":"Read foo","kind":"read","locations":[{{"path":"/tmp/foo"}}]}}}}}}"#
         );
         std::fs::write(session_dir.join("updates.jsonl"), tool_line + "\n").unwrap();
-        set_replay_grok_home_for_tests(Some(home.path().to_path_buf()));
+        set_replay_axon_home_for_tests(Some(home.path().to_path_buf()));
         let mut parent = make_min_child_view();
         parent
             .subagent_views
@@ -758,7 +758,7 @@ mod tests {
             "an empty replay (zero updates parsed) must not purge"
         );
         assert!(parent.subagent_sessions[empty_sid].child_updates_replayed);
-        set_replay_grok_home_for_tests(None);
+        set_replay_axon_home_for_tests(None);
     }
     #[test]
     fn subagent_meta_empty() {
@@ -767,15 +767,15 @@ mod tests {
     #[test]
     fn subagent_meta_all_fields() {
         assert_eq!(
-            format_subagent_meta(Some("researcher"), Some("analyst"), Some("grok-3")),
-            " (researcher \u{00b7} analyst \u{00b7} grok-3)"
+            format_subagent_meta(Some("researcher"), Some("analyst"), Some("axon-3")),
+            " (researcher \u{00b7} analyst \u{00b7} axon-3)"
         );
     }
     #[test]
     fn subagent_meta_partial_skips_nones() {
         assert_eq!(
-            format_subagent_meta(Some("researcher"), None, Some("grok-3")),
-            " (researcher \u{00b7} grok-3)"
+            format_subagent_meta(Some("researcher"), None, Some("axon-3")),
+            " (researcher \u{00b7} axon-3)"
         );
     }
     #[test]
@@ -816,8 +816,8 @@ mod tests {
     #[test]
     fn subagent_meta_collapses_duplicate_persona_role() {
         assert_eq!(
-            format_subagent_meta(Some("reviewer"), Some("reviewer"), Some("grok-3")),
-            " (reviewer \u{00b7} grok-3)"
+            format_subagent_meta(Some("reviewer"), Some("reviewer"), Some("axon-3")),
+            " (reviewer \u{00b7} axon-3)"
         );
     }
     #[test]
@@ -844,8 +844,8 @@ mod tests {
     #[test]
     fn subagent_meta_drops_both_empty_persona_role() {
         assert_eq!(
-            format_subagent_meta(Some(""), Some(" "), Some("grok-3")),
-            " (grok-3)"
+            format_subagent_meta(Some(""), Some(" "), Some("axon-3")),
+            " (axon-3)"
         );
     }
     #[test]
@@ -951,11 +951,11 @@ mod tests {
     }
     /// Build a session dir matching the path formula used by `enrich_from_meta_with_home`.
     fn setup_enrichment_dir(
-        grok_home: &std::path::Path,
+        axon_home: &std::path::Path,
         cwd: &std::path::Path,
         session_id: &str,
     ) -> std::path::PathBuf {
-        let sessions_dir = grok_home
+        let sessions_dir = axon_home
             .join("sessions")
             .join(urlencoding::encode(&cwd.to_string_lossy()).as_ref())
             .join(session_id);

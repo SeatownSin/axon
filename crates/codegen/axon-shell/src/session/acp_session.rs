@@ -15,9 +15,9 @@ use super::commands::{
 use super::handle::SessionHandle;
 use super::notifications::NotificationSender;
 use crate::agent::update_chunk_merge::{BufferingSettings, ReplayBuffer};
-use crate::extensions::notification::SessionUpdate as XaiSessionUpdate;
+use crate::extensions::notification::SessionUpdate as AxonSessionUpdate;
 use crate::extensions::notification::{
-    RetryState, SessionNotification as XaiSessionNotification, is_reauthable_failure,
+    RetryState, SessionNotification as AxonSessionNotification, is_reauthable_failure,
 };
 use crate::sampling::error::map_sampling_err_to_acp;
 use crate::sampling::types::{ChatRequestMessage, ToolCallResponse, ToolDefinition};
@@ -72,7 +72,7 @@ use axon_sampler::SamplerConfig as SamplingConfig;
 use axon_sampling_types::truncate_bytes;
 use axon_tools::computer::local::LocalTerminalBackend;
 use axon_tools::implementations::BashToolInput;
-use axon_tools::implementations::grok_build::web_fetch::WebFetchConfig;
+use axon_tools::implementations::axon_build::web_fetch::WebFetchConfig;
 use axon_tools::types::ToolInput;
 use axon_tools::types::compat::CompatConfig;
 use axon_tools::types::output::{
@@ -83,7 +83,7 @@ use axon_workspace::permission::{
     AccessKind, ClientType, Decision, PermissionEvent, PermissionHandle,
 };
 use axon_workspace::session::file_state::{FileStateHandle, FileStateTracker};
-const SESSION_LOG: &str = "xai_session";
+const SESSION_LOG: &str = "axon_session";
 #[path = "compaction.rs"]
 mod compaction;
 #[path = "compaction_segments.rs"]
@@ -179,7 +179,7 @@ mod spawn;
 use super::acp_types::*;
 pub use spawn::SessionThread;
 pub(crate) use spawn::*;
-/// Client-registered hook gates (the `x.ai/hooks/run` reverse request).
+/// Client-registered hook gates (the `axon/hooks/run` reverse request).
 mod hooks;
 pub(crate) struct InputItem {
     pub(crate) prompt_id: String,
@@ -631,7 +631,7 @@ pub(crate) struct SessionActor {
     /// Server-side doom-loop check policy, resolved once at spawn by
     /// `Config::resolve_doom_loop_recovery`; `None` = disabled.
     /// `reconstruct_full_config` threads it into the sampler config, and the
-    /// sampler itself sends the matching `x-grok-doom-loop-check` header.
+    /// sampler itself sends the matching `x-axon-doom-loop-check` header.
     pub(crate) doom_loop_recovery: Option<axon_sampling_types::DoomLoopRecoveryPolicy>,
     /// Telemetry-only per-turn doom-loop recovery tally (attempts, whether a
     /// budget-spent accept happened, tightest trigger label). Accumulated by
@@ -698,10 +698,10 @@ pub(crate) struct SessionActor {
     /// Wrapped in `RefCell` for mid-session mutation (skill refresh, prompt regen).
     /// Safe: session actor is single-threaded (LocalSet), no concurrent access.
     pub(crate) agent: std::cell::RefCell<axon_agent::Agent>,
-    /// Dedup slot for `x.ai/git_head_changed`, shared with the fs-watch
+    /// Dedup slot for `axon/git_head_changed`, shared with the fs-watch
     /// `GitHead` consumer (see `git_head_dedup_key`).
     pub(crate) last_reported_branch: Arc<parking_lot::Mutex<Option<String>>>,
-    /// Client opted into `x.ai/gitHeadChanged`. When false (headless/SDK),
+    /// Client opted into `axon/gitHeadChanged`. When false (headless/SDK),
     /// `maybe_notify_git_branch` no-ops — no git subprocess.
     git_head_enabled: bool,
     /// Shared models manager for etag-triggered refresh from response headers.
@@ -789,7 +789,7 @@ pub(crate) struct SessionActor {
     pub(crate) goal_update_rx: std::cell::RefCell<
         Option<
             tokio::sync::mpsc::UnboundedReceiver<
-                axon_tools::implementations::grok_build::update_goal::UpdateGoalEnvelope,
+                axon_tools::implementations::axon_build::update_goal::UpdateGoalEnvelope,
             >,
         >,
     >,
@@ -798,7 +798,7 @@ pub(crate) struct SessionActor {
     /// empty ToolBridge. The `rx` half is owned by the drainer task (see
     /// `goal_update_rx`).
     pub(crate) goal_update_tx: tokio::sync::mpsc::UnboundedSender<
-        axon_tools::implementations::grok_build::update_goal::UpdateGoalEnvelope,
+        axon_tools::implementations::axon_build::update_goal::UpdateGoalEnvelope,
     >,
     /// Resolved master kill-switch for the verification stage (the
     /// adversarial skeptic panel). `false` short-circuits
@@ -864,7 +864,7 @@ pub(crate) struct SessionActor {
     /// time; only the input is parked here for the TurnEnd drain to
     /// run through the verification stage.
     pub(crate) pending_classifier_completions: parking_lot::Mutex<
-        VecDeque<axon_tools::implementations::grok_build::update_goal::UpdateGoalInput>,
+        VecDeque<axon_tools::implementations::axon_build::update_goal::UpdateGoalInput>,
     >,
     /// Per-session re-entry guard for the verification stage. Set with
     /// `compare_exchange(false, true)` at fire-entry and cleared on
@@ -921,7 +921,7 @@ pub(crate) struct SessionActor {
     /// Safe: session actor is single-threaded (LocalSet), no concurrent access.
     pub(crate) hook_registry:
         std::cell::RefCell<Option<Arc<axon_hooks::discovery::HookRegistry>>>,
-    /// Client hooks from `session/new` `_meta["x.ai/hooks"]`; gated in
+    /// Client hooks from `session/new` `_meta["axon/hooks"]`; gated in
     /// [`crate::session::acp_session::hooks`]. `RefCell` so `load_session` reconnect can
     /// replace the set on the live actor (see `SessionCommand::SetClientHooks`).
     pub(crate) client_hooks: std::cell::RefCell<crate::extensions::hooks::ClientHooks>,
@@ -1175,7 +1175,7 @@ impl SessionActor {
             memory: self.memory.is_enabled() && memory_read_registered,
             memory_configured: self.memory.backend_params.is_some(),
             scheduler: tool_names.iter().any(|n| {
-                n == axon_tools::implementations::grok_build::SCHEDULER_CREATE_TOOL_NAME
+                n == axon_tools::implementations::axon_build::SCHEDULER_CREATE_TOOL_NAME
             }),
             hooks: self.hook_registry.borrow().is_some(),
             plugins: self.plugin_registry.borrow().is_some(),
@@ -1216,7 +1216,7 @@ impl SessionActor {
     }
     /// Send a feedback request notification to the client.
     async fn send_feedback_notification(&self, request: crate::session::feedback::FeedbackRequest) {
-        self.send_xai_notification(XaiSessionUpdate::FeedbackRequest(request.into()))
+        self.send_axon_notification(AxonSessionUpdate::FeedbackRequest(request.into()))
             .await;
     }
 }
@@ -1617,7 +1617,7 @@ mod subagent_usage_fold_tests;
 mod turn_completion_emit_tests;
 #[cfg(test)]
 mod tool_meta_stamp_tests {
-    //! Pin the `x.ai/tool` stamps on the harness emission paths: the early
+    //! Pin the `axon/tool` stamps on the harness emission paths: the early
     //! ToolCall registered by `prepare_tool_call` and the permission-request
     //! ToolCallUpdate (a dropped `stamp_tool_meta` call would regress silently).
     use super::replay_buffer_send_update_tests::make_replay_send_update_fixture;
@@ -1637,7 +1637,7 @@ mod tool_meta_stamp_tests {
             },
         }
     }
-    /// The `x.ai/tool` object from an event's `_meta`, if present.
+    /// The `axon/tool` object from an event's `_meta`, if present.
     fn tool_meta(meta: Option<&acp::Meta>) -> Option<&serde_json::Value> {
         meta.and_then(|m| m.get(TOOL_META_KEY))
     }
@@ -1649,7 +1649,7 @@ mod tool_meta_stamp_tests {
                 let mut fixture = make_replay_send_update_fixture().await;
                 fixture.actor.agent = std::cell::RefCell::new(
                     test_agent_with_tools(vec![ToolConfig::from_id(
-                        "GrokBuild:read_file".to_string(),
+                        "AxonBuild:read_file".to_string(),
                     )])
                     .await,
                 );
@@ -1674,13 +1674,13 @@ mod tool_meta_stamp_tests {
                     }
                 }
                 let early = early.expect("early ToolCall emitted");
-                let t = tool_meta(early.as_ref()).expect("early ToolCall carries x.ai/tool");
+                let t = tool_meta(early.as_ref()).expect("early ToolCall carries blocked.invalid/tool");
                 assert_eq!(t["name"], "read_file");
                 assert_eq!(t["kind"], "read");
-                assert_eq!(t["namespace"], "grok_build");
+                assert_eq!(t["namespace"], "axon_build");
                 assert!(t.get("input").is_none(), "identity-only before parse");
                 let refined = refined.expect("refinement ToolCallUpdate emitted");
-                let t = tool_meta(refined.as_ref()).expect("refinement carries x.ai/tool");
+                let t = tool_meta(refined.as_ref()).expect("refinement carries blocked.invalid/tool");
                 assert_eq!(t["input"]["path"], "/tmp/stamp.txt");
             })
             .await;
@@ -1693,7 +1693,7 @@ mod tool_meta_stamp_tests {
                 let mut fixture = make_replay_send_update_fixture().await;
                 fixture.actor.agent = std::cell::RefCell::new(
                     test_agent_with_tools(vec![ToolConfig::from_id(
-                        "GrokBuild:read_file".to_string(),
+                        "AxonBuild:read_file".to_string(),
                     )])
                     .await,
                 );
@@ -1735,7 +1735,7 @@ mod tool_meta_stamp_tests {
                     .take()
                     .expect("permission request must have been issued");
                 let t = tool_meta(update.meta.as_ref())
-                    .expect("permission-request ToolCallUpdate carries x.ai/tool");
+                    .expect("permission-request ToolCallUpdate carries blocked.invalid/tool");
                 assert_eq!(t["name"], "read_file");
                 assert_eq!(t["kind"], "read");
                 assert_eq!(t["input"]["path"], "/tmp/stamp.txt");

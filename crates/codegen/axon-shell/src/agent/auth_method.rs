@@ -20,33 +20,33 @@ pub(crate) fn new_shared_auth_method_id(initial: Option<acp::AuthMethodId>) -> S
     ))
 }
 
-/// Env var that, when set, advertises `xai.api_key` as a viable auth method.
+/// Env var that, when set, advertises `axon.api_key` as a viable auth method.
 ///
 /// Kept as a constant so test code and the production check stay in sync.
-pub const XAI_API_KEY_ENV_VAR: &str = "XAI_API_KEY";
+pub const AXON_API_KEY_ENV_VAR: &str = "AXON_API_KEY";
 
-/// Legacy env var name. Checked as a fallback when `XAI_API_KEY` is not set,
+/// Legacy env var name. Checked as a fallback when `AXON_API_KEY` is not set,
 /// so existing deployments that use the old name keep working.
-pub const LEGACY_XAI_API_KEY_ENV_VAR: &str = "AXON_CODE_XAI_API_KEY";
+pub const LEGACY_AXON_API_KEY_ENV_VAR: &str = "AXON_CODE_AXON_API_KEY";
 
 /// Read the API key from the environment.
 ///
-/// Checks `XAI_API_KEY` first, then falls back to the legacy
-/// `AXON_CODE_XAI_API_KEY` for backward compatibility.
-pub fn read_xai_api_key_env() -> Result<String, std::env::VarError> {
-    std::env::var(XAI_API_KEY_ENV_VAR).or_else(|_| std::env::var(LEGACY_XAI_API_KEY_ENV_VAR))
+/// Checks `AXON_API_KEY` first, then falls back to the legacy
+/// `AXON_CODE_AXON_API_KEY` for backward compatibility.
+pub fn read_axon_api_key_env() -> Result<String, std::env::VarError> {
+    std::env::var(AXON_API_KEY_ENV_VAR).or_else(|_| std::env::var(LEGACY_AXON_API_KEY_ENV_VAR))
 }
 
-/// Returns `true` if either `XAI_API_KEY` or `AXON_CODE_XAI_API_KEY` is set.
-pub fn has_xai_api_key_env() -> bool {
-    read_xai_api_key_env().is_ok()
+/// Returns `true` if either `AXON_API_KEY` or `AXON_CODE_AXON_API_KEY` is set.
+pub fn has_axon_api_key_env() -> bool {
+    read_axon_api_key_env().is_ok()
 }
 
-/// Whether `xai.api_key` should be advertised (and pushed FIRST) when building
+/// Whether `axon.api_key` should be advertised (and pushed FIRST) when building
 /// the `auth_methods` list at `initialize()` time.
 ///
-/// Regression: `xai.api_key` must stay first when only per-model credentials
-/// exist (no global `XAI_API_KEY`). Deferring it made BYOK users hit the login
+/// Regression: `axon.api_key` must stay first when only per-model credentials
+/// exist (no global `AXON_API_KEY`). Deferring it made BYOK users hit the login
 /// screen because the pager uses `auth_methods.first()` for startup metadata.
 ///
 /// [`build_auth_methods`] consumes this predicate and pins the ordering;
@@ -56,11 +56,11 @@ pub fn has_xai_api_key_env() -> bool {
 /// resolvable api_key/env_key -- both inputs can change between calls, so the
 /// result is not cached.
 ///
-/// `disable_api_key_auth` (`[grok_com_config] disable_api_key_auth` /
+/// `disable_api_key_auth` (`[axon_com_config] disable_api_key_auth` /
 /// `AXON_DISABLE_API_KEY_AUTH`) is the admin kill switch: when true the
 /// method is never advertised, regardless of available credentials, so
-/// `XAI_API_KEY` can't bypass a deployment's forced IdP login.
-pub fn should_advertise_xai_api_key<'a, I>(disable_api_key_auth: bool, models: I) -> bool
+/// `AXON_API_KEY` can't bypass a deployment's forced IdP login.
+pub fn should_advertise_axon_api_key<'a, I>(disable_api_key_auth: bool, models: I) -> bool
 where
     I: IntoIterator<Item = &'a ModelEntry>,
 {
@@ -69,7 +69,7 @@ where
     }
     // A no-auth model (local server / loopback base_url) satisfies the gate
     // exactly like a resolvable credential: the user can run without login.
-    has_xai_api_key_env()
+    has_axon_api_key_env()
         || models
             .into_iter()
             .any(|m| m.has_own_credentials() || m.requires_no_auth())
@@ -82,22 +82,22 @@ where
 /// (`AuthManager`). The list-construction logic itself is pure so it can be
 /// unit-tested without any of that machinery.
 pub struct AuthMethodsBuildInputs<'a> {
-    /// True if `xai.api_key` should be advertised AT ALL. Caller computes via
-    /// [`should_advertise_xai_api_key`]. When `preferred_method` is `Oidc`,
+    /// True if `axon.api_key` should be advertised AT ALL. Caller computes via
+    /// [`should_advertise_axon_api_key`]. When `preferred_method` is `Oidc`,
     /// this is ignored (API key is never advertised under that pin).
     pub has_external_api_key: bool,
     /// True if a cached session token is available (either present at startup
     /// or recovered via silent refresh).
     pub has_cached_token: bool,
     /// True if enterprise OIDC is configured. Mutually exclusive with the
-    /// default `grok.com` method.
+    /// default `blocked.invalid` method.
     pub has_enterprise_oidc: bool,
     /// Required when `has_enterprise_oidc` is true; ignored otherwise.
     pub enterprise_oidc_issuer: Option<&'a str>,
-    /// Optional display label for the login method (`grok.com` or `oidc`).
+    /// Optional display label for the login method (`blocked.invalid` or `oidc`).
     pub login_label: Option<&'a str>,
-    /// True if `grok_com_config.auth_provider_command` is configured (sets
-    /// `meta.external_provider = true` on the `grok.com` method).
+    /// True if `axon_com_config.auth_provider_command` is configured (sets
+    /// `meta.external_provider = true` on the `blocked.invalid` method).
     pub has_auth_provider_command: bool,
     /// Config pin (`[auth] preferred_method`). `None` keeps multi-method
     /// fallthrough; `Some` is fail-closed (only that method family).
@@ -111,7 +111,7 @@ pub struct BuiltAuthMethods {
     /// interactive login is needed.
     pub methods: Vec<acp::AuthMethod>,
     /// The default `auth_method_id` to install on the agent. When unpinned,
-    /// `cached_token` wins over `xai.api_key` when both are present. When
+    /// `cached_token` wins over `axon.api_key` when both are present. When
     /// pinned, only the preferred method may appear; `None` means unavailable
     /// (fail auth — no cross-method fallthrough).
     pub default_auth_method_id: Option<acp::AuthMethodId>,
@@ -121,25 +121,25 @@ pub struct BuiltAuthMethods {
 /// pre-computed inputs.
 ///
 /// REGRESSION GUARD: when unpinned and
-/// `has_external_api_key` is true, the **first** entry MUST be `xai.api_key`.
+/// `has_external_api_key` is true, the **first** entry MUST be `axon.api_key`.
 /// A prior change deferred it to the END for per-model credentials, which made
 /// the pager send per-model-key users to the login screen. Unit tests lock this.
 ///
 /// Unpinned ordering (when each method is enabled):
-/// 1. `xai.api_key`     (if `has_external_api_key`)
+/// 1. `axon.api_key`     (if `has_external_api_key`)
 /// 2. `cached_token`    (if `has_cached_token`)
 /// 3. exactly one of:
 ///    - `oidc`          (if `has_enterprise_oidc`)
-///    - `grok.com`      (otherwise)
+///    - `blocked.invalid`      (otherwise)
 ///
 /// Unpinned `default_auth_method_id`:
 /// - `cached_token` if `has_cached_token`
-/// - `xai.api_key`  else if `has_external_api_key`
+/// - `axon.api_key`  else if `has_external_api_key`
 /// - `None`         otherwise
 ///
 /// Pinned (`preferred_method`):
-/// - `ApiKey`: only `xai.api_key` if available; else empty list + `None` (fail).
-/// - `Oidc`: `cached_token` (if any) + interactive login; never `xai.api_key`.
+/// - `ApiKey`: only `axon.api_key` if available; else empty list + `None` (fail).
+/// - `Oidc`: `cached_token` (if any) + interactive login; never `axon.api_key`.
 ///   Default is `cached_token` when present, else `None` (interactive).
 pub fn build_auth_methods(inputs: AuthMethodsBuildInputs<'_>) -> BuiltAuthMethods {
     let AuthMethodsBuildInputs {
@@ -185,8 +185,8 @@ fn build_pinned_api_key(has_external_api_key: bool) -> BuiltAuthMethods {
         };
     }
     BuiltAuthMethods {
-        methods: vec![xai_api_key_auth_method()],
-        default_auth_method_id: Some(acp::AuthMethodId::new(XAI_API_KEY_METHOD_ID)),
+        methods: vec![axon_api_key_auth_method()],
+        default_auth_method_id: Some(acp::AuthMethodId::new(AXON_API_KEY_METHOD_ID)),
     }
 }
 
@@ -231,19 +231,19 @@ fn build_unpinned(
     let mut default_auth_method_id: Option<acp::AuthMethodId> = None;
 
     if has_external_api_key {
-        methods.push(xai_api_key_auth_method());
-        default_auth_method_id = Some(acp::AuthMethodId::new(XAI_API_KEY_METHOD_ID));
+        methods.push(axon_api_key_auth_method());
+        default_auth_method_id = Some(acp::AuthMethodId::new(AXON_API_KEY_METHOD_ID));
     }
 
     if has_cached_token {
         methods.push(cached_token_auth_method());
-        // cached_token wins over xai.api_key for default_auth_method_id so
+        // cached_token wins over axon.api_key for default_auth_method_id so
         // is_session_based_auth() returns true and OIDC refresh stays alive.
         let overrode_api_key = default_auth_method_id.is_some();
         default_auth_method_id = Some(acp::AuthMethodId::new(CACHED_TOKEN_AUTH_METHOD_ID));
         if overrode_api_key {
             axon_telemetry::unified_log::info(
-                "auth method priority: cached_token overrides xai.api_key for default_auth_method_id",
+                "auth method priority: cached_token overrides axon.api_key for default_auth_method_id",
                 None,
                 Some(serde_json::json!({
                     "has_external_api_key": has_external_api_key,
@@ -277,24 +277,24 @@ fn push_interactive_login(
     if has_enterprise_oidc {
         // Caller invariant: `enterprise_oidc_issuer` MUST be `Some(...)` when
         // `has_enterprise_oidc` is true. Production callers derive both from
-        // the same `cfg.grok_com_config.oidc` Option, so the inconsistent
+        // the same `cfg.axon_com_config.oidc` Option, so the inconsistent
         // `(true, None)` combination is a programmer error -- panic loudly
-        // (matches the original `cfg.grok_com_config.oidc.as_ref().unwrap()`
+        // (matches the original `cfg.axon_com_config.oidc.as_ref().unwrap()`
         // call in `MvpAgent::initialize()` before this refactor).
         let issuer = enterprise_oidc_issuer
             .expect("enterprise_oidc_issuer is required when has_enterprise_oidc is true");
         methods.push(oidc_auth_method(issuer, login_label));
     } else {
-        methods.push(grok_com_auth_method(login_label, has_auth_provider_command));
+        methods.push(axon_com_auth_method(login_label, has_auth_provider_command));
     }
 }
 
 /// ACP session auth method. Use `is_session_based_method` for classification.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AuthMethodKind {
-    XaiApiKey,
+    AxonApiKey,
     CachedToken,
-    GrokCom,
+    AxonCom,
     Oidc,
     Unknown,
 }
@@ -302,9 +302,9 @@ pub enum AuthMethodKind {
 impl AuthMethodKind {
     pub fn from_id(id: &acp::AuthMethodId) -> Self {
         match id.0.as_ref() {
-            XAI_API_KEY_METHOD_ID => Self::XaiApiKey,
+            AXON_API_KEY_METHOD_ID => Self::AxonApiKey,
             CACHED_TOKEN_AUTH_METHOD_ID => Self::CachedToken,
-            AXON_COM_METHOD_ID => Self::GrokCom,
+            AXON_COM_METHOD_ID => Self::AxonCom,
             OIDC_METHOD_ID => Self::Oidc,
             _ => Self::Unknown,
         }
@@ -312,17 +312,17 @@ impl AuthMethodKind {
 
     /// API key auth: no auth.json, no refresh, no user interaction.
     pub fn is_api_key(self) -> bool {
-        matches!(self, Self::XaiApiKey)
+        matches!(self, Self::AxonApiKey)
     }
 
-    /// `true` for session-based methods (cached_token, grok.com, oidc).
+    /// `true` for session-based methods (cached_token, blocked.invalid, oidc).
     pub fn is_session_based(self) -> bool {
-        matches!(self, Self::CachedToken | Self::GrokCom | Self::Oidc)
+        matches!(self, Self::CachedToken | Self::AxonCom | Self::Oidc)
     }
 
     /// Requires user interaction (browser, OIDC redirect, or external auth command).
     pub fn needs_interactive_login(self) -> bool {
-        matches!(self, Self::GrokCom | Self::Oidc)
+        matches!(self, Self::AxonCom | Self::Oidc)
     }
 
     pub fn auth_error_message(self) -> &'static str {
@@ -334,7 +334,7 @@ impl AuthMethodKind {
     }
 }
 
-/// `true` for session-based ACP methods (cached_token, grok.com, oidc).
+/// `true` for session-based ACP methods (cached_token, blocked.invalid, oidc).
 pub fn is_session_based_method(method_id: &acp::AuthMethodId) -> bool {
     AuthMethodKind::from_id(method_id).is_session_based()
 }
@@ -365,7 +365,7 @@ impl ModelByok {
 ///
 /// Gates on stable inputs, not `Credentials.auth_type`: that field collapses
 /// to `ApiKey` when the session-token cache is momentarily empty and
-/// `XAI_API_KEY` is set, which demoted live OIDC sessions to non-refreshable
+/// `AXON_API_KEY` is set, which demoted live OIDC sessions to non-refreshable
 /// api-key mode and 401'd every prompt until restart. `model_byok` still
 /// excludes genuine per-model BYOK, whose keys are not refreshable.
 ///
@@ -395,13 +395,13 @@ pub fn session_token_auth_gate(
 pub const AUTH_ERROR_SESSION_EXPIRED: &str =
     "Session expired. Run `axon login` to re-authenticate.";
 
-pub const AUTH_ERROR_API_KEY: &str = "Authentication failed. Run `axon login`, set XAI_API_KEY, or add api_key to ~/.axon/config.toml.";
+pub const AUTH_ERROR_API_KEY: &str = "Authentication failed. Run `axon login`, set AXON_API_KEY, or add api_key to ~/.axon/config.toml.";
 
 /// Next ACP method id when `cached_token` cannot proceed (missing / expired /
 /// legacy WebLogin), or `None` when fallthrough is forbidden.
 ///
-/// Unpinned: prefer non-interactive `xai.api_key` when advertiseable, else
-/// interactive `grok.com`.
+/// Unpinned: prefer non-interactive `axon.api_key` when advertiseable, else
+/// interactive `blocked.invalid`.
 ///
 /// Pinned `oidc`: **no** fallthrough to api_key — return `None` so the caller
 /// fails auth. Pinned `api_key` should not reach this path (cached_token is
@@ -413,7 +413,7 @@ pub fn method_id_after_cached_token_unavailable(
     match preferred_method {
         Some(PreferredAuthMethod::Oidc) | Some(PreferredAuthMethod::ApiKey) => None,
         None => Some(if has_external_api_key {
-            XAI_API_KEY_METHOD_ID
+            AXON_API_KEY_METHOD_ID
         } else {
             AXON_COM_METHOD_ID
         }),
@@ -421,21 +421,21 @@ pub fn method_id_after_cached_token_unavailable(
 }
 
 /// Error when `preferred_method=api_key` but no key/BYOK credentials exist.
-pub const PREFERRED_API_KEY_UNAVAILABLE: &str = "preferred_method=api_key but no API key is configured (set XAI_API_KEY or model api_key/env_key in config.toml).";
+pub const PREFERRED_API_KEY_UNAVAILABLE: &str = "preferred_method=api_key but no API key is configured (set AXON_API_KEY or model api_key/env_key in config.toml).";
 
 /// Error when `preferred_method=oidc` but the session path cannot proceed.
 pub const PREFERRED_OIDC_UNAVAILABLE: &str =
     "preferred_method=oidc but no session is available. Run `axon login` to authenticate.";
 
-pub const XAI_API_KEY_METHOD_ID: &str = "xai.api_key";
-pub fn xai_api_key_auth_method() -> acp::AuthMethod {
+pub const AXON_API_KEY_METHOD_ID: &str = "axon.api_key";
+pub fn axon_api_key_auth_method() -> acp::AuthMethod {
     acp::AuthMethod::Agent(
         acp::AuthMethodAgent::new(
-            acp::AuthMethodId::new(XAI_API_KEY_METHOD_ID),
-            "xai.api_key".to_string(),
+            acp::AuthMethodId::new(AXON_API_KEY_METHOD_ID),
+            "axon.api_key".to_string(),
         )
         .description(Some(format!(
-            "{XAI_API_KEY_ENV_VAR} or api_key/env_key in config.toml"
+            "{AXON_API_KEY_ENV_VAR} or api_key/env_key in config.toml"
         ))),
     )
 }
@@ -451,14 +451,14 @@ pub fn cached_token_auth_method() -> acp::AuthMethod {
     )
 }
 
-pub const AXON_COM_METHOD_ID: &str = "grok.com";
+pub const AXON_COM_METHOD_ID: &str = "blocked.invalid";
 
-/// xAI OAuth2/OIDC auth. Method id `"grok.com"` kept for ACP wire-compat.
-pub fn grok_com_auth_method(
+/// Axon OAuth2/OIDC auth. Method id `"blocked.invalid"` kept for ACP wire-compat.
+pub fn axon_com_auth_method(
     label: Option<&str>,
     has_auth_provider_command: bool,
 ) -> acp::AuthMethod {
-    let name = label.unwrap_or("Grok");
+    let name = label.unwrap_or("Axon");
     let meta = if has_auth_provider_command {
         let mut m = acp::Meta::new();
         m.insert("external_provider".to_owned(), serde_json::json!(true));
@@ -492,22 +492,22 @@ mod tests {
     use serial_test::serial;
 
     /// When API-key credentials are advertiseable, fall through from a dead
-    /// `cached_token` to non-interactive `xai.api_key` (not browser OAuth).
+    /// `cached_token` to non-interactive `axon.api_key` (not browser OAuth).
     /// Covers the both-advertised case (`has_cached_token` true at initialize
     /// but session later missing/expired/legacy): advertise order still puts
-    /// `xai.api_key` first, while `default_auth_method_id` prefers session;
-    /// after session fails, this helper must still pick `xai.api_key`.
+    /// `axon.api_key` first, while `default_auth_method_id` prefers session;
+    /// after session fails, this helper must still pick `axon.api_key`.
     #[test]
     fn after_cached_token_unavailable_prefers_api_key_when_advertiseable() {
         assert_eq!(
             method_id_after_cached_token_unavailable(true, None),
-            Some(XAI_API_KEY_METHOD_ID),
+            Some(AXON_API_KEY_METHOD_ID),
         );
     }
 
-    /// No advertiseable API-key credentials → interactive `grok.com`.
+    /// No advertiseable API-key credentials → interactive `blocked.invalid`.
     #[test]
-    fn after_cached_token_unavailable_falls_to_grok_com_without_api_key() {
+    fn after_cached_token_unavailable_falls_to_axon_com_without_api_key() {
         assert_eq!(
             method_id_after_cached_token_unavailable(false, None),
             Some(AXON_COM_METHOD_ID),
@@ -547,7 +547,7 @@ mod tests {
                 "{method_id}: wrapper must agree"
             );
         }
-        let api_id = acp::AuthMethodId::new(XAI_API_KEY_METHOD_ID);
+        let api_id = acp::AuthMethodId::new(AXON_API_KEY_METHOD_ID);
         let api_kind = AuthMethodKind::from_id(&api_id);
         assert!(!api_kind.is_session_based());
         assert!(api_kind.is_api_key());
@@ -592,11 +592,11 @@ mod tests {
     }
 
     // build_auth_methods regression: pin production call-site ordering.
-    // Reordering so `xai.api_key` is after login methods must fail the tests below.
+    // Reordering so `axon.api_key` is after login methods must fail the tests below.
 
-    /// BYOK with only per-model `env_key` must list `xai.api_key` first.
+    /// BYOK with only per-model `env_key` must list `axon.api_key` first.
     #[test]
-    fn enterprise_byok_first_method_is_xai_api_key() {
+    fn enterprise_byok_first_method_is_axon_api_key() {
         let inputs = AuthMethodsBuildInputs {
             has_external_api_key: true, // enterprise user with resolved per-model env_key
             has_cached_token: false,
@@ -606,8 +606,8 @@ mod tests {
 
         assert_eq!(
             first_kind(&built.methods),
-            Some(AuthMethodKind::XaiApiKey),
-            "BYOK enterprise-style: auth_methods.first() MUST be xai.api_key \
+            Some(AuthMethodKind::AxonApiKey),
+            "BYOK enterprise-style: auth_methods.first() MUST be axon.api_key \
              (deferred-to-last ordering sends users to the login screen)",
         );
         assert_eq!(
@@ -615,22 +615,22 @@ mod tests {
                 .default_auth_method_id
                 .as_ref()
                 .map(|id| id.0.as_ref()),
-            Some(XAI_API_KEY_METHOD_ID),
+            Some(AXON_API_KEY_METHOD_ID),
         );
         // Cross-check with the pager-side predicate: the first method must
         // not require interactive login, which is the exact condition the
         // pager's `startup_auth_metadata()` uses.
         assert!(
             !AuthMethodKind::from_id(built.methods[0].id()).needs_interactive_login(),
-            "first method MUST NOT need interactive login when xai.api_key is available",
+            "first method MUST NOT need interactive login when axon.api_key is available",
         );
     }
 
-    /// BYOK + cached session token: xai.api_key stays first in the methods
+    /// BYOK + cached session token: axon.api_key stays first in the methods
     /// list (skips login screen), but `default_auth_method_id` is
     /// `cached_token` (keeps OIDC refresh alive).
     #[test]
-    fn byok_with_cached_token_keeps_xai_api_key_first() {
+    fn byok_with_cached_token_keeps_axon_api_key_first() {
         let inputs = AuthMethodsBuildInputs {
             has_external_api_key: true,
             has_cached_token: true,
@@ -640,8 +640,8 @@ mod tests {
 
         assert_eq!(
             first_kind(&built.methods),
-            Some(AuthMethodKind::XaiApiKey),
-            "xai.api_key MUST precede cached_token in advertised order",
+            Some(AuthMethodKind::AxonApiKey),
+            "axon.api_key MUST precede cached_token in advertised order",
         );
         // Sanity: cached_token still appears, just second.
         assert!(
@@ -662,7 +662,7 @@ mod tests {
     }
 
     /// Session-only user (no API key anywhere): cached_token first, then
-    /// `grok.com` — `auth_methods.first()` does NOT need interactive login,
+    /// `blocked.invalid` — `auth_methods.first()` does NOT need interactive login,
     /// so this user also skips the login screen at startup.
     #[test]
     fn session_only_user_first_method_is_cached_token() {
@@ -686,23 +686,23 @@ mod tests {
         );
     }
 
-    /// Brand-new user (no API key, no cached token): only `grok.com` is
+    /// Brand-new user (no API key, no cached token): only `blocked.invalid` is
     /// advertised, and the pager will (correctly) show the login screen.
     /// `default_auth_method_id` is None so the pager falls back to the
     /// advertised login method.
     #[test]
-    fn fresh_user_only_advertises_grok_com_and_requires_login() {
+    fn fresh_user_only_advertises_axon_com_and_requires_login() {
         let built = build_auth_methods(default_inputs());
 
-        assert_eq!(first_kind(&built.methods), Some(AuthMethodKind::GrokCom));
+        assert_eq!(first_kind(&built.methods), Some(AuthMethodKind::AxonCom));
         assert!(built.default_auth_method_id.is_none());
         assert_eq!(built.methods.len(), 1);
     }
 
-    /// Enterprise OIDC replaces `grok.com` (mutually exclusive). xai.api_key,
+    /// Enterprise OIDC replaces `blocked.invalid` (mutually exclusive). axon.api_key,
     /// when present, still leads.
     #[test]
-    fn enterprise_oidc_replaces_grok_com_but_xai_api_key_still_first() {
+    fn enterprise_oidc_replaces_axon_com_but_axon_api_key_still_first() {
         let inputs = AuthMethodsBuildInputs {
             has_external_api_key: true,
             has_cached_token: false,
@@ -712,7 +712,7 @@ mod tests {
         };
         let built = build_auth_methods(inputs);
 
-        assert_eq!(first_kind(&built.methods), Some(AuthMethodKind::XaiApiKey));
+        assert_eq!(first_kind(&built.methods), Some(AuthMethodKind::AxonApiKey));
         assert!(
             built
                 .methods
@@ -724,12 +724,12 @@ mod tests {
             !built
                 .methods
                 .iter()
-                .any(|m| AuthMethodKind::from_id(m.id()) == AuthMethodKind::GrokCom),
-            "grok.com and oidc are mutually exclusive",
+                .any(|m| AuthMethodKind::from_id(m.id()) == AuthMethodKind::AxonCom),
+            "blocked.invalid and oidc are mutually exclusive",
         );
     }
 
-    /// `has_auth_provider_command` is plumbed through to the `grok.com` method
+    /// `has_auth_provider_command` is plumbed through to the `blocked.invalid` method
     /// as `meta.external_provider = true`. Pinning this here so the pager's
     /// `AuthStartMode::Command` path keeps working.
     #[test]
@@ -741,13 +741,13 @@ mod tests {
         };
         let built = build_auth_methods(inputs);
 
-        let grok = built
+        let axon = built
             .methods
             .iter()
-            .find(|m| AuthMethodKind::from_id(m.id()) == AuthMethodKind::GrokCom)
-            .expect("grok.com must be advertised");
-        assert_eq!(grok.name(), "Acme Corp");
-        let meta = grok.meta().expect("meta should be set");
+            .find(|m| AuthMethodKind::from_id(m.id()) == AuthMethodKind::AxonCom)
+            .expect("blocked.invalid must be advertised");
+        assert_eq!(axon.name(), "Acme Corp");
+        let meta = axon.meta().expect("meta should be set");
         assert_eq!(
             meta.get("external_provider").and_then(|v| v.as_bool()),
             Some(true),
@@ -758,15 +758,15 @@ mod tests {
 
     /// END-TO-END REGRESSION TEST: parses the literal enterprise-style
     /// `~/.axon/config.toml` skeleton from the bug report, walks it through
-    /// the same predicate (`should_advertise_xai_api_key`) and the same
+    /// the same predicate (`should_advertise_axon_api_key`) and the same
     /// list-builder (`build_auth_methods`) that `MvpAgent::initialize()` uses
-    /// in production, and asserts that `auth_methods.first()` is `xai.api_key`
+    /// in production, and asserts that `auth_methods.first()` is `axon.api_key`
     /// (which causes the pager to skip the login screen).
     ///
     /// This is the test that *would have caught* that regression -- if you mentally
-    /// re-introduce that bug (push xai.api_key LAST when has_external_api_key
+    /// re-introduce that bug (push axon.api_key LAST when has_external_api_key
     /// && !global env var), this test fails because `first_kind` is no longer
-    /// `XaiApiKey`.
+    /// `AxonApiKey`.
     #[test]
     #[serial]
     fn enterprise_byok_config_does_not_require_login() {
@@ -774,7 +774,7 @@ mod tests {
 
         // Make sure no global key is masking the per-model path we're trying
         // to exercise. Held until end-of-scope so we restore on panic too.
-        let _global = EnvGuard::unset(XAI_API_KEY_ENV_VAR);
+        let _global = EnvGuard::unset(AXON_API_KEY_ENV_VAR);
 
         let dm = crate::models::default_model();
         let toml: toml::Value = toml::from_str(&format!(
@@ -800,7 +800,7 @@ mod tests {
         // login method. Confirms the predicate isn't trivially true.
         {
             let _unset = EnvGuard::unset(TEST_ENV_VAR);
-            let has_external_api_key = should_advertise_xai_api_key(false, models.values());
+            let has_external_api_key = should_advertise_axon_api_key(false, models.values());
             assert!(!has_external_api_key);
             let built = build_auth_methods(AuthMethodsBuildInputs {
                 has_external_api_key,
@@ -808,29 +808,29 @@ mod tests {
             });
             assert_ne!(
                 first_kind(&built.methods),
-                Some(AuthMethodKind::XaiApiKey),
-                "without env_key resolved, xai.api_key must NOT be advertised first",
+                Some(AuthMethodKind::AxonApiKey),
+                "without env_key resolved, axon.api_key must NOT be advertised first",
             );
         }
 
         // With the env var present (the actual enterprise scenario), the predicate
-        // returns true and the builder MUST put `xai.api_key` first so the
+        // returns true and the builder MUST put `axon.api_key` first so the
         // pager's `startup_auth_metadata()` returns `needs_login = false`.
         {
             let _set = EnvGuard::set(TEST_ENV_VAR, "enterprise-secret-token");
-            let has_external_api_key = should_advertise_xai_api_key(false, models.values());
+            let has_external_api_key = should_advertise_axon_api_key(false, models.values());
             assert!(has_external_api_key);
             let built = build_auth_methods(AuthMethodsBuildInputs {
                 has_external_api_key,
                 // Realistic enterprise user: no cached session token, default
-                // grok.com login (no enterprise OIDC).
+                // blocked.invalid login (no enterprise OIDC).
                 has_cached_token: false,
                 ..default_inputs()
             });
             assert_eq!(
                 first_kind(&built.methods),
-                Some(AuthMethodKind::XaiApiKey),
-                "BYOK: xai.api_key must be auth_methods.first(); deferred-to-last \
+                Some(AuthMethodKind::AxonApiKey),
+                "BYOK: axon.api_key must be auth_methods.first(); deferred-to-last \
                  ordering sends enterprise users to the login screen",
             );
             assert!(
@@ -842,41 +842,41 @@ mod tests {
         }
     }
 
-    /// `XAI_API_KEY` alone (no per-model creds) also triggers
-    /// advertising `xai.api_key` as the first method. Historical "external
+    /// `AXON_API_KEY` alone (no per-model creds) also triggers
+    /// advertising `axon.api_key` as the first method. Historical "external
     /// key" path; covered here so the predicate keeps treating env-var-only
     /// users the same as per-model users.
     #[test]
     #[serial]
-    fn global_external_api_key_advertises_xai_api_key_first() {
-        let _set = EnvGuard::set(XAI_API_KEY_ENV_VAR, "xai-external-key");
+    fn global_external_api_key_advertises_axon_api_key_first() {
+        let _set = EnvGuard::set(AXON_API_KEY_ENV_VAR, "axon-external-key");
         let cfg = Config::default();
         let models = resolve_model_list(&cfg, None);
-        let has_external_api_key = should_advertise_xai_api_key(false, models.values());
+        let has_external_api_key = should_advertise_axon_api_key(false, models.values());
         assert!(has_external_api_key);
         let built = build_auth_methods(AuthMethodsBuildInputs {
             has_external_api_key,
             ..default_inputs()
         });
-        assert_eq!(first_kind(&built.methods), Some(AuthMethodKind::XaiApiKey));
+        assert_eq!(first_kind(&built.methods), Some(AuthMethodKind::AxonApiKey));
     }
 
     /// Admin kill switch (`disable_api_key_auth`): the predicate must return
     /// false even when credentials are available everywhere (global env var
-    /// AND per-model env_key), so the builder never advertises `xai.api_key`
+    /// AND per-model env_key), so the builder never advertises `axon.api_key`
     /// and the pager sends the user to the deployment's login method instead.
     #[test]
     #[serial]
-    fn disable_api_key_auth_suppresses_xai_api_key_method() {
-        let _set = EnvGuard::set(XAI_API_KEY_ENV_VAR, "xai-external-key");
+    fn disable_api_key_auth_suppresses_axon_api_key_method() {
+        let _set = EnvGuard::set(AXON_API_KEY_ENV_VAR, "axon-external-key");
         let cfg = Config::default();
         let models = resolve_model_list(&cfg, None);
 
         // Flag off: today's behavior (advertised first).
-        assert!(should_advertise_xai_api_key(false, models.values()));
+        assert!(should_advertise_axon_api_key(false, models.values()));
 
         // Flag on: never advertised, regardless of credentials.
-        let has_external_api_key = should_advertise_xai_api_key(true, models.values());
+        let has_external_api_key = should_advertise_axon_api_key(true, models.values());
         assert!(!has_external_api_key);
         let built = build_auth_methods(AuthMethodsBuildInputs {
             has_external_api_key,
@@ -886,47 +886,47 @@ mod tests {
             !built
                 .methods
                 .iter()
-                .any(|m| AuthMethodKind::from_id(m.id()) == AuthMethodKind::XaiApiKey),
-            "xai.api_key must not be advertised when disable_api_key_auth is set",
+                .any(|m| AuthMethodKind::from_id(m.id()) == AuthMethodKind::AxonApiKey),
+            "axon.api_key must not be advertised when disable_api_key_auth is set",
         );
         assert_eq!(
             first_kind(&built.methods),
-            Some(AuthMethodKind::GrokCom),
+            Some(AuthMethodKind::AxonCom),
             "with api-key auth disabled and no cached token, the login method \
              must lead so the pager requires interactive login",
         );
         assert!(built.default_auth_method_id.is_none());
     }
 
-    /// Legacy `AXON_CODE_XAI_API_KEY` env var is accepted as a fallback
-    /// when `XAI_API_KEY` is not set, ensuring existing deployments keep working.
+    /// Legacy `AXON_CODE_AXON_API_KEY` env var is accepted as a fallback
+    /// when `AXON_API_KEY` is not set, ensuring existing deployments keep working.
     #[test]
     #[serial]
-    fn legacy_env_var_fallback_advertises_xai_api_key() {
-        let _unset_new = EnvGuard::unset(XAI_API_KEY_ENV_VAR);
-        let _set_legacy = EnvGuard::set(LEGACY_XAI_API_KEY_ENV_VAR, "xai-legacy-key");
-        assert!(has_xai_api_key_env());
-        assert_eq!(read_xai_api_key_env().unwrap(), "xai-legacy-key");
+    fn legacy_env_var_fallback_advertises_axon_api_key() {
+        let _unset_new = EnvGuard::unset(AXON_API_KEY_ENV_VAR);
+        let _set_legacy = EnvGuard::set(LEGACY_AXON_API_KEY_ENV_VAR, "axon-legacy-key");
+        assert!(has_axon_api_key_env());
+        assert_eq!(read_axon_api_key_env().unwrap(), "axon-legacy-key");
 
         let cfg = Config::default();
         let models = resolve_model_list(&cfg, None);
-        let has_external_api_key = should_advertise_xai_api_key(false, models.values());
+        let has_external_api_key = should_advertise_axon_api_key(false, models.values());
         assert!(has_external_api_key);
     }
 
-    /// When both `XAI_API_KEY` and `AXON_CODE_XAI_API_KEY` are set,
+    /// When both `AXON_API_KEY` and `AXON_CODE_AXON_API_KEY` are set,
     /// the new name takes precedence.
     #[test]
     #[serial]
     fn new_env_var_takes_precedence_over_legacy() {
-        let _new = EnvGuard::set(XAI_API_KEY_ENV_VAR, "new-key");
-        let _legacy = EnvGuard::set(LEGACY_XAI_API_KEY_ENV_VAR, "old-key");
-        assert_eq!(read_xai_api_key_env().unwrap(), "new-key");
+        let _new = EnvGuard::set(AXON_API_KEY_ENV_VAR, "new-key");
+        let _legacy = EnvGuard::set(LEGACY_AXON_API_KEY_ENV_VAR, "old-key");
+        assert_eq!(read_axon_api_key_env().unwrap(), "new-key");
     }
 
     // -- axon login --legacy regression coverage ------------------------
     //
-    // `axon login --legacy` produces a GrokAuth with `auth_mode: WebLogin`,
+    // `axon login --legacy` produces a AxonAuth with `auth_mode: WebLogin`,
     // `oidc_issuer: None`, and no `expires_at` (30-day hardcoded TTL).
     // When this token is present via the `AXON_AUTH` env var (or via legacy
     // scope fallback in auth.json), `AuthManager::new` returns it from
@@ -947,17 +947,17 @@ mod tests {
     /// prevents regressions.
     #[test]
     #[serial]
-    fn grok_login_legacy_token_does_not_require_login() {
-        use crate::auth::{AuthManager, AuthMode, GrokAuth, GrokComConfig};
+    fn axon_login_legacy_token_does_not_require_login() {
+        use crate::auth::{AuthManager, AuthMode, AxonAuth, AxonComConfig};
 
         // Ensure clean slate for "no other auth available".
         let _g1 = EnvGuard::unset("AXON_AUTH_PATH");
-        let _g2 = EnvGuard::unset(XAI_API_KEY_ENV_VAR);
+        let _g2 = EnvGuard::unset(AXON_API_KEY_ENV_VAR);
 
         // Construct a legacy-style token exactly as `axon login --legacy`
         // produces: WebLogin mode, no OIDC fields, no refresh_token, no
         // expires_at (is_expired falls back to 30-day age check).
-        let legacy_token = GrokAuth {
+        let legacy_token = AxonAuth {
             key: "legacy-relay-token".into(),
             auth_mode: AuthMode::WebLogin,
             create_time: chrono::Utc::now(),
@@ -967,7 +967,7 @@ mod tests {
             oidc_client_id: None,
             refresh_token: None,
             expires_at: None,
-            ..GrokAuth::test_default()
+            ..AxonAuth::test_default()
         };
 
         // Provide it via AXON_AUTH env var (highest priority code path in
@@ -978,7 +978,7 @@ mod tests {
 
         // AuthManager picks it up from the env var directly (no file needed).
         let dir = tempfile::tempdir().unwrap();
-        let cfg = GrokComConfig::default();
+        let cfg = AxonComConfig::default();
         let mgr = AuthManager::new(dir.path(), cfg);
         let current = mgr.current();
         assert!(
@@ -996,7 +996,7 @@ mod tests {
         let has_cached_token = mgr.current().is_some();
         assert!(has_cached_token);
 
-        // With only this legacy token (no xai api key), first method must be
+        // With only this legacy token (no axon api key), first method must be
         // cached_token so pager skips login screen.
         let built = build_auth_methods(AuthMethodsBuildInputs {
             has_external_api_key: false,
@@ -1032,14 +1032,14 @@ mod tests {
     #[test]
     #[serial]
     fn no_legacy_token_means_no_cached_token_advertised() {
-        use crate::auth::{AuthManager, GrokComConfig};
+        use crate::auth::{AuthManager, AxonComConfig};
 
         let _g1 = EnvGuard::unset("AXON_AUTH");
         let _g2 = EnvGuard::unset("AXON_AUTH_PATH");
 
         let dir = tempfile::tempdir().unwrap();
         // No auth.json in the tempdir.
-        let cfg = GrokComConfig::default();
+        let cfg = AxonComConfig::default();
         let mgr = AuthManager::new(dir.path(), cfg);
         assert!(mgr.current().is_none());
 
@@ -1050,8 +1050,8 @@ mod tests {
         });
         assert_eq!(
             first_kind(&built.methods),
-            Some(AuthMethodKind::GrokCom),
-            "no cached token AND no api key: pager must show login (grok.com first)",
+            Some(AuthMethodKind::AxonCom),
+            "no cached token AND no api key: pager must show login (blocked.invalid first)",
         );
     }
 
@@ -1065,8 +1065,8 @@ mod tests {
             preferred_method: Some(PreferredAuthMethod::ApiKey),
             ..default_inputs()
         });
-        assert_eq!(method_ids(&built), vec![XAI_API_KEY_METHOD_ID]);
-        assert_eq!(default_id(&built), Some(XAI_API_KEY_METHOD_ID));
+        assert_eq!(method_ids(&built), vec![AXON_API_KEY_METHOD_ID]);
+        assert_eq!(default_id(&built), Some(AXON_API_KEY_METHOD_ID));
     }
 
     #[test]

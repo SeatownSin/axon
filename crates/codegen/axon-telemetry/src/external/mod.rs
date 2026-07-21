@@ -1,6 +1,6 @@
 //! Opt-in, content-redacted **external OTEL** telemetry stream.
 //!
-//! Enterprise customers point the Grok CLI at *their own* OpenTelemetry
+//! Enterprise customers point the Axon CLI at *their own* OpenTelemetry
 //! collector (standard `OTEL_*` env vars + the `AXON_EXTERNAL_OTEL` master
 //! switch) and receive a curated, ZDR-safe schema: ~6 counters and ~17
 //! log-record events fanned out from the same typed call sites that emit the
@@ -18,7 +18,7 @@
 //!   selected) nothing is constructed — zero allocation, zero threads, zero
 //!   sockets.
 //! - Independent of `TelemetryMode`, GCS trace upload, and the data-collection /
-//!   data-retention opt-outs (user-confirmed): those govern xAI-side
+//!   data-retention opt-outs (user-confirmed): those govern Axon-side
 //!   retention; this stream ships only to the customer's own collector under
 //!   the customer's own explicit double opt-in.
 //!

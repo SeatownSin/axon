@@ -11,7 +11,7 @@
 //!    picks chain back to back, reproducing the continuous
 //!    `.git/index.lock` / HEAD-move churn of an agent-run rebase.
 //!
-//! With the fs-watch machinery on (`x.ai/hunkTracker` + `x.ai/gitHeadChanged`
+//! With the fs-watch machinery on (`axon/hunkTracker` + `axon/gitHeadChanged`
 //! advertised), fsnotify merges rapid lock cycles into one operation and the
 //! session defers debounce fires while an op is in flight, so one rebase
 //! costs at most a couple of `refresh_all_baselines` scans (each scoped to
@@ -349,8 +349,8 @@ async fn run_storm(
             let method = init
                 .auth_methods
                 .iter()
-                .find(|m| &*m.id().0 == "xai.api_key")
-                .unwrap_or_else(|| panic!("{label}: xai.api_key auth method not advertised"));
+                .find(|m| &*m.id().0 == "axon.api_key")
+                .unwrap_or_else(|| panic!("{label}: axon.api_key auth method not advertised"));
             client_conn
                 .authenticate(
                     acp::AuthenticateRequest::new(method.id().clone())
@@ -425,15 +425,15 @@ fn git_rebase_refresh_storm_e2e() {
     let server = mock_rt
         .block_on(MockInferenceServer::start())
         .expect("mock server");
-    let grok_home = TempDir::new().expect("grok home");
+    let axon_home = TempDir::new().expect("axon home");
 
     // SAFETY: the only live threads are the mock runtime's workers, which
     // serve HTTP and never read the process environment.
     unsafe {
-        std::env::set_var("AXON_HOME", grok_home.path());
+        std::env::set_var("AXON_HOME", axon_home.path());
         std::env::set_var("AXON_CLI_CHAT_PROXY_BASE_URL", server.url());
-        std::env::set_var("AXON_XAI_API_BASE_URL", server.url());
-        std::env::set_var("XAI_API_KEY", "test-key-for-ci");
+        std::env::set_var("AXON_AXON_API_BASE_URL", server.url());
+        std::env::set_var("AXON_API_KEY", "test-key-for-ci");
         std::env::set_var("AXON_TELEMETRY_ENABLED", "false");
         std::env::set_var("AXON_FEEDBACK_ENABLED", "false");
         std::env::set_var("AXON_TRACE_UPLOAD", "false");
@@ -450,8 +450,8 @@ fn git_rebase_refresh_storm_e2e() {
     let on = agent_rt.block_on(run_storm(
         &server,
         Some(json!({
-            "x.ai/hunkTracker": { "mode": "agent_only" },
-            "x.ai/gitHeadChanged": true,
+            "axon/hunkTracker": { "mode": "agent_only" },
+            "axon/gitHeadChanged": true,
         })),
         &counter,
         "machinery-on",

@@ -129,22 +129,22 @@ async fn leader_soak_churning_clients_no_leaks_no_zombies() {
     let server = axon_test_support::MockInferenceServer::start()
         .await
         .unwrap();
-    let grok_home = TempDir::new().unwrap();
+    let axon_home = TempDir::new().unwrap();
     let workdir = TempDir::new().unwrap();
 
     // SAFETY: single-threaded current-thread runtime; set before any agent
     // code reads these process-globals (same pattern as session_load_perf).
     unsafe {
-        std::env::set_var("AXON_HOME", grok_home.path());
+        std::env::set_var("AXON_HOME", axon_home.path());
         std::env::set_var("AXON_CLI_CHAT_PROXY_BASE_URL", server.url());
-        std::env::set_var("AXON_XAI_API_BASE_URL", server.url());
-        std::env::set_var("XAI_API_KEY", "test-key-for-ci");
+        std::env::set_var("AXON_AXON_API_BASE_URL", server.url());
+        std::env::set_var("AXON_API_KEY", "test-key-for-ci");
         std::env::set_var("AXON_TELEMETRY_ENABLED", "false");
         std::env::set_var("AXON_FEEDBACK_ENABLED", "false");
         std::env::set_var("AXON_TRACE_UPLOAD", "false");
     }
 
-    let sock_path = grok_home.path().join("leader-soak.sock");
+    let sock_path = axon_home.path().join("leader-soak.sock");
     let soak_secs = env_u64("LEADER_SOAK_SECS", 10);
     let max_growth_mb = env_u64("LEADER_SOAK_MAX_RSS_GROWTH_MB", 1024);
     let send_failed_before = send_failed_count();
@@ -275,7 +275,7 @@ async fn leader_soak_churning_clients_no_leaks_no_zombies() {
             .await;
             rpc(
                 &mut bootstrap,
-                r#"{"jsonrpc":"2.0","id":2,"method":"authenticate","params":{"methodId":"xai.api_key","_meta":{"headless":true}}}"#.to_string(),
+                r#"{"jsonrpc":"2.0","id":2,"method":"authenticate","params":{"methodId":"axon.api_key","_meta":{"headless":true}}}"#.to_string(),
                 2,
                 "authenticate",
             )

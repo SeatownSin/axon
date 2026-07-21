@@ -71,7 +71,7 @@ pub enum ConfigChangeEvent {
     AuthChanged,
     GlobalConfigChanged,
     /// `~/.axon/models_cache.json` changed — the on-disk `/v1/models`
-    /// catalog cache was rewritten, possibly by **another** grok process
+    /// catalog cache was rewritten, possibly by **another** axon process
     /// sharing the same `~/.axon` (the writer may also be this process;
     /// the [`ModelsManager`](crate::agent::models::ModelsManager) dedupes
     /// by content before applying).
@@ -141,14 +141,14 @@ impl ConfigFileWatcher {
     /// project cwds for sessions that open in previously-unwatched
     /// directories.
     pub fn start(
-        grok_home: &Path,
+        axon_home: &Path,
         extra_paths: &[PathBuf],
         cwd: Option<&Path>,
         debounce: Option<Duration>,
     ) -> Option<(Self, mpsc::UnboundedReceiver<ConfigChangeEvent>)> {
         let debounce = debounce.unwrap_or(DEFAULT_DEBOUNCE);
         let (tx, rx) = mpsc::unbounded_channel();
-        let grok_home_buf = grok_home.to_path_buf();
+        let axon_home_buf = axon_home.to_path_buf();
         // `~/.claude.json` is consumed by **every**
         // session (see `load_claude_json_mcp_servers_as_configs`), so
         // a write to it must broadcast through the unit
@@ -179,13 +179,13 @@ impl ConfigFileWatcher {
                 let parent = path.parent();
 
                 let change = match name {
-                    Some("auth.json") if parent == Some(grok_home_buf.as_path()) => {
+                    Some("auth.json") if parent == Some(axon_home_buf.as_path()) => {
                         Some(ConfigChangeEvent::AuthChanged)
                     }
-                    Some("config.toml") if parent == Some(grok_home_buf.as_path()) => {
+                    Some("config.toml") if parent == Some(axon_home_buf.as_path()) => {
                         Some(ConfigChangeEvent::GlobalConfigChanged)
                     }
-                    Some("models_cache.json") if parent == Some(grok_home_buf.as_path()) => {
+                    Some("models_cache.json") if parent == Some(axon_home_buf.as_path()) => {
                         Some(ConfigChangeEvent::ModelsCacheChanged)
                     }
                     Some("config.toml") => {
@@ -224,12 +224,12 @@ impl ConfigFileWatcher {
 
         debouncer
             .watcher()
-            .watch(grok_home, RecursiveMode::NonRecursive)
+            .watch(axon_home, RecursiveMode::NonRecursive)
             .map_err(|e| {
                 tracing::warn!(
-                    path = %grok_home.display(),
+                    path = %axon_home.display(),
                     error = %e,
-                    "failed to watch grok home directory"
+                    "failed to watch axon home directory"
                 )
             })
             .ok()?;
@@ -263,7 +263,7 @@ impl ConfigFileWatcher {
         }
 
         tracing::info!(
-            grok_home = %grok_home.display(),
+            axon_home = %axon_home.display(),
             extra_paths = extra_paths.len(),
             cwd = ?cwd,
             debounce_ms = debounce.as_millis(),
@@ -357,10 +357,10 @@ fn watch_cwd_dirs(debouncer: &mut Debouncer<AccessFilteredWatcher>, cwd: &Path) 
     if let Err(e) = debouncer.watcher().watch(cwd, RecursiveMode::NonRecursive) {
         log_watch_error(&e, "failed to watch project cwd (non-recursive)");
     }
-    let grok_dir = cwd.join(".axon");
+    let axon_dir = cwd.join(".axon");
     if let Err(e) = debouncer
         .watcher()
-        .watch(&grok_dir, RecursiveMode::NonRecursive)
+        .watch(&axon_dir, RecursiveMode::NonRecursive)
     {
         log_watch_error(
             &e,
@@ -376,8 +376,8 @@ fn unwatch_cwd_dirs(debouncer: &mut Debouncer<AccessFilteredWatcher>, cwd: &Path
     if let Err(e) = debouncer.watcher().unwatch(cwd) {
         tracing::debug!(error = %e, "failed to unwatch project cwd");
     }
-    let grok_dir = cwd.join(".axon");
-    if let Err(e) = debouncer.watcher().unwatch(&grok_dir) {
+    let axon_dir = cwd.join(".axon");
+    if let Err(e) = debouncer.watcher().unwatch(&axon_dir) {
         tracing::debug!(error = %e, "failed to unwatch project .axon directory");
     }
 }
@@ -423,7 +423,7 @@ fn is_skill_change_path(p: &Path) -> bool {
 }
 
 /// True for a global/home-level config dir that must never be watched
-/// recursively: `grok_home` (`~/.axon`, or `$AXON_HOME`) or a known vendor dir
+/// recursively: `axon_home` (`~/.axon`, or `$AXON_HOME`) or a known vendor dir
 /// directly under `$HOME` ([`HOME_VENDOR_DIRS`]).
 ///
 /// These hold large non-skill trees — `~/.axon` alone has `worktrees/`,
@@ -434,10 +434,10 @@ fn is_skill_change_path(p: &Path) -> bool {
 /// user-supplied `[skills].paths` entries, which discovery walks in full — stay
 /// recursive. Matching only these specific names (not "any dir whose parent is
 /// `$HOME`") is what keeps a `[skills].paths = ["~/my-skills"]` fully watched.
-fn is_global_config_dir(dir: &Path, grok_home: &Path) -> bool {
+fn is_global_config_dir(dir: &Path, axon_home: &Path) -> bool {
     #[allow(deprecated)]
     let home = std::env::home_dir();
-    is_global_config_dir_impl(dir, grok_home, home.as_deref())
+    is_global_config_dir_impl(dir, axon_home, home.as_deref())
 }
 
 /// Vendor config dir names that sit directly under `$HOME` and carry large
@@ -446,9 +446,9 @@ fn is_global_config_dir(dir: &Path, grok_home: &Path) -> bool {
 const HOME_VENDOR_DIRS: &[&str] = &[".axon", ".agents", ".claude", ".cursor"];
 
 /// Testable core of [`is_global_config_dir`] with `$HOME` injected.
-fn is_global_config_dir_impl(dir: &Path, grok_home: &Path, home: Option<&Path>) -> bool {
+fn is_global_config_dir_impl(dir: &Path, axon_home: &Path, home: Option<&Path>) -> bool {
     let canon = |p: &Path| dunce::canonicalize(p).unwrap_or_else(|_| p.to_path_buf());
-    if canon(dir) == canon(grok_home) {
+    if canon(dir) == canon(axon_home) {
         return true;
     }
     let Some(home) = home else { return false };
@@ -508,7 +508,7 @@ impl SkillsFileWatcher {
             .map_err(|e| tracing::warn!(error = %e, "failed to create skills file watcher"))
             .ok()?;
 
-        let grok_home = axon_tools::util::grok_home::grok_home();
+        let axon_home = axon_tools::util::axon_home::axon_home();
         // Watch the full superset of vendor dirs (all-on compat). This watcher
         // is leader-global (no per-session compat resolved here); the actual
         // per-session discovery gating happens downstream, so watching a
@@ -517,14 +517,14 @@ impl SkillsFileWatcher {
         let dirs_to_watch = axon_agent::prompt::skills::collect_skill_config_dirs(
             cwd,
             monorepo_user_dir,
-            &grok_home,
+            &axon_home,
             config_paths,
             axon_tools::types::compat::CompatConfig::default(),
         );
 
         let mut watched = 0;
         for dir in &dirs_to_watch {
-            if is_global_config_dir(dir, &grok_home) {
+            if is_global_config_dir(dir, &axon_home) {
                 // Home dir: watch skill subtrees only, never the root
                 // (worktrees/, sessions/, logs/ — see `is_global_config_dir`).
                 watched += watch_skill_subdirs(&mut debouncer, dir);
@@ -564,20 +564,20 @@ mod tests {
         std::thread::sleep(Duration::from_millis(ms));
     }
 
-    /// `is_global_config_dir` must scope down only grok_home and the known
+    /// `is_global_config_dir` must scope down only axon_home and the known
     /// vendor dirs under `$HOME` — NOT arbitrary `[skills].paths` entries such
     /// as `~/my-skills`, whose skills discovery walks in full and so must stay
     /// recursively watched.
     #[test]
-    fn is_global_config_dir_matches_only_grok_home_and_vendor_dirs() {
+    fn is_global_config_dir_matches_only_axon_home_and_vendor_dirs() {
         let home = TempDir::new().unwrap();
         let home = home.path();
-        let grok_home = home.join(".axon");
+        let axon_home = home.join(".axon");
 
-        let g = |dir: &Path| is_global_config_dir_impl(dir, &grok_home, Some(home));
+        let g = |dir: &Path| is_global_config_dir_impl(dir, &axon_home, Some(home));
 
-        // grok_home and vendor dirs directly under $HOME: scoped (global).
-        assert!(g(&grok_home));
+        // axon_home and vendor dirs directly under $HOME: scoped (global).
+        assert!(g(&axon_home));
         assert!(g(&home.join(".claude")));
         assert!(g(&home.join(".cursor")));
         assert!(g(&home.join(".agents")));
@@ -750,9 +750,9 @@ mod tests {
         assert!(found, "should detect config.toml change");
     }
 
-    /// A write to `<grok_home>/models_cache.json` must surface as
+    /// A write to `<axon_home>/models_cache.json` must surface as
     /// `ConfigChangeEvent::ModelsCacheChanged` so a long-running leader can
-    /// hot-load a catalog fetched by another grok process.
+    /// hot-load a catalog fetched by another axon process.
     #[test]
     #[cfg_attr(
         target_os = "macos",
@@ -843,16 +843,16 @@ mod tests {
         ignore = "flaky on macOS: FSEvents does not reliably deliver events in test harness"
     )]
     fn project_cwd_toml_triggers_reload() {
-        let grok_home = TempDir::new().unwrap();
+        let axon_home = TempDir::new().unwrap();
         let cwd = TempDir::new().unwrap();
-        let project_grok = cwd.path().join(".axon");
-        fs::create_dir_all(&project_grok).unwrap();
+        let project_axon = cwd.path().join(".axon");
+        fs::create_dir_all(&project_axon).unwrap();
         // Seed the file before the watcher starts so we observe the
         // modification rather than the creation event.
-        fs::write(project_grok.join("config.toml"), "").unwrap();
+        fs::write(project_axon.join("config.toml"), "").unwrap();
 
         let (_w, mut rx) = ConfigFileWatcher::start(
-            grok_home.path(),
+            axon_home.path(),
             &[],
             Some(cwd.path()),
             Some(Duration::from_millis(100)),
@@ -860,7 +860,7 @@ mod tests {
         .expect("watcher should start");
 
         fs::write(
-            project_grok.join("config.toml"),
+            project_axon.join("config.toml"),
             "[mcp_servers.x]\ncommand = \"/bin/true\"",
         )
         .unwrap();
@@ -893,12 +893,12 @@ mod tests {
         ignore = "flaky on macOS: FSEvents does not reliably deliver events in test harness"
     )]
     fn project_mcp_json_triggers_reload() {
-        let grok_home = TempDir::new().unwrap();
+        let axon_home = TempDir::new().unwrap();
         let cwd = TempDir::new().unwrap();
         fs::write(cwd.path().join(".mcp.json"), "{}").unwrap();
 
         let (_w, mut rx) = ConfigFileWatcher::start(
-            grok_home.path(),
+            axon_home.path(),
             &[],
             Some(cwd.path()),
             Some(Duration::from_millis(100)),
@@ -940,13 +940,13 @@ mod tests {
     #[test]
     #[ignore = "flaky on CI: OS file watcher may fail to initialize"]
     fn nested_subdir_change_does_not_trigger() {
-        let grok_home = TempDir::new().unwrap();
+        let axon_home = TempDir::new().unwrap();
         let cwd = TempDir::new().unwrap();
         let nested = cwd.path().join("some").join("deep").join("nested");
         fs::create_dir_all(&nested).unwrap();
 
         let (_w, mut rx) = ConfigFileWatcher::start(
-            grok_home.path(),
+            axon_home.path(),
             &[],
             Some(cwd.path()),
             Some(Duration::from_millis(100)),
@@ -981,14 +981,14 @@ mod tests {
         ignore = "flaky on macOS: FSEvents does not reliably deliver events in test harness"
     )]
     fn watch_path_dynamic_registration() {
-        let grok_home = TempDir::new().unwrap();
+        let axon_home = TempDir::new().unwrap();
         let new_cwd = TempDir::new().unwrap();
-        let project_grok = new_cwd.path().join(".axon");
-        fs::create_dir_all(&project_grok).unwrap();
-        fs::write(project_grok.join("config.toml"), "").unwrap();
+        let project_axon = new_cwd.path().join(".axon");
+        fs::create_dir_all(&project_axon).unwrap();
+        fs::write(project_axon.join("config.toml"), "").unwrap();
 
         let (mut watcher, mut rx) = ConfigFileWatcher::start(
-            grok_home.path(),
+            axon_home.path(),
             &[],
             None,
             Some(Duration::from_millis(100)),
@@ -998,7 +998,7 @@ mod tests {
         watcher.watch_path(new_cwd.path());
 
         fs::write(
-            project_grok.join("config.toml"),
+            project_axon.join("config.toml"),
             "[mcp_servers.y]\ncommand = \"/bin/true\"",
         )
         .unwrap();
@@ -1027,10 +1027,10 @@ mod tests {
     /// `watch_path` de-dup.
     #[test]
     fn watch_and_unwatch_path_bookkeeping() {
-        let grok_home = TempDir::new().unwrap();
+        let axon_home = TempDir::new().unwrap();
         let cwd = TempDir::new().unwrap();
         let Some((mut watcher, _rx)) = ConfigFileWatcher::start(
-            grok_home.path(),
+            axon_home.path(),
             &[],
             None,
             Some(Duration::from_millis(100)),

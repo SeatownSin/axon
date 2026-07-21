@@ -14,7 +14,7 @@ use sentry::ClientOptions;
 /// Per-host config; retained for API compatibility. All reporting is
 /// disabled regardless of these values.
 pub struct Config {
-    /// Sentry tag `client`, e.g. `"grok-pager"`. Unused.
+    /// Sentry tag `client`, e.g. `"axon-pager"`. Unused.
     pub client: &'static str,
     pub client_version: &'static str,
     pub release: &'static str,

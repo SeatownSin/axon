@@ -60,10 +60,10 @@ async fn test_fresh_session_persists_reasoning_effort() {
         // user config override (the same path a remote settings catalog entry or
         // `--effort` would populate).
         let home = tempfile::TempDir::new().expect("create temp home");
-        let grok_dir = home.path().join(".axon");
-        std::fs::create_dir_all(&grok_dir).expect("create .axon dir");
+        let axon_dir = home.path().join(".axon");
+        std::fs::create_dir_all(&axon_dir).expect("create .axon dir");
         std::fs::write(
-            grok_dir.join("config.toml"),
+            axon_dir.join("config.toml"),
             r#"
 [model.test-model]
 supports_reasoning_effort = true
@@ -72,7 +72,7 @@ reasoning_effort = "high"
         )
         .expect("write config.toml");
 
-        let client = GrokStdioClient::spawn_with_home(&server, workdir.path(), home).await;
+        let client = AxonStdioClient::spawn_with_home(&server, workdir.path(), home).await;
         client.initialize_with_timeout().await;
         let session_id = client.create_session_with_timeout(workdir.path()).await;
         let result = client.prompt_with_timeout(&session_id, "say hello").await;
@@ -98,7 +98,7 @@ async fn test_fresh_session_without_effort_omits_field() {
             .await
             .expect("start mock server");
         let workdir = git_workdir();
-        let client = GrokStdioClient::spawn(&server, workdir.path()).await;
+        let client = AxonStdioClient::spawn(&server, workdir.path()).await;
 
         client.initialize_with_timeout().await;
         let session_id = client.create_session_with_timeout(workdir.path()).await;

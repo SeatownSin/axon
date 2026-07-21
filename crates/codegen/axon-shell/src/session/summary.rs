@@ -5,7 +5,7 @@
 //! session registry, and notify the client. The persistence actor just
 //! calls [`SummaryGenerator::update`] — all state transitions are internal.
 
-use crate::extensions::notification::{SessionNotification, SessionUpdate as XaiSessionUpdate};
+use crate::extensions::notification::{SessionNotification, SessionUpdate as AxonSessionUpdate};
 use crate::sampling::Client as OaiCompatClient;
 use crate::session::helpers::session_summary::generate_session_summary;
 use crate::session::info::Info;
@@ -110,14 +110,14 @@ pub(crate) fn notify_client(gateway: &Option<GatewaySender>, info: &Info, title:
 
     let notification = SessionNotification {
         session_id: info.id.clone(),
-        update: XaiSessionUpdate::SessionSummaryGenerated {
+        update: AxonSessionUpdate::SessionSummaryGenerated {
             session_summary: title.to_owned(),
         },
         meta: None,
     };
     if let Ok(params) = serde_json::value::to_raw_value(&notification) {
         gateway.forward_fire_and_forget(acp::ExtNotification::new(
-            "x.ai/session_notification",
+            "axon/session_notification",
             params.into(),
         ));
     }

@@ -495,7 +495,7 @@ impl FeedbackManager {
     /// heuristics, sampling, cooldown, and enabled checks.
     ///
     /// Engineers developing clients can call this via the
-    /// `x.ai/debug/trigger_feedback` ACP extension method to exercise
+    /// `axon/debug/trigger_feedback` ACP extension method to exercise
     /// the full feedback notification ↔ response flow without needing a
     /// real session that meets tier criteria.
     ///
@@ -1361,19 +1361,19 @@ mod tests {
     async fn test_is_auth_permanently_failed_reads_auth_manager() {
         use crate::agent::feedback_client::FeedbackClient;
         use crate::auth::error::RefreshTokenFailedReason;
-        use crate::auth::{AuthManager, GrokAuth, GrokComConfig};
+        use crate::auth::{AuthManager, AxonAuth, AxonComConfig};
         use std::sync::Arc;
 
         let dir = tempfile::tempdir().unwrap();
-        let am = Arc::new(AuthManager::new(dir.path(), GrokComConfig::default()));
+        let am = Arc::new(AuthManager::new(dir.path(), AxonComConfig::default()));
         let client = FeedbackClient::new("http://example/v1", None).with_auth_manager(am.clone());
 
         assert!(!client.is_auth_permanently_failed());
 
         // The verdict is scoped to the live credential's key.
-        am.hot_swap(GrokAuth {
+        am.hot_swap(AxonAuth {
             key: "tok".into(),
-            ..GrokAuth::test_default()
+            ..AxonAuth::test_default()
         });
         // Use a non-sticky reason: only recoverable verdicts age out (a sticky
         // `RefreshTokenRejected` never expires), and this exercises the TTL path.
@@ -1398,7 +1398,7 @@ mod tests {
     #[tokio::test]
     async fn test_has_token_refresher_requires_refresher_attached() {
         use crate::agent::feedback_client::FeedbackClient;
-        use crate::auth::{AuthManager, GrokComConfig};
+        use crate::auth::{AuthManager, AxonComConfig};
         use std::sync::Arc;
 
         struct NoOpRefresher;
@@ -1415,7 +1415,7 @@ mod tests {
         }
 
         let dir = tempfile::tempdir().unwrap();
-        let am = Arc::new(AuthManager::new(dir.path(), GrokComConfig::default()));
+        let am = Arc::new(AuthManager::new(dir.path(), AxonComConfig::default()));
 
         let bare = FeedbackClient::new("http://example/v1", None);
         assert!(!bare.has_token_refresher());

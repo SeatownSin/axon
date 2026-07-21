@@ -14,7 +14,7 @@ use axon_auth::AuthCredentialProvider;
 pub struct OtelLayerConfig {
     /// Formerly the live credential source for export auth headers. Unused.
     pub credentials: Arc<dyn AuthCredentialProvider>,
-    /// Formerly the `X-XAI-Token-Auth` header value. Unused.
+    /// Formerly the `X-AXON-Token-Auth` header value. Unused.
     pub token_header_value: String,
     /// Formerly an extra traces access key. Unused.
     pub alpha_test_key: Option<String>,

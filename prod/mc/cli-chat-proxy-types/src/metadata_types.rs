@@ -24,9 +24,9 @@ use serde::{Deserialize, Serialize};
 /// v1.16: Added `team_id` field (OAuth team identity).
 /// v1.17: Added `input_tokens`, `cached_input_tokens`, `output_tokens` to
 ///        TurnResultMetadata for per-component token attribution.
-/// v1.18: Added `shell_version`: the grok-shell agent binary version, distinct
+/// v1.18: Added `shell_version`: the axon-shell agent binary version, distinct
 ///        from `client_version` (the UI client's version). They coincide for the
-///        TUI but differ for embedding clients like grok-desktop.
+///        TUI but differ for embedding clients like axon-desktop.
 /// v1.19: Added `workspace_type`: classifies the working directory as "git",
 ///        "project" (non-git project dir), or "non_project" (system/temp/home).
 /// v1.20: Added `sandbox`: resolved OS sandbox profile and whether enforcement is active.
@@ -110,14 +110,14 @@ pub struct PromptMetadata {
     /// Current working directory of the session.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cwd: Option<String>,
-    /// The agent type / harness name for this session (e.g. "grok-build", "codex").
+    /// The agent type / harness name for this session (e.g. "axon-build", "codex").
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub agent_type: Option<String>,
-    /// Version of the grok-shell agent binary that handled this turn
+    /// Version of the axon-shell agent binary that handled this turn
     /// (`axon_version::VERSION`). Self-reported by the agent, so it reflects
     /// the binary actually running. Distinct from `client_version`, which is the
     /// UI client's version — for the TUI these coincide, but for embedding clients
-    /// like grok-desktop the bundled shell differs from the app version.
+    /// like axon-desktop the bundled shell differs from the app version.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub shell_version: Option<String>,
     /// Resolved OS sandbox profile and whether enforcement is active.
@@ -137,7 +137,7 @@ mod tests {
             "turn_started_at": "2025-01-01T00:00:00Z",
             "user_id": null,
             "user_email": null,
-            "model": "grok-3",
+            "model": "axon-3",
             "host_os": "linux",
             "host_arch": "x86_64"
         }"#
@@ -160,7 +160,7 @@ mod tests {
             "turn_started_at": "2025-01-01T00:00:00Z",
             "user_id": null,
             "user_email": null,
-            "model": "grok-3",
+            "model": "axon-3",
             "host_os": "linux",
             "host_arch": "x86_64",
             "prompt_has_image": false,
@@ -194,10 +194,10 @@ mod tests {
     #[test]
     fn cwd_round_trips() {
         let mut meta: PromptMetadata = serde_json::from_str(minimal_json()).unwrap();
-        meta.cwd = Some("/root/code/xai".into());
+        meta.cwd = Some("/root/code/axon".into());
         let json = serde_json::to_string(&meta).unwrap();
         let deserialized: PromptMetadata = serde_json::from_str(&json).unwrap();
-        assert_eq!(deserialized.cwd.as_deref(), Some("/root/code/xai"));
+        assert_eq!(deserialized.cwd.as_deref(), Some("/root/code/axon"));
     }
     #[test]
     fn sandbox_round_trips() {

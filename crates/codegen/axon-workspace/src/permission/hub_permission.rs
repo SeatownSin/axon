@@ -16,22 +16,22 @@ use axon_tool_protocol::SessionId;
 /// backstop deadline).
 static PERMISSION_REPLY_DURATION: LazyLock<HistogramVec> = LazyLock::new(|| {
     register_histogram_vec!(
-        "grok_workspace_permission_reply_seconds",
+        "axon_workspace_permission_reply_seconds",
         "Wall-clock time awaiting chat's reply to a permission_request hook",
         &["outcome"],
         vec![0.5, 1.0, 2.0, 5.0, 10.0, 30.0, 60.0, 120.0, 300.0, 600.0]
     )
-    .expect("grok_workspace_permission_reply_seconds must register once")
+    .expect("axon_workspace_permission_reply_seconds must register once")
 });
 /// Permission requests whose reply timed out (the server backstop deadline fired).
 /// A subset of the histogram's `error` outcome, promoted to its own counter so a
 /// stuck/lost reply is distinguishable from other transport failures.
 static PERMISSION_TIMEOUT_TOTAL: LazyLock<IntCounter> = LazyLock::new(|| {
     register_int_counter!(
-        "grok_workspace_permission_timeout_total",
+        "axon_workspace_permission_timeout_total",
         "permission_request hooks whose reply timed out (backstop deadline fired)"
     )
-    .expect("grok_workspace_permission_timeout_total must register once")
+    .expect("axon_workspace_permission_timeout_total must register once")
 });
 /// Zero-init this module's metric families. See [`crate::init_metrics`].
 pub(crate) fn init_metrics() {
@@ -54,7 +54,7 @@ fn is_timeout_err(msg: &str) -> bool {
 pub const HITL_PERMISSION_LIVE_ENV: &str = "AXON_HITL_PERMISSION_LIVE";
 /// Whether the HITL-live permission path is enabled.
 ///
-/// Intended long-term gate: the chat flag `grok_chat_enable_hitl_live_path`,
+/// Intended long-term gate: the chat flag `axon_chat_enable_hitl_live_path`,
 /// propagated by the server at session-bind (capability negotiation). Until that
 /// lands, honor [`HITL_PERMISSION_LIVE_ENV`] (`1` / `true` / `yes`) so local
 /// stacks and e2e can turn the emit on explicitly. Default remains **off**
@@ -225,7 +225,7 @@ fn scope_kind_value(reply: &Value) -> Option<(&str, Option<String>)> {
 /// for tools that never need a user prompt (reads / todos / dynamic).
 pub fn access_kind_for_hub_tool(tool_name: &str, args: &Value) -> Option<AccessKind> {
     let name = tool_name.rsplit(':').next().unwrap_or(tool_name);
-    let name = name.strip_prefix("GrokBuild:").unwrap_or(name);
+    let name = name.strip_prefix("AxonBuild:").unwrap_or(name);
     match name {
         "run_terminal_command" | "run_terminal_cmd" | "bash" | "shell" => {
             let cmd = args

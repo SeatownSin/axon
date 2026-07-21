@@ -1107,7 +1107,7 @@ impl AgentView {
         self.submit_question_answers(skipped)
     }
     fn submit_question_answers(&mut self, skipped: bool) -> InputOutcome {
-        use axon_tools::implementations::grok_build::ask_user_question::AskUserQuestionExtResponse;
+        use axon_tools::implementations::axon_build::ask_user_question::AskUserQuestionExtResponse;
         self.swap_question_freeform();
         let Some(mut qv) = self.question_view.take() else {
             return InputOutcome::Changed;
@@ -1604,7 +1604,7 @@ mod permission_scope_key_tests {
 #[cfg(test)]
 mod question_no_freeform_tests {
     //! Freeform ("Other") gating for `no_freeform` question modals — e.g.
-    //! the SuperGrok upsell. Regression tests for the bug where clicking
+    //! the SuperAxon upsell. Regression tests for the bug where clicking
     //! under the last option of the upsell selected the (hidden) freeform
     //! row and let the user type into a modal that offers no free text.
     use super::super::test_fixtures::make_agent;
@@ -1617,7 +1617,7 @@ mod question_no_freeform_tests {
     };
     use ratatui::buffer::Buffer;
     use ratatui::layout::Rect;
-    use axon_tools::implementations::grok_build::ask_user_question::{
+    use axon_tools::implementations::axon_build::ask_user_question::{
         Question, QuestionOption,
     };
     /// Fixed options, single-select — shaped like the free-usage upsell.
@@ -1631,8 +1631,8 @@ mod question_no_freeform_tests {
         Question {
             question: "You hit your free usage limit.".into(),
             options: vec![
-                opt("Upgrade to SuperGrok", "For everyday coding"),
-                opt("Upgrade to SuperGrok Heavy", "Highest usage limits"),
+                opt("Upgrade to SuperAxon", "For everyday coding"),
+                opt("Upgrade to SuperAxon Heavy", "Highest usage limits"),
             ],
             multi_select: Some(false),
             id: None,

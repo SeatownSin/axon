@@ -9,7 +9,7 @@ use crate::session::acp_session::*;
 use std::sync::Arc;
 use axon_mcp::servers::McpClient;
 
-const MANAGED: &str = "grok_com_testconnector";
+const MANAGED: &str = "axon_com_testconnector";
 
 async fn make_actor() -> SessionActor {
     let (gw_tx, _gw_rx) = tokio::sync::mpsc::unbounded_channel();

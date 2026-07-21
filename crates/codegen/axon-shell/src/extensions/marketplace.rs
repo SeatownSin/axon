@@ -1,4 +1,4 @@
-//! `x.ai/marketplace/*` extension handlers.
+//! `axon/marketplace/*` extension handlers.
 //!
 //! Provides marketplace browsing and install endpoints for the pager modal.
 //! Delegates to `axon-plugin-marketplace` crate for scanning and install logic.
@@ -19,8 +19,8 @@ fn load_filtered_marketplace_sources() -> Vec<axon_plugin_marketplace::Marketpla
 
 pub async fn handle(agent: &MvpAgent, args: &acp::ExtRequest) -> ExtResult {
     match args.method.as_ref() {
-        "x.ai/marketplace/list" => handle_list().await,
-        "x.ai/marketplace/action" => handle_action(agent, args).await,
+        "axon/marketplace/list" => handle_list().await,
+        "axon/marketplace/action" => handle_action(agent, args).await,
         _ => Err(acp::Error::method_not_found()),
     }
 }
@@ -858,13 +858,13 @@ async fn handle_add_source(url: &str) -> axon_hooks_plugins_types::ActionOutcome
     };
 
     // Run the write under SAVE_LOCK + flock, off the reactor.
-    let config_path = axon_config::grok_home().join("config.toml");
-    let grok_home = axon_config::grok_home();
+    let config_path = axon_config::axon_home().join("config.toml");
+    let axon_home = axon_config::axon_home();
     let _save_guard = crate::util::config::lock_config_writes().await;
     let write = {
         let name = name.clone();
         tokio::task::spawn_blocking(move || {
-            let _flock = acquire_init_lock(&grok_home).ok();
+            let _flock = acquire_init_lock(&axon_home).ok();
             add_marketplace_source(&config_path, &name, &input, is_official)
         })
         .await
@@ -1004,14 +1004,14 @@ fn remove_source_locked(source_url_or_path: &str) -> axon_hooks_plugins_types::A
     use crate::plugin;
     use axon_hooks_plugins_types::{ActionOutcome, OutcomeStatus};
 
-    let grok_home = axon_config::grok_home();
-    let _flock = acquire_init_lock(&grok_home).ok();
+    let axon_home = axon_config::axon_home();
+    let _flock = acquire_init_lock(&axon_home).ok();
 
     let uninstalled = plugin::uninstall_marketplace_source_plugins(source_url_or_path);
 
     // Remove the source and (if official) set the flag in ONE atomic write so a
     // crash can't drop the flag and re-add the source next startup.
-    let config_path = grok_home.join("config.toml");
+    let config_path = axon_home.join("config.toml");
     let is_official = axon_plugin_marketplace::is_official_source_url(source_url_or_path);
     let mut removed_from_config = false;
     let content = match crate::util::config::read_to_string_or_empty(&config_path) {
@@ -1151,14 +1151,14 @@ fn read_official_marketplace_auto_installed(config_path: &std::path::Path) -> bo
     read_marketplace_bool_flag(config_path, "official_marketplace_auto_installed")
 }
 
-/// Acquire an advisory exclusive `flock` on `<grok_home>/.config-init.lock`,
+/// Acquire an advisory exclusive `flock` on `<axon_home>/.config-init.lock`,
 /// retrying briefly under contention, to serialize first-run auto-register
 /// across processes. Only `WouldBlock` retries; other I/O errors return early.
 /// The lock file is intentionally never removed (flock releases on exit).
-fn acquire_init_lock(grok_home: &std::path::Path) -> std::io::Result<std::fs::File> {
+fn acquire_init_lock(axon_home: &std::path::Path) -> std::io::Result<std::fs::File> {
     use fs2::FileExt;
-    let _ = std::fs::create_dir_all(grok_home);
-    let lock_path = grok_home.join(".config-init.lock");
+    let _ = std::fs::create_dir_all(axon_home);
+    let lock_path = axon_home.join(".config-init.lock");
     let file = std::fs::OpenOptions::new()
         .create(true)
         .write(true)
@@ -1215,8 +1215,8 @@ fn read_default_skills_installs_purged(config_path: &std::path::Path) -> bool {
 ///
 /// Gated by sticky `default_skills_installs_purged` in config.toml. Best-effort:
 /// errors are logged and never block startup.
-pub fn purge_default_skills_installs(grok_home: &std::path::Path) {
-    purge_default_skills_installs_impl(grok_home, || {
+pub fn purge_default_skills_installs(axon_home: &std::path::Path) {
+    purge_default_skills_installs_impl(axon_home, || {
         axon_agent::plugins::install_registry::InstallRegistry::try_load_from(
             axon_agent::plugins::install_registry::InstallRegistry::resolve_install_dir(),
         )
@@ -1224,24 +1224,24 @@ pub fn purge_default_skills_installs(grok_home: &std::path::Path) {
 }
 
 fn purge_default_skills_installs_impl(
-    grok_home: &std::path::Path,
+    axon_home: &std::path::Path,
     load_registry: impl FnOnce() -> Result<
         axon_agent::plugins::install_registry::InstallRegistry,
         axon_agent::plugins::install_registry::InstallError,
     >,
 ) {
-    let config_path = grok_home.join("config.toml");
+    let config_path = axon_home.join("config.toml");
 
     if read_default_skills_installs_purged(&config_path) {
         return;
     }
 
-    let _lock = match acquire_init_lock(grok_home) {
+    let _lock = match acquire_init_lock(axon_home) {
         Ok(f) => f,
         Err(e) => {
             tracing::warn!(
                 error = %e,
-                path = %grok_home.join(".config-init.lock").display(),
+                path = %axon_home.join(".config-init.lock").display(),
                 "skipping default-skills purge: failed to acquire init lock"
             );
             return;
@@ -1308,26 +1308,26 @@ fn purge_default_skills_installs_impl(
     }
 }
 
-/// Auto-register the official xAI marketplace source on first run.
+/// Auto-register the official Axon marketplace source on first run.
 ///
 /// Gated by the caller (`init_process`); see
 /// `Config::resolve_official_marketplace_auto_register`. No-op once
 /// `official_marketplace_auto_installed` is set. Under a process-wide flock it
 /// adds the source (or just sets the flag if it's already present in config.toml
 /// or a JSON store). Best-effort: errors are logged and never block startup.
-pub fn ensure_official_marketplace_source(grok_home: &std::path::Path) {
-    let config_path = grok_home.join("config.toml");
+pub fn ensure_official_marketplace_source(axon_home: &std::path::Path) {
+    let config_path = axon_home.join("config.toml");
 
     if read_official_marketplace_auto_installed(&config_path) {
         return;
     }
 
-    let _lock = match acquire_init_lock(grok_home) {
+    let _lock = match acquire_init_lock(axon_home) {
         Ok(f) => f,
         Err(e) => {
             tracing::warn!(
                 error = %e,
-                path = %grok_home.join(".config-init.lock").display(),
+                path = %axon_home.join(".config-init.lock").display(),
                 "skipping official marketplace auto-register: failed to acquire init lock"
             );
             return;
@@ -1355,13 +1355,13 @@ pub fn ensure_official_marketplace_source(grok_home: &std::path::Path) {
     };
 
     // "Already present" = official URL in config.toml sources OR a JSON store
-    // (settings.json / known_marketplaces.json) under grok_home. Scoped to
-    // grok_home only (not ~/.claude) to keep tests hermetic; a user with the URL
+    // (settings.json / known_marketplaces.json) under axon_home. Scoped to
+    // axon_home only (not ~/.claude) to keep tests hermetic; a user with the URL
     // solely in ~/.claude gets one duplicate entry that the UI dedupes by URL.
     let toml_sources = axon_plugin_marketplace::load_sources(&parsed);
     let json_sources = axon_plugin_marketplace::load_extra_sources_from_settings_in(
         &toml_sources,
-        std::slice::from_ref(&grok_home.to_path_buf()),
+        std::slice::from_ref(&axon_home.to_path_buf()),
     );
     let already_present = toml_sources.iter().chain(json_sources.iter()).any(|s| {
         matches!(&s.kind, axon_plugin_marketplace::SourceKind::Git { url, .. }
@@ -1386,7 +1386,7 @@ pub fn ensure_official_marketplace_source(grok_home: &std::path::Path) {
         Ok(()) if !already_present => {
             tracing::info!(
                 url = axon_plugin_marketplace::OFFICIAL_SOURCE_GIT_URL,
-                "auto-registered official xAI marketplace source"
+                "auto-registered official Axon marketplace source"
             );
         }
         Ok(()) => {}
@@ -1592,7 +1592,7 @@ mod official_source_tests {
         std::fs::write(
             plugins_dir.join("known_marketplaces.json"),
             format!(
-                r#"{{"xai-official":{{"source":{{"source":"git","url":"{}"}}}}}}"#,
+                r#"{{"axon-official":{{"source":{{"source":"git","url":"{}"}}}}}}"#,
                 axon_plugin_marketplace::OFFICIAL_SOURCE_GIT_URL,
             ),
         )
@@ -1618,7 +1618,7 @@ mod official_source_tests {
         std::fs::write(
             home.join("settings.json"),
             format!(
-                r#"{{"extraKnownMarketplaces":{{"xai-official":{{"source":{{"source":"git","url":"{}"}}}}}}}}"#,
+                r#"{{"extraKnownMarketplaces":{{"axon-official":{{"source":{{"source":"git","url":"{}"}}}}}}}}"#,
                 axon_plugin_marketplace::OFFICIAL_SOURCE_GIT_URL,
             ),
         )
@@ -1878,7 +1878,7 @@ mod conversion_tests {
             version: Some("1.0.0".into()),
             description: Some("demo".into()),
             category: Some("dev".into()),
-            author: Some("xai".into()),
+            author: Some("axon".into()),
             tags: vec!["cli".into()],
             keywords: vec!["search".into(), "rank".into()],
             domains: vec!["example.com".into()],

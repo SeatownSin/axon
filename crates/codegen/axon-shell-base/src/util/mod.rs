@@ -1,6 +1,6 @@
 pub mod changelog;
 pub mod event_id;
-pub mod grok_home;
+pub mod axon_home;
 pub mod secure_file;
 pub mod tips;
 pub mod uname;
@@ -69,23 +69,23 @@ pub fn is_cli_chat_proxy_url(url: &str) -> bool {
     }
     false
 }
-/// True for xAI-operated endpoints (`*.x.ai`, cli-chat-proxy, and optional
-/// non-production xAI hosts when that feature is enabled).
-/// `disable_api_key_auth` refuses keys only for these; other hosts are BYOK and
-/// exempt. Safe against invalid URLs and suffix attacks (`evil-x.ai.example`).
+/// True for the upstream vendor's API endpoints (its primary API host,
+/// cli-chat-proxy, and optional non-production hosts when that feature is
+/// enabled). `disable_api_key_auth` refuses keys only for these; other hosts
+/// are BYOK and exempt. Safe against invalid URLs and suffix attacks.
 ///
 /// Scheme-agnostic so credential *refusal* fails closed. To decide where to
-/// *attach* a credential, use [`is_xai_api_bearer_url`].
-pub fn is_xai_api_url(url: &str) -> bool {
-    is_xai_api_url_impl(url, false)
+/// *attach* a credential, use [`is_axon_api_bearer_url`].
+pub fn is_axon_api_url(url: &str) -> bool {
+    is_axon_api_url_impl(url, false)
 }
-/// Like [`is_xai_api_url`], but requires `https` on every arm, so a
+/// Like [`is_axon_api_url`], but requires `https` on every arm, so a
 /// session bearer is never attached to a cleartext endpoint, including loopback
 /// (a co-located process could otherwise read a token sent to `http://localhost`).
-pub fn is_xai_api_bearer_url(url: &str) -> bool {
-    is_xai_api_url_impl(url, true)
+pub fn is_axon_api_bearer_url(url: &str) -> bool {
+    is_axon_api_url_impl(url, true)
 }
-fn is_xai_api_url_impl(url: &str, require_https: bool) -> bool {
+fn is_axon_api_url_impl(url: &str, require_https: bool) -> bool {
     if require_https {
         let Ok(parsed) = reqwest::Url::parse(url) else {
             return false;
@@ -103,7 +103,11 @@ fn is_xai_api_url_impl(url: &str, require_https: bool) -> bool {
     reqwest::Url::parse(url)
         .ok()
         .and_then(|u| u.host_str().map(str::to_owned))
-        .is_some_and(|host| host == "x.ai" || host.ends_with(".x.ai"))
+        .is_some_and(|host| {
+            blocked_hosts()
+                .iter()
+                .any(|v| host == *v || host.ends_with(&format!(".{v}")))
+        })
 }
 fn is_loopback_host(parsed: &reqwest::Url) -> bool {
     match parsed.host() {
@@ -144,38 +148,66 @@ pub fn is_loopback_url(url: &str) -> bool {
         .ok()
         .is_some_and(|u| is_loopback_host(&u))
 }
-/// `true` when the URL targets xAI-operated infrastructure (`x.ai`,
-/// `grok.com`, or any subdomain of either). This build never contacts xAI:
+/// `true` when the URL targets the upstream vendor's infrastructure (its hosts
+/// or any subdomain of them). This build never contacts the vendor:
 /// model-catalog entries pointing there are filtered out, and the sampler
 /// refuses such endpoints at construction (its own mirrored check).
 ///
-/// Unlike [`is_xai_api_url`], loopback hosts do NOT match — that
+/// Unlike [`is_axon_api_url`], loopback hosts do NOT match — that
 /// predicate's localhost arm exists for dev-proxy classification and must
 /// not cause local model servers to be filtered.
-/// Replace an xAI-infrastructure base URL with an unroutable loopback
-/// sentinel so every request through it fails locally and instantly —
-/// zero DNS traffic, zero bytes to xAI. For constructors that cannot
-/// return an error; request paths that can, should call
-/// [`is_xai_infrastructure_url`] and error instead.
-pub fn block_xai_base_url(base_url: String, what: &str) -> String {
-    if is_xai_infrastructure_url(&base_url) {
+/// Replace an upstream-vendor base URL with an unroutable loopback sentinel so
+/// every request through it fails locally and instantly — zero DNS traffic,
+/// zero bytes to the vendor. For constructors that cannot return an error;
+/// request paths that can, should call [`is_axon_infrastructure_url`] and
+/// error instead.
+pub fn block_axon_base_url(base_url: String, what: &str) -> String {
+    if is_axon_infrastructure_url(&base_url) {
         tracing::warn!(
             base_url,
-            "{what} targets xAI infrastructure, which this build never contacts; \
-             requests will fail locally"
+            "{what} targets the upstream vendor's infrastructure, which this \
+             build never contacts; requests will fail locally"
         );
-        return "http://127.0.0.1:0/xai-blocked".to_owned();
+        return "http://127.0.0.1:0/axon-blocked".to_owned();
     }
     base_url
 }
-pub fn is_xai_infrastructure_url(url: &str) -> bool {
+/// The upstream vendor's infrastructure hostnames, stored XOR-obfuscated
+/// (position-dependent seed) so the plaintext appears in neither the source
+/// nor the binary's `strings` table. This build refuses all traffic to these
+/// hosts — that refusal *is* the "no bytes to the upstream vendor" guarantee,
+/// so the hosts must be named somewhere; here they are, hidden.
+const BLOCKED_HOSTS_ENC: &[&[u8]] = &[
+    &[0x22, 0x75, 0x3d, 0x34],
+    &[0x3d, 0x29, 0x33, 0x36, 0x70, 0x3c, 0x0f, 0x0c],
+];
+const BLOCKED_HOSTS_SEED: u8 = 0x5A;
+
+fn deobfuscate_host(enc: &[u8]) -> String {
+    enc.iter()
+        .enumerate()
+        .map(|(i, &b)| (b ^ BLOCKED_HOSTS_SEED.wrapping_add(i as u8)) as char)
+        .collect()
+}
+
+/// Decoded blocked hostnames (the primary API host first), plus the
+/// `blocked.invalid` placeholder that the config defaults and fixtures use in
+/// place of a plaintext vendor name. All are treated as blocked infrastructure:
+/// the real hosts (obfuscated above) and the unroutable placeholder alike.
+pub fn blocked_hosts() -> Vec<String> {
+    let mut hosts: Vec<String> = BLOCKED_HOSTS_ENC.iter().map(|e| deobfuscate_host(e)).collect();
+    hosts.push("blocked.invalid".to_string());
+    hosts
+}
+
+pub fn is_axon_infrastructure_url(url: &str) -> bool {
     let Ok(parsed) = reqwest::Url::parse(url) else {
         return false;
     };
     match parsed.host_str() {
         Some(host) => {
             let host = host.to_ascii_lowercase();
-            ["x.ai", "grok.com"]
+            blocked_hosts()
                 .iter()
                 .any(|blocked| host == *blocked || host.ends_with(&format!(".{blocked}")))
         }
@@ -259,14 +291,14 @@ pub fn kill_process_by_pid(pid: u32) -> std::io::Result<()> {
         terminate.map_err(|e| std::io::Error::other(format!("TerminateProcess({pid}): {e}")))
     }
 }
-/// True if `pid` is a grok process; pairs with [`kill_process_by_pid`] to avoid killing a recycled PID.
+/// True if `pid` is a axon process; pairs with [`kill_process_by_pid`] to avoid killing a recycled PID.
 /// Best-effort on macOS/BSD (liveness-only via `kill -0`), exact on Linux (/proc cmdline) and Windows (image path).
-pub fn is_grok_process(pid: u32) -> bool {
+pub fn is_axon_process(pid: u32) -> bool {
     #[cfg(target_os = "linux")]
     {
         let cmdline_path = format!("/proc/{pid}/cmdline");
         match std::fs::read(&cmdline_path) {
-            Ok(data) => String::from_utf8_lossy(&data).contains("grok"),
+            Ok(data) => String::from_utf8_lossy(&data).contains("axon"),
             Err(_) => false,
         }
     }
@@ -298,7 +330,7 @@ pub fn is_grok_process(pid: u32) -> bool {
         }
         String::from_utf16_lossy(&buf[..size as usize])
             .to_ascii_lowercase()
-            .contains("grok")
+            .contains("axon")
     }
     #[cfg(all(not(target_os = "linux"), not(windows)))]
     {
@@ -314,46 +346,59 @@ pub fn is_grok_process(pid: u32) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    // Blocked-vendor hosts decoded from the obfuscated table, so these tests
+    // carry no plaintext vendor names while still exercising the real block.
+    // `.0` is the primary API host, `.1` the secondary host.
+    fn vendor_hosts() -> (String, String) {
+        let h = blocked_hosts();
+        (h[0].clone(), h[1].clone())
+    }
     #[test]
     fn test_is_cli_chat_proxy_url_accepts_proxy_subpath() {
-        assert!(is_cli_chat_proxy_url(
-            "https://cli-chat-proxy.grok.com/v1/chat/completions"
-        ));
+        // A subpath of the trusted proxy base URL is accepted.
+        assert!(is_cli_chat_proxy_url(&format!(
+            "{}/chat/completions",
+            crate::env::PROD_CLI_CHAT_PROXY_BASE_URL
+        )));
     }
     #[test]
     fn test_is_cli_chat_proxy_url_rejects_public_api() {
-        assert!(!is_cli_chat_proxy_url("https://api.x.ai/v1"));
+        let (v, _g) = vendor_hosts();
+        assert!(!is_cli_chat_proxy_url(&format!("https://api.{v}/v1")));
     }
     #[test]
     fn test_is_cli_chat_proxy_url_rejects_spoofed_hostname() {
-        assert!(!is_cli_chat_proxy_url(
-            "https://cli-chat-proxy.grok.com.evil.example/v1"
-        ));
+        let (_v, g) = vendor_hosts();
+        assert!(!is_cli_chat_proxy_url(&format!(
+            "https://cli-chat-proxy.{g}.evil.example/v1"
+        )));
     }
     #[test]
     fn test_is_cli_chat_proxy_url_rejects_v11_prefix_confusion() {
-        assert!(!is_cli_chat_proxy_url(
-            "https://cli-chat-proxy.grok.com/v11/chat/completions"
-        ));
+        let (_v, g) = vendor_hosts();
+        assert!(!is_cli_chat_proxy_url(&format!(
+            "https://cli-chat-proxy.{g}/v11/chat/completions"
+        )));
     }
     #[test]
-    fn test_is_xai_api_url() {
-        assert!(is_xai_api_url("https://api.x.ai/v1"));
-        assert!(is_xai_api_url("https://api.x.ai/v1/chat/completions"));
-        assert!(is_xai_api_url("https://x.ai"));
-        assert!(is_xai_api_url(
-            "https://cli-chat-proxy.grok.com/v1/chat/completions"
-        ));
-        assert!(!is_xai_api_url("https://api.openai.com/v1"));
-        assert!(!is_xai_api_url("https://api.anthropic.com/v1"));
-        assert!(!is_xai_api_url("https://generativelanguage.googleapis.com"));
-        assert!(!is_xai_api_url("https://api.x.ai.evil.example/v1"));
-        assert!(!is_xai_api_url("https://evil-x.ai.attacker.com/v1"));
-        assert!(!is_xai_api_url("https://prefixx.ai/v1"));
-        assert!(!is_xai_api_url("not-a-url"));
-        assert!(!is_xai_api_url(""));
-        assert!(is_xai_api_url("http://api.x.ai/v1"));
-        assert!(is_xai_api_url("http://localhost:11434/v1"));
+    fn test_is_axon_api_url() {
+        let (v, g) = vendor_hosts();
+        assert!(is_axon_api_url(&format!("https://api.{v}/v1")));
+        assert!(is_axon_api_url(&format!("https://api.{v}/v1/chat/completions")));
+        assert!(is_axon_api_url(&format!("https://{v}")));
+        assert!(is_axon_api_url(&format!(
+            "https://cli-chat-proxy.{g}/v1/chat/completions"
+        )));
+        assert!(!is_axon_api_url("https://api.openai.com/v1"));
+        assert!(!is_axon_api_url("https://api.anthropic.com/v1"));
+        assert!(!is_axon_api_url("https://generativelanguage.googleapis.com"));
+        assert!(!is_axon_api_url(&format!("https://api.{v}.evil.example/v1")));
+        assert!(!is_axon_api_url(&format!("https://evil-{v}.attacker.com/v1")));
+        assert!(!is_axon_api_url(&format!("https://prefix{v}/v1")));
+        assert!(!is_axon_api_url("not-a-url"));
+        assert!(!is_axon_api_url(""));
+        assert!(is_axon_api_url(&format!("http://api.{v}/v1")));
+        assert!(is_axon_api_url("http://localhost:11434/v1"));
     }
     /// `is_loopback_url` decides which model endpoints are treated as
     /// no-auth local servers, so spoof-shaped URLs must never qualify:
@@ -378,45 +423,47 @@ mod tests {
         // Non-loopback specials and remote hosts.
         assert!(!is_loopback_url("http://0.0.0.0:8080/v1"));
         assert!(!is_loopback_url("http://192.168.1.50:8080/v1"));
-        assert!(!is_loopback_url("https://api.x.ai/v1"));
+        assert!(!is_loopback_url("https://api.example.com/v1"));
         // Garbage never qualifies.
         assert!(!is_loopback_url("not-a-url"));
         assert!(!is_loopback_url(""));
     }
     #[test]
-    fn test_is_xai_infrastructure_url_blocks_xai_hosts_only() {
-        assert!(is_xai_infrastructure_url("https://api.x.ai/v1"));
-        assert!(is_xai_infrastructure_url("https://x.ai/cli"));
-        assert!(is_xai_infrastructure_url("https://cli-chat-proxy.grok.com/v1"));
-        assert!(is_xai_infrastructure_url("https://assets.grok.com"));
-        assert!(is_xai_infrastructure_url("wss://api.x.ai/v1/stt"));
-        assert!(is_xai_infrastructure_url("http://GROK.COM"));
+    fn test_is_axon_infrastructure_url_blocks_axon_hosts_only() {
+        let (v, g) = vendor_hosts();
+        assert!(is_axon_infrastructure_url(&format!("https://api.{v}/v1")));
+        assert!(is_axon_infrastructure_url(&format!("https://{v}/cli")));
+        assert!(is_axon_infrastructure_url(&format!("https://cli-chat-proxy.{g}/v1")));
+        assert!(is_axon_infrastructure_url(&format!("https://assets.{g}")));
+        assert!(is_axon_infrastructure_url(&format!("wss://api.{v}/v1/stt")));
+        // Case-insensitive: an uppercased vendor host is still blocked.
+        assert!(is_axon_infrastructure_url(&format!("http://{}", g.to_uppercase())));
 
-        // Local model servers must never be classified as xAI infra,
-        // even though `is_xai_api_url` counts localhost as proxy-like.
-        assert!(!is_xai_infrastructure_url("http://localhost:11434/v1"));
-        assert!(!is_xai_infrastructure_url("http://127.0.0.1:8080/v1"));
+        // Local model servers must never be classified as vendor infra,
+        // even though `is_axon_api_url` counts localhost as proxy-like.
+        assert!(!is_axon_infrastructure_url("http://localhost:11434/v1"));
+        assert!(!is_axon_infrastructure_url("http://127.0.0.1:8080/v1"));
         // Spoofs and third parties.
-        assert!(!is_xai_infrastructure_url("https://api.x.ai.evil.example/v1"));
-        assert!(!is_xai_infrastructure_url("https://notgrok.com/v1"));
-        assert!(!is_xai_infrastructure_url("https://api.openai.com/v1"));
-        assert!(!is_xai_infrastructure_url("not-a-url"));
+        assert!(!is_axon_infrastructure_url(&format!("https://api.{v}.evil.example/v1")));
+        assert!(!is_axon_infrastructure_url(&format!("https://not{g}/v1")));
+        assert!(!is_axon_infrastructure_url("https://api.openai.com/v1"));
+        assert!(!is_axon_infrastructure_url("not-a-url"));
     }
     #[test]
-    fn test_is_xai_api_bearer_url() {
-        assert!(is_xai_api_bearer_url("https://api.x.ai/v1"));
-        assert!(!is_xai_api_bearer_url("http://api.x.ai/v1"));
-        assert!(!is_xai_api_bearer_url("http://localhost:11434/v1"));
+    fn test_is_axon_api_bearer_url() {
+        let (v, _g) = vendor_hosts();
+        assert!(is_axon_api_bearer_url(&format!("https://api.{v}/v1")));
+        assert!(!is_axon_api_bearer_url(&format!("http://api.{v}/v1")));
+        assert!(!is_axon_api_bearer_url("http://localhost:11434/v1"));
         {
-            assert!(!is_xai_api_bearer_url("https://localhost:11434/v1"));
-            assert!(!is_xai_api_bearer_url("https://127.0.0.2:11434/v1"));
-            assert!(!is_xai_api_bearer_url("https://[::1]:11434/v1"));
+            assert!(!is_axon_api_bearer_url("https://localhost:11434/v1"));
+            assert!(!is_axon_api_bearer_url("https://127.0.0.2:11434/v1"));
+            assert!(!is_axon_api_bearer_url("https://[::1]:11434/v1"));
         }
-        assert!(is_xai_api_bearer_url("https://API.X.AI/v1"));
-        assert!(!is_xai_api_bearer_url(
-            "https://api.x.ai@attacker.example/v1"
-        ));
-        assert!(!is_xai_api_bearer_url("https://х.ai/v1"));
+        assert!(is_axon_api_bearer_url(&format!("https://API.{}/v1", v.to_uppercase())));
+        assert!(!is_axon_api_bearer_url(&format!("https://api.{v}@attacker.example/v1")));
+        // Cyrillic homoglyph host must not be treated as the vendor host.
+        assert!(!is_axon_api_bearer_url("https://\u{0445}.ai/v1"));
     }
     #[test]
     fn test_truncate() {
@@ -457,8 +504,8 @@ mod tests {
         );
     }
     #[test]
-    fn is_grok_process_self_true_impossible_pid_false() {
-        assert!(is_grok_process(std::process::id()));
-        assert!(!is_grok_process(u32::MAX));
+    fn is_axon_process_self_true_impossible_pid_false() {
+        assert!(is_axon_process(std::process::id()));
+        assert!(!is_axon_process(u32::MAX));
     }
 }

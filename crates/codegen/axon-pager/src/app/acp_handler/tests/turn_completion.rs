@@ -170,7 +170,7 @@
         ));
 
         let affected = handle_ext_notification(
-            &xai_turn_completed_notif("sess-view", "pid-driver", "end_turn", false),
+            &axon_turn_completed_notif("sess-view", "pid-driver", "end_turn", false),
             &mut app,
         );
         assert!(affected, "finalizing the active viewer turn should redraw");
@@ -188,7 +188,7 @@
         // A duplicate/stale terminal for the now-finished turn is a no-op.
         let len_before = app.agents.get(&AgentId(0)).unwrap().scrollback.len();
         let affected = handle_ext_notification(
-            &xai_turn_completed_notif("sess-view", "pid-driver", "end_turn", false),
+            &axon_turn_completed_notif("sess-view", "pid-driver", "end_turn", false),
             &mut app,
         );
         assert!(!affected, "a duplicate TurnCompleted must be a no-op");
@@ -213,7 +213,7 @@
         }
 
         let _ = handle_ext_notification(
-            &xai_turn_completed_notif("sess-drive", "pid-local", "cancelled", false),
+            &axon_turn_completed_notif("sess-drive", "pid-local", "cancelled", false),
             &mut app,
         );
 
@@ -237,7 +237,7 @@
         let len_before = app.agents[&AgentId(0)].scrollback.len();
 
         let affected = handle_ext_notification(
-            &xai_wake_turn_completed_notif(
+            &axon_wake_turn_completed_notif(
                 "sess-wake",
                 "task-completed-bg1",
                 Some(1_700_000_000_000 + 5_000),
@@ -280,7 +280,7 @@
         );
 
         let _ = handle_ext_notification(
-            &xai_wake_turn_completed_notif("sess-wake", "task-completed-bg1", None),
+            &axon_wake_turn_completed_notif("sess-wake", "task-completed-bg1", None),
             &mut app,
         );
         assert!(
@@ -303,7 +303,7 @@
         let len_before = app.agents[&AgentId(0)].scrollback.len();
 
         let affected = handle_ext_notification(
-            &xai_turn_completed_notif("sess-wake", "task-completed-bg1", "end_turn", true),
+            &axon_turn_completed_notif("sess-wake", "task-completed-bg1", "end_turn", true),
             &mut app,
         );
 
@@ -331,7 +331,7 @@
         let len_before = app.agents[&AgentId(0)].scrollback.len();
 
         let affected = handle_ext_notification(
-            &xai_wake_turn_completed_notif("sess-cron", "scheduler-fired-abc", Some(1_000)),
+            &axon_wake_turn_completed_notif("sess-cron", "scheduler-fired-abc", Some(1_000)),
             &mut app,
         );
 
@@ -353,7 +353,7 @@
 
         for stop_reason in ["error", "cancelled", "rate_limit"] {
             let _ = handle_ext_notification(
-                &xai_turn_completed_notif("sess-wake", "task-completed-bg1", stop_reason, false),
+                &axon_turn_completed_notif("sess-wake", "task-completed-bg1", stop_reason, false),
                 &mut app,
             );
         }
@@ -372,7 +372,7 @@
         let len_before = app.agents[&AgentId(0)].scrollback.len();
 
         let _ = handle_ext_notification(
-            &xai_turn_completed_notif("sess-wake", "task-completed-bg1", "cancelled", false),
+            &axon_turn_completed_notif("sess-wake", "task-completed-bg1", "cancelled", false),
             &mut app,
         );
 
@@ -410,7 +410,7 @@
         let len_before = app.agents[&AgentId(0)].scrollback.len();
 
         let affected = handle_ext_notification(
-            &xai_wake_turn_completed_notif("sess-wake", "task-completed-bg1", Some(6_000)),
+            &axon_wake_turn_completed_notif("sess-wake", "task-completed-bg1", Some(6_000)),
             &mut app,
         );
 
@@ -454,7 +454,7 @@
         let len_before = app.agents[&AgentId(0)].scrollback.len();
 
         let _ = handle_ext_notification(
-            &xai_wake_turn_completed_notif("sess-wake", "task-completed-bg1", None),
+            &axon_wake_turn_completed_notif("sess-wake", "task-completed-bg1", None),
             &mut app,
         );
 
@@ -484,7 +484,7 @@
         let len_before = app.agents[&AgentId(0)].scrollback.len();
 
         let _ = handle_ext_notification(
-            &xai_hook_execution_notif("sess-stop", "stop", false),
+            &axon_hook_execution_notif("sess-stop", "stop", false),
             &mut app,
         );
 
@@ -516,7 +516,7 @@
             .loading_replay = true;
 
         let _ = handle_ext_notification(
-            &xai_hook_execution_notif("sess-replay", "stop", true),
+            &axon_hook_execution_notif("sess-replay", "stop", true),
             &mut app,
         );
 
@@ -542,7 +542,7 @@
         }
 
         let _ = handle_ext_notification(
-            &xai_hook_execution_notif_for_prompt("sess-foreign", "stop", Some("pid-old"), false),
+            &axon_hook_execution_notif_for_prompt("sess-foreign", "stop", Some("pid-old"), false),
             &mut app,
         );
 
@@ -555,7 +555,7 @@
 
         // The running turn's own batch (matching wire pid) still stashes.
         let _ = handle_ext_notification(
-            &xai_hook_execution_notif_for_prompt("sess-foreign", "stop", Some("pid-new"), false),
+            &axon_hook_execution_notif_for_prompt("sess-foreign", "stop", Some("pid-new"), false),
             &mut app,
         );
         let agent = app.agents.get(&AgentId(0)).unwrap();
@@ -584,13 +584,13 @@
             &mut app,
         );
         let _ = handle_ext_notification(
-            &xai_turn_completed_notif("sess-idle-foreign", "pid-new", "end_turn", false),
+            &axon_turn_completed_notif("sess-idle-foreign", "pid-new", "end_turn", false),
             &mut app,
         );
 
         // The marker's own batch (matching pid) merges…
         let _ = handle_ext_notification(
-            &xai_hook_execution_notif_for_prompt(
+            &axon_hook_execution_notif_for_prompt(
                 "sess-idle-foreign",
                 "stop",
                 Some("pid-new"),
@@ -608,7 +608,7 @@
 
         // …a foreign-pid batch is refused even with a fresh event name.
         let _ = handle_ext_notification(
-            &xai_hook_execution_notif_for_prompt(
+            &axon_hook_execution_notif_for_prompt(
                 "sess-idle-foreign",
                 "stop_failure",
                 Some("pid-old"),
@@ -637,7 +637,7 @@
             &mut app,
         );
         let _ = handle_ext_notification(
-            &xai_turn_completed_notif("sess-interleaved", "pid-new", "end_turn", false),
+            &axon_turn_completed_notif("sess-interleaved", "pid-new", "end_turn", false),
             &mut app,
         );
         app.agents
@@ -653,7 +653,7 @@
             ));
 
         let _ = handle_ext_notification(
-            &xai_hook_execution_notif_for_prompt(
+            &axon_hook_execution_notif_for_prompt(
                 "sess-interleaved",
                 "stop",
                 Some("pid-new"),
@@ -683,11 +683,11 @@
             agent.session.current_prompt_id = Some("pid-1".into());
         }
         let _ = handle_ext_notification(
-            &xai_hook_execution_notif("sess-stash-dup", "stop", false),
+            &axon_hook_execution_notif("sess-stash-dup", "stop", false),
             &mut app,
         );
         let _ = handle_ext_notification(
-            &xai_hook_execution_notif("sess-stash-dup", "stop", false),
+            &axon_hook_execution_notif("sess-stash-dup", "stop", false),
             &mut app,
         );
 
@@ -716,7 +716,7 @@
             agent.session.current_prompt_id = None;
         }
         let _ = handle_ext_notification(
-            &xai_hook_execution_notif_for_prompt("sess-wire-key", "stop", Some("pid-a"), false),
+            &axon_hook_execution_notif_for_prompt("sess-wire-key", "stop", Some("pid-a"), false),
             &mut app,
         );
 
@@ -731,7 +731,7 @@
         // marker in the tail — legacy standalone block.
         let mut app = make_app_with_agent("sess-end");
         let _ = handle_ext_notification(
-            &xai_hook_execution_notif("sess-end", "stop", false),
+            &axon_hook_execution_notif("sess-end", "stop", false),
             &mut app,
         );
 
@@ -750,7 +750,7 @@
             agent.session.current_prompt_id = Some("pid-1".into());
         }
         let _ = handle_ext_notification(
-            &xai_hook_execution_notif("sess-ls", "session_start", false),
+            &axon_hook_execution_notif("sess-ls", "session_start", false),
             &mut app,
         );
 
@@ -918,7 +918,7 @@
         app.agents.get_mut(&id).unwrap().session.loading_replay = true;
 
         let affected = handle_ext_notification(
-            &xai_turn_completed_notif("sess-1", "p-run", "end_turn", true),
+            &axon_turn_completed_notif("sess-1", "p-run", "end_turn", true),
             &mut app,
         );
         assert!(
@@ -975,7 +975,7 @@
         assert!(!is_matched_agent_active(&app, id));
 
         let affected = handle_ext_notification(
-            &xai_turn_completed_notif("sess-bg", "pid-bg", "cancelled", false),
+            &axon_turn_completed_notif("sess-bg", "pid-bg", "cancelled", false),
             &mut app,
         );
         assert!(
@@ -1008,7 +1008,7 @@
             agent.unexpected_replay_drops = 3;
         }
         let _ = handle_ext_notification(
-            &xai_turn_completed_notif("sess-1", "p-first", "end_turn", true),
+            &axon_turn_completed_notif("sess-1", "p-first", "end_turn", true),
             &mut app,
         );
         assert!(
@@ -1041,7 +1041,7 @@
 
         // Hook beats the wake terminal.
         let _ = handle_ext_notification(
-            &xai_hook_execution_notif_for_prompt(
+            &axon_hook_execution_notif_for_prompt(
                 "sess-wake-idle",
                 "stop",
                 Some("notifications-019f-abc"),
@@ -1059,11 +1059,11 @@
 
         // Hook trails the wake terminal — same standalone shape.
         let _ = handle_ext_notification(
-            &xai_wake_turn_completed_notif("sess-wake-idle", "task-completed-bg1", None),
+            &axon_wake_turn_completed_notif("sess-wake-idle", "task-completed-bg1", None),
             &mut app,
         );
         let _ = handle_ext_notification(
-            &xai_hook_execution_notif_for_prompt(
+            &axon_hook_execution_notif_for_prompt(
                 "sess-wake-idle",
                 "stop",
                 Some("task-completed-bg1"),
@@ -1089,7 +1089,7 @@
         }
 
         let _ = handle_ext_notification(
-            &xai_hook_execution_notif_for_prompt(
+            &axon_hook_execution_notif_for_prompt(
                 "sess-wake-local",
                 "stop",
                 Some("task-completed-bg1"),

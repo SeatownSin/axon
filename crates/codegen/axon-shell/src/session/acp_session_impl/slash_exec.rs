@@ -724,7 +724,7 @@ impl SessionActor {
                     file_count = file_infos.len(),
                     "memory browse: listing files",
                 );
-                self.send_xai_notification(XaiSessionUpdate::MemoryFiles { files: file_infos })
+                self.send_axon_notification(AxonSessionUpdate::MemoryFiles { files: file_infos })
                     .await;
                 ok_end_turn(0, None)
             }
@@ -892,7 +892,7 @@ impl SessionActor {
                 self.clear_pending_classifier_completions();
                 // Emit a cleared notification so the pager drops goal state.
                 let update = crate::session::goal_orchestrator::build_goal_cleared();
-                self.send_xai_notification(update).await;
+                self.send_axon_notification(update).await;
                 self.send_slash_command_output("Goal cleared.").await;
                 ok_end_turn(0, None)
             }

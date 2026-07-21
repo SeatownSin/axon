@@ -269,7 +269,7 @@ pub struct LoginPickerShown {
     pub trigger: String,
 }
 
-/// A login method was chosen from the picker. `method` is "xai" or "api_key";
+/// A login method was chosen from the picker. `method` is "axon" or "api_key";
 /// `mode` is "device", "loopback", or "api_key".
 #[derive(Serialize)]
 pub struct LoginMethodChosen {
@@ -277,7 +277,7 @@ pub struct LoginMethodChosen {
     pub mode: String,
 }
 
-/// A login flow completed successfully. `method` is "xai" or "api_key";
+/// A login flow completed successfully. `method` is "axon" or "api_key";
 /// `mode` is the resolved auth mode; `mid_session` is true for `/login`/401
 /// re-auth (as opposed to the startup/logout flow).
 #[derive(Serialize)]
@@ -1094,7 +1094,7 @@ pub struct PlanSubmit {
 }
 
 /// Which option the user chose in the project-directory picker (shown on the
-/// first prompt when Grok Build is launched from a non-project directory).
+/// first prompt when Axon Build is launched from a non-project directory).
 #[derive(Debug, Serialize, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum ProjectPickerOutcome {
@@ -1121,12 +1121,12 @@ pub struct ProjectPickerSelected {
 }
 
 // ---------------------------------------------------------------------------
-// SuperGrok upsell
+// SuperAxon upsell
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, Serialize, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-pub enum SuperGrokUpsell {
+pub enum SuperAxonUpsell {
     WelcomeScreen,
     RateLimitError,
     /// Free-usage-exhausted paywall modal (free-tier 429 with the
@@ -1138,21 +1138,21 @@ pub enum SuperGrokUpsell {
 }
 
 #[derive(Serialize)]
-pub struct SuperGrokUpsellShown {
-    pub source: SuperGrokUpsell,
+pub struct SuperAxonUpsellShown {
+    pub source: SuperAxonUpsell,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub auth_method: Option<String>,
 }
 
 #[derive(Serialize)]
-pub struct SuperGrokUpsellClicked {
-    pub source: SuperGrokUpsell,
+pub struct SuperAxonUpsellClicked {
+    pub source: SuperAxonUpsell,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub auth_method: Option<String>,
 }
 
 /// Which surface a promo announcement's upgrade CTA was activated from.
-/// Modeled on [`SuperGrokUpsell`]; lets the funnel attribute the click to the
+/// Modeled on [`SuperAxonUpsell`]; lets the funnel attribute the click to the
 /// welcome hero vs the in-session header vs the banner vs the dashboard, and
 /// distinguish keyboard (`Ctrl+O`) activations from pointer/OSC 8 ones.
 /// Ord/Eq exist for the pager's per-(announcement, surface) impression latch.
@@ -1487,9 +1487,9 @@ pub struct CreditLimitUpsellClicked {
 // ---------------------------------------------------------------------------
 
 /// Emitted when a previously access-gated user re-authenticates and the gate
-/// is lifted — i.e. they subscribed (externally on grok.com) and came back.
-/// This is the actual conversion signal for SuperGrok Heavy subscriptions
-/// attributed to Grok Build: the user saw the gate in Grok Build, went and
+/// is lifted — i.e. they subscribed (externally on blocked.invalid) and came back.
+/// This is the actual conversion signal for SuperAxon Heavy subscriptions
+/// attributed to Axon Build: the user saw the gate in Axon Build, went and
 /// paid, then returned with access.
 #[derive(Serialize)]
 pub struct SubscriptionActivated {
@@ -1497,7 +1497,7 @@ pub struct SubscriptionActivated {
     pub auth_method: Option<String>,
     /// Whether the subscribe CTA was shown in this session before the gate
     /// was lifted (`access_gate_shown_logged`). When `true`, the conversion
-    /// is strongly attributable to Grok Build's upsell surface.
+    /// is strongly attributable to Axon Build's upsell surface.
     pub upsell_shown_this_session: bool,
 }
 
@@ -1544,7 +1544,7 @@ pub enum AuthTokenKind {
 /// manual re-login. Product-events only (no external export).
 ///
 /// Alerting contract: the event lands under the Shell-origin name
-/// `grok-shell-manual_auth` (the `manual_auth` binding gets the `grok-shell-`
+/// `axon-shell-manual_auth` (the `manual_auth` binding gets the `axon-shell-`
 /// prefix at emit). Count `distinct(principal)`, never raw events — the debounce
 /// is a single slot per process (repeats on the most-recent dead credential
 /// collapse; alternating credentials can re-emit), and `trigger` is whichever
@@ -1719,8 +1719,8 @@ telemetry_event!(
 telemetry_event!(PagerSlashCommand, "pager_slash_command");
 telemetry_event!(PlanSubmit, "plan_submit");
 telemetry_event!(ProjectPickerSelected, "project_picker_selected");
-telemetry_event!(SuperGrokUpsellShown, "supergrok_upsell_shown");
-telemetry_event!(SuperGrokUpsellClicked, "supergrok_upsell_clicked");
+telemetry_event!(SuperAxonUpsellShown, "superaxon_upsell_shown");
+telemetry_event!(SuperAxonUpsellClicked, "superaxon_upsell_clicked");
 telemetry_event!(AnnouncementCtaShown, "announcement_cta_shown");
 telemetry_event!(AnnouncementCtaClicked, "announcement_cta_clicked");
 telemetry_event!(TerminalTelemetry, "terminal_context");
@@ -2105,7 +2105,7 @@ mod tests {
     #[test]
     fn login_completed_serializes_all_fields() {
         let v = serde_json::to_value(LoginCompleted {
-            method: "xai".into(),
+            method: "axon".into(),
             mode: "device".into(),
             duration_ms: 1234,
             mid_session: false,
@@ -2114,7 +2114,7 @@ mod tests {
         assert_eq!(
             v,
             serde_json::json!({
-                "method": "xai",
+                "method": "axon",
                 "mode": "device",
                 "duration_ms": 1234,
                 "mid_session": false,

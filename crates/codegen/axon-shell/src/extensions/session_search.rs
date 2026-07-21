@@ -1,4 +1,4 @@
-//! ACP extension handler for session search (`x.ai/session/search`).
+//! ACP extension handler for session search (`axon/session/search`).
 //!
 //! Exposes session full-text search as an ACP extension method.
 //! The client sends a query and receives ranked results across all
@@ -67,10 +67,10 @@ pub struct SearchSessionHit {
     pub snippet: Option<String>,
 }
 
-/// Route `x.ai/session/search` extension method calls.
+/// Route `axon/session/search` extension method calls.
 pub async fn handle(args: &acp::ExtRequest) -> ExtResult {
     match args.method.as_ref() {
-        "x.ai/session/search" => {
+        "axon/session/search" => {
             let req: SearchSessionsRequest = super::parse_params(args)?;
             let internal_req = SessionSearchRequest {
                 query: req.query,
@@ -80,7 +80,7 @@ pub async fn handle(args: &acp::ExtRequest) -> ExtResult {
                 include_content: req.include_content,
             };
 
-            let root_dir = crate::util::grok_home::grok_home();
+            let root_dir = crate::util::axon_home::axon_home();
             let result = crate::session::storage::search::execute_search(&root_dir, &internal_req)
                 .await
                 .map(to_response)

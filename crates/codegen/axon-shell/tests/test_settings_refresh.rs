@@ -122,7 +122,7 @@ async fn test_fetch_settings_blocking_round_trip() {
             .expect("start mock server");
 
         // Without settings configured: returns None (404 from mock)
-        let auth = axon_shell::auth::GrokAuth {
+        let auth = axon_shell::auth::AxonAuth {
             key: "test-key".into(),
             ..Default::default()
         };

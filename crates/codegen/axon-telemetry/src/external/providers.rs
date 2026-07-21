@@ -5,7 +5,7 @@
 //! The exporters are plain `opentelemetry_otlp` http/protobuf or gRPC/protobuf
 //! exporters built with **only** the customer headers from
 //! `OTEL_EXPORTER_OTLP_HEADERS` — no code path here can attach
-//! `Authorization`/`X-XAI-Token-Auth`/`x-userid`;
+//! `Authorization`/`X-AXON-Token-Auth`/`x-userid`;
 //! those constants live in `otel_layer` and are not referenced by this
 //! module. No `AuthCredentialProvider` is ever read.
 
@@ -112,7 +112,7 @@ fn build_resource(cfg: &ExternalOtelConfig) -> opentelemetry_sdk::Resource {
         opentelemetry::KeyValue::new("service.version", cfg.client.service_version.clone()),
         opentelemetry::KeyValue::new("client.version", cfg.client.client_version.clone()),
         opentelemetry::KeyValue::new("app.entrypoint", cfg.client.app_entrypoint.clone()),
-        opentelemetry::KeyValue::new("grok_code.schema.version", super::schema::SCHEMA_VERSION),
+        opentelemetry::KeyValue::new("axon_code.schema.version", super::schema::SCHEMA_VERSION),
     ];
     // terminal.type: emulator brand (TERM_PROGRAM) or terminfo type (TERM).
     if let Some(terminal_type) = std::env::var("TERM_PROGRAM")
@@ -123,8 +123,8 @@ fn build_resource(cfg: &ExternalOtelConfig) -> opentelemetry_sdk::Resource {
         attrs.push(opentelemetry::KeyValue::new("terminal.type", terminal_type));
     }
     opentelemetry_sdk::Resource::builder_empty()
-        // RQ6 (final): `grok-cli`, a wire commitment.
-        .with_service_name("grok-cli")
+        // RQ6 (final): `axon-cli`, a wire commitment.
+        .with_service_name("axon-cli")
         .with_attributes(attrs)
         .build()
 }
@@ -535,7 +535,7 @@ mod tests {
 
     /// Header-isolation invariant (T2): the outgoing header map equals
     /// exactly the parsed `OTEL_EXPORTER_OTLP_HEADERS` — no `Authorization`,
-    /// `X-XAI-Token-Auth`, `x-userid`, or `x-teamid` unless customer-supplied
+    /// `X-AXON-Token-Auth`, `x-userid`, or `x-teamid` unless customer-supplied
     /// (complement of the internal pipeline's
     /// `extra_headers_override_bearer_but_keep_static_identity`).
     #[test]
@@ -545,7 +545,7 @@ mod tests {
         let expected: HashMap<String, String> =
             [("x-collector-token".to_string(), "abc".to_string())].into();
         assert_eq!(headers, expected);
-        for forbidden in ["Authorization", "X-XAI-Token-Auth", "x-userid", "x-teamid"] {
+        for forbidden in ["Authorization", "X-AXON-Token-Auth", "x-userid", "x-teamid"] {
             assert!(
                 !headers.contains_key(forbidden),
                 "{forbidden} must never be auto-attached to external exports"
@@ -578,7 +578,7 @@ mod tests {
                 .and_then(|v| v.to_str().ok()),
             Some("abc")
         );
-        for forbidden in ["x-xai-token-auth", "x-userid", "x-teamid"] {
+        for forbidden in ["x-axon-token-auth", "x-userid", "x-teamid"] {
             assert!(metadata.get(forbidden).is_none());
         }
     }

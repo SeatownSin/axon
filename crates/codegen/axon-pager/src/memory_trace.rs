@@ -569,7 +569,7 @@ pub fn start(dir: PathBuf) {
     // Detached sampler; the thread holds no locks across sleeps and dies
     // with the process. Named for `sample`/Instruments visibility.
     let _ = std::thread::Builder::new()
-        .name("grok-memtrace".into())
+        .name("axon-memtrace".into())
         .spawn(move || {
             let mut wrote_start = false;
             loop {

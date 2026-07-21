@@ -80,7 +80,7 @@ pub struct LoadedPlugin {
 impl LoadedPlugin {
     /// Data directory for this plugin: `~/.axon/plugin-data/<plugin_id>/`.
     pub fn data_dir(&self) -> PathBuf {
-        axon_config::grok_home()
+        axon_config::axon_home()
             .join("plugin-data")
             .join(&self.id.0)
     }
@@ -654,8 +654,8 @@ mod tests {
             scope,
             origin: match scope {
                 PluginScope::CliOverride => PluginOrigin::CliOverride,
-                PluginScope::Project => PluginOrigin::ProjectGrok,
-                PluginScope::User => PluginOrigin::UserGrok,
+                PluginScope::Project => PluginOrigin::ProjectAxon,
+                PluginScope::User => PluginOrigin::UserAxon,
                 PluginScope::ConfigPath => PluginOrigin::ConfigPath,
             },
             trusted,

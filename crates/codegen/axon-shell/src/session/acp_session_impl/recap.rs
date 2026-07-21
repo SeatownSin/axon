@@ -110,10 +110,10 @@ impl SessionActor {
             tools: tool_specs,
             model: Some(model.clone()),
             temperature: None,
-            x_grok_conv_id: Some(btw_session_id.clone()),
-            x_grok_req_id: Some(format!("xai-btw-{}", uuid::Uuid::new_v4())),
-            x_grok_session_id: Some(parent_session_id.clone()),
-            x_grok_agent_id: Some(axon_telemetry::id::agent_id()),
+            x_axon_conv_id: Some(btw_session_id.clone()),
+            x_axon_req_id: Some(format!("axon-btw-{}", uuid::Uuid::new_v4())),
+            x_axon_session_id: Some(parent_session_id.clone()),
+            x_axon_agent_id: Some(axon_telemetry::id::agent_id()),
             ..Default::default()
         };
 
@@ -238,8 +238,8 @@ impl SessionActor {
         // ~25–40 words, and `clean_recap_text` caps it at a generous
         // RECAP_MAX_CHARS safety net, so an explicit token cap isn't needed.
         let started_at = chrono::Utc::now().to_rfc3339();
-        let x_grok_conv_id = format!("recap-{}", uuid::Uuid::new_v4());
-        let x_grok_req_id = format!("xai-recap-{}", uuid::Uuid::new_v4());
+        let x_axon_conv_id = format!("recap-{}", uuid::Uuid::new_v4());
+        let x_axon_req_id = format!("axon-recap-{}", uuid::Uuid::new_v4());
         // Clone the exact request items for the on-disk artifact (recap never
         // mutates conversation state, so this file is the only durable record).
         let chat_history_for_artifact = items.clone();
@@ -248,10 +248,10 @@ impl SessionActor {
             tools: vec![],
             model: Some(model.clone()),
             temperature: None,
-            x_grok_conv_id: Some(x_grok_conv_id.clone()),
-            x_grok_req_id: Some(x_grok_req_id.clone()),
-            x_grok_session_id: Some(self.session_info.id.to_string()),
-            x_grok_agent_id: Some(axon_telemetry::id::agent_id()),
+            x_axon_conv_id: Some(x_axon_conv_id.clone()),
+            x_axon_req_id: Some(x_axon_req_id.clone()),
+            x_axon_session_id: Some(self.session_info.id.to_string()),
+            x_axon_agent_id: Some(axon_telemetry::id::agent_id()),
             ..Default::default()
         };
 
@@ -265,8 +265,8 @@ impl SessionActor {
                     auto,
                     strip_reasoning,
                     tag,
-                    &x_grok_req_id,
-                    &x_grok_conv_id,
+                    &x_axon_req_id,
+                    &x_axon_conv_id,
                     started_at,
                     None,
                     None,
@@ -291,8 +291,8 @@ impl SessionActor {
                 auto,
                 strip_reasoning,
                 tag,
-                &x_grok_req_id,
-                &x_grok_conv_id,
+                &x_axon_req_id,
+                &x_axon_conv_id,
                 started_at,
                 None,
                 Some(raw_response.as_str()).filter(|s| !s.is_empty()),
@@ -307,7 +307,7 @@ impl SessionActor {
         }
 
         // New prompt while generating: keep artifact, skip display, leave watermark.
-        // Applies to manual `/recap` too: spinner-less clients (e.g. Grok
+        // Applies to manual `/recap` too: spinner-less clients (e.g. Axon
         // Desktop) would otherwise append the late recap mid-turn.
         if self.recap_was_cancelled(recap_epoch) {
             tracing::info!(
@@ -322,8 +322,8 @@ impl SessionActor {
                 auto,
                 strip_reasoning,
                 tag,
-                &x_grok_req_id,
-                &x_grok_conv_id,
+                &x_axon_req_id,
+                &x_axon_conv_id,
                 started_at,
                 Some(summary.as_str()),
                 Some(raw_response.as_str()),
@@ -346,8 +346,8 @@ impl SessionActor {
                 auto,
                 strip_reasoning,
                 tag,
-                &x_grok_req_id,
-                &x_grok_conv_id,
+                &x_axon_req_id,
+                &x_axon_conv_id,
                 started_at,
                 Some(summary.as_str()),
                 Some(raw_response.as_str()),
@@ -365,8 +365,8 @@ impl SessionActor {
             auto,
             strip_reasoning,
             tag,
-            &x_grok_req_id,
-            &x_grok_conv_id,
+            &x_axon_req_id,
+            &x_axon_conv_id,
             started_at,
             Some(summary.as_str()),
             Some(raw_response.as_str()),
@@ -379,7 +379,7 @@ impl SessionActor {
             }
             return;
         }
-        self.send_xai_notification(
+        self.send_axon_notification(
             crate::extensions::notification::SessionUpdate::SessionRecap { summary, auto },
         )
         .await;
@@ -433,8 +433,8 @@ impl SessionActor {
         auto: bool,
         strip_reasoning: bool,
         reminder_tag: &str,
-        x_grok_req_id: &str,
-        x_grok_conv_id: &str,
+        x_axon_req_id: &str,
+        x_axon_conv_id: &str,
         started_at: String,
         summary: Option<&str>,
         raw_response: Option<&str>,
@@ -449,8 +449,8 @@ impl SessionActor {
             created_at: started_at,
             trigger: if auto { "auto" } else { "manual" }.to_owned(),
             model: model.to_owned(),
-            x_grok_req_id: x_grok_req_id.to_owned(),
-            x_grok_conv_id: x_grok_conv_id.to_owned(),
+            x_axon_req_id: x_axon_req_id.to_owned(),
+            x_axon_conv_id: x_axon_conv_id.to_owned(),
             strip_reasoning,
             reminder_tag: reminder_tag.to_owned(),
             chat_history,
@@ -476,7 +476,7 @@ impl SessionActor {
     ///
     /// Only the manual path shows a spinner, so callers gate this on `!auto`.
     async fn emit_recap_unavailable(&self) {
-        self.send_xai_notification(
+        self.send_axon_notification(
             crate::extensions::notification::SessionUpdate::SessionRecapUnavailable,
         )
         .await;
@@ -507,7 +507,7 @@ impl SessionActor {
 
         let model = match model_override {
             Some(m) => m.to_owned(),
-            None => "grok-build".to_owned(),
+            None => "axon-build".to_owned(),
         };
 
         let request = ConversationRequest {
@@ -574,16 +574,16 @@ impl SessionActor {
     /// (`AXON_PROMPT_SUGGESTIONS_MODEL`) > `[models] prompt_suggestion`
     /// (config.toml) > remote `prompt_suggestion_model` (remote settings) >
     /// (config.toml) > remote `prompt_suggestion_model` (remote settings) >
-    /// [`prompt_suggest::DEFAULT_SUGGEST_MODEL`] (`grok-build-0.1`). Every
+    /// [`prompt_suggest::DEFAULT_SUGGEST_MODEL`] (`axon-build-0.1`). Every
     /// tier except env is catalog-guarded against this shell's own model
     /// catalog — when the effective model is not sampleable here (e.g.
-    /// `grok-build-0.1` for OAuth users) the request is **skipped
+    /// `axon-build-0.1` for OAuth users) the request is **skipped
     /// entirely** instead of fired doomed. The session model is never used:
     /// a per-turn background call must stay on the small model.
     /// Temperature, max_output_tokens, and
     /// reasoning_effort are left unset — mirrors [`Self::handle_recap`]: the
     /// proxy may inject provider defaults, a small token cap silently empties
-    /// a reasoning model's response, and some models (e.g. `grok-build`)
+    /// a reasoning model's response, and some models (e.g. `axon-build`)
     /// reject an explicit `reasoningEffort` with a 400. Output is filtered
     /// through [`prompt_suggest::sanitize_suggestion`]; any failure returns
     /// through [`prompt_suggest::sanitize_suggestion`]; any failure returns
@@ -648,10 +648,10 @@ impl SessionActor {
             tools: vec![],
             model: Some(model),
             temperature: None,
-            x_grok_conv_id: Some(format!("promptsuggest-{}", uuid::Uuid::new_v4())),
-            x_grok_req_id: Some(format!("xai-promptsuggest-{}", uuid::Uuid::new_v4())),
-            x_grok_session_id: Some(self.session_info.id.to_string()),
-            x_grok_agent_id: Some(axon_telemetry::id::agent_id()),
+            x_axon_conv_id: Some(format!("promptsuggest-{}", uuid::Uuid::new_v4())),
+            x_axon_req_id: Some(format!("axon-promptsuggest-{}", uuid::Uuid::new_v4())),
+            x_axon_session_id: Some(self.session_info.id.to_string()),
+            x_axon_agent_id: Some(axon_telemetry::id::agent_id()),
             ..Default::default()
         };
 

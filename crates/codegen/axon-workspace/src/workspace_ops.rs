@@ -1576,8 +1576,8 @@ mod tests {
             unreachable!("for_test builds a local handle");
         };
         let workspace_root = handle.root_cwd().unwrap();
-        let window_a = std::path::PathBuf::from("/repos/xai-main");
-        let window_b = std::path::PathBuf::from("/repos/xai-main-2");
+        let window_a = std::path::PathBuf::from("/repos/axon-main");
+        let window_b = std::path::PathBuf::from("/repos/axon-main-2");
         assert_eq!(
             git_op_cwd(handle, &Some(window_a.clone())).unwrap(),
             window_a

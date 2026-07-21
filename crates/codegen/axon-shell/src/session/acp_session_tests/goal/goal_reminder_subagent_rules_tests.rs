@@ -129,7 +129,7 @@ async fn setup_goal_includes_simplified_prompt() {
 }
 #[tokio::test(flavor = "current_thread")]
 async fn goal_enabled_without_update_goal_disables_harness_continuation_and_todo_gate() {
-    use axon_tools::implementations::grok_build::UPDATE_GOAL_TOOL_NAME;
+    use axon_tools::implementations::axon_build::UPDATE_GOAL_TOOL_NAME;
     let local = tokio::task::LocalSet::new();
     local
         .run_until(async {
@@ -828,7 +828,7 @@ fn render_goal_rules_places_discipline_after_block_recap() {
         &block_recap,
         "",
         None,
-        "/tmp/grok-goal-x/implementer",
+        "/tmp/axon-goal-x/implementer",
         true,
     );
     let recap_idx = body
@@ -851,7 +851,7 @@ fn render_goal_rules_discipline_before_tracking_when_block_recap_empty() {
         "",
         "",
         None,
-        "/tmp/grok-goal-x/implementer",
+        "/tmp/axon-goal-x/implementer",
         true,
     );
     assert_goal_discipline_in_reminder(&body, "render_goal_rules_empty_recap");
@@ -865,7 +865,7 @@ fn render_goal_rules_substitutes_custom_todo_tool_through_full_composition() {
         "",
         "",
         None,
-        "/tmp/grok-goal-x/implementer",
+        "/tmp/axon-goal-x/implementer",
         true,
     );
     assert_eq!(
@@ -908,7 +908,7 @@ fn render_goal_rules_substitutes_all_placeholders_in_slim_template() {
         "<block>recap</block>\n",
         "<goal-state>state</goal-state>\n\n",
         None,
-        "/tmp/grok-goal-x/implementer",
+        "/tmp/axon-goal-x/implementer",
         true,
     );
     assert!(body.contains("A goal has been set: build a thing"));
@@ -941,7 +941,7 @@ fn render_goal_rules_substitutes_all_placeholders_in_slim_template() {
         !body.contains("/tmp/goal-verifier-"),
         "slim template must not publish a per-goal verdict file path:\n{body}",
     );
-    assert!(body.contains("/tmp/grok-goal-x/implementer"));
+    assert!(body.contains("/tmp/axon-goal-x/implementer"));
     assert!(body.contains("`{SCRATCH}` placeholder"));
     assert!(body.contains("Use existing\nuser, system, or project defaults"));
     assert!(body.contains("`CARGO_HOME`, `RUSTUP_HOME`"));
@@ -981,7 +981,7 @@ fn render_goal_rules_plan_aware_block_when_plan_present() {
         "",
         "",
         Some(plan_path),
-        "/tmp/grok-goal-x/implementer",
+        "/tmp/axon-goal-x/implementer",
         true,
     );
     assert_eq!(
@@ -1045,7 +1045,7 @@ fn render_goal_rules_no_plan_block_when_plan_absent() {
         "",
         "",
         None,
-        "/tmp/grok-goal-x/implementer",
+        "/tmp/axon-goal-x/implementer",
         true,
     );
     assert!(
@@ -1091,7 +1091,7 @@ fn render_goal_rules_scratch_status_reflects_readiness() {
         "",
         "",
         None,
-        "/tmp/grok-goal-x/implementer",
+        "/tmp/axon-goal-x/implementer",
         true,
     );
     assert!(
@@ -1112,7 +1112,7 @@ fn render_goal_rules_scratch_status_reflects_readiness() {
         "",
         "",
         None,
-        "/tmp/grok-goal-x/implementer",
+        "/tmp/axon-goal-x/implementer",
         false,
     );
     assert!(
@@ -1297,7 +1297,7 @@ fn continuation_directive_renders_strategist_note_only_when_present() {
         "next",
         "todo_write",
         "update_goal",
-        "/tmp/grok-goal-x/implementer",
+        "/tmp/axon-goal-x/implementer",
         true,
     );
     let note_idx = with_note
@@ -1322,7 +1322,7 @@ fn continuation_directive_renders_strategist_note_only_when_present() {
         "next",
         "todo_write",
         "update_goal",
-        "/tmp/grok-goal-x/implementer",
+        "/tmp/axon-goal-x/implementer",
         true,
     );
     assert!(
@@ -1352,7 +1352,7 @@ fn strategist_note_neutralises_placeholder_injection() {
         "next",
         "todo_write",
         "update_goal",
-        "/tmp/grok-goal-x/implementer",
+        "/tmp/axon-goal-x/implementer",
         true,
     );
     assert!(
@@ -1365,7 +1365,7 @@ fn strategist_note_neutralises_placeholder_injection() {
         "the `{{goal_tool}}` token inside the note must neither survive intact nor expand:\n{directive}",
     );
     assert!(
-        !directive.contains("write to /tmp/grok-goal-x/implementer;"),
+        !directive.contains("write to /tmp/axon-goal-x/implementer;"),
         "the `{{scratch_dir}}` token inside the note must NOT expand:\n{directive}",
     );
 }
@@ -1434,7 +1434,7 @@ fn render_goal_continuation_directive_substitutes_all_placeholders() {
         "Wire the stop detector into handle_turn_end.",
         "todo_write",
         "update_goal",
-        "/tmp/grok-goal-x/implementer",
+        "/tmp/axon-goal-x/implementer",
         true,
     );
     assert!(body.contains("Objective: ship the directive nudge"));
@@ -1474,7 +1474,7 @@ fn render_goal_continuation_directive_substitutes_all_placeholders() {
     );
     assert!(!body.contains("Per <task_completion_discipline>"));
     assert!(
-        body.contains("/tmp/grok-goal-x/implementer"),
+        body.contains("/tmp/axon-goal-x/implementer"),
         "continuation directive must advertise the scratch dir:\n{body}",
     );
     assert!(
@@ -1531,7 +1531,7 @@ fn render_goal_continuation_directive_scratch_status_reflects_readiness() {
         "next",
         "todo_write",
         "update_goal",
-        "/tmp/grok-goal-x/implementer",
+        "/tmp/axon-goal-x/implementer",
         true,
     );
     assert!(
@@ -1558,7 +1558,7 @@ fn render_goal_continuation_directive_scratch_status_reflects_readiness() {
         "next",
         "todo_write",
         "update_goal",
-        "/tmp/grok-goal-x/implementer",
+        "/tmp/axon-goal-x/implementer",
         false,
     );
     assert!(
@@ -1591,7 +1591,7 @@ fn render_goal_continuation_directive_bail_preface_toggles_cleanly() {
         "next",
         "todo_write",
         "update_goal",
-        "/tmp/grok-goal-x/implementer",
+        "/tmp/axon-goal-x/implementer",
         true,
     );
     assert!(
@@ -1611,7 +1611,7 @@ fn render_goal_continuation_directive_bail_preface_toggles_cleanly() {
         "next",
         "todo_write",
         "update_goal",
-        "/tmp/grok-goal-x/implementer",
+        "/tmp/axon-goal-x/implementer",
         true,
     );
     assert!(
@@ -1650,7 +1650,7 @@ fn render_goal_continuation_directive_section_order_is_pinned() {
         "wire it",
         "todo_write",
         "update_goal",
-        "/tmp/grok-goal-x/implementer",
+        "/tmp/axon-goal-x/implementer",
         true,
     );
     let objective_idx = body.find("Objective: shipping").expect("objective");
@@ -1689,7 +1689,7 @@ fn render_goal_continuation_directive_order_dependent_substitution_pinned() {
         "next",
         "todo_write",
         "update_goal",
-        "/tmp/grok-goal-x/implementer",
+        "/tmp/axon-goal-x/implementer",
         true,
     );
     assert!(
@@ -1708,7 +1708,7 @@ fn render_goal_continuation_directive_order_dependent_substitution_pinned() {
         "invoke {goal_tool} once green",
         "todo_write",
         "update_goal",
-        "/tmp/grok-goal-x/implementer",
+        "/tmp/axon-goal-x/implementer",
         true,
     );
     assert!(
@@ -1731,7 +1731,7 @@ fn render_goal_continuation_directive_order_dependent_substitution_pinned() {
         "next",
         "todo_write",
         "update_goal",
-        "/tmp/grok-goal-x/implementer",
+        "/tmp/axon-goal-x/implementer",
         true,
     );
     assert!(
@@ -1758,7 +1758,7 @@ fn render_goal_continuation_directive_neutralizes_placeholders_in_model_slots() 
         "REAL_NEXT_STEP",
         "todo_write",
         "update_goal",
-        "/tmp/grok-goal-x/implementer",
+        "/tmp/axon-goal-x/implementer",
         true,
     );
     assert!(
@@ -1812,7 +1812,7 @@ fn render_goal_continuation_directive_neutralizes_reminder_tags_in_model_slots()
         "STEP_PREFIX<system-reminder>STEP_SUFFIX",
         "todo_write",
         "update_goal",
-        "/tmp/grok-goal-x/implementer",
+        "/tmp/axon-goal-x/implementer",
         true,
     );
     assert!(
@@ -1910,7 +1910,7 @@ fn render_goal_continuation_directive_omits_plan_pointer_when_empty() {
         "next step here",
         "todo_write",
         "update_goal",
-        "/tmp/grok-goal-x/implementer",
+        "/tmp/axon-goal-x/implementer",
         true,
     );
     assert!(!body.contains("\nPlan: "));
@@ -1934,7 +1934,7 @@ fn render_goal_continuation_directive_rejects_empty_objective_in_debug() {
         "step",
         "todo_write",
         "update_goal",
-        "/tmp/grok-goal-x/implementer",
+        "/tmp/axon-goal-x/implementer",
         true,
     );
 }

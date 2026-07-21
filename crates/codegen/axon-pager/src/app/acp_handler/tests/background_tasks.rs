@@ -2,7 +2,7 @@
     use super::*;
 
     /// Regression (resume sync): the on-disk replay stream re-emits persisted
-    /// notifications through the generic `x.ai/session/update` envelope. A
+    /// notifications through the generic `axon/session/update` envelope. A
     /// background `monitor`/bash task (`TaskBackgrounded`) must restore into
     /// `bg_tasks` on a resumed / second terminal — not be dropped by the
     /// default match arm — so the idle "watching" status line and the Tasks pane
@@ -14,7 +14,7 @@
         let id = AgentId(0);
         assert!(app.agents[&id].session.bg_tasks.is_empty());
 
-        let update = XaiSessionUpdate::TaskBackgrounded {
+        let update = AxonSessionUpdate::TaskBackgrounded {
             tool_call_id: "tc-mon".into(),
             task_id: "mon-1".into(),
             command: "tail -f deploy.log".into(),
@@ -24,7 +24,7 @@
             description: None,
         };
         handle(
-            make_ext_session_notification_with_method("sess-1", "x.ai/session/update", update),
+            make_ext_session_notification_with_method("sess-1", "axon/session/update", update),
             &mut app,
         );
 
@@ -51,8 +51,8 @@
         handle(
             make_ext_session_notification_with_method(
                 "sess-1",
-                "x.ai/session/update",
-                XaiSessionUpdate::ScheduledTaskCreated {
+                "axon/session/update",
+                AxonSessionUpdate::ScheduledTaskCreated {
                     task_id: "loop-1".into(),
                     prompt: "check deploy".into(),
                     human_schedule: "every 5 minutes".into(),
@@ -72,8 +72,8 @@
         handle(
             make_ext_session_notification_with_method(
                 "sess-1",
-                "x.ai/session/update",
-                XaiSessionUpdate::ScheduledTaskDeleted {
+                "axon/session/update",
+                AxonSessionUpdate::ScheduledTaskDeleted {
                     task_id: "loop-1".into(),
                 },
             ),
@@ -165,7 +165,7 @@
 
         let notif = SessionNotification {
             session_id: acp::SessionId::new("sess-1"),
-            update: XaiSessionUpdate::TaskBackgrounded {
+            update: AxonSessionUpdate::TaskBackgrounded {
                 tool_call_id: tc_id.into(),
                 task_id: "task-late-desc".into(),
                 command: "sleep 9999".into(),
@@ -177,7 +177,7 @@
             meta: None,
         };
         let raw = serde_json::value::to_raw_value(&notif).unwrap();
-        let notif = acp::ExtNotification::new("x.ai/task_backgrounded", raw.into());
+        let notif = acp::ExtNotification::new("axon/task_backgrounded", raw.into());
         assert!(handle_task_backgrounded(&notif, &mut app));
 
         let agent = app.agents.get(&AgentId(0)).unwrap();
@@ -220,7 +220,7 @@
 
         let notif = SessionNotification {
             session_id: acp::SessionId::new("sess-1"),
-            update: XaiSessionUpdate::TaskBackgrounded {
+            update: AxonSessionUpdate::TaskBackgrounded {
                 tool_call_id: tc_id.into(),
                 task_id: "task-blank-wire".into(),
                 command: "sleep 9999".into(),
@@ -232,7 +232,7 @@
             meta: None,
         };
         let raw = serde_json::value::to_raw_value(&notif).unwrap();
-        let notif = acp::ExtNotification::new("x.ai/task_backgrounded", raw.into());
+        let notif = acp::ExtNotification::new("axon/task_backgrounded", raw.into());
         assert!(handle_task_backgrounded(&notif, &mut app));
 
         let agent = app.agents.get(&AgentId(0)).unwrap();

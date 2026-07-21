@@ -1,14 +1,14 @@
 //! Pure-data OIDC refresh. Talks to the IdP and returns
 //! [`OidcRefreshResult`] without touching [`AuthManager`].
 
-use super::super::GrokAuth;
-use super::protocol::{OidcError, OidcUserInfo, build_grok_auth, discover, refresh_tokens};
+use super::super::AxonAuth;
+use super::protocol::{OidcError, OidcUserInfo, build_axon_auth, discover, refresh_tokens};
 use crate::auth::error::RefreshTokenFailedReason;
 
 /// Outcome of a pure OIDC token refresh (no AuthManager mutations).
 pub(crate) enum OidcRefreshResult {
     /// Fresh token obtained. Caller must persist.
-    Success(Box<GrokAuth>),
+    Success(Box<AxonAuth>),
     /// Terminal error from the IdP, already classified into a reason.
     TerminalError { reason: RefreshTokenFailedReason },
     /// Non-terminal failure (discovery failed, network error, etc.)
@@ -34,7 +34,7 @@ const ROTATION_GRACE_MS: u64 = 60_000;
 /// Exchange a refresh_token for fresh tokens at the IdP. Pure data return, no
 /// `AuthManager` mutations; the caller (`OidcRefresher`) routes the result
 /// through `refresh_chain`.
-pub(crate) async fn oidc_token_exchange(auth: &GrokAuth) -> OidcRefreshResult {
+pub(crate) async fn oidc_token_exchange(auth: &AxonAuth) -> OidcRefreshResult {
     let has_rt = auth.refresh_token.is_some();
     let has_issuer = auth.oidc_issuer.is_some();
     let has_client_id = auth.oidc_client_id.is_some();
@@ -205,7 +205,7 @@ pub(crate) async fn oidc_token_exchange(auth: &GrokAuth) -> OidcRefreshResult {
         team_blocked_reasons: auth.team_blocked_reasons.clone(),
         coding_data_retention_opt_out: auth.coding_data_retention_opt_out,
     };
-    let mut new_auth = build_grok_auth(tokens, user_info, issuer, client_id);
+    let mut new_auth = build_axon_auth(tokens, user_info, issuer, client_id);
     let idp_rotated = new_auth.refresh_token.is_some();
     // Keep old refresh token if IdP didn't rotate it
     if new_auth.refresh_token.is_none() {

@@ -304,7 +304,7 @@ pub(super) async fn run_session(
             "MEMORY_SESSION_END: channel closed, session summary saved"); if let crate
             ::session::memory::hooks::SessionEndResult::Written(ref path_str) = result {
             session.reindex_and_embed(std::path::Path::new(path_str), "session"). await;
-            session.send_xai_notification(XaiSessionUpdate::MemorySessionSaved { path :
+            session.send_axon_notification(AxonSessionUpdate::MemorySessionSaved { path :
             path_str.clone(), }). await; } } } else { tracing::debug!(target :
             axon_telemetry::memory_log::TARGET,
             "MEMORY_SUBAGENT_SKIP: skipping on_session_end for subagent session"); }
@@ -421,7 +421,7 @@ pub(super) async fn run_session(
             SessionCommand::HooksAction { action, respond_to } => { let outcome = session
             .handle_hooks_action(action). await; let _ = respond_to.send(outcome); }
             SessionCommand::NotifyPluginUpdates { updates } => { session
-            .send_xai_notification(XaiSessionUpdate::PluginUpdatesInstalled { updates },)
+            .send_axon_notification(AxonSessionUpdate::PluginUpdatesInstalled { updates },)
             . await; } SessionCommand::PluginsAction { action, respond_to } => { let
             outcome = session.handle_plugins_action(action). await; let _ = respond_to
             .send(outcome); } SessionCommand::PluginsList { respond_to } => { let _ =
@@ -449,7 +449,7 @@ pub(super) async fn run_session(
             acp::ContentBlock::Text(t) = b { Some(t.text.clone()) } else { None } })
             .collect::< Vec < _ >> ().join("\n"); let task_id = source.task_id()
             .to_owned(); const MAX_BUFFER_EVENTS : usize = 50; buffer
-            .push_capped(axon_tools::implementations::grok_build::task::types::MonitorEventNotification
+            .push_capped(axon_tools::implementations::axon_build::task::types::MonitorEventNotification
             { task_id : task_id.clone(), event_text, owner_session_id : Some(session
             .session_info.id.0.to_string(),), }, MAX_BUFFER_EVENTS,);
             tracing::debug!(task_id = % task_id,
@@ -533,8 +533,8 @@ pub(super) async fn run_session(
             .send(session.rewind_file_counts(). await); }
             SessionCommand::ReconcileRewindTracker { target_prompt_index } => { session
             .merge_rewind_tracker_from(target_prompt_index). await; }
-            SessionCommand::XaiSessionNotification { notification } => { session
-            .handle_xai_session_notification(notification). await; }
+            SessionCommand::AxonSessionNotification { notification } => { session
+            .handle_axon_session_notification(notification). await; }
             SessionCommand::RecordSubagentUsage { by_model, parent_prompt_id, incomplete,
             respond_to, } => { use super::updates::SubagentUsageApply; match session
             .record_subagent_usage(& by_model, parent_prompt_id.as_deref(), incomplete,).
@@ -649,7 +649,7 @@ pub(super) async fn run_session(
             ::extensions::mcp::McpToolsChanged { session_id : session_id.to_string(),
             server_name : String::new(), tools : Vec::new(), }; if let Ok(params) =
             serde_json::value::to_raw_value(& payload) { notifications
-            .forward_fire_and_forget(acp::ExtNotification::new("x.ai/mcp/tools_changed",
+            .forward_fire_and_forget(acp::ExtNotification::new("axon/mcp/tools_changed",
             params.into())); } let _ = respond_to.send(Ok(())); }); continue; } let
             qualified = format!("{}{}{}", server_name, crate
             ::session::mcp_servers::MCP_TOOL_NAME_DELIMITER, tool_name,); let mut
@@ -863,7 +863,7 @@ pub(super) async fn run_session(
             "MEMORY_SESSION_END: session summary saved"); if let crate
             ::session::memory::hooks::SessionEndResult::Written(ref path_str) = result {
             session.reindex_and_embed(std::path::Path::new(path_str), "session"). await;
-            session.send_xai_notification(XaiSessionUpdate::MemorySessionSaved { path :
+            session.send_axon_notification(AxonSessionUpdate::MemorySessionSaved { path :
             path_str.clone(), }). await; } } } else { tracing::debug!(target :
             axon_telemetry::memory_log::TARGET,
             "MEMORY_SUBAGENT_SKIP: skipping on_session_end for subagent session"); }

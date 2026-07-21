@@ -8,7 +8,7 @@
 //!
 //! Answering the private request OSC is effectively an image clipboard *read*
 //! for the wrapped session: any process that can write to the PTY (not only
-//! the inner `grok`) can solicit the host pasteboard. That is intentional and
+//! the inner `axon`) can solicit the host pasteboard. That is intentional and
 //! acceptable for `axon wrap` because (1) the user opted into wrap on their
 //! own host, (2) the answer stays inside their session, and (3) the remote
 //! only requests when `osc52_sink_active()` (wrap already set
@@ -19,7 +19,7 @@ use base64::Engine as _;
 use axon_pager_render::clipboard::{ImageData, osc52_sink_active};
 
 /// OSC body after `ESC ]` for a host image request.
-pub const REQUEST_BODY: &[u8] = b"999;GrokWrapClipboardImage?";
+pub const REQUEST_BODY: &[u8] = b"999;AxonWrapClipboardImage?";
 
 /// Full request sequence written to stderr by the remote pager (`ESC ]` body `BEL`).
 pub fn request_osc_bytes() -> Vec<u8> {

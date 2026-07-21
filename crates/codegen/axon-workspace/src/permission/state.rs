@@ -4,7 +4,7 @@ use crate::permission::types::EditPolicy;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use axon_paths::AbsPathBuf;
-use axon_tools::util::grok_home::grok_home;
+use axon_tools::util::axon_home::axon_home;
 
 const VALIDATED_MCP_SERVER_GRANTS_VERSION: i64 = 1;
 
@@ -18,10 +18,10 @@ pub struct PermissionState {
     /// Domains the user has approved for `web_fetch`
     /// during this session.
     pub allowed_web_fetch_domains: HashSet<String>,
-    /// Exact MCP tool names (e.g. `"grok_com_notion__notion-fetch"`)
+    /// Exact MCP tool names (e.g. `"axon_com_notion__notion-fetch"`)
     /// the user has granted "always allow" for. Lookup is exact.
     pub allowed_mcp_tools: HashSet<String>,
-    /// Server components of valid qualified MCP IDs (e.g. `"grok_com_notion"`)
+    /// Server components of valid qualified MCP IDs (e.g. `"axon_com_notion"`)
     /// for which the user has granted "always allow" to every tool. Lookup
     /// validates and parses the complete qualified ID before matching.
     pub allowed_mcp_servers: HashSet<String>,
@@ -191,7 +191,7 @@ pub(crate) async fn persist_state(
 }
 
 pub async fn cleanup_stale_permission_state(max_age: std::time::Duration) {
-    let sessions_dir = grok_home().join("sessions");
+    let sessions_dir = axon_home().join("sessions");
     let Ok(mut entries) = tokio::fs::read_dir(&sessions_dir).await else {
         return;
     };
@@ -382,7 +382,7 @@ mod tests {
         let mut state = PermissionState::default();
         state
             .allowed_mcp_tools
-            .insert("grok_com_notion__notion-fetch".to_string());
+            .insert("axon_com_notion__notion-fetch".to_string());
         state
             .allowed_mcp_tools
             .insert("linear__list_issues".to_string());
@@ -394,7 +394,7 @@ mod tests {
         assert!(
             restored
                 .allowed_mcp_tools
-                .contains("grok_com_notion__notion-fetch")
+                .contains("axon_com_notion__notion-fetch")
         );
         assert!(restored.allowed_mcp_tools.contains("linear__list_issues"));
         assert!(restored.allowed_mcp_servers.is_empty());
@@ -405,14 +405,14 @@ mod tests {
         let mut state = PermissionState::default();
         state
             .allowed_mcp_servers
-            .insert("grok_com_slack".to_string());
+            .insert("axon_com_slack".to_string());
         state.allowed_mcp_servers.insert("linear".to_string());
 
         let toml_str = toml::to_string_pretty(&state).unwrap();
         let restored: PermissionState = toml::from_str(&toml_str).unwrap();
 
         assert_eq!(restored.allowed_mcp_servers.len(), 2);
-        assert!(restored.allowed_mcp_servers.contains("grok_com_slack"));
+        assert!(restored.allowed_mcp_servers.contains("axon_com_slack"));
         assert!(restored.allowed_mcp_servers.contains("linear"));
         assert!(restored.allowed_mcp_tools.is_empty());
     }

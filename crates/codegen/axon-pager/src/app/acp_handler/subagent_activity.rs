@@ -76,7 +76,7 @@ pub(crate) fn finalize_killed_subagent(
 
     let payload = SessionNotification {
         session_id: session_id.clone(),
-        update: XaiSessionUpdate::SubagentFinished {
+        update: AxonSessionUpdate::SubagentFinished {
             subagent_id: subagent_id.to_string(),
             child_session_id,
             // An already-finished orphan may be "failed", but the cancel response
@@ -98,6 +98,6 @@ pub(crate) fn finalize_killed_subagent(
     let Ok(params) = serde_json::value::to_raw_value(&payload) else {
         return false;
     };
-    let notif = acp::ExtNotification::new("x.ai/session/update", params.into());
+    let notif = acp::ExtNotification::new("axon/session/update", params.into());
     handle_ext_notification(&notif, app)
 }

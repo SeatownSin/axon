@@ -26,14 +26,14 @@ pub struct PromptEntry {
 
 /// Get the path to the prompt history file for a given CWD
 pub fn prompt_history_path(cwd: &str) -> PathBuf {
-    crate::util::grok_home::sessions_cwd_dir(cwd).join(PROMPT_HISTORY_FILE)
+    crate::util::axon_home::sessions_cwd_dir(cwd).join(PROMPT_HISTORY_FILE)
 }
 
 /// Append a prompt to the history file (synchronous, fast append-only).
 /// Creates parent directories if they don't exist.
 pub fn append_prompt(cwd: &str, entry: &PromptEntry) -> io::Result<()> {
     let path = prompt_history_path(cwd);
-    crate::util::grok_home::ensure_sessions_cwd_dir(cwd)?;
+    crate::util::axon_home::ensure_sessions_cwd_dir(cwd)?;
 
     let mut file = std::fs::OpenOptions::new()
         .create(true)

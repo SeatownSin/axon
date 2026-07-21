@@ -1,6 +1,6 @@
 //! First-run local-model setup wizard.
 //!
-//! This build never contacts xAI, so a fresh install with no `[model.*]`
+//! This build never contacts Axon, so a fresh install with no `[model.*]`
 //! configured would otherwise dead-end at an un-completable login screen. When
 //! we detect that state at startup (before the TUI's terminal setup), we run a
 //! small plain-terminal wizard: probe for a running local model server, let the
@@ -28,14 +28,14 @@ pub(crate) enum Outcome {
 
 /// Run the first-run wizard if it's warranted.
 ///
-/// It runs only when: stdin/stdout are a real terminal, no `XAI_API_KEY` is
+/// It runs only when: stdin/stdout are a real terminal, no `AXON_API_KEY` is
 /// set, and the resolved catalog has no user-visible model (i.e. the app would
 /// otherwise show the dead login screen). Any of those false → [`Outcome::Skip`].
 pub(crate) async fn maybe_run(raw_config: &toml::Value) -> Outcome {
     if !std::io::stdin().is_terminal() || !std::io::stdout().is_terminal() {
         return Outcome::Skip;
     }
-    if axon_shell::agent::auth_method::has_xai_api_key_env() {
+    if axon_shell::agent::auth_method::has_axon_api_key_env() {
         return Outcome::Skip;
     }
     if !needs_local_model_setup(raw_config) {
@@ -47,7 +47,7 @@ pub(crate) async fn maybe_run(raw_config: &toml::Value) -> Outcome {
 /// True only when the config parses AND its resolved catalog has no
 /// user-visible model — the exact state that would dead-end at the removed
 /// login screen. An unparseable config returns false (don't run the wizard on
-/// a broken config); xAI-hosted defaults are hidden in this fork, so a fresh
+/// a broken config); Axon-hosted defaults are hidden in this fork, so a fresh
 /// install resolves to zero visible models.
 fn needs_local_model_setup(raw_config: &toml::Value) -> bool {
     match axon_shell::agent::config::Config::new_from_toml_cfg(raw_config) {
@@ -94,7 +94,7 @@ fn banner() {
     println!();
     println!("  ── Local model setup ─────────────────────────────────────────");
     println!("  This build talks only to local or third-party models — there is");
-    println!("  no xAI login. No model is configured yet, so let's add one.");
+    println!("  no Axon login. No model is configured yet, so let's add one.");
     println!();
 }
 
@@ -102,13 +102,13 @@ fn banner() {
 fn print_quit_hint() {
     println!();
     println!("  No model configured. Add a [model.*] entry to ~/.axon/config.toml");
-    println!("  (see the custom-models guide), then run grok again.");
+    println!("  (see the custom-models guide), then run axon again.");
     println!();
 }
 
 async fn run_wizard() -> Outcome {
     banner();
-    let config_path = axon_shell::util::grok_home::grok_home().join("config.toml");
+    let config_path = axon_shell::util::axon_home::axon_home().join("config.toml");
     loop {
         print!("  Scanning localhost and your local network for model servers… ");
         let _ = std::io::stdout().flush();
@@ -252,7 +252,7 @@ mod tests {
 
     #[test]
     fn needs_setup_true_for_fresh_install_false_with_local_model() {
-        // Fresh install: no [model.*] → only hidden xAI defaults → needs setup.
+        // Fresh install: no [model.*] → only hidden Axon defaults → needs setup.
         let empty: toml::Value = toml::from_str("").unwrap();
         assert!(needs_local_model_setup(&empty));
 

@@ -950,15 +950,15 @@ fn dashboard_confirm_worktree_without_git_repo_creates_nothing() {
 #[test]
 fn dashboard_confirm_worktree_applies_pending_model_and_plan() {
     let mut app = test_app();
-    seed_model(&mut app, "grok-4.5", "Grok 4.5");
+    seed_model(&mut app, "axon-4.5", "Axon 4.5");
     open_dashboard(&mut app);
     app.cwd_has_git_ancestor = true;
-    let model_id = acp::ModelId::new(std::sync::Arc::from("grok-4.5"));
+    let model_id = acp::ModelId::new(std::sync::Arc::from("axon-4.5"));
     if let Some(d) = app.dashboard.as_mut() {
         d.pending_model = Some(crate::views::dashboard::PendingDispatchModel {
             id: model_id.clone(),
             effort: Some(axon_shell::sampling::types::ReasoningEffort::High),
-            display: "Grok 4.5".to_string(),
+            display: "Axon 4.5".to_string(),
         });
         d.pending_mode = crate::views::dashboard::DashboardDispatchMode::Plan;
         d.dispatch.set_text("do the thing");
@@ -1650,9 +1650,9 @@ fn seed_model(app: &mut AppView, id: &str, name: &str) {
 #[test]
 fn dashboard_slash_model_stages_pending_model() {
     let mut app = test_app();
-    seed_model(&mut app, "grok-4.5", "Grok 4.5");
+    seed_model(&mut app, "axon-4.5", "Axon 4.5");
     open_dashboard(&mut app);
-    let effects = dispatch_dashboard_dispatch_slash(&mut app, "/model grok-4.5".into());
+    let effects = dispatch_dashboard_dispatch_slash(&mut app, "/model axon-4.5".into());
     assert!(
         effects.is_empty(),
         "staging a model must not spawn a session"
@@ -1665,8 +1665,8 @@ fn dashboard_slash_model_stages_pending_model() {
         .pending_model
         .as_ref()
         .expect("pending_model must be set");
-    assert_eq!(pending.id.0.as_ref(), "grok-4.5");
-    assert_eq!(pending.display, "Grok 4.5");
+    assert_eq!(pending.id.0.as_ref(), "axon-4.5");
+    assert_eq!(pending.display, "Axon 4.5");
     assert!(pending.effort.is_none());
     // The catalog snapshot's `current` tracks the staged model so the
     // next `/model` dropdown marks it `(current)` (not the seeded default).
@@ -1678,7 +1678,7 @@ fn dashboard_slash_model_stages_pending_model() {
             .current
             .as_ref()
             .map(|id| id.0.as_ref()),
-        Some("grok-4.5"),
+        Some("axon-4.5"),
         "staging must update the snapshot's current selection",
     );
 }
@@ -1709,7 +1709,7 @@ fn dashboard_slash_restricted_command_upsells_via_toast() {
         .as_deref()
         .expect("restricted command must set the upsell toast");
     assert!(
-        toast.contains("/imagine") && toast.contains("SuperGrok"),
+        toast.contains("/imagine") && toast.contains("SuperAxon"),
         "toast must carry the upsell: {toast}"
     );
 }
@@ -1723,7 +1723,7 @@ fn dashboard_slash_restricted_command_upsells_via_toast() {
 #[test]
 fn dashboard_slash_command_error_gets_error_glyph_prefix() {
     let mut app = test_app();
-    seed_model(&mut app, "grok-4.5", "Grok 4.5");
+    seed_model(&mut app, "axon-4.5", "Axon 4.5");
     open_dashboard(&mut app);
     let effects = dispatch_dashboard_dispatch_slash(&mut app, "/model nonexistent".into());
     assert!(effects.is_empty(), "a failed command must not dispatch");
@@ -1956,14 +1956,14 @@ fn dashboard_cycle_mode_skips_always_approve_under_policy_pin() {
 fn dashboard_open_reseeds_pending_model_and_mode() {
     use crate::views::dashboard::DashboardDispatchMode;
     let mut app = test_app();
-    seed_model(&mut app, "grok-4.5", "Grok 4.5");
+    seed_model(&mut app, "axon-4.5", "Axon 4.5");
     open_dashboard(&mut app);
     // Stage a model + non-default mode as if from a previous session.
     if let Some(d) = app.dashboard.as_mut() {
         d.pending_model = Some(crate::views::dashboard::PendingDispatchModel {
-            id: acp::ModelId::new(std::sync::Arc::from("grok-4.5")),
+            id: acp::ModelId::new(std::sync::Arc::from("axon-4.5")),
             effort: None,
-            display: "Grok 4.5".to_string(),
+            display: "Axon 4.5".to_string(),
         });
         d.pending_mode = DashboardDispatchMode::Plan;
     }
@@ -2171,14 +2171,14 @@ fn dashboard_dispatch_new_agent_is_working_with_prompt_title() {
 #[test]
 fn dashboard_dispatch_applies_pending_model_and_plan() {
     let mut app = test_app();
-    seed_model(&mut app, "grok-4.5", "Grok 4.5");
+    seed_model(&mut app, "axon-4.5", "Axon 4.5");
     open_dashboard(&mut app);
-    let model_id = acp::ModelId::new(std::sync::Arc::from("grok-4.5"));
+    let model_id = acp::ModelId::new(std::sync::Arc::from("axon-4.5"));
     if let Some(d) = app.dashboard.as_mut() {
         d.pending_model = Some(crate::views::dashboard::PendingDispatchModel {
             id: model_id.clone(),
             effort: Some(axon_shell::sampling::types::ReasoningEffort::High),
-            display: "Grok 4.5".to_string(),
+            display: "Axon 4.5".to_string(),
         });
         d.pending_mode = crate::views::dashboard::DashboardDispatchMode::Plan;
     }
@@ -2214,14 +2214,14 @@ fn dashboard_dispatch_applies_pending_model_and_plan() {
 #[test]
 fn dashboard_new_agent_button_applies_pending_model_and_plan() {
     let mut app = test_app();
-    seed_model(&mut app, "grok-4.5", "Grok 4.5");
+    seed_model(&mut app, "axon-4.5", "Axon 4.5");
     open_dashboard(&mut app);
-    let model_id = acp::ModelId::new(std::sync::Arc::from("grok-4.5"));
+    let model_id = acp::ModelId::new(std::sync::Arc::from("axon-4.5"));
     if let Some(d) = app.dashboard.as_mut() {
         d.pending_model = Some(crate::views::dashboard::PendingDispatchModel {
             id: model_id.clone(),
             effort: Some(axon_shell::sampling::types::ReasoningEffort::High),
-            display: "Grok 4.5".to_string(),
+            display: "Axon 4.5".to_string(),
         });
         d.pending_mode = crate::views::dashboard::DashboardDispatchMode::Plan;
     }
@@ -2677,7 +2677,7 @@ fn dashboard_attach_subagent_lazily_replays_deferred_transcript() {
         r#"{{"method":"session/update","params":{{"sessionId":"{child_sid}","update":{{"sessionUpdate":"tool_call","toolCallId":"tc1","title":"Read foo","kind":"read","locations":[{{"path":"/tmp/foo"}}]}}}}}}"#
     );
     std::fs::write(session_dir.join("updates.jsonl"), tool_line + "\n").unwrap();
-    crate::app::subagent::set_replay_grok_home_for_tests(Some(home.path().to_path_buf()));
+    crate::app::subagent::set_replay_axon_home_for_tests(Some(home.path().to_path_buf()));
 
     let mut app = test_app_with_agent();
     open_dashboard(&mut app);
@@ -2726,7 +2726,7 @@ fn dashboard_attach_subagent_lazily_replays_deferred_transcript() {
         "dashboard attach must mark the child as replayed"
     );
 
-    crate::app::subagent::set_replay_grok_home_for_tests(None);
+    crate::app::subagent::set_replay_axon_home_for_tests(None);
 }
 
 /// `/dashboard` opens to the dashboard view ONLY.
@@ -5406,7 +5406,7 @@ fn dashboard_permission_followup_rejects_with_message() {
 fn dashboard_question_answer_sends_and_clears() {
     use crate::views::prompt_widget::StashedPrompt;
     use crate::views::question_view::QuestionViewState;
-    use axon_tools::implementations::grok_build::ask_user_question::{
+    use axon_tools::implementations::axon_build::ask_user_question::{
         AskUserQuestionMode, Question, QuestionOption,
     };
 
@@ -5455,7 +5455,7 @@ fn dashboard_question_answer_walks_multiple_questions() {
     use crate::views::dashboard::peek::{PeekPanelState, compute_peek_fields};
     use crate::views::prompt_widget::StashedPrompt;
     use crate::views::question_view::QuestionViewState;
-    use axon_tools::implementations::grok_build::ask_user_question::{
+    use axon_tools::implementations::axon_build::ask_user_question::{
         AskUserQuestionMode, Question, QuestionOption,
     };
 

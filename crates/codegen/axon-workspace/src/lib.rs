@@ -173,34 +173,34 @@ mod init_metrics_tests {
                 })
         };
         assert!(has(
-            "grok_workspace_upload_outcome_total",
+            "axon_workspace_upload_outcome_total",
             &[("phase", "tool_state"), ("outcome", "succeeded")]
         ));
         assert!(has(
-            "grok_workspace_rpc_requests_total",
+            "axon_workspace_rpc_requests_total",
             &[("method", "unknown"), ("result", "error")]
         ));
         assert!(has(
-            "grok_workspace_drain_started_total",
+            "axon_workspace_drain_started_total",
             &[("reason", "sigterm")]
         ));
         assert!(has(
-            "grok_workspace_toolset_swap_rejected_total",
+            "axon_workspace_toolset_swap_rejected_total",
             &[("reason", "turn_active"), ("trigger", "update_tool_config")]
         ));
         assert!(has(
-            "grok_workspace_orphan_lost_total",
+            "axon_workspace_orphan_lost_total",
             &[("reason", "sha_mismatch")]
         ));
         assert!(
             families
                 .iter()
-                .any(|mf| mf.name() == "grok_workspace_env_capture_panic_total")
+                .any(|mf| mf.name() == "axon_workspace_env_capture_panic_total")
         );
         assert!(
             families
                 .iter()
-                .any(|mf| mf.name() == "grok_workspace_permission_timeout_total")
+                .any(|mf| mf.name() == "axon_workspace_permission_timeout_total")
         );
     }
 }

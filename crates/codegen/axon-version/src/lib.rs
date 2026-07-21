@@ -1,4 +1,4 @@
-//! Installed grok CLI version, lockstepped with shipping binaries.
+//! Installed axon CLI version, lockstepped with shipping binaries.
 
 use semver::Version;
 

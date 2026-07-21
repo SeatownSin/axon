@@ -3,8 +3,8 @@
 //! Expected format:
 //! ```toml
 //! [[marketplace.sources]]
-//! name = "xAI Official"
-//! git = "https://github.com/xai-org/xai-plugin-marketplace.git"
+//! name = "Axon Official"
+//! git = "https://github.com/xai-org/axon-plugin-marketplace.git"
 //!
 //! [[marketplace.sources]]
 //! name = "Local Dev"
@@ -185,7 +185,7 @@ fn extract_marketplace_entries(
 /// and `known_marketplaces.json` files under `~/.axon/` and `~/.claude/`.
 pub fn load_extra_sources_from_settings(existing: &[MarketplaceSource]) -> Vec<MarketplaceSource> {
     let roots: Vec<PathBuf> = [
-        axon_config::user_grok_home(),
+        axon_config::user_axon_home(),
         dirs::home_dir().map(|h| h.join(".claude")),
     ]
     .into_iter()
@@ -291,15 +291,15 @@ mod tests {
         let config: toml::Value = toml::from_str(
             r#"
             [[marketplace.sources]]
-            name = "xAI Official"
-            git = "https://github.com/xai-org/xai-plugin-marketplace.git"
+            name = "Axon Official"
+            git = "https://github.com/xai-org/axon-plugin-marketplace.git"
             branch = "main"
             "#,
         )
         .unwrap();
         let sources = load_sources(&config);
         assert_eq!(sources.len(), 1);
-        assert_eq!(sources[0].name, "xAI Official");
+        assert_eq!(sources[0].name, "Axon Official");
         assert!(
             matches!(&sources[0].kind, SourceKind::Git { url, branch } if url.contains("xai-org") && branch.as_deref() == Some("main"))
         );

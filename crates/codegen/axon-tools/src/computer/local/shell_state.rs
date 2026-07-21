@@ -47,7 +47,7 @@ pub fn shell_env_overrides() -> HashMap<String, String> {
         ("TERM".to_string(), "dumb".to_string()),
         ("NO_COLOR".to_string(), "1".to_string()),
         ("FORCE_COLOR".to_string(), "0".to_string()),
-        // Re-applied last via [`crate::util::apply_grok_agent_marker`] so request
+        // Re-applied last via [`crate::util::apply_axon_agent_marker`] so request
         // env cannot clear it.
         (
             crate::util::AXON_AGENT_ENV.to_string(),
@@ -88,11 +88,11 @@ dump_bash_state() {
     local content="$1"
     local var_name="$2"
     if [[ -n "$content" ]]; then
-      builtin printf 'grok_snap_%s=$(command base64 -d <<'"'"'AXON_SNAP_EOF_%s'"'"'\n' "$var_name" "$var_name"
+      builtin printf 'axon_snap_%s=$(command base64 -d <<'"'"'AXON_SNAP_EOF_%s'"'"'\n' "$var_name" "$var_name"
       command base64 <<<"$content" | command tr -d '\n'
       builtin printf '\nAXON_SNAP_EOF_%s\n' "$var_name"
       builtin printf ')\n'
-      builtin printf 'eval "$grok_snap_%s"\n' "$var_name"
+      builtin printf 'eval "$axon_snap_%s"\n' "$var_name"
     fi
   }
 
@@ -144,11 +144,11 @@ function dump_zsh_state() {
     local content="$1"
     local var_name="$2"
     if [[ -n "$content" ]]; then
-      builtin printf 'grok_snap_%s=$(command base64 -d <<'"'"'AXON_SNAP_EOF_%s'"'"'\n' "$var_name" "$var_name"
+      builtin printf 'axon_snap_%s=$(command base64 -d <<'"'"'AXON_SNAP_EOF_%s'"'"'\n' "$var_name" "$var_name"
       command base64 <<<"$content" | command tr -d '\n'
       builtin printf '\nAXON_SNAP_EOF_%s\n' "$var_name"
       builtin printf ')\n'
-      builtin printf 'eval "$grok_snap_%s"\n' "$var_name"
+      builtin printf 'eval "$axon_snap_%s"\n' "$var_name"
     fi
   }
 
@@ -843,7 +843,7 @@ mod tests {
         assert!(state.cwd.is_absolute());
         // The snapshot should contain at least some env var exports
         assert!(
-            state.snapshot.contains("grok_snap_") || state.snapshot.is_empty(),
+            state.snapshot.contains("axon_snap_") || state.snapshot.is_empty(),
             "snapshot should contain encoded blocks or be empty: {:?}",
             &state.snapshot[..state.snapshot.len().min(200)]
         );
@@ -1008,13 +1008,13 @@ mod tests {
         let cwd = std::env::current_dir().unwrap();
         let mut state = ShellState::init(ShellKind::Bash, &cwd).await.unwrap();
 
-        let (code, _) = run_command(&mut state, "export GPG_TTY=/grok-sentinel-tty").await;
+        let (code, _) = run_command(&mut state, "export GPG_TTY=/axon-sentinel-tty").await;
         assert_eq!(code, 0);
 
         let (code, stdout) = run_command(&mut state, "echo \"[$GPG_TTY]\"").await;
         assert_eq!(code, 0);
         assert!(
-            !stdout.contains("/grok-sentinel-tty"),
+            !stdout.contains("/axon-sentinel-tty"),
             "GPG_TTY must not persist across commands via the snapshot, got: {stdout:?}"
         );
     }
@@ -1028,13 +1028,13 @@ mod tests {
         let cwd = std::env::current_dir().unwrap();
         let mut state = ShellState::init(ShellKind::Zsh, &cwd).await.unwrap();
 
-        let (code, _) = run_command(&mut state, "export GPG_TTY=/grok-sentinel-tty").await;
+        let (code, _) = run_command(&mut state, "export GPG_TTY=/axon-sentinel-tty").await;
         assert_eq!(code, 0);
 
         let (code, stdout) = run_command(&mut state, "echo \"[$GPG_TTY]\"").await;
         assert_eq!(code, 0);
         assert!(
-            !stdout.contains("/grok-sentinel-tty"),
+            !stdout.contains("/axon-sentinel-tty"),
             "GPG_TTY must not persist across commands via the snapshot, got: {stdout:?}"
         );
     }

@@ -1,7 +1,7 @@
 //! Headless single-turn mode (`axon -p "prompt"`).
 //!
 //! Runs the agent in-process via
-//! `spawn_grok_shell`, sends the ACP lifecycle (init → auth → session → prompt),
+//! `spawn_axon_shell`, sends the ACP lifecycle (init → auth → session → prompt),
 //! streams text to stdout, and exits cleanly via `CancellationToken`.
 
 use std::collections::HashSet;
@@ -26,7 +26,7 @@ use axon_shell::sampling::types::{
 use axon_shell::util::config as cli_config;
 
 use crate::acp::model_state::{EffortTokenError, ModelState};
-use crate::acp::spawn::spawn_grok_shell;
+use crate::acp::spawn::spawn_axon_shell;
 use crate::client_identity::{HEADLESS_CLIENT_TYPE, PAGER_CLIENT_VERSION};
 
 // ── Types ────────────────────────────────────────────────────────────────
@@ -515,7 +515,7 @@ fn auth_required_message(interactive: bool) -> String {
     } else {
         "Not signed in. To authenticate without a browser, run:\n  \
          axon login --device-code\n\n\
-         Alternatively, set the XAI_API_KEY environment variable \
+         Alternatively, set the AXON_API_KEY environment variable \
          or run `axon login` on a machine with a browser."
             .to_string()
     }
@@ -624,7 +624,7 @@ async fn open_session(
                     let mut m = acp::Meta::new();
                     m.insert("noReplay".into(), serde_json::Value::Bool(true));
                     if let Some(true) = restore_code {
-                        m.insert("x.ai/restore_code".into(), serde_json::Value::Bool(true));
+                        m.insert("axon/restore_code".into(), serde_json::Value::Bool(true));
                     }
                     Some(m)
                 }),
@@ -700,7 +700,7 @@ async fn fork_then_open(
     let parent_is_worktree = parent_session_is_worktree(parent_id, &write_cwd);
     let payload = fork_session_params(parent_id, &write_cwd, new_id, parent_is_worktree);
     let req = acp::ExtRequest::new(
-        "x.ai/session/fork",
+        "axon/session/fork",
         serde_json::value::to_raw_value(&payload)
             .expect("serialize fork params")
             .into(),
@@ -802,7 +802,7 @@ async fn apply_headless_model_and_effort(
     .map_err(|e| {
         if let Some(name) = model_name {
             anyhow::anyhow!(
-                "Couldn't set model '{}': {}. Run 'grok models' to see available models.",
+                "Couldn't set model '{}': {}. Run 'axon models' to see available models.",
                 name,
                 e
             )
@@ -926,7 +926,7 @@ pub async fn run_single_turn(
 
     let cancel = CancellationToken::new();
     let memory_config = agent_config.memory_config.clone();
-    let spawned = match spawn_grok_shell(agent_config, &cancel, memory_config).await {
+    let spawned = match spawn_axon_shell(agent_config, &cancel, memory_config).await {
         Ok(s) => s,
         Err(e) => {
             let msg = format!("Couldn't start session: {e}");
@@ -1133,9 +1133,9 @@ pub async fn run_single_turn(
     let mut ttf_logged = false;
     let mut prompt_fut = Box::pin(acp_send(request, &acp_tx));
     let mut prompt_result = None;
-    // Pending background work: bash/monitor via x.ai/task_backgrounded +
+    // Pending background work: bash/monitor via blocked.invalid/task_backgrounded +
     // task_completed; background subagents via SubagentSpawned + SubagentFinished
-    // on x.ai/session_notification (prefixed `subagent:{id}` in pending_bg).
+    // on blocked.invalid/session_notification (prefixed `subagent:{id}` in pending_bg).
     // Tracked regardless of wait_for_background so the exit reaper always
     // sees still-running work; the flag only gates waiting.
     // No idle/quiet polling and no wait for server-side auto-wake text — exit
@@ -1351,13 +1351,13 @@ fn reap_request_for_key(
 ) -> serde_json::Result<acp::ExtRequest> {
     let (method, params) = match key.strip_prefix("subagent:") {
         Some(id) => (
-            "x.ai/subagent/cancel",
+            "axon/subagent/cancel",
             serde_json::value::to_raw_value(&CancelSubagentRequest {
                 subagent_id: id.to_string(),
             })?,
         ),
         None => (
-            "x.ai/task/kill",
+            "axon/task/kill",
             serde_json::value::to_raw_value(&KillTaskRequest {
                 session_id: session_id.0.to_string(),
                 task_id: key.to_string(),
@@ -1624,7 +1624,7 @@ fn handle_ext_notification(
     let method = notif.request.method.as_ref();
 
     // Background task lifecycle uses dedicated methods (not session_notification).
-    if method == "x.ai/task_backgrounded" {
+    if method == "axon/task_backgrounded" {
         #[derive(serde::Deserialize)]
         struct TaskBgEnvelope {
             update: TaskBgUpdate,
@@ -1654,7 +1654,7 @@ fn handle_ext_notification(
         return ExtEvent::None;
     }
 
-    if method == "x.ai/task_completed" {
+    if method == "axon/task_completed" {
         #[derive(serde::Deserialize)]
         struct TaskDoneEnvelope {
             update: TaskDoneUpdate,
@@ -1682,18 +1682,18 @@ fn handle_ext_notification(
         return ExtEvent::None;
     }
 
-    if method == "x.ai/monitor_event" {
+    if method == "axon/monitor_event" {
         return ExtEvent::MonitorEvent;
     }
 
     match method {
-        "x.ai/session_notification" | "x.ai/session/update" => {}
+        "axon/session_notification" | "axon/session/update" => {}
         _ => return ExtEvent::None,
     }
 
     #[derive(serde::Deserialize)]
     #[serde(rename_all = "snake_case", tag = "sessionUpdate")]
-    enum XaiUpdate {
+    enum AxonUpdate {
         AutoCompactStarted {
             percentage: u8,
         },
@@ -1718,16 +1718,16 @@ fn handle_ext_notification(
         Other,
     }
     #[derive(serde::Deserialize)]
-    struct XaiNotif {
-        update: XaiUpdate,
+    struct AxonNotif {
+        update: AxonUpdate,
     }
 
-    let Ok(xai_notif) = serde_json::from_str::<XaiNotif>(notif.request.params.get()) else {
+    let Ok(axon_notif) = serde_json::from_str::<AxonNotif>(notif.request.params.get()) else {
         return ExtEvent::None;
     };
 
-    match xai_notif.update {
-        XaiUpdate::AutoCompactStarted { percentage } => match format {
+    match axon_notif.update {
+        AxonUpdate::AutoCompactStarted { percentage } => match format {
             OutputFormat::StreamingJson => {
                 println!(
                     "{}",
@@ -1739,14 +1739,14 @@ fn handle_ext_notification(
             }
             OutputFormat::Json => {}
         },
-        XaiUpdate::AutoCompactCompleted {} => match format {
+        AxonUpdate::AutoCompactCompleted {} => match format {
             OutputFormat::StreamingJson => {
                 println!("{}", serde_json::json!({"type": "auto_compact_completed"}));
             }
             OutputFormat::Plain => eprintln!("Conversation compacted."),
             OutputFormat::Json => {}
         },
-        XaiUpdate::AutoCompactFailed { error } => match format {
+        AxonUpdate::AutoCompactFailed { error } => match format {
             OutputFormat::StreamingJson => {
                 println!(
                     "{}",
@@ -1762,14 +1762,14 @@ fn handle_ext_notification(
             }
             OutputFormat::Json => {}
         },
-        XaiUpdate::AutoCompactCancelled {} => match format {
+        AxonUpdate::AutoCompactCancelled {} => match format {
             OutputFormat::StreamingJson => {
                 println!("{}", serde_json::json!({"type": "auto_compact_cancelled"}));
             }
             OutputFormat::Plain => eprintln!("Auto-compact cancelled."),
             OutputFormat::Json => {}
         },
-        XaiUpdate::AutoContinueCompleted { total_tokens } => match format {
+        AxonUpdate::AutoContinueCompleted { total_tokens } => match format {
             OutputFormat::StreamingJson => {
                 println!(
                     "{}",
@@ -1779,7 +1779,7 @@ fn handle_ext_notification(
             OutputFormat::Plain => eprintln!("Resumed after compaction."),
             OutputFormat::Json => {}
         },
-        XaiUpdate::ImageCompressed { message } => match format {
+        AxonUpdate::ImageCompressed { message } => match format {
             OutputFormat::StreamingJson => {
                 println!(
                     "{}",
@@ -1789,13 +1789,13 @@ fn handle_ext_notification(
             OutputFormat::Plain => eprintln!("{message}"),
             OutputFormat::Json => {}
         },
-        XaiUpdate::SubagentSpawned { subagent_id } => {
+        AxonUpdate::SubagentSpawned { subagent_id } => {
             return ExtEvent::SubagentSpawned { subagent_id };
         }
-        XaiUpdate::SubagentFinished { subagent_id, .. } => {
+        AxonUpdate::SubagentFinished { subagent_id, .. } => {
             return ExtEvent::SubagentFinished { subagent_id };
         }
-        XaiUpdate::Other => {}
+        AxonUpdate::Other => {}
     }
     ExtEvent::None
 }
@@ -1867,7 +1867,7 @@ mod tests {
     fn reap_request_for_task_kills_with_session_scope() {
         let session_id = acp::SessionId::new("sess-1");
         let request = super::reap_request_for_key("task-42", &session_id).unwrap();
-        assert_eq!(request.method.as_ref(), "x.ai/task/kill");
+        assert_eq!(request.method.as_ref(), "axon/task/kill");
         let params: serde_json::Value = serde_json::from_str(request.params.get()).unwrap();
         assert_eq!(params["sessionId"], "sess-1");
         assert_eq!(params["taskId"], "task-42");
@@ -1877,7 +1877,7 @@ mod tests {
     fn reap_request_for_subagent_cancels_with_stripped_id() {
         let session_id = acp::SessionId::new("sess-1");
         let request = super::reap_request_for_key("subagent:sub-7", &session_id).unwrap();
-        assert_eq!(request.method.as_ref(), "x.ai/subagent/cancel");
+        assert_eq!(request.method.as_ref(), "axon/subagent/cancel");
         let params: serde_json::Value = serde_json::from_str(request.params.get()).unwrap();
         assert_eq!(params["subagentId"], "sub-7");
     }
@@ -2076,10 +2076,10 @@ mod tests {
     #[test]
     fn headless_task_backgrounded_parses_task_id() {
         // `make_ext_notif` wraps the arg under `update`, so pass
-        // the inner update object (matching the real `x.ai/task_backgrounded`
+        // the inner update object (matching the real `axon/task_backgrounded`
         // wire shape: `{ "update": { "sessionUpdate": ..., "task_id": ... } }`).
         let notif = make_ext_notif(
-            "x.ai/task_backgrounded",
+            "axon/task_backgrounded",
             serde_json::json!({
                 "sessionUpdate": "task_backgrounded",
                 "task_id": "task-abc",
@@ -2094,7 +2094,7 @@ mod tests {
     #[test]
     fn headless_task_backgrounded_with_monitor_description_is_monitor() {
         let notif = make_ext_notif(
-            "x.ai/task_backgrounded",
+            "axon/task_backgrounded",
             serde_json::json!({
                 "sessionUpdate": "task_backgrounded",
                 "task_id": "mon-1",
@@ -2115,7 +2115,7 @@ mod tests {
         // this test guards against a future `rename_all = "camelCase"` on
         // `TaskSnapshot` silently turning waiting into a no-op.
         let notif = make_ext_notif(
-            "x.ai/task_completed",
+            "axon/task_completed",
             serde_json::json!({
                 "sessionUpdate": "task_completed",
                 "task_snapshot": { "task_id": "task-abc" }
@@ -2130,7 +2130,7 @@ mod tests {
     #[test]
     fn headless_subagent_spawned_and_finished_parse() {
         let spawned = make_ext_notif(
-            "x.ai/session_notification",
+            "axon/session_notification",
             serde_json::json!({
                 "sessionUpdate": "subagent_spawned",
                 "subagent_id": "sub-1",
@@ -2145,7 +2145,7 @@ mod tests {
             ExtEvent::SubagentSpawned { subagent_id } if subagent_id == "sub-1"
         ));
         let finished = make_ext_notif(
-            "x.ai/session_notification",
+            "axon/session_notification",
             serde_json::json!({
                 "sessionUpdate": "subagent_finished",
                 "subagent_id": "sub-1",
@@ -2174,7 +2174,7 @@ mod tests {
         let raw = serde_json::value::to_raw_value(&payload).unwrap();
         let (tx, _rx) = tokio::sync::oneshot::channel();
         let notif = axon_acp_lib::AcpArgs {
-            request: acp::ExtNotification::new("x.ai/other", raw.into()),
+            request: acp::ExtNotification::new("axon/other", raw.into()),
             response_tx: tx,
         }
         .boxed();

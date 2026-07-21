@@ -326,7 +326,7 @@ mod tests {
 
     #[test]
     fn agent_config_file_wire_matches_workspace_types_mirror() {
-        // The RPC serializes grok-build's AgentConfigFile and the remote
+        // The RPC serializes axon-build's AgentConfigFile and the remote
         // consumer deserializes the workspace-types mirror; pin the cross-crate
         // serde shape so a rename/attr drift on either side can't silently
         // break discovery.
@@ -478,10 +478,10 @@ mod tests {
     #[test]
     fn load_project_config_reads_toml_as_json() {
         let tmp = tempfile::tempdir().unwrap();
-        let grok_dir = tmp.path().join(".axon");
-        fs::create_dir_all(&grok_dir).unwrap();
+        let axon_dir = tmp.path().join(".axon");
+        fs::create_dir_all(&axon_dir).unwrap();
         fs::write(
-            grok_dir.join("config.toml"),
+            axon_dir.join("config.toml"),
             "[skills]\npaths = [\"/extra/skills\"]\n\n[plugins]\ndisabled = [\"noisy-plugin\"]\n",
         )
         .unwrap();
@@ -530,7 +530,7 @@ mod tests {
 
     // Note: `resolve_permissions_with_provenance` checks system-managed
     // settings and requirements.toml from the global config, so on a
-    // developer machine with Grok installed it may return non-Null even
+    // developer machine with Axon installed it may return non-Null even
     // for a temp directory. Both branches assert a concrete condition.
 
     #[tokio::test]

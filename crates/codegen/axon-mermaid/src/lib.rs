@@ -64,10 +64,10 @@ use std::sync::Arc;
 /// relevant to diagram rendering.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum MermaidTheme {
-    /// Light surfaces with dark text (e.g. `GrokDay`).
+    /// Light surfaces with dark text (e.g. `AxonDay`).
     #[default]
     Light,
-    /// Dark surfaces with light text (e.g. `GrokNight`, `TokyoNight`).
+    /// Dark surfaces with light text (e.g. `AxonNight`, `TokyoNight`).
     Dark,
 }
 

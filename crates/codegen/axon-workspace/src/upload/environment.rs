@@ -69,7 +69,7 @@ impl WorkspaceIdentity {
     /// principals even if `principal_id` is populated (per the wire contract).
     /// Deriving `team_id` from `principal_id` is intentional — the standalone
     /// server's `AuthEntry` never carries the shell's separate
-    /// `GrokAuth.team_id`, and for a Team principal `principal_id` *is* the
+    /// `AxonAuth.team_id`, and for a Team principal `principal_id` *is* the
     /// team id.
     pub(crate) fn team_id(&self) -> Option<String> {
         self.is_team().then(|| self.principal_id.clone()).flatten()

@@ -40,9 +40,9 @@ use tokio::sync::Notify;
 use tokio_util::sync::CancellationToken;
 use axon_fast_worktree::{WorktreeBuilder, WorktreeSync};
 
-const WORKTREE_POOL_LOG: &str = "xai_worktree_pool";
+const WORKTREE_POOL_LOG: &str = "axon_worktree_pool";
 use crate::util::config::PoolConfig;
-use crate::util::grok_home::grok_home;
+use crate::util::axon_home::axon_home;
 
 use axon_tty_utils::git_command;
 
@@ -1590,7 +1590,7 @@ async fn warm_git_caches(repo_path: &Path) {
 /// The base pool directory under `~/.axon/`.
 /// Instance-scoped directories live under this: `worktree_pool/<instance_id>/`.
 fn pool_base_directory() -> PathBuf {
-    grok_home().join("worktree_pool")
+    axon_home().join("worktree_pool")
 }
 
 /// Count worktree subdirectories in the instance dir that are NOT claimed.

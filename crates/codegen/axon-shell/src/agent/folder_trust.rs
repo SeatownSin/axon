@@ -148,7 +148,7 @@ pub fn project_scope_allowed(cwd: &Path) -> bool {
 /// is on, the workspace is NOT store-trusted, and repo-local code-exec configs
 /// are present (something to gate). Interactivity is forced `true` because the
 /// caller already confirmed the client can prompt (it advertised
-/// `x.ai/folderTrust.interactive`); the TTY-based [`decide_inputs`] default is
+/// `axon/folderTrust.interactive`); the TTY-based [`decide_inputs`] default is
 /// false under the ACP stdio transport. Mirrors the [`decide`] precedence so it
 /// cannot drift from the gate: feature-off (kill-switch / opt-out) / store-trusted
 /// / no-configs all collapse to a non-`Prompt` verdict and return false.
@@ -666,8 +666,8 @@ mod tests {
         // default-on flag applies.
         let home = tempfile::tempdir().unwrap();
         let _home = EnvGuard::set("HOME", home.path());
-        let grok_home = tempfile::tempdir().unwrap();
-        let _env = EnvGuard::set("AXON_HOME", grok_home.path());
+        let axon_home = tempfile::tempdir().unwrap();
+        let _env = EnvGuard::set("AXON_HOME", axon_home.path());
         let _flag = EnvGuard::unset("AXON_FOLDER_TRUST");
         git2::Repository::init(home.path()).unwrap();
         // Repo-local code-exec config, so the final allow is the unrecordable-key
@@ -1191,9 +1191,9 @@ mod tests {
         // can distinguish it from user/plugin servers. Asserts on the specific
         // key, so any real `~/.axon/lsp.json` on the test host is irrelevant.
         let tmp = repo_tmp();
-        let grok = tmp.path().join(".axon");
-        std::fs::create_dir_all(&grok).unwrap();
-        std::fs::write(grok.join("lsp.json"), r#"{"projlsp": {"command": "true"}}"#).unwrap();
+        let axon = tmp.path().join(".axon");
+        std::fs::create_dir_all(&axon).unwrap();
+        std::fs::write(axon.join("lsp.json"), r#"{"projlsp": {"command": "true"}}"#).unwrap();
 
         let sourced = load_servers_with_plugins_sourced(tmp.path(), &[], &[], &[], &[]);
         let (_, source) = sourced.get("projlsp").expect("project server present");
@@ -1210,9 +1210,9 @@ mod tests {
         // End-to-end of the load-site gate (Sites A/B): a project server loaded
         // from `<cwd>/.axon/lsp.json` is dropped once the workspace is untrusted.
         let tmp = repo_tmp();
-        let grok = tmp.path().join(".axon");
-        std::fs::create_dir_all(&grok).unwrap();
-        std::fs::write(grok.join("lsp.json"), r#"{"projlsp": {"command": "true"}}"#).unwrap();
+        let axon = tmp.path().join(".axon");
+        std::fs::create_dir_all(&axon).unwrap();
+        std::fs::write(axon.join("lsp.json"), r#"{"projlsp": {"command": "true"}}"#).unwrap();
 
         let sourced = load_servers_with_plugins_sourced(tmp.path(), &[], &[], &[], &[]);
         assert!(
@@ -1244,10 +1244,10 @@ mod tests {
             r#"{"mcpServers": {"projjson": {"url": "https://proj.example.com/mcp"}}}"#,
         )
         .unwrap();
-        let grok = tmp.path().join(".axon");
-        std::fs::create_dir_all(&grok).unwrap();
+        let axon = tmp.path().join(".axon");
+        std::fs::create_dir_all(&axon).unwrap();
         std::fs::write(
-            grok.join("config.toml"),
+            axon.join("config.toml"),
             "[mcp_servers.projtoml]\nurl = \"https://projtoml.example.com/mcp\"\n",
         )
         .unwrap();
@@ -1265,10 +1265,10 @@ mod tests {
     #[test]
     fn project_scoped_mcp_names_cover_every_source() {
         let tmp = repo_tmp();
-        let grok = tmp.path().join(".axon");
-        std::fs::create_dir_all(&grok).unwrap();
+        let axon = tmp.path().join(".axon");
+        std::fs::create_dir_all(&axon).unwrap();
         std::fs::write(
-            grok.join("config.toml"),
+            axon.join("config.toml"),
             "[mcp_servers.cfgsrv]\nurl = \"https://cfg.example.com/mcp\"\n",
         )
         .unwrap();

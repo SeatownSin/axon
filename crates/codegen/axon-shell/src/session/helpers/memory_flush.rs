@@ -25,7 +25,7 @@ use crate::sampling::{ChatRequestMessage, Role};
 use crate::session::memory::text_utils::{has_markdown_headers, is_no_reply};
 
 /// Memory log target — matches `axon_telemetry::memory_log::TARGET`.
-const LOG: &str = "xai_memory";
+const LOG: &str = "axon_memory";
 
 /// Check whether a memory flush should run before the next compaction.
 ///

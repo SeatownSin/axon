@@ -759,7 +759,7 @@ mod tests {
         let status = std::process::Command::new(std::env::current_exe().unwrap())
             .arg("--exact")
             .arg("tests::stderr_redirect_roundtrip_body")
-            .env("__XAI_STDERR_REDIRECT_SUBPROCESS", "1")
+            .env("__AXON_STDERR_REDIRECT_SUBPROCESS", "1")
             .status()
             .expect("failed to spawn test subprocess");
         assert!(status.success(), "subprocess integration test failed");
@@ -769,7 +769,7 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn stderr_redirect_roundtrip_body() {
-        if std::env::var("__XAI_STDERR_REDIRECT_SUBPROCESS").is_err() {
+        if std::env::var("__AXON_STDERR_REDIRECT_SUBPROCESS").is_err() {
             return; // skip when not invoked as subprocess
         }
 

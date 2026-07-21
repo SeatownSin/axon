@@ -21,7 +21,7 @@ use crate::upload::trace::{
 };
 use crate::upload::turn::{PromptTraceContext, complete_prompt_trace};
 use axon_acp_lib::AcpAgentGatewaySender as GatewaySender;
-use axon_tools::implementations::grok_build::task::types::*;
+use axon_tools::implementations::axon_build::task::types::*;
 use axon_workspace::file_system::AsyncFileSystem;
 use axon_hunk_tracker::HunkTrackerHandle;
 use super::*;
@@ -163,8 +163,8 @@ impl SubagentCoordinator {
     pub fn outstanding_reply_for_prompt(
         &self,
         prompt_id: &str,
-    ) -> axon_tools::implementations::grok_build::task::types::SubagentOutstandingReply {
-        axon_tools::implementations::grok_build::task::types::SubagentOutstandingReply {
+    ) -> axon_tools::implementations::axon_build::task::types::SubagentOutstandingReply {
+        axon_tools::implementations::axon_build::task::types::SubagentOutstandingReply {
             live_ids: self.outstanding_for_prompt(prompt_id),
             background_live: self.background_live_for_prompt(prompt_id),
             subagent_usage_not_applied: self.subagent_usage_not_applied(prompt_id),

@@ -14,16 +14,16 @@ use agent_client_protocol::{self as acp, Agent as _};
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 use axon_acp_lib::LineBufferedRead;
 
-use crate::env::grok_binary;
+use crate::env::axon_binary;
 use crate::mock_server::MockInferenceServer;
 use crate::process::spawn_piped_with_stderr_capture;
 
 /// Env var naming the binary that elects/hosts the leader in a two-binary
-/// (version-skew) test. Falls back to [`grok_binary`]'s resolution.
+/// (version-skew) test. Falls back to [`axon_binary`]'s resolution.
 pub const LEADER_BINARY_ENV: &str = "AXON_BINARY_LEADER";
 
 /// Env var naming the binary for the second (usually newer) client in a
-/// two-binary test. Falls back to [`grok_binary`]'s resolution.
+/// two-binary test. Falls back to [`axon_binary`]'s resolution.
 pub const CLIENT_BINARY_ENV: &str = "AXON_BINARY_CLIENT";
 
 fn role_binary(env_key: &str) -> PathBuf {
@@ -32,17 +32,17 @@ fn role_binary(env_key: &str) -> PathBuf {
         assert!(p.exists(), "{env_key} does not exist: {}", p.display());
         return p;
     }
-    grok_binary()
+    axon_binary()
 }
 
 /// Binary for the leader-electing side of a version-skew test
-/// (`AXON_BINARY_LEADER`, else the shared [`grok_binary`] resolution).
+/// (`AXON_BINARY_LEADER`, else the shared [`axon_binary`] resolution).
 pub fn leader_binary() -> PathBuf {
     role_binary(LEADER_BINARY_ENV)
 }
 
 /// Binary for the client side of a version-skew test (`AXON_BINARY_CLIENT`,
-/// else the shared [`grok_binary`] resolution).
+/// else the shared [`axon_binary`] resolution).
 pub fn client_binary() -> PathBuf {
     role_binary(CLIENT_BINARY_ENV)
 }
@@ -93,7 +93,7 @@ impl acp::Client for LeaderAcpClient {
     }
 
     async fn ext_notification(&self, args: acp::ExtNotification) -> acp::Result<()> {
-        if &*args.method == "x.ai/leader_reconnected" {
+        if &*args.method == "axon/leader_reconnected" {
             self.capture
                 .reconnected_count
                 .fetch_add(1, Ordering::SeqCst);
@@ -114,7 +114,7 @@ pub struct LeaderStdioClient {
 
 impl LeaderStdioClient {
     pub async fn spawn(server: &MockInferenceServer, cwd: &Path, home: &Path) -> Self {
-        Self::spawn_with_binary(&grok_binary(), server, cwd, home).await
+        Self::spawn_with_binary(&axon_binary(), server, cwd, home).await
     }
 
     /// [`Self::spawn`] with an explicit binary, for two-binary version-skew
@@ -128,7 +128,7 @@ impl LeaderStdioClient {
         let mut cmd = tokio::process::Command::new(binary);
         cmd.args(["agent", "--leader", "stdio"])
             .current_dir(cwd)
-            // Hermetic env: the developer's shell may export GROK_* vars
+            // Hermetic env: the developer's shell may export AXON_* vars
             // (e.g. AXON_LEADER_SOCKET pointing at a REAL leader on this
             // machine). env_clear + explicit allowlist guarantees the test
             // can never touch a leader outside its sandbox home.
@@ -142,8 +142,8 @@ impl LeaderStdioClient {
             // (re-)elected leader binds the same sandboxed path.
             .env("AXON_LEADER_SOCKET", home.join(".axon").join("leader.sock"))
             .env("AXON_CLI_CHAT_PROXY_BASE_URL", server.url())
-            .env("AXON_XAI_API_BASE_URL", server.url())
-            .env("XAI_API_KEY", "test-key-for-ci")
+            .env("AXON_AXON_API_BASE_URL", server.url())
+            .env("AXON_API_KEY", "test-key-for-ci")
             .env("AXON_TELEMETRY_ENABLED", "false")
             .env("AXON_FEEDBACK_ENABLED", "false")
             .env("AXON_TRACE_UPLOAD", "false")
@@ -215,8 +215,8 @@ impl LeaderStdioClient {
         let api_key_method = init
             .auth_methods
             .iter()
-            .find(|m| &*m.id().0 == "xai.api_key")
-            .expect("xai.api_key auth method");
+            .find(|m| &*m.id().0 == "axon.api_key")
+            .expect("axon.api_key auth method");
         self.conn
             .authenticate(
                 acp::AuthenticateRequest::new(api_key_method.id().clone())
@@ -330,8 +330,8 @@ pub async fn wait_for_new_leader(home: &Path, old_pid: u32, timeout: Duration) -
 
 /// Wait for evidence that the bridge finished its reconnect replay.
 ///
-/// The `x.ai/leader_reconnected` ext notification is dropped by the typed
-/// `ClientSideConnection` (bare `x.ai/*` methods are rejected by the ACP
+/// The `axon/leader_reconnected` ext notification is dropped by the typed
+/// `ClientSideConnection` (bare `axon/*` methods are rejected by the ACP
 /// decoder), so we wait for the replayed `session/load` to emit session
 /// notifications instead: the notification count rises above `baseline`.
 pub async fn wait_for_replay_notifications(

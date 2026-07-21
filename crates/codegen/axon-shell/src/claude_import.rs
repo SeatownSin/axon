@@ -540,7 +540,7 @@ pub fn is_claude_import_marked() -> bool {
     if let Some(v) = *MARKER_CACHE.read().expect("MARKER_CACHE poisoned") {
         return v;
     }
-    let config_path = crate::util::grok_home::grok_home().join("config.toml");
+    let config_path = crate::util::axon_home::axon_home().join("config.toml");
     let v = is_claude_import_marked_at(&config_path);
     *MARKER_CACHE.write().expect("MARKER_CACHE poisoned") = Some(v);
     v
@@ -687,7 +687,7 @@ fn write_import_marker(config_path: &Path) -> anyhow::Result<()> {
 /// still wants the cutoff applied so re-entering a workspace with `.claude/`
 /// content doesn't re-engage the runtime fallbacks.
 pub fn mark_claude_imported() -> anyhow::Result<()> {
-    let path = crate::util::grok_home::grok_home().join("config.toml");
+    let path = crate::util::axon_home::axon_home().join("config.toml");
     write_import_marker(&path)?;
     refresh_marker_cache(true);
     Ok(())
@@ -708,7 +708,7 @@ pub fn apply_import(plan: &ImportPlan, cwd: &Path) -> anyhow::Result<ImportResul
     let mut result = ImportResult::default();
 
     if !plan.global_items.is_empty() {
-        let global_path = crate::util::grok_home::grok_home().join("config.toml");
+        let global_path = crate::util::axon_home::axon_home().join("config.toml");
         let count = apply_items_to_config(&global_path, &plan.global_items)?;
         result.global_count = count;
         if count > 0 {
@@ -718,7 +718,7 @@ pub fn apply_import(plan: &ImportPlan, cwd: &Path) -> anyhow::Result<ImportResul
         }
 
         // Hooks are written separately to ~/.axon/hooks/imported-from-claude.json.
-        let hooks_dir = crate::util::grok_home::grok_home().join("hooks");
+        let hooks_dir = crate::util::axon_home::axon_home().join("hooks");
         let hook_count = apply_hooks_to_dir(&hooks_dir, &plan.global_items)?;
         result.global_count += hook_count;
         if hook_count > 0 {
@@ -2176,7 +2176,7 @@ extra_rule_dirs = ["/c/rules"]
 
         // Note: `resolve_permissions_with_provenance` ALSO reads requirements,
         // managed settings, and the developer's real `~/.axon/config.toml`.
-        // We can't isolate `grok_home()` because it's `OnceLock`-cached.
+        // We can't isolate `axon_home()` because it's `OnceLock`-cached.
         // Instead, assert on rule *provenance*: no rule should originate from
         // our tempdir's `.claude/settings.json`. The dev's real ~/.axon
         // config rules (if any) are out of scope for this test.
@@ -2226,7 +2226,7 @@ extra_rule_dirs = ["/c/rules"]
         //
         // We intentionally **do not** assert a specific cached value — the
         // dev's real `~/.axon/config.toml` may legitimately have the marker
-        // set during local testing, and we can't override `grok_home()`
+        // set during local testing, and we can't override `axon_home()`
         // (it's `OnceLock`-cached, so any prior test that calls it locks the
         // value in for the entire process). The `MarkerGuard` resets the
         // cache after this test, so subsequent gate tests start clean.

@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 use fs2::FileExt;
 use axon_workspace::util::is_lock_contended;
 
-use crate::util::grok_home::grok_home;
+use crate::util::axon_home::axon_home;
 
 /// Compute a short hash suffix from a WS URL for differentiating leader instances.
 /// Returns empty string for the default/production URL.
@@ -18,7 +18,7 @@ pub fn compute_ws_url_suffix(ws_url: &str) -> String {
     }
 
     // Default production URL doesn't need a suffix.
-    // `grok_ws_url` is always the *relay* endpoint (see
+    // `axon_ws_url` is always the *relay* endpoint (see
     // [`crate::env::PROD_RELAY_WS_URL`]); the gateway URL never reaches
     // the leader-lock path-derivation code.
     if ws_url == crate::env::PROD_RELAY_WS_URL {
@@ -81,7 +81,7 @@ pub fn lock_path_for_ws_url_in(root: &Path, ws_url: &str) -> PathBuf {
 }
 
 pub fn lock_path_for_ws_url(ws_url: &str) -> PathBuf {
-    resolve_lock_path(leader_socket_override(), &grok_home(), ws_url)
+    resolve_lock_path(leader_socket_override(), &axon_home(), ws_url)
 }
 
 pub fn socket_path_for_ws_url_in(root: &Path, ws_url: &str) -> PathBuf {
@@ -90,7 +90,7 @@ pub fn socket_path_for_ws_url_in(root: &Path, ws_url: &str) -> PathBuf {
 }
 
 pub fn socket_path_for_ws_url(ws_url: &str) -> PathBuf {
-    resolve_socket_path(leader_socket_override(), &grok_home(), ws_url)
+    resolve_socket_path(leader_socket_override(), &axon_home(), ws_url)
 }
 
 pub fn ws_url_suffix_from_paths(lock_path: &Path, socket_path: &Path) -> Option<String> {
@@ -148,7 +148,7 @@ pub struct LeaderLock {
 }
 
 impl LeaderLock {
-    /// Create a new LeaderLock using the default paths in grok home.
+    /// Create a new LeaderLock using the default paths in axon home.
     /// If ws_url differs from the default production URL, a hash suffix is added
     /// to the lock and socket file names to differentiate leader instances.
     pub fn new(ws_url: &str) -> Self {

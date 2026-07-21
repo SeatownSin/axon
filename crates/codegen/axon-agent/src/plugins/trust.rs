@@ -38,15 +38,15 @@ impl TrustStore {
     /// If `~/.axon/trusted-plugins` does not exist, returns an empty store.
     /// If the file cannot be read, logs a warning and returns an empty store.
     pub fn load() -> Self {
-        // Gate on user_grok_home() so a project's `.axon/trusted-plugins` is never
+        // Gate on user_axon_home() so a project's `.axon/trusted-plugins` is never
         // read as the user trust store when neither AXON_HOME nor a home dir resolves.
-        let Some(grok) = axon_config::user_grok_home() else {
+        let Some(axon) = axon_config::user_axon_home() else {
             return Self {
                 trusted: HashSet::new(),
                 file_path: PathBuf::new(),
             };
         };
-        let file_path = grok.join(TRUST_FILE_NAME);
+        let file_path = axon.join(TRUST_FILE_NAME);
         let trusted = Self::read_trust_file(&file_path);
         Self { trusted, file_path }
     }

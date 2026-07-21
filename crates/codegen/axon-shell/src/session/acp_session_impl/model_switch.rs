@@ -211,7 +211,7 @@ impl SessionActor {
             }
             bridge
                 .update_resource(
-                    axon_tools::implementations::grok_build::update_goal::GoalUpdateHandle(
+                    axon_tools::implementations::axon_build::update_goal::GoalUpdateHandle(
                         self.goal_update_tx.clone(),
                     ),
                 )

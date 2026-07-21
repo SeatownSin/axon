@@ -85,8 +85,8 @@ pub struct UiConfig {
     /// settings modal; unset defaults to `hold`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub voice_capture_mode: Option<String>,
-    /// Speech-to-text language preference for voice dictation. A Grok STT
-    /// catalog code (`en`, `es`, `ja`, … — see xAI STT supported languages) or
+    /// Speech-to-text language preference for voice dictation. A Axon STT
+    /// catalog code (`en`, `es`, `ja`, … — see Axon STT supported languages) or
     /// `auto` (system locale, resolved at connect). Written by the settings
     /// modal; unset leaves `[voice].language` / default `en`. When set, overrides
     /// `[voice].language` for the session.

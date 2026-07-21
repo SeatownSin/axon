@@ -15,7 +15,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::Duration;
 
 use chrono::{Duration as ChronoDuration, Utc};
-use axon_shell::auth::{AuthManager, AuthMode, GrokAuth, GrokComConfig};
+use axon_shell::auth::{AuthManager, AuthMode, AxonAuth, AxonComConfig};
 use axon_shell::heap_profile::{
     self, HeapProfileHooks, HeapProfileMonitor, HeapProfileUploadHandles,
     JemallocHeapProfileConfig, JemallocStats, build_upload_handles, is_valid_session_id,
@@ -115,8 +115,8 @@ fn resolve_from_settings(settings: &RemoteSettings) -> JemallocHeapProfileConfig
 }
 
 fn seed_auth_json(home: &Path, token: &str) {
-    let scope = GrokComConfig::default().auth_scope();
-    let auth = GrokAuth {
+    let scope = AxonComConfig::default().auth_scope();
+    let auth = AxonAuth {
         key: token.to_owned(),
         auth_mode: AuthMode::ApiKey,
         create_time: Utc::now(),
@@ -243,7 +243,7 @@ impl Harness {
         let config = resolve_from_settings(&fetched);
         let home = tempfile::TempDir::new().expect("temp home");
         seed_auth_json(home.path(), AUTH_TOKEN);
-        let auth = Arc::new(AuthManager::new(home.path(), GrokComConfig::default()));
+        let auth = Arc::new(AuthManager::new(home.path(), AxonComConfig::default()));
         let handles = proxy_handles(&server, Arc::clone(&auth));
         let mut mon = HeapProfileMonitor::new();
         mon.reconfigure(config, Some(handles));

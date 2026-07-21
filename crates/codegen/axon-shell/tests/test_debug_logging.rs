@@ -1,6 +1,6 @@
 //! End-to-end tests for the `--debug` firehose file logging.
 //!
-//! Runs the built grok binary against the mock inference server with a
+//! Runs the built axon binary against the mock inference server with a
 //! caller-owned `$AXON_HOME`, then inspects `~/.axon/debug/`:
 //! - the `--debug` FLAG drives the firehose end to end through the master switch:
 //!   a live `agent` session launched with `--debug` writes a non-empty per-session
@@ -77,7 +77,7 @@ fn debug_cmd(
     workdir: &Path,
     extra: &[&str],
 ) -> tokio::process::Command {
-    let mut cmd = tokio::process::Command::new(grok_binary());
+    let mut cmd = tokio::process::Command::new(axon_binary());
     cmd.args(["-p", "say hi", "--yolo", "--output-format", "json"])
         .args(extra)
         .arg("--cwd")
@@ -99,9 +99,9 @@ fn debug_cmd(
 
 /// Poll up to 50×100ms for the per-session firehose at `path` to become non-empty
 /// (its worker flushes asynchronously while the agent process stays alive), then
-/// assert it carries first-party (`xai_grok`) content. Panics with the captured
+/// assert it carries first-party (`axon_axon`) content. Panics with the captured
 /// stderr tail if it never fills. Shared by the live-agent tests.
-async fn read_session_firehose_when_ready(path: &Path, client: &GrokStdioClient) -> String {
+async fn read_session_firehose_when_ready(path: &Path, client: &AxonStdioClient) -> String {
     let mut content = None;
     for _ in 0..50 {
         if let Ok(text) = std::fs::read_to_string(path)
@@ -121,7 +121,7 @@ async fn read_session_firehose_when_ready(path: &Path, client: &GrokStdioClient)
     // The firehose filter routes first-party crate logs here; assert that rather
     // than a bare non-empty check.
     assert!(
-        content.contains("xai_grok"),
+        content.contains("axon_axon"),
         "session firehose {path:?} should contain first-party logs, got {} bytes",
         content.len()
     );
@@ -145,7 +145,7 @@ async fn debug_flag_enables_firehose_without_crashing() {
     let cmd = debug_cmd(&server, home.path(), workdir.path(), &["--debug"]);
     let result = run_headless_with_cmd(cmd).await;
 
-    assert_headless_success(&result, "grok --debug headless", Some(&server));
+    assert_headless_success(&result, "axon --debug headless", Some(&server));
     assert_no_crashes(&result.stderr);
 }
 
@@ -162,7 +162,7 @@ async fn no_debug_flag_writes_no_debug_dir() {
     let cmd = debug_cmd(&server, home.path(), workdir.path(), &[]);
     let result = run_headless_with_cmd(cmd).await;
 
-    assert_headless_success(&result, "grok headless (no --debug)", Some(&server));
+    assert_headless_success(&result, "axon headless (no --debug)", Some(&server));
     assert!(
         firehose_txt_files(home.path()).is_empty(),
         "no firehose *.txt expected without --debug, found: {:?}",
@@ -183,14 +183,14 @@ async fn agent_session_writes_named_session_file() {
             .expect("start mock server");
         let workdir = git_workdir();
         let home = TempDir::new().expect("create temp home");
-        let grok_home = home.path().join(".axon");
-        let grok_home_str = grok_home.to_string_lossy().into_owned();
+        let axon_home = home.path().join(".axon");
+        let axon_home_str = axon_home.to_string_lossy().into_owned();
 
-        let client = GrokStdioClient::spawn_with_home_and_env(
+        let client = AxonStdioClient::spawn_with_home_and_env(
             &server,
             workdir.path(),
             home,
-            &[("AXON_DEBUG_LOG", "1"), ("AXON_HOME", &grok_home_str)],
+            &[("AXON_DEBUG_LOG", "1"), ("AXON_HOME", &axon_home_str)],
         )
         .await;
         client.initialize_with_timeout().await;
@@ -200,14 +200,14 @@ async fn agent_session_writes_named_session_file() {
         let sid = session_id.0.to_string();
         let _ = client.prompt_with_timeout(&session_id, "say hi").await;
 
-        let session_file = grok_home.join("debug").join(format!("{sid}.txt"));
+        let session_file = axon_home.join("debug").join(format!("{sid}.txt"));
         read_session_firehose_when_ready(&session_file, &client).await;
 
         // `latest.txt` is a sibling symlink pointing at the just-opened session
         // file, so `tail -f ~/.axon/debug/latest.txt` follows the live session.
         #[cfg(unix)]
         {
-            let link = grok_home.join("debug").join("latest.txt");
+            let link = axon_home.join("debug").join("latest.txt");
             let target = std::fs::read_link(&link)
                 .unwrap_or_else(|e| panic!("latest.txt should be a symlink ({link:?}): {e}"));
             assert_eq!(target, Path::new(&format!("{sid}.txt")));
@@ -232,18 +232,18 @@ async fn debug_flag_master_switch_enables_firehose() {
             .expect("start mock server");
         let workdir = git_workdir();
         let home = TempDir::new().expect("create temp home");
-        let grok_home = home.path().join(".axon");
-        let grok_home_str = grok_home.to_string_lossy().into_owned();
+        let axon_home = home.path().join(".axon");
+        let axon_home_str = axon_home.to_string_lossy().into_owned();
 
         // Drive `axon --debug agent stdio`: the master switch (which runs before
         // the agent dispatch) must be what enables the firehose — NOT a direct
         // AXON_DEBUG_LOG env. The spawn helper clears inherited firehose toggles,
         // so the `--debug` flag is the only thing that can enable logging here.
-        let client = GrokStdioClient::spawn_with_home_env_and_args(
+        let client = AxonStdioClient::spawn_with_home_env_and_args(
             &server,
             workdir.path(),
             home,
-            &[("AXON_HOME", &grok_home_str)],
+            &[("AXON_HOME", &axon_home_str)],
             &["--debug"],
         )
         .await;
@@ -252,7 +252,7 @@ async fn debug_flag_master_switch_enables_firehose() {
         let sid = session_id.0.to_string();
         let _ = client.prompt_with_timeout(&session_id, "say hi").await;
 
-        let session_file = grok_home.join("debug").join(format!("{sid}.txt"));
+        let session_file = axon_home.join("debug").join(format!("{sid}.txt"));
         read_session_firehose_when_ready(&session_file, &client).await;
 
         // Slimming guard: `--debug` must NOT enable sampling. The agent spawn
@@ -261,7 +261,7 @@ async fn debug_flag_master_switch_enables_firehose() {
         // set-if-unset must not flip it on (the pre-fix code did, starving the
         // firehose). Instrumentation isn't checked: the harness pins
         // AXON_INSTRUMENTATION=disabled, so that assertion would be vacuous.
-        let sampling = grok_home.join("logs").join("sampling.jsonl");
+        let sampling = axon_home.join("logs").join("sampling.jsonl");
         let len = std::fs::metadata(&sampling).map(|m| m.len()).unwrap_or(0);
         assert_eq!(
             len, 0,
@@ -292,7 +292,7 @@ async fn debug_file_flag_writes_single_file_and_bypasses_routing() {
     );
     let result = run_headless_with_cmd(cmd).await;
 
-    assert_headless_success(&result, "grok --debug-file", Some(&server));
+    assert_headless_success(&result, "axon --debug-file", Some(&server));
     assert_no_crashes(&result.stderr);
     assert!(
         explicit.exists(),
@@ -310,7 +310,7 @@ async fn debug_file_flag_writes_single_file_and_bypasses_routing() {
 /// `AXON_LOG_FILE=<path>` (no `--debug`) writes that exact file (back-compat).
 #[tokio::test]
 #[ignore] // requires pre-built binary; run with --ignored
-async fn grok_log_file_explicit_path_is_written() {
+async fn axon_log_file_explicit_path_is_written() {
     let server = MockInferenceServer::start()
         .await
         .expect("start mock server");
@@ -322,7 +322,7 @@ async fn grok_log_file_explicit_path_is_written() {
     cmd.env("AXON_LOG_FILE", &custom);
     let result = run_headless_with_cmd(cmd).await;
 
-    assert_headless_success(&result, "grok AXON_LOG_FILE=path", Some(&server));
+    assert_headless_success(&result, "axon AXON_LOG_FILE=path", Some(&server));
     assert_no_crashes(&result.stderr);
     assert!(
         custom.exists(),

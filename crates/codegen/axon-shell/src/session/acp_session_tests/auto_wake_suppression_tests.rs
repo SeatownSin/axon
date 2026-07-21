@@ -1483,7 +1483,7 @@ async fn reparented_record_is_noop_without_goal_harness() {
 /// subagent(s) completed" reminder.
 #[tokio::test(flavor = "current_thread")]
 async fn between_turn_drain_suppresses_reserved_subagents() {
-    use axon_tools::implementations::grok_build::task::types::{
+    use axon_tools::implementations::axon_build::task::types::{
         SubagentCompletionSummary, SubagentEvent,
     };
     let local = tokio::task::LocalSet::new();

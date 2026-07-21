@@ -1,4 +1,4 @@
-//! xAI Computer Hub — unified runtime contract.
+//! Axon Computer Hub — unified runtime contract.
 //!
 //! Single home for the `Tool` trait, `ToolDispatch`, `ToolError`,
 //! `ToolNotification`, `ToolSearchIndex`, `ToolCallContext`, `ToolStream`,

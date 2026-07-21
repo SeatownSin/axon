@@ -45,7 +45,7 @@ impl Default for JsonlStorageAdapter {
 impl JsonlStorageAdapter {
     pub fn new() -> Self {
         Self {
-            dir_mode: SessionDirMode::FromRoot(crate::util::grok_home::grok_home()),
+            dir_mode: SessionDirMode::FromRoot(crate::util::axon_home::axon_home()),
         }
     }
     pub fn with_root(root_dir: PathBuf) -> Self {
@@ -76,7 +76,7 @@ impl JsonlStorageAdapter {
         match &self.dir_mode {
             SessionDirMode::FromRoot(root) => root
                 .join("sessions")
-                .join(crate::util::grok_home::encode_cwd_dirname(&info.cwd))
+                .join(crate::util::axon_home::encode_cwd_dirname(&info.cwd))
                 .join(info.id.to_string()),
             SessionDirMode::Explicit(dir) => dir.clone(),
         }
@@ -133,7 +133,7 @@ impl JsonlStorageAdapter {
         }
         let mut scan_cwds: Vec<PathBuf> = Vec::new();
         if let Some(cwd_str) = cwd {
-            let enc = crate::util::grok_home::encode_cwd_dirname(cwd_str);
+            let enc = crate::util::axon_home::encode_cwd_dirname(cwd_str);
             scan_cwds.push(sessions_root.join(enc));
         } else {
             match std::fs::read_dir(&sessions_root) {
@@ -718,10 +718,10 @@ fn transform_session_id_in_update(
             inner.session_id = new_id.clone();
             super::SessionUpdate::Acp(Box::new(inner))
         }
-        super::SessionUpdate::Xai(notification) => {
+        super::SessionUpdate::Axon(notification) => {
             let mut inner = (*notification).clone();
             inner.session_id = new_id.clone();
-            super::SessionUpdate::Xai(Box::new(inner))
+            super::SessionUpdate::Axon(Box::new(inner))
         }
     }
 }
@@ -731,7 +731,7 @@ fn transform_session_id_in_update(
 /// 2. Truncates at the last complete turn boundary. A complete turn runs
 ///    `User → Assistant → (matching ToolResults)`, possibly across multiple
 ///    Assistant/ToolResult cycles, with `Reasoning` siblings interleaved
-///    throughout (real grok-build turns emit `[reasoning, assistant, tool
+///    throughout (real axon-build turns emit `[reasoning, assistant, tool
 ///    results, reasoning, assistant, ...]`). The scan treats everything
 ///    except `Assistant` as transparent and only advances the boundary when an
 ///    Assistant closes every tool call it made, so it survives reasoning
@@ -863,7 +863,7 @@ impl JsonlStorageAdapter {
             head_commit: source_summary.head_commit,
             head_branch: source_summary.head_branch,
             request_id: None,
-            grok_home: crate::session::persistence::grok_home_string(),
+            axon_home: crate::session::persistence::axon_home_string(),
             last_active_at: source_summary.last_active_at,
             generated_title: source_summary.generated_title,
             title_is_manual: source_summary.title_is_manual,

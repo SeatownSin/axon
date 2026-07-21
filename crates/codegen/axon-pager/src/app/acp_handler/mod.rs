@@ -2,8 +2,8 @@
 //!
 //! Routes incoming [`AcpClientMessage`] notifications to the appropriate
 //! agent's tracker, queues permission requests for interactive handling,
-//! and xAI session extension notifications (`x.ai/session_notification` and
-//! replay-path `x.ai/session/update`).
+//! and Axon session extension notifications (`axon/session_notification` and
+//! replay-path `axon/session/update`).
 
 use std::collections::hash_map::Entry;
 use std::path::PathBuf;
@@ -14,7 +14,7 @@ use axon_acp_lib::AcpClientMessage;
 
 use super::actions::Effect;
 use axon_shell::extensions::notification::{
-    SessionNotification, SessionUpdate as XaiSessionUpdate, is_reauthable_failure,
+    SessionNotification, SessionUpdate as AxonSessionUpdate, is_reauthable_failure,
 };
 use axon_shell::tools::todo::todo_item_from_plan_entry;
 use axon_workspace::permission::bash_command_splitting::BashCommandHighlights;
@@ -168,8 +168,8 @@ pub(crate) fn handle(msg: AcpClientMessage, app: &mut AppView) -> bool {
                     // Premise: ACP-stream live delivery is in id order —
                     // actor ACP lines (chunks and the plan-mode
                     // `CurrentModeUpdate`s) are stamped at `event_tx` enqueue
-                    // time and drained FIFO. The xAI stream is direct-emitted
-                    // and keeps a SEPARATE highwater (see the xAI dedup in
+                    // time and drained FIFO. The Axon stream is direct-emitted
+                    // and keeps a SEPARATE highwater (see the Axon dedup in
                     // `handle_session_notification`). Residual class: ACP
                     // lines that skip `event_tx` — the bridge's bash stdout
                     // (no `event_tx` surface) and the turn-start user echo —
@@ -578,43 +578,43 @@ pub(crate) fn handle(msg: AcpClientMessage, app: &mut AppView) -> bool {
     }
 }
 
-/// Handle an xAI extension notification.
+/// Handle an Axon extension notification.
 ///
 /// Dispatches on method string:
-/// - `x.ai/session_notification` / `x.ai/session/update` → per-agent session updates
+/// - `axon/session_notification` / `axon/session/update` → per-agent session updates
 fn handle_ext_notification(notif: &acp::ExtNotification, app: &mut AppView) -> bool {
     match notif.method.as_ref() {
-        "x.ai/session_notification" | "x.ai/session/update" => {
+        "axon/session_notification" | "axon/session/update" => {
             handle_session_notification(notif, app)
         }
-        "x.ai/follow_ups" => handle_follow_ups(notif, app),
-        "x.ai/task_backgrounded" => handle_task_backgrounded(notif, app),
-        "x.ai/task_completed" => handle_task_completed(notif, app),
-        "x.ai/models/update" => handle_models_update(notif, app),
-        "x.ai/settings/update" => handle_settings_update(notif, app),
-        "x.ai/sessions/changed" => handle_sessions_changed(notif, app),
-        "x.ai/queue/changed" => handle_queue_changed(notif, app),
+        "axon/follow_ups" => handle_follow_ups(notif, app),
+        "axon/task_backgrounded" => handle_task_backgrounded(notif, app),
+        "axon/task_completed" => handle_task_completed(notif, app),
+        "axon/models/update" => handle_models_update(notif, app),
+        "axon/settings/update" => handle_settings_update(notif, app),
+        "axon/sessions/changed" => handle_sessions_changed(notif, app),
+        "axon/queue/changed" => handle_queue_changed(notif, app),
         // TODO(prompt_complete-deprecation): Legacy removal (gated): durable turn_completed is already consumed via finalize_turn_from_terminal; keep & re-point the lost-RPC reconcile to the durable rail before deleting.
-        "x.ai/session/prompt_complete" => handle_prompt_complete(notif, app),
-        "x.ai/session/interjection" => handle_interjection(notif, app),
-        "x.ai/monitor_event" => handle_monitor_event(notif, app),
-        "x.ai/scheduled_task_created" => handle_scheduled_task_created(notif, app),
-        "x.ai/scheduled_task_fired" => handle_scheduled_task_fired(notif, app),
-        "x.ai/scheduled_task_deleted" => handle_scheduled_task_deleted(notif, app),
-        "x.ai/scheduled_task_inject_prompt" => handle_scheduled_task_inject_prompt(notif, app),
-        "x.ai/announcements/update" => handle_announcements_update(notif, app),
-        "x.ai/git_head_changed" => handle_git_head_changed(notif, app),
-        "x.ai/mcp/init_progress" => handle_mcp_init_progress(notif, app),
-        "x.ai/mcp/tools_changed" | "x.ai/mcp_initialized" => handle_mcp_tools_changed(notif, app),
-        "x.ai/mcp/server_status" if push_server_status_enabled() => {
+        "axon/session/prompt_complete" => handle_prompt_complete(notif, app),
+        "axon/session/interjection" => handle_interjection(notif, app),
+        "axon/monitor_event" => handle_monitor_event(notif, app),
+        "axon/scheduled_task_created" => handle_scheduled_task_created(notif, app),
+        "axon/scheduled_task_fired" => handle_scheduled_task_fired(notif, app),
+        "axon/scheduled_task_deleted" => handle_scheduled_task_deleted(notif, app),
+        "axon/scheduled_task_inject_prompt" => handle_scheduled_task_inject_prompt(notif, app),
+        "axon/announcements/update" => handle_announcements_update(notif, app),
+        "axon/git_head_changed" => handle_git_head_changed(notif, app),
+        "axon/mcp/init_progress" => handle_mcp_init_progress(notif, app),
+        "axon/mcp/tools_changed" | "axon/mcp_initialized" => handle_mcp_tools_changed(notif, app),
+        "axon/mcp/server_status" if push_server_status_enabled() => {
             handle_mcp_server_status(notif, app)
         }
-        "x.ai/mcp/servers_updated" => handle_mcp_servers_updated(notif, app),
+        "axon/mcp/servers_updated" => handle_mcp_servers_updated(notif, app),
         _ => false,
     }
 }
 
-/// Handle `x.ai/session/interjection` — the leader broadcasts this
+/// Handle `axon/session/interjection` — the leader broadcasts this
 /// sessionId-bearing notification to every attached client when a mid-turn
 /// interjection is queued (emitted from the session actor's `Interject`
 /// command handler). Each client renders the interjection as a scrollback
@@ -629,7 +629,7 @@ fn handle_ext_notification(notif: &acp::ExtNotification, app: &mut AppView) -> b
 /// renders, so legacy shells degrade to "render everywhere" rather than drop.
 fn handle_interjection(notif: &acp::ExtNotification, app: &mut AppView) -> bool {
     let Ok(parsed) = serde_json::from_str::<serde_json::Value>(notif.params.get()) else {
-        tracing::warn!("Failed to parse x.ai/session/interjection");
+        tracing::warn!("Failed to parse blocked.invalid/session/interjection");
         return false;
     };
     let Some(session_id) = parsed.get("sessionId").and_then(|v| v.as_str()) else {
@@ -663,7 +663,7 @@ fn handle_interjection(notif: &acp::ExtNotification, app: &mut AppView) -> bool 
     // Interjecting into a parked wait continues the turn below this block —
     // the withheld "Worked for …" marker must not fire late beneath it
     // (shared-queue interjects render only via this broadcast, and the shell
-    // emits the queue-emptying `x.ai/queue/changed` right after it).
+    // emits the queue-emptying `axon/queue/changed` right after it).
     agent.suppress_parked_marker_on_interject();
     is_active
 }
@@ -675,8 +675,8 @@ fn handle_interjection(notif: &acp::ExtNotification, app: &mut AppView) -> bool 
 /// immediately (for unknown methods).
 fn handle_ext_method(ext: axon_acp_lib::AcpArgs<acp::ExtRequest>, app: &mut AppView) -> bool {
     match ext.request.method.as_ref() {
-        "x.ai/ask_user_question" => handle_ask_user_question(ext, app),
-        "x.ai/exit_plan_mode" => handle_exit_plan_mode(ext, app),
+        "axon/ask_user_question" => handle_ask_user_question(ext, app),
+        "axon/exit_plan_mode" => handle_exit_plan_mode(ext, app),
         unknown => {
             tracing::warn!("Unknown ext_method: {unknown}");
             ext.response_tx

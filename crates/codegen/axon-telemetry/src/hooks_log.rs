@@ -12,9 +12,9 @@
 //! ## Enabling
 //!
 //! ```bash
-//! AXON_HOOKS_LOG=1 grok              # enable, write to ~/.axon/logs/hooks.log
-//! AXON_HOOKS_LOG=/tmp/h.log grok     # write to custom path
-//! AXON_HOOKS_LOG=0 grok              # explicitly disable
+//! AXON_HOOKS_LOG=1 axon              # enable, write to ~/.axon/logs/hooks.log
+//! AXON_HOOKS_LOG=/tmp/h.log axon     # write to custom path
+//! AXON_HOOKS_LOG=0 axon              # explicitly disable
 //! tail -f ~/.axon/logs/hooks.log     # watch in another terminal
 //! ```
 
@@ -30,7 +30,7 @@ use tracing_subscriber::fmt::writer::BoxMakeWriter;
 use tracing_subscriber::layer::Layer;
 use tracing_subscriber::registry::LookupSpan;
 
-use axon_config::grok_home;
+use axon_config::axon_home;
 
 const ENV_HOOKS_LOG: &str = "AXON_HOOKS_LOG";
 
@@ -110,7 +110,7 @@ where
 }
 
 fn resolve_log_path() -> Option<PathBuf> {
-    let default_path = || grok_home().join("logs").join("hooks.log");
+    let default_path = || axon_home().join("logs").join("hooks.log");
     let raw = match std::env::var(ENV_HOOKS_LOG) {
         Ok(val) => val,
         Err(_) => return None, // opt-in only

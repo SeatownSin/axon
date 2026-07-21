@@ -9,19 +9,19 @@ use super::common::*;
 #[ignore]
 async fn reasoning_efforts_from_config_toml_menu() {
     let content = ContentController::start_with_models(vec![
-        MockModel::new("grok-4.5").with_supports_reasoning_effort(true),
+        MockModel::new("axon-4.5").with_supports_reasoning_effort(true),
     ])
     .await
     .expect("start content");
     content.set_response(format!("{MOCK_RESPONSE_SENTINEL} turn."));
 
     // Seed `~/.axon/config.toml` with a per-model reasoning-effort menu.
-    let grok_home = content.home().join(".axon");
-    std::fs::create_dir_all(&grok_home).expect("create .axon");
-    // Quote the dotted model id: bare `[model.grok-4.5]` is TOML key-path syntax (model.grok-4.5), not the id "grok-4.5".
+    let axon_home = content.home().join(".axon");
+    std::fs::create_dir_all(&axon_home).expect("create .axon");
+    // Quote the dotted model id: bare `[model.axon-4.5]` is TOML key-path syntax (model.axon-4.5), not the id "axon-4.5".
     std::fs::write(
-        grok_home.join("config.toml"),
-        "[model.\"grok-4.5\"]\nreasoning_efforts = [{ value = \"high\", label = \"ConfigHigh\" }]\n",
+        axon_home.join("config.toml"),
+        "[model.\"axon-4.5\"]\nreasoning_efforts = [{ value = \"high\", label = \"ConfigHigh\" }]\n",
     )
     .expect("write config.toml");
 

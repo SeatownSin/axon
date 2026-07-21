@@ -281,8 +281,8 @@ fn convert_via_sips(image_data: &[u8]) -> Option<Vec<u8>> {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_nanos();
-    let src = tmp_dir.join(format!("grok-sips-{id}-{ts}.dat"));
-    let dst = tmp_dir.join(format!("grok-sips-{id}-{ts}.png"));
+    let src = tmp_dir.join(format!("axon-sips-{id}-{ts}.dat"));
+    let dst = tmp_dir.join(format!("axon-sips-{id}-{ts}.png"));
 
     // Write source bytes to temp file.
     let mut f = std::fs::File::create(&src).ok()?;

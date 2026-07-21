@@ -10,7 +10,7 @@ use crate::agent::config::Config as AgentConfig;
 #[derive(Debug, PartialEq, Eq)]
 pub enum AuthStatus {
     ApiKey,
-    /// Auth host from `grok_ws_origin` (scheme stripped).
+    /// Auth host from `axon_ws_origin` (scheme stripped).
     LoggedIn(String),
     /// Catalog key of the first model with own `api_key`/`env_key`.
     ModelCredentials(String),
@@ -23,14 +23,14 @@ impl AuthStatus {
     ///
     /// Differs from sampling (`resolve_credentials`: BYOK → session → env) so a
     /// logged-in user sees the login host. BYOK uses
-    /// [`crate::agent::auth_method::should_advertise_xai_api_key`] so
+    /// [`crate::agent::auth_method::should_advertise_axon_api_key`] so
     /// `disable_api_key_auth` is honored.
     pub fn resolve(agent_config: &AgentConfig) -> Self {
-        if crate::agent::auth_method::has_xai_api_key_env() {
+        if crate::agent::auth_method::has_axon_api_key_env() {
             return Self::ApiKey;
         }
         if agent_config.create_auth_manager().current().is_some() {
-            let origin = &agent_config.grok_com_config.grok_ws_origin;
+            let origin = &agent_config.axon_com_config.axon_ws_origin;
             let host = origin
                 .strip_prefix("https://")
                 .or_else(|| origin.strip_prefix("http://"))
@@ -38,8 +38,8 @@ impl AuthStatus {
             return Self::LoggedIn(host.to_owned());
         }
         let models = crate::agent::config::resolve_model_list(agent_config, None);
-        if crate::agent::auth_method::should_advertise_xai_api_key(
-            agent_config.grok_com_config.api_key_auth_disabled(),
+        if crate::agent::auth_method::should_advertise_axon_api_key(
+            agent_config.axon_com_config.api_key_auth_disabled(),
             models.values(),
         ) && let Some(name) = models
             .iter()
@@ -92,9 +92,9 @@ pub async fn list_models(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::agent::auth_method::{LEGACY_XAI_API_KEY_ENV_VAR, XAI_API_KEY_ENV_VAR};
+    use crate::agent::auth_method::{LEGACY_AXON_API_KEY_ENV_VAR, AXON_API_KEY_ENV_VAR};
     use crate::agent::config::Config;
-    use crate::auth::{AuthMode, GrokAuth};
+    use crate::auth::{AuthMode, AxonAuth};
     use serial_test::serial;
     use axon_test_support::EnvGuard;
 
@@ -106,8 +106,8 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let auth_path = dir.path().join("no-auth.json");
         let guards = [
-            EnvGuard::unset(XAI_API_KEY_ENV_VAR),
-            EnvGuard::unset(LEGACY_XAI_API_KEY_ENV_VAR),
+            EnvGuard::unset(AXON_API_KEY_ENV_VAR),
+            EnvGuard::unset(LEGACY_AXON_API_KEY_ENV_VAR),
             EnvGuard::unset("AXON_AUTH"),
             EnvGuard::set("AXON_AUTH_PATH", auth_path.to_str().unwrap()),
             EnvGuard::unset("AXON_DEPLOYMENT_KEY"),
@@ -139,7 +139,7 @@ mod tests {
     #[serial]
     fn resolve_api_key_env() {
         let (_dir, _g) = isolate_auth_sources();
-        let _key = EnvGuard::set(XAI_API_KEY_ENV_VAR, "xai-test-key");
+        let _key = EnvGuard::set(AXON_API_KEY_ENV_VAR, "axon-test-key");
         assert_eq!(AuthStatus::resolve(&Config::default()), AuthStatus::ApiKey);
     }
 
@@ -147,7 +147,7 @@ mod tests {
     #[serial]
     fn resolve_legacy_api_key_env() {
         let (_dir, _g) = isolate_auth_sources();
-        let _key = EnvGuard::set(LEGACY_XAI_API_KEY_ENV_VAR, "legacy-key");
+        let _key = EnvGuard::set(LEGACY_AXON_API_KEY_ENV_VAR, "legacy-key");
         assert_eq!(AuthStatus::resolve(&Config::default()), AuthStatus::ApiKey);
     }
 
@@ -155,17 +155,17 @@ mod tests {
     #[serial]
     fn resolve_oauth_session() {
         let (_dir, _g) = isolate_auth_sources();
-        let token = GrokAuth {
+        let token = AxonAuth {
             key: "session-token".into(),
             auth_mode: AuthMode::WebLogin,
-            ..GrokAuth::test_default()
+            ..AxonAuth::test_default()
         };
         let json = serde_json::to_string(&token).unwrap();
         let _auth = EnvGuard::set("AXON_AUTH", &json);
 
         assert_eq!(
             AuthStatus::resolve(&Config::default()),
-            AuthStatus::LoggedIn("grok.com".to_owned())
+            AuthStatus::LoggedIn("blocked.invalid".to_owned())
         );
     }
 
@@ -237,7 +237,7 @@ mod tests {
     #[serial]
     fn resolve_priority_api_key_over_byok_and_deployment() {
         let (_dir, _g) = isolate_auth_sources();
-        let _key = EnvGuard::set(XAI_API_KEY_ENV_VAR, "xai-test-key");
+        let _key = EnvGuard::set(AXON_API_KEY_ENV_VAR, "axon-test-key");
         let dm = crate::models::default_model();
         let cfg = config_from_toml(&byok_and_deployment_toml(dm));
         assert_eq!(AuthStatus::resolve(&cfg), AuthStatus::ApiKey);
@@ -247,10 +247,10 @@ mod tests {
     #[serial]
     fn resolve_priority_session_over_byok_and_deployment() {
         let (_dir, _g) = isolate_auth_sources();
-        let token = GrokAuth {
+        let token = AxonAuth {
             key: "session-token".into(),
             auth_mode: AuthMode::WebLogin,
-            ..GrokAuth::test_default()
+            ..AxonAuth::test_default()
         };
         let json = serde_json::to_string(&token).unwrap();
         let _auth = EnvGuard::set("AXON_AUTH", &json);
@@ -259,7 +259,7 @@ mod tests {
         let cfg = config_from_toml(&byok_and_deployment_toml(dm));
         assert_eq!(
             AuthStatus::resolve(&cfg),
-            AuthStatus::LoggedIn("grok.com".to_owned())
+            AuthStatus::LoggedIn("blocked.invalid".to_owned())
         );
     }
 
@@ -282,7 +282,7 @@ mod tests {
         let dm = crate::models::default_model();
         let cfg = config_from_toml(&format!(
             r#"
-            [grok_com_config]
+            [axon_com_config]
             disable_api_key_auth = true
 
             [model."{dm}"]
@@ -300,7 +300,7 @@ mod tests {
         let dm = crate::models::default_model();
         let cfg = config_from_toml(&format!(
             r#"
-            [grok_com_config]
+            [axon_com_config]
             disable_api_key_auth = true
 
             [endpoints]

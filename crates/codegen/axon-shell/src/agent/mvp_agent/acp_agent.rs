@@ -32,7 +32,7 @@ impl acp::Agent for MvpAgent {
             crate::session::persistence::cleanup_stale_sessions(None);
         });
         {
-            let root = crate::util::grok_home::grok_home();
+            let root = crate::util::axon_home::axon_home();
             crate::session::storage::search::SEARCH_INDEX_MANAGER.bootstrap_once(root);
         }
         const PERMISSION_CLEANUP_TTL_DAYS: u64 = 30;
@@ -71,7 +71,7 @@ impl acp::Agent for MvpAgent {
             }
         }
         if !self.tier_allowed.get() && let Some(auth) = self.auth_manager.current() {
-            self.enforce_grok_code_access(&auth).await;
+            self.enforce_axon_code_access(&auth).await;
         }
         self.maybe_sync_bundle_in_background(false);
         let mut client_type = arguments
@@ -91,10 +91,10 @@ impl acp::Agent for MvpAgent {
         }
         if client_type == ClientType::Generic {
             match client_identifier.as_deref() {
-                Some("grok-web") => client_type = ClientType::GrokWeb,
+                Some("axon-web") => client_type = ClientType::AxonWeb,
                 Some("nebula") => client_type = ClientType::Nebula,
-                Some("grok-code-extension") => client_type = ClientType::Extension,
-                Some("grok-desktop") => client_type = ClientType::Desktop,
+                Some("axon-code-extension") => client_type = ClientType::Extension,
+                Some("axon-desktop") => client_type = ClientType::Desktop,
                 _ => {}
             }
         }
@@ -106,7 +106,7 @@ impl acp::Agent for MvpAgent {
             code_nav_enabled, client_type = ? client_type, event =
             "code_nav_capability_parsed",
             "code-nav capability initialized from initialize request; \
-             index will start lazily on first x.ai/code/* request if eligible"
+             index will start lazily on first blocked.invalid/code/* request if eligible"
         );
         let interactive_trust_client = Self::parse_interactive_trust_capability(
             &arguments,
@@ -186,16 +186,16 @@ impl acp::Agent for MvpAgent {
                 ),
             ),
         );
-        if !self.cfg.borrow().grok_com_config.api_key_auth_disabled()
-            && auth_method::read_xai_api_key_env().is_err()
+        if !self.cfg.borrow().axon_com_config.api_key_auth_disabled()
+            && auth_method::read_axon_api_key_env().is_err()
             && let Some(api_key) = crate::auth::read_api_key(
-                &crate::util::grok_home::grok_home(),
+                &crate::util::axon_home::axon_home(),
             )
         {
-            unsafe { std::env::set_var("XAI_API_KEY", &api_key) };
-            tracing::info!("auth: loaded API key from auth.json (xai::api_key scope)");
+            unsafe { std::env::set_var("AXON_API_KEY", &api_key) };
+            tracing::info!("auth: loaded API key from auth.json (axon::api_key scope)");
             axon_telemetry::unified_log::info(
-                "auth: loaded API key from auth.json (xai::api_key scope)",
+                "auth: loaded API key from auth.json (axon::api_key scope)",
                 None,
                 None,
             );
@@ -203,11 +203,11 @@ impl acp::Agent for MvpAgent {
         let disable_api_key_auth = self
             .cfg
             .borrow()
-            .grok_com_config
+            .axon_com_config
             .api_key_auth_disabled();
         {
             let cfg = self.cfg.borrow();
-            let gc = &cfg.grok_com_config;
+            let gc = &cfg.axon_com_config;
             if disable_api_key_auth || gc.force_login_team_uuid.is_some() {
                 axon_telemetry::unified_log::info(
                     "auth: enterprise login policy active",
@@ -223,7 +223,7 @@ impl acp::Agent for MvpAgent {
                 );
             }
         }
-        let has_external_api_key = auth_method::should_advertise_xai_api_key(
+        let has_external_api_key = auth_method::should_advertise_axon_api_key(
             disable_api_key_auth,
             self.models_manager.models().values(),
         );
@@ -274,11 +274,11 @@ impl acp::Agent for MvpAgent {
             enterprise_oidc_issuer,
         ) = {
             let cfg = self.cfg.borrow();
-            let issuer = cfg.grok_com_config.oidc.as_ref().map(|o| o.issuer.clone());
+            let issuer = cfg.axon_com_config.oidc.as_ref().map(|o| o.issuer.clone());
             (
-                cfg.grok_com_config.auth_provider_label.clone(),
-                cfg.grok_com_config.auth_provider_command.is_some(),
-                cfg.grok_com_config.oidc.is_some(),
+                cfg.axon_com_config.auth_provider_label.clone(),
+                cfg.axon_com_config.auth_provider_command.is_some(),
+                cfg.axon_com_config.oidc.is_some(),
                 issuer,
             )
         };
@@ -299,10 +299,10 @@ impl acp::Agent for MvpAgent {
         } else {
             tracing::info!(
                 label = ? login_label, has_auth_provider,
-                "auth: advertising grok.com auth method",
+                "auth: advertising blocked.invalid auth method",
             );
         }
-        let preferred_method = self.cfg.borrow().grok_com_config.preferred_method;
+        let preferred_method = self.cfg.borrow().axon_com_config.preferred_method;
         let has_external_api_key = match preferred_method {
             Some(crate::auth::PreferredAuthMethod::Oidc) => false,
             _ => has_external_api_key,
@@ -326,7 +326,7 @@ impl acp::Agent for MvpAgent {
             None,
             Some(
                 serde_json::json!(
-                    { "grok_home" : crate ::util::grok_home::grok_home().display()
+                    { "axon_home" : crate ::util::axon_home::axon_home().display()
                     .to_string(), "HOME" : std::env::var("HOME").unwrap_or_else(| _ |
                     "(unset)".into()), "has_external_api_key" : has_external_api_key,
                     "disable_api_key_auth" : disable_api_key_auth, "has_cached_token" :
@@ -343,8 +343,8 @@ impl acp::Agent for MvpAgent {
         debug_assert!(
             ! has_external_api_key || matches!(auth_methods.first().map(| m |
             auth_method::AuthMethodKind::from_id(m.id())),
-            Some(auth_method::AuthMethodKind::XaiApiKey)),
-            "BYOK invariant violated: xai.api_key MUST be auth_methods.first() \
+            Some(auth_method::AuthMethodKind::AxonApiKey)),
+            "BYOK invariant violated: axon.api_key MUST be auth_methods.first() \
              when has_external_api_key is true; got {:?}",
             auth_methods.first().map(| m | m.id()),
         );
@@ -399,7 +399,7 @@ impl acp::Agent for MvpAgent {
                         .load_session(true)
                         .meta(
                             serde_json::json!(
-                                { "x.ai/fs_notify" : true, "x.ai/hooks" : { "blockingEvents"
+                                { "axon/fs_notify" : true, "axon/hooks" : { "blockingEvents"
                                 : [axon_hooks::event::HookEventName::PreToolUse],
                                 "decisions" : ["deny"], }, }
                             )
@@ -417,7 +417,7 @@ impl acp::Agent for MvpAgent {
                 .meta({
                     let metadata = parse_json_object_env("AXON_AGENT_METADATA");
                     serde_json::json!(
-                        { "grokShell" : true, "defaultAuthMethodId" :
+                        { "axonShell" : true, "defaultAuthMethodId" :
                         default_auth_method_id_wire, (axon_mcp::wire::MCP_SDK) :
                         true, (SESSION_PLUGIN_DIRS_CAPABILITY_KEY) : true,
                         "currentWorkingDirectory" : current_working_directory
@@ -448,7 +448,7 @@ impl acp::Agent for MvpAgent {
             None,
             Some(serde_json::json!({ "method" : arguments.method_id.0.as_ref() })),
         );
-        if let Some(preferred) = self.cfg.borrow().grok_com_config.preferred_method {
+        if let Some(preferred) = self.cfg.borrow().axon_com_config.preferred_method {
             let kind = auth_method::AuthMethodKind::from_id(&arguments.method_id);
             let allowed = match preferred {
                 crate::auth::PreferredAuthMethod::ApiKey => kind.is_api_key(),
@@ -473,8 +473,8 @@ impl acp::Agent for MvpAgent {
             }
         }
         match arguments.method_id.0.as_ref() {
-            auth_method::XAI_API_KEY_METHOD_ID => {
-                if self.cfg.borrow().grok_com_config.api_key_auth_disabled() {
+            auth_method::AXON_API_KEY_METHOD_ID => {
+                if self.cfg.borrow().axon_com_config.api_key_auth_disabled() {
                     emit_login_span(false, "api_key", None, Some("disabled_by_admin"));
                     return Err(
                         acp::Error::auth_required()
@@ -483,10 +483,10 @@ impl acp::Agent for MvpAgent {
                 }
                 let mut sampling_config = self.sampling_config.borrow_mut();
                 if sampling_config.api_key.is_none() {
-                    if let Ok(api_key) = auth_method::read_xai_api_key_env() {
+                    if let Ok(api_key) = auth_method::read_axon_api_key_env() {
                         sampling_config.api_key = Some(api_key.clone());
                         if let Err(e) = crate::auth::store_api_key(
-                            &crate::util::grok_home::grok_home(),
+                            &crate::util::axon_home::axon_home(),
                             &api_key,
                         ) {
                             tracing::warn!(
@@ -508,7 +508,7 @@ impl acp::Agent for MvpAgent {
                         return Err(
                             acp::Error::auth_required()
                                 .data(
-                                    "Set XAI_API_KEY, or add api_key/env_key (or a no_auth \
+                                    "Set AXON_API_KEY, or add api_key/env_key (or a no_auth \
                                      local model) to config.toml.",
                                 ),
                         );
@@ -557,7 +557,7 @@ impl acp::Agent for MvpAgent {
                     ),
                 );
                 let pin_blocks_oidc_mint = matches!(
-                    self.cfg.borrow().grok_com_config.preferred_method, Some(crate
+                    self.cfg.borrow().axon_com_config.preferred_method, Some(crate
                     ::auth::PreferredAuthMethod::ApiKey)
                 );
                 if is_devbox && is_legacy && !pin_blocks_oidc_mint {
@@ -654,7 +654,7 @@ impl acp::Agent for MvpAgent {
                 }
                 self.refresh_remote_settings(&auth).await;
                 self.emit_settings_update_notification();
-                self.enforce_grok_code_access(&auth).await;
+                self.enforce_axon_code_access(&auth).await;
                 self.maybe_sync_bundle_in_background(false);
                 {
                     let mut sampling_config = self.sampling_config.borrow_mut();
@@ -683,7 +683,7 @@ impl acp::Agent for MvpAgent {
                 Ok(self.auth_response_with_meta())
             }
             auth_method::AXON_COM_METHOD_ID | auth_method::OIDC_METHOD_ID => {
-                let grok_ctx = self.auth_manager.grok_com_config();
+                let axon_ctx = self.auth_manager.axon_com_config();
                 let auth_meta = AuthRequestMeta::from_json(arguments.meta.as_ref());
                 tracing::info!(
                     method = arguments.method_id.0.as_ref(), headless = auth_meta
@@ -705,7 +705,7 @@ impl acp::Agent for MvpAgent {
                     let _ = self.auth_manager.clear();
                 }
                 let cli_oauth = auth_meta.use_oauth.then_some(true);
-                let use_oidc = self.cfg.borrow().resolve_grok_oauth(cli_oauth);
+                let use_oidc = self.cfg.borrow().resolve_axon_oauth(cli_oauth);
                 tracing::debug!(
                     resolved = use_oidc.value, source = ? use_oidc.source,
                     "auth: method resolved"
@@ -741,7 +741,7 @@ impl acp::Agent for MvpAgent {
                         biased; _ = cancel.cancelled() => { cancelled = true;
                         Err(anyhow::anyhow!("Authentication cancelled")) } r = crate
                         ::auth::run_auth_flow_with_stderr_bridge(& self.auth_manager,
-                        grok_ctx, crate ::auth::AuthChannels { url_tx : Some(url_tx),
+                        axon_ctx, crate ::auth::AuthChannels { url_tx : Some(url_tx),
                         code_rx, }, auth_meta.reauth, auth_meta.force_interactive,
                         login_override,) => r,
                     }
@@ -750,7 +750,7 @@ impl acp::Agent for MvpAgent {
                     tokio::select! {
                         biased; _ = cancel.cancelled() => { cancelled = true;
                         Err(anyhow::anyhow!("Authentication cancelled")) } r = crate
-                        ::auth::run_auth_flow(& self.auth_manager, grok_ctx, auth_meta
+                        ::auth::run_auth_flow(& self.auth_manager, axon_ctx, auth_meta
                         .reauth, None, None, None, login_override,) => r,
                     }
                 };
@@ -776,10 +776,10 @@ impl acp::Agent for MvpAgent {
                     let mut sampling_config = self.sampling_config.borrow_mut();
                     sampling_config.api_key = Some(auth.key.clone());
                     tracing::debug!(
-                        "auth: grok.com/oidc handler set api_key (SessionToken)"
+                        "auth: blocked.invalid/oidc handler set api_key (SessionToken)"
                     );
                     axon_telemetry::unified_log::debug(
-                        "auth: grok.com/oidc handler set api_key (SessionToken)",
+                        "auth: blocked.invalid/oidc handler set api_key (SessionToken)",
                         None,
                         None,
                     );
@@ -787,7 +787,7 @@ impl acp::Agent for MvpAgent {
                 self.auth_manager.hot_swap(auth.clone());
                 self.refresh_remote_settings(&auth).await;
                 self.emit_settings_update_notification();
-                self.enforce_grok_code_access(&auth).await;
+                self.enforce_axon_code_access(&auth).await;
                 self.maybe_sync_bundle_in_background(false);
                 tokio::task::spawn_local(
                     crate::managed_config::post_login_sync(Some(auth.clone())),
@@ -1197,8 +1197,8 @@ impl acp::Agent for MvpAgent {
             feedback_enabled, }
         );
         if let Some(obj) = meta.as_object_mut() {
-            obj.insert("x.ai/sessionConfig".to_string(), session_config_value);
-            obj.insert("x.ai/sessionDetail".to_string(), session_detail_value);
+            obj.insert("axon/sessionConfig".to_string(), session_config_value);
+            obj.insert("axon/sessionDetail".to_string(), session_detail_value);
         }
         Ok(
             acp::NewSessionResponse::new(session_id)
@@ -1225,12 +1225,12 @@ impl acp::Agent for MvpAgent {
         let persist_data = arguments
             .meta
             .as_ref()
-            .and_then(|m| m.get("x.ai/persist"))
+            .and_then(|m| m.get("axon/persist"))
             .cloned();
         let target_client_id = arguments
             .meta
             .as_ref()
-            .and_then(|m| m.get("x.ai/leaderClientId"))
+            .and_then(|m| m.get("axon/leaderClientId"))
             .cloned();
         let acp::LoadSessionRequest {
             session_id,
@@ -1422,7 +1422,7 @@ impl acp::Agent for MvpAgent {
         );
         let restore_code_requested = request_meta
             .as_ref()
-            .and_then(|m| m.get("x.ai/restore_code"))
+            .and_then(|m| m.get("axon/restore_code"))
             .and_then(|v| v.as_bool())
             .unwrap_or(self.restore_code);
         let registry_client_for_restore = self.session_registry_client();
@@ -1487,7 +1487,7 @@ impl acp::Agent for MvpAgent {
         let load_envrc = {
             let skip_envrc = request_meta
                 .as_ref()
-                .and_then(|m| m.get("x.ai/skip_envrc"))
+                .and_then(|m| m.get("axon/skip_envrc"))
                 .and_then(|v| v.as_bool())
                 .unwrap_or(false);
             if skip_envrc {
@@ -1568,7 +1568,7 @@ impl acp::Agent for MvpAgent {
         );
         let prompt_display_cwd = request_meta
             .as_ref()
-            .and_then(|m| m.get("x.ai/display_cwd"))
+            .and_then(|m| m.get("axon/display_cwd"))
             .and_then(|v| v.as_str())
             .map(|s| s.to_string())
             .or_else(|| summary.prompt_display_cwd.clone());
@@ -1738,11 +1738,11 @@ impl acp::Agent for MvpAgent {
             .take(10).collect::< Vec < _ >> (),
             "load_session: restoring persisted model (debug)"
         );
-        let is_grok_build = persisted_model.0.starts_with("grok-build");
-        let same_family_fallback = if is_grok_build {
-            available.keys().find(|id| id.0.starts_with("grok-build")).cloned()
+        let is_axon_build = persisted_model.0.starts_with("axon-build");
+        let same_family_fallback = if is_axon_build {
+            available.keys().find(|id| id.0.starts_with("axon-build")).cloned()
         } else {
-            available.keys().find(|id| !id.0.starts_with("grok-build")).cloned()
+            available.keys().find(|id| !id.0.starts_with("axon-build")).cloned()
         };
         let selectable_catalog_key = selectable_catalog_key_for_persisted(
             &models,
@@ -1867,7 +1867,7 @@ impl acp::Agent for MvpAgent {
         let mut response_meta_map = serde_json::Map::new();
         response_meta_map.insert("sessionId".to_string(), serde_json::json!(session_id));
         if let Some(persist) = persist_data {
-            response_meta_map.insert("x.ai/persist".to_string(), persist);
+            response_meta_map.insert("axon/persist".to_string(), persist);
         }
         let session_cwd = self
             .sessions
@@ -1922,7 +1922,7 @@ impl acp::Agent for MvpAgent {
         {
             response_meta_map
                 .insert(
-                    "x.ai/runningPromptId".to_string(),
+                    "axon/runningPromptId".to_string(),
                     serde_json::json!(running_prompt_id),
                 );
         }
@@ -1934,8 +1934,8 @@ impl acp::Agent for MvpAgent {
                 summary.display_title_opt(),
                 &model_state,
             );
-        response_meta_map.insert("x.ai/sessionConfig".to_string(), session_config_value);
-        response_meta_map.insert("x.ai/sessionDetail".to_string(), session_detail_value);
+        response_meta_map.insert("axon/sessionConfig".to_string(), session_config_value);
+        response_meta_map.insert("axon/sessionDetail".to_string(), session_detail_value);
         let response_meta = serde_json::Value::Object(response_meta_map);
         axon_telemetry::unified_log::info(
             "session loaded",
@@ -2400,7 +2400,7 @@ impl acp::Agent for MvpAgent {
             self.gateway
                 .forward_fire_and_forget(
                     acp::ExtNotification::new(
-                        "x.ai/session/prompt_complete",
+                        "axon/session/prompt_complete",
                         params.into(),
                     ),
                 );
@@ -3175,56 +3175,56 @@ impl acp::Agent for MvpAgent {
         let mut backend_no_bridge_err: Option<acp::Error> = None;
         let method = args.method.clone();
         let result = match method.as_ref() {
-            "x.ai/getApiKey" | "x.ai/setApiKey" => {
+            "axon/getApiKey" | "axon/setApiKey" => {
                 crate::extensions::auth::handle(self, &args).await
             }
-            "x.ai/session/info" | "x.ai/session/close" | "x.ai/session/list"
-            | "x.ai/sessions/list" => {
+            "axon/session/info" | "axon/session/close" | "axon/session/list"
+            | "axon/sessions/list" => {
                 crate::agent::handlers::session::handle(self, &args).await
             }
-            "x.ai/workspaces/list" => {
+            "axon/workspaces/list" => {
                 crate::agent::handlers::workspaces::handle(self, &args).await
             }
-            "x.ai/session/updates" => {
+            "axon/session/updates" => {
                 crate::extensions::session_updates::handle(&args, &self.gateway).await
             }
-            "x.ai/session/load_history" => {
+            "axon/session/load_history" => {
                 crate::extensions::chat_conversation_history::handle(self, &args).await
             }
-            "x.ai/session/search" => {
+            "axon/session/search" => {
                 crate::extensions::session_search::handle(&args).await
             }
-            "x.ai/session/resolve_local_for_worktree_resume"
-            | "x.ai/session/rehydrate" => {
+            "axon/session/resolve_local_for_worktree_resume"
+            | "axon/session/rehydrate" => {
                 let ops = self.resolve_workspace_ops()?;
                 crate::extensions::worktree::handle(self, &ops, &args).await
             }
-            "x.ai/session/rename" | "x.ai/session/delete"
-            | "x.ai/session/update_mcp_servers" | "x.ai/session/fork"
-            | "x.ai/internal/reload_all_mcp_servers"
-            | "x.ai/internal/reload_project_mcp_servers" | "x.ai/internal/reload_skills"
-            | "x.ai/internal/reload_models" | "x.ai/internal/reload_models_cache"
-            | "x.ai/internal/auth_cleared" | "x.ai/plugins/reload"
-            | "x.ai/commands/list" => {
+            "axon/session/rename" | "axon/session/delete"
+            | "axon/session/update_mcp_servers" | "axon/session/fork"
+            | "axon/internal/reload_all_mcp_servers"
+            | "axon/internal/reload_project_mcp_servers" | "axon/internal/reload_skills"
+            | "axon/internal/reload_models" | "axon/internal/reload_models_cache"
+            | "axon/internal/auth_cleared" | "axon/plugins/reload"
+            | "axon/commands/list" => {
                 crate::extensions::session_admin::handle(self, &args).await
             }
-            "x.ai/session/repair" => crate::extensions::repair::handle(self, &args).await,
-            "x.ai/memory/flush" | "x.ai/memory/rewrite" => {
+            "axon/session/repair" => crate::extensions::repair::handle(self, &args).await,
+            "axon/memory/flush" | "axon/memory/rewrite" => {
                 crate::extensions::memory::handle(self, &args).await
             }
-            "x.ai/skills/refresh-baseline" => {
+            "axon/skills/refresh-baseline" => {
                 self.refresh_skill_baseline_for_all_sessions();
                 crate::extensions::to_ext_response(
                     Ok(serde_json::json!({ "ok" : true })),
                 )
             }
-            "x.ai/interject" => crate::extensions::interject::handle(self, &args).await,
-            "x.ai/feedback" | "x.ai/feedback/dismiss" | "x.ai/btw" => {
+            "axon/interject" => crate::extensions::interject::handle(self, &args).await,
+            "axon/feedback" | "axon/feedback/dismiss" | "axon/btw" => {
                 crate::extensions::feedback::handle(self, &args).await
             }
-            "x.ai/recap" => crate::extensions::recap::handle(self, &args).await,
-            "x.ai/cloud/terminate" => {
-                crate::extensions::auth_gate::require_xai_auth(
+            "axon/recap" => crate::extensions::recap::handle(self, &args).await,
+            "axon/cloud/terminate" => {
+                crate::extensions::auth_gate::require_axon_auth(
                     &self.auth_manager,
                     "Authentication required",
                     "Run `axon login` to authenticate.",
@@ -3255,8 +3255,8 @@ impl acp::Agent for MvpAgent {
                     })?;
                 crate::extensions::to_raw_response(&serde_json::json!({ "ok" : true }))
             }
-            "x.ai/cloud/env/list" => {
-                crate::extensions::auth_gate::require_xai_auth(
+            "axon/cloud/env/list" => {
+                crate::extensions::auth_gate::require_axon_auth(
                     &self.auth_manager,
                     "Authentication required",
                     "Run `axon login` to authenticate.",
@@ -3278,8 +3278,8 @@ impl acp::Agent for MvpAgent {
                     &serde_json::json!({ "environments" : resp.environments, }),
                 )
             }
-            "x.ai/cloud/env/create" => {
-                crate::extensions::auth_gate::require_xai_auth(
+            "axon/cloud/env/create" => {
+                crate::extensions::auth_gate::require_axon_auth(
                     &self.auth_manager,
                     "Authentication required",
                     "Run `axon login` to authenticate.",
@@ -3333,8 +3333,8 @@ impl acp::Agent for MvpAgent {
                     &serde_json::json!({ "environment" : resp.environment, }),
                 )
             }
-            "x.ai/cloud/env/update" => {
-                crate::extensions::auth_gate::require_xai_auth(
+            "axon/cloud/env/update" => {
+                crate::extensions::auth_gate::require_axon_auth(
                     &self.auth_manager,
                     "Authentication required",
                     "Run `axon login` to authenticate.",
@@ -3391,8 +3391,8 @@ impl acp::Agent for MvpAgent {
                     &serde_json::json!({ "environment" : resp.environment, }),
                 )
             }
-            "x.ai/cloud/env/delete" => {
-                crate::extensions::auth_gate::require_xai_auth(
+            "axon/cloud/env/delete" => {
+                crate::extensions::auth_gate::require_axon_auth(
                     &self.auth_manager,
                     "Authentication required",
                     "Run `axon login` to authenticate.",
@@ -3418,84 +3418,84 @@ impl acp::Agent for MvpAgent {
                     })?;
                 crate::extensions::to_raw_response(&serde_json::json!({ "ok" : true }))
             }
-            "x.ai/billing" => crate::extensions::billing::handle(self, &args).await,
-            "x.ai/auto-topup-rule" => {
+            "axon/billing" => crate::extensions::billing::handle(self, &args).await,
+            "axon/auto-topup-rule" => {
                 crate::extensions::billing::handle(self, &args).await
             }
-            "x.ai/share_session" => crate::extensions::share::handle(self, &args).await,
-            "x.ai/privacy/setCodingDataRetention" => {
+            "axon/share_session" => crate::extensions::share::handle(self, &args).await,
+            "axon/privacy/setCodingDataRetention" => {
                 crate::extensions::privacy::handle(self, &args).await
             }
-            "x.ai/rollout/survey" => {
+            "axon/rollout/survey" => {
                 crate::extensions::rollout::handle(self, &args).await
             }
-            "x.ai/prompt_history" => {
+            "axon/prompt_history" => {
                 crate::extensions::prompt_history::handle(self, &args).await
             }
-            "x.ai/suggest" => crate::extensions::suggest::handle(self, &args).await,
-            "x.ai/suggestPrompt" => crate::extensions::suggest::handle(self, &args).await,
-            s if s.starts_with("x.ai/auth/") => {
+            "axon/suggest" => crate::extensions::suggest::handle(self, &args).await,
+            "axon/suggestPrompt" => crate::extensions::suggest::handle(self, &args).await,
+            s if s.starts_with("axon/auth/") => {
                 crate::extensions::auth::handle(self, &args).await
             }
-            s if s.starts_with("x.ai/session_summaries/") => {
+            s if s.starts_with("axon/session_summaries/") => {
                 crate::agent::handlers::session::handle(self, &args).await
             }
-            s if s.starts_with("x.ai/git/worktree/") => {
+            s if s.starts_with("axon/git/worktree/") => {
                 let ops = self.resolve_workspace_ops()?;
                 crate::extensions::worktree::handle(self, &ops, &args).await
             }
-            s if s.starts_with("x.ai/git/") => {
+            s if s.starts_with("axon/git/") => {
                 let ops = self.resolve_workspace_ops()?;
                 crate::extensions::git::handle(self, &ops, &args).await
             }
-            s if s.starts_with("x.ai/compact_conversation") => {
+            s if s.starts_with("axon/compact_conversation") => {
                 crate::extensions::memory::handle(self, &args).await
             }
-            s if s.starts_with("x.ai/plugins/") => {
+            s if s.starts_with("axon/plugins/") => {
                 crate::extensions::plugins::handle(self, &args).await
             }
-            s if s.starts_with("x.ai/marketplace/") => {
+            s if s.starts_with("axon/marketplace/") => {
                 crate::extensions::marketplace::handle(self, &args).await
             }
-            s if s.starts_with("x.ai/hooks/") => {
+            s if s.starts_with("axon/hooks/") => {
                 crate::extensions::hooks::handle(self, &args).await
             }
-            s if s.starts_with("x.ai/hunk-tracker/") => {
+            s if s.starts_with("axon/hunk-tracker/") => {
                 let ops = self.resolve_workspace_ops()?;
                 crate::extensions::hunk_tracker::handle(self, &ops, &args).await
             }
-            s if s.starts_with("x.ai/pr/") => {
+            s if s.starts_with("axon/pr/") => {
                 crate::extensions::pr::handle(self, &args).await
             }
             s if s.starts_with(crate::extensions::mcp::mcp_methods::PREFIX) => {
                 crate::extensions::mcp::handle(self, &args).await
             }
-            s if s.starts_with("x.ai/task/") => {
+            s if s.starts_with("axon/task/") => {
                 crate::extensions::task::handle(self, &args).await
             }
-            s if s.starts_with("x.ai/scheduler/") => {
+            s if s.starts_with("axon/scheduler/") => {
                 crate::extensions::task::handle_scheduler(self, &args).await
             }
-            s if s.starts_with("x.ai/subagent/") => {
+            s if s.starts_with("axon/subagent/") => {
                 crate::extensions::task::handle_subagent(self, &args).await
             }
-            s if s.starts_with("x.ai/terminal/") => {
+            s if s.starts_with("axon/terminal/") => {
                 crate::extensions::terminal::handle(self, &args).await
             }
             s if crate::extensions::fs::is_fs_method(s) => {
                 crate::extensions::fs::handle(self, &args).await
             }
-            s if s.starts_with("x.ai/search/") => {
+            s if s.starts_with("axon/search/") => {
                 crate::extensions::search::handle(self, &args).await
             }
-            s if s.starts_with("x.ai/bundle/") => {
+            s if s.starts_with("axon/bundle/") => {
                 crate::extensions::bundle::handle(self, &args).await
             }
-            s if s.starts_with("x.ai/code/") => {
+            s if s.starts_with("axon/code/") => {
                 let ops = self.resolve_workspace_ops()?;
                 crate::extensions::code_nav::handle(self, &ops, &args).await
             }
-            s if s.starts_with("x.ai/skills/") => {
+            s if s.starts_with("axon/skills/") => {
                 let compat = self.cfg.borrow().compat_resolved;
                 crate::extensions::skills::handle(
                         &args,
@@ -3504,13 +3504,13 @@ impl acp::Agent for MvpAgent {
                     )
                     .await
             }
-            s if s.starts_with("x.ai/review") => {
+            s if s.starts_with("axon/review") => {
                 crate::extensions::feedback::handle(self, &args).await
             }
-            s if s.starts_with("x.ai/debug/") => {
+            s if s.starts_with("axon/debug/") => {
                 crate::extensions::debug::handle(self, &args).await
             }
-            s if s.starts_with("x.ai/rewind") => {
+            s if s.starts_with("axon/rewind") => {
                 crate::extensions::rewind::handle(self, &args).await
             }
             other => {
@@ -3534,7 +3534,7 @@ impl acp::Agent for MvpAgent {
         args: acp::ExtNotification,
     ) -> Result<(), acp::Error> {
         tracing::info!("Received extension notification: method={}", args.method);
-        if args.method.as_ref() == "x.ai/yolo_mode_changed"
+        if args.method.as_ref() == "axon/yolo_mode_changed"
             && let Ok(params) = serde_json::from_str::<
                 serde_json::Value,
             >(args.params.get())
@@ -3598,7 +3598,7 @@ impl acp::Agent for MvpAgent {
                 );
             }
         }
-        if args.method.as_ref() == "x.ai/permissions/reset" {
+        if args.method.as_ref() == "axon/permissions/reset" {
             let sessions = self.sessions.borrow();
             let updated = sessions
                 .values()
@@ -3614,10 +3614,10 @@ impl acp::Agent for MvpAgent {
                 "Permission state reset for matching sessions"
             );
         }
-        if args.method.as_ref() == "x.ai/internal/evict_sessions" {
+        if args.method.as_ref() == "axon/internal/evict_sessions" {
             self.handle_evict_sessions(&args.params).await;
         }
-        if args.method.as_ref() == "x.ai/toggle_plan_mode"
+        if args.method.as_ref() == "axon/toggle_plan_mode"
             && let Ok(params) = serde_json::from_str::<
                 serde_json::Value,
             >(args.params.get())
@@ -3658,8 +3658,8 @@ impl acp::Agent for MvpAgent {
             }
         }
         if matches!(
-            args.method.as_ref(), "x.ai/queue/remove" | "x.ai/queue/reorder" |
-            "x.ai/queue/clear" | "x.ai/queue/edit" | "x.ai/queue/interject"
+            args.method.as_ref(), "axon/queue/remove" | "axon/queue/reorder" |
+            "axon/queue/clear" | "axon/queue/edit" | "axon/queue/interject"
         )
             && let Ok(params) = serde_json::from_str::<
                 serde_json::Value,
@@ -3699,19 +3699,19 @@ impl acp::Agent for MvpAgent {
                 );
             }
         }
-        if args.method.as_ref() == "x.ai/terminal/pty/input"
+        if args.method.as_ref() == "axon/terminal/pty/input"
             && let Ok(params) = serde_json::from_str::<
                 serde_json::Value,
             >(args.params.get())
         {
             crate::extensions::terminal::handle_pty_input(&params).await;
         }
-        if args.method.as_ref() == "_x.ai/session/update" {
+        if args.method.as_ref() == "_axon/session/update" {
             if let Ok(notification) = serde_json::from_str::<
                 SessionNotification,
             >(args.params.get()) {
                 tracing::info!(
-                    "Storing xAI session notification: session_id={}", notification
+                    "Storing Axon session notification: session_id={}", notification
                     .session_id.0
                 );
                 if let Some(handle) = self
@@ -3721,20 +3721,20 @@ impl acp::Agent for MvpAgent {
                 {
                     let _ = handle
                         .cmd_tx
-                        .send(crate::session::SessionCommand::XaiSessionNotification {
+                        .send(crate::session::SessionCommand::AxonSessionNotification {
                             notification,
                         });
                 } else {
                     tracing::warn!(
-                        "Received xAI session notification for unknown session: {}",
+                        "Received Axon session notification for unknown session: {}",
                         notification.session_id.0
                     );
                 }
             } else {
-                tracing::warn!("Failed to parse xAI session notification params");
+                tracing::warn!("Failed to parse Axon session notification params");
             }
         }
-        if args.method.as_ref() == "x.ai/telemetry/non_git_decision" {
+        if args.method.as_ref() == "axon/telemetry/non_git_decision" {
             #[derive(serde::Deserialize)]
             struct NonGitDecisionParams {
                 decision: String,
@@ -3758,7 +3758,7 @@ impl acp::Agent for MvpAgent {
                 tracing::warn!("Failed to parse non_git_decision telemetry params");
             }
         }
-        if args.method.as_ref() == "x.ai/telemetry/multi_agent_followup" {
+        if args.method.as_ref() == "axon/telemetry/multi_agent_followup" {
             #[derive(serde::Deserialize)]
             struct MultiAgentFollowupParams {
                 preferred_agent_label: char,
@@ -3794,7 +3794,7 @@ impl acp::Agent for MvpAgent {
                 tracing::warn!("Failed to parse multi-agent followup telemetry params");
             }
         }
-        if args.method.as_ref() == "x.ai/telemetry/multi_agent_apply" {
+        if args.method.as_ref() == "axon/telemetry/multi_agent_apply" {
             #[derive(serde::Deserialize)]
             struct MultiAgentApplyParams {
                 applied_agent_label: char,
@@ -3830,7 +3830,7 @@ impl acp::Agent for MvpAgent {
                 tracing::warn!("Failed to parse multi-agent apply telemetry params");
             }
         }
-        if args.method.as_ref() == "x.ai/telemetry/multi_agent_discard" {
+        if args.method.as_ref() == "axon/telemetry/multi_agent_discard" {
             #[derive(serde::Deserialize)]
             struct MultiAgentDiscardParams {
                 /// (label, session_id, model_id)

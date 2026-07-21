@@ -10,7 +10,7 @@ pub use axon_tty_utils::{detach_from_tty, pager_env};
 /// Env var set on agent-spawned terminal processes so host tools (e.g. `x ban`)
 /// can distinguish agent invocations from human interactive shells.
 /// Note: the CLI also uses `AXON_AGENT` as an
-/// optional agent-definition selector for launching `grok` itself; child terminal
+/// optional agent-definition selector for launching `axon` itself; child terminal
 /// processes only need the sentinel value `"1"`.
 pub const AXON_AGENT_ENV: &str = "AXON_AGENT";
 
@@ -19,7 +19,7 @@ pub const AXON_AGENT_ENV_VALUE: &str = "1";
 
 /// Force `AXON_AGENT=1` on an agent terminal child so request/login env cannot
 /// clear the agent marker.
-pub fn apply_grok_agent_marker(cmd: &mut tokio::process::Command) {
+pub fn apply_axon_agent_marker(cmd: &mut tokio::process::Command) {
     cmd.env(AXON_AGENT_ENV, AXON_AGENT_ENV_VALUE);
 }
 

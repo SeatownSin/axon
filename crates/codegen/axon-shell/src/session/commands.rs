@@ -217,10 +217,10 @@ pub enum SessionCommand {
     /// and does NOT update `primaryModelId` in signals — the resolved model
     /// is already tracked via inference responses), this command also calls
     /// `set_primary_model()` so that signals report the override model
-    /// rather than the agent-level default (e.g. `grok-4.5`).
+    /// rather than the agent-level default (e.g. `axon-4.5`).
     ///
     /// Keeps the existing base_url, api_key, and other config — only changes
-    /// the `model` field sent in the `x-grok-model-override` header and merges
+    /// the `model` field sent in the `x-axon-model-override` header and merges
     /// any additional headers (e.g. `x-openrouter-api-key` for BYOK).
     ///
     /// Used to set model IDs (e.g. opaque third-party routing names) that are
@@ -287,7 +287,7 @@ pub enum SessionCommand {
         request: RewindRequest,
         respond_to: oneshot::Sender<anyhow::Result<RewindResponse>>,
     },
-    /// Out-of-band history repair (`x.ai/session/repair`): fix tool-pairing
+    /// Out-of-band history repair (`axon/session/repair`): fix tool-pairing
     /// violations (orphaned/displaced `ToolResult`s, duplicates, unanswered
     /// calls) that would otherwise 400 on every request. `dry_run` only
     /// reports. Refused while a turn is in flight.
@@ -320,8 +320,8 @@ pub enum SessionCommand {
     ReconcileRewindTracker {
         target_prompt_index: usize,
     },
-    /// xAI extension session notification - client-side events to store in persistence
-    XaiSessionNotification {
+    /// Axon extension session notification - client-side events to store in persistence
+    AxonSessionNotification {
         notification: SessionNotification,
     },
     /// Apply subagent usage into parent ledgers. Acks `()` once chat-state
@@ -360,7 +360,7 @@ pub enum SessionCommand {
         respond_to: oneshot::Sender<()>,
     },
     /// Update MCP servers for an existing session (used during reconnect or
-    /// mid-session via the `x.ai/session/update_mcp_servers` extension method).
+    /// mid-session via the `axon/session/update_mcp_servers` extension method).
     /// This replaces the current MCP server configuration and triggers re-initialization.
     ///
     /// The caller is notified via `respond_to` once MCP re-initialization
@@ -489,7 +489,7 @@ pub enum SessionCommand {
         action: axon_hooks_plugins_types::PluginsAction,
         respond_to: oneshot::Sender<axon_hooks_plugins_types::ActionOutcome>,
     },
-    /// This session's plugin registry, as served by `x.ai/plugins/list`.
+    /// This session's plugin registry, as served by `axon/plugins/list`.
     PluginsList {
         respond_to:
             oneshot::Sender<Option<std::sync::Arc<axon_agent::plugins::PluginRegistry>>>,
@@ -511,7 +511,7 @@ pub enum SessionCommand {
         task_id: String,
     },
     /// Dispatch a compat `Notification` hook (e.g. `task_complete`
-    /// from the notification bridge, which does not go through `send_xai_notification`).
+    /// from the notification bridge, which does not go through `send_axon_notification`).
     DispatchNotificationHook {
         notification_type: String,
         message: Option<String>,
@@ -552,7 +552,7 @@ pub enum SessionCommand {
     },
     /// Replace the text of a queued (not-yet-running) prompt in place
     /// (server-side LWW). Last write wins via the actor's
-    /// serialized mailbox; the rebroadcast of `x.ai/queue/changed` is the
+    /// serialized mailbox; the rebroadcast of `axon/queue/changed` is the
     /// truth signal for every attached client. The original `owner`
     /// attribution is preserved; `editor` is recorded as the most recent
     /// editor (for future "alice edited this" UX). A missing id, or an id
@@ -570,7 +570,7 @@ pub enum SessionCommand {
     /// like [`RemoveQueuedPrompt`]. A benign no-op (the prompt stays queued and
     /// runs normally) when no turn is running, the id names the running turn, is
     /// stale/already-drained, or `owner` doesn't match. The rebroadcast of
-    /// `x.ai/queue/changed` is the truth signal for every attached client.
+    /// `axon/queue/changed` is the truth signal for every attached client.
     InterjectQueuedPrompt {
         id: String,
         expected_version: u64,
@@ -667,7 +667,7 @@ pub enum SessionCommand {
     ///
     /// Fired by the client after a turn completes. The session builds a
     /// compact text-only transcript of the recent conversation, makes one
-    /// tool-free model call (default `grok-build-0.1` when available via
+    /// tool-free model call (default `axon-build-0.1` when available via
     /// `model_override`, else the session model), sanitizes the output, and
     /// returns the predicted prompt via `respond_to`. Best-effort: any
     /// failure returns `None`.
@@ -677,7 +677,7 @@ pub enum SessionCommand {
     },
     /// Rewrite a raw memory note into well-structured markdown via a one-shot
     /// LLM call. The session uses `prepare_chat_completion()` with
-    /// `grok-build` model, low temperature, and capped output tokens.
+    /// `axon-build` model, low temperature, and capped output tokens.
     RewriteMemoryNote {
         raw_text: String,
         context_summary: String,
@@ -690,7 +690,7 @@ pub enum SessionCommand {
     Interject {
         text: String,
         /// Client-minted id echoed back on the broadcast
-        /// `x.ai/session/interjection` so the originating pager can dedup its
+        /// `axon/session/interjection` so the originating pager can dedup its
         /// optimistic local block. `None` from older clients.
         id: Option<String>,
         /// Pasted images riding along with the interjection. Empty from

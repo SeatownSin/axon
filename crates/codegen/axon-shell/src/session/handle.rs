@@ -13,7 +13,7 @@ use axon_sampling_types::ReasoningEffort;
 use axon_hunk_tracker::HunkTrackerHandle;
 /// Coarse lifecycle state of a session as known to the leader/agent.
 ///
-/// A grok session has no
+/// A axon session has no
 /// terminal status field on its own — it is a resumable log on disk — so
 /// "liveness" is *residency + turn-state*, not a pid. The agent's join-handle
 /// supervisor tracks this per session so a panicked actor can be reaped
@@ -115,7 +115,7 @@ pub struct SessionHandle {
     /// client behaviors like yolo broadcasts.
     pub origin_client: Option<crate::http::OriginClientInfo>,
     /// Whether the client that created this session advertised
-    /// `x.ai/codeNavigation.enabled`.  Stored per-session so that in leader
+    /// `axon/codeNavigation.enabled`.  Stored per-session so that in leader
     /// mode a later `initialize()` from a different client cannot retroactively
     /// change code-nav eligibility for already-running sessions.
     pub code_nav_enabled: bool,
@@ -124,13 +124,13 @@ pub struct SessionHandle {
     /// env gate). Stored per-session so subagents inherit it at spawn.
     pub ask_user_question_enabled: bool,
     /// Plan mode tracker — shared with the session actor via Arc.
-    /// Exposed so the `x.ai/toggle_plan_mode` handler can toggle plan mode
+    /// Exposed so the `axon/toggle_plan_mode` handler can toggle plan mode
     /// without going through the session command channel.
     pub plan_mode: std::sync::Arc<parking_lot::Mutex<crate::session::plan_mode::PlanModeTracker>>,
     /// Debug flag: when set to `true`, the next turn unconditionally triggers
     /// auto-compaction regardless of context window usage. Consumed (reset to
     /// `false`) atomically on use via `compare_exchange`.
-    /// Set via `x.ai/debug/arm_auto_compact`.
+    /// Set via `axon/debug/arm_auto_compact`.
     pub force_compact: std::sync::Arc<std::sync::atomic::AtomicBool>,
     pub permission_handle: axon_workspace::permission::PermissionHandle,
     /// The parent SessionActor's live `Auth401AttributionCallback`
@@ -162,7 +162,7 @@ pub struct SessionHandle {
     /// Scheduler handle for this session. Subagents inherit the parent's
     /// handle so scheduled tasks survive the subagent's exit.
     pub scheduler_handle:
-        Option<axon_tools::implementations::grok_build::scheduler::types::SchedulerHandle>,
+        Option<axon_tools::implementations::axon_build::scheduler::types::SchedulerHandle>,
 }
 impl SessionHandle {
     /// Last assistant `model_id` / `model_fingerprint` in conversation (global, not turn-scoped).

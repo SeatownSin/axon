@@ -18,7 +18,7 @@ use super::common::*;
 fn wrap_not_found_alias_routes_via_shell_contract() {
     let (_dir, shell) = fake_argv_echo_shell();
     let (code, raw) = run_wrap(
-        &["grok-wrap-e2e-alias-xx", "with space"],
+        &["axon-wrap-e2e-alias-xx", "with space"],
         &[("SHELL", &shell)],
     );
 
@@ -28,7 +28,7 @@ fn wrap_not_found_alias_routes_via_shell_contract() {
     );
     assert!(raw.contains("ARG:-c"), "shell must get -c\nraw:\n{raw}");
     assert!(
-        raw.contains("ARG:grok-wrap-e2e-alias-xx 'with space'"),
+        raw.contains("ARG:axon-wrap-e2e-alias-xx 'with space'"),
         "rejoined line must keep the first word bare and quote the tail\nraw:\n{raw}"
     );
     assert_eq!(

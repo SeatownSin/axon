@@ -20,7 +20,7 @@ mod sleep_gate;
 use lock::try_lock_auth_file_async;
 use sleep_gate::{GateRaise, InFlightGuard, SleepGate};
 
-use crate::auth::config::GrokComConfig;
+use crate::auth::config::AxonComConfig;
 use crate::auth::error::AuthError;
 use crate::auth::token_type::TokenType;
 use axon_telemetry::events::ManualAuthSurface;
@@ -28,7 +28,7 @@ use axon_telemetry::events::ManualAuthSurface;
 #[cfg(test)]
 use super::model::UserInfo;
 use super::model::{
-    AuthMode, GrokAuth, early_invalidation, is_expired, is_expired_with_buffer, lookup_auth,
+    AuthMode, AxonAuth, early_invalidation, is_expired, is_expired_with_buffer, lookup_auth,
     token_suffix,
 };
 use super::refresh::{RefreshOutcome, TokenRefresher, resolve_refresh_credential};
@@ -130,10 +130,10 @@ pub struct AuthManager {
     /// [`Self::refresh_chain`]; the closure helpers' sync return type
     /// enforces "no `.await` while holding the lock". `Arc`
     /// so the spawned `/user` enrichment task can write back.
-    inner: Arc<RwLock<Option<GrokAuth>>>,
+    inner: Arc<RwLock<Option<AxonAuth>>>,
     path: PathBuf,
     scope: String,
-    grok_com_config: GrokComConfig,
+    axon_com_config: AxonComConfig,
     proxy_base_url: String,
     refresher: RwLock<Option<Arc<dyn TokenRefresher>>>,
     /// Idempotency guard for `configure_refresher` so double-calls
@@ -258,14 +258,14 @@ impl ScopeRemoval {
 /// it without refreshing.
 enum LockOutcome {
     Held(AuthFileLock),
-    Adopted(Box<GrokAuth>),
+    Adopted(Box<AxonAuth>),
 }
 
 // ── Construction + builders ──────────────────────────────────────────
 
 impl AuthManager {
-    pub fn new(grok_home: &Path, grok_com_config: GrokComConfig) -> Self {
-        let scope = grok_com_config.auth_scope();
+    pub fn new(axon_home: &Path, axon_com_config: AxonComConfig) -> Self {
+        let scope = axon_com_config.auth_scope();
         let proxy_base_url =
             crate::agent::config::EndpointsConfig::from_effective_config().proxy_url();
 
@@ -274,7 +274,7 @@ impl AuthManager {
             None,
             Some(serde_json::json!({
                 "scope": &scope,
-                "grok_home": grok_home.display().to_string(),
+                "axon_home": axon_home.display().to_string(),
                 "HOME": std::env::var("HOME").unwrap_or_else(|_| "(unset)".into()),
                 "AXON_HOME": std::env::var("AXON_HOME").unwrap_or_else(|_| "(unset)".into()),
                 "AXON_AUTH_PATH": std::env::var("AXON_AUTH_PATH").unwrap_or_else(|_| "(unset)".into()),
@@ -284,12 +284,12 @@ impl AuthManager {
 
         // AXON_AUTH: inline JSON credentials (highest priority, read-only).
         if let Ok(inline_json) = std::env::var("AXON_AUTH") {
-            if let Ok(auth) = serde_json::from_str::<GrokAuth>(&inline_json) {
+            if let Ok(auth) = serde_json::from_str::<AxonAuth>(&inline_json) {
                 return Self::assemble(
                     Some(auth),
-                    grok_home.join("auth.json"),
+                    axon_home.join("auth.json"),
                     scope,
-                    grok_com_config,
+                    axon_com_config,
                     proxy_base_url,
                     None,
                 );
@@ -300,7 +300,7 @@ impl AuthManager {
         // AXON_AUTH_PATH: custom file path (overrides default $AXON_HOME/auth.json).
         let path = std::env::var("AXON_AUTH_PATH")
             .map(PathBuf::from)
-            .unwrap_or_else(|_| grok_home.join("auth.json"));
+            .unwrap_or_else(|_| axon_home.join("auth.json"));
 
         let (auth, auth_read_detail, initial_disk_state) = match read_auth_json(&path) {
             Ok(map) => {
@@ -368,7 +368,7 @@ impl AuthManager {
             auth,
             path,
             scope,
-            grok_com_config,
+            axon_com_config,
             proxy_base_url,
             Some(initial_disk_state),
         );
@@ -383,10 +383,10 @@ impl AuthManager {
     /// threaded fields. One literal means a newly added field can't be silently
     /// dropped from one branch.
     fn assemble(
-        inner: Option<GrokAuth>,
+        inner: Option<AxonAuth>,
         path: PathBuf,
         scope: String,
-        grok_com_config: GrokComConfig,
+        axon_com_config: AxonComConfig,
         proxy_base_url: String,
         disk_state: Option<DiskAuthState>,
     ) -> Self {
@@ -394,7 +394,7 @@ impl AuthManager {
             inner: Arc::new(RwLock::new(inner)),
             path,
             scope,
-            grok_com_config,
+            axon_com_config,
             proxy_base_url,
             refresher: RwLock::new(None),
             refresher_configured: std::sync::atomic::AtomicBool::new(false),
@@ -631,15 +631,15 @@ impl AuthManager {
     /// fail-fast defense-in-depth, not the security boundary (the server is
     /// authoritative). An API-key session is rejected under the kill switch,
     /// else allowed.
-    pub(crate) fn cached_token_policy_error(&self, auth: &GrokAuth) -> Option<AuthError> {
+    pub(crate) fn cached_token_policy_error(&self, auth: &AxonAuth) -> Option<AuthError> {
         if auth.auth_mode == AuthMode::ApiKey {
             // Else enforce_disable_api_key_auth swaps the key for itself (no-op).
             return self
-                .grok_com_config
+                .axon_com_config
                 .api_key_auth_disabled()
                 .then_some(AuthError::ApiKeyAuthDisabled);
         }
-        let policy = crate::auth::oidc::login_principal_policy(&self.grok_com_config)?;
+        let policy = crate::auth::oidc::login_principal_policy(&self.axon_com_config)?;
         let actual = crate::auth::oidc::peek_access_token_principal_id(&auth.key);
         crate::auth::oidc::enforce_login_principal(Some(&policy), actual.as_deref())
             .err()
@@ -668,7 +668,7 @@ impl AuthManager {
 
     /// Hide a cached token rejected by the login policy. No clear here (keeps
     /// the sync read path lock-free); `auth()`/recovery/`new()` do the clearing.
-    fn vet_cached(&self, auth: GrokAuth) -> Option<GrokAuth> {
+    fn vet_cached(&self, auth: AxonAuth) -> Option<AxonAuth> {
         match self.cached_token_policy_error(&auth) {
             None => Some(auth),
             Some(e) => {
@@ -679,7 +679,7 @@ impl AuthManager {
     }
 
     /// Cached in-memory token if outside the early-invalidation buffer.
-    pub(crate) fn current(&self) -> Option<GrokAuth> {
+    pub(crate) fn current(&self) -> Option<AxonAuth> {
         let auth = self
             .inner
             .read()
@@ -692,14 +692,14 @@ impl AuthManager {
     /// Closure-scoped write. Sync return type prevents `.await` while
     /// the lock is held. Prefer this over `self.inner.write()`.
     #[inline]
-    pub(crate) fn with_inner_write<R>(&self, f: impl FnOnce(&mut Option<GrokAuth>) -> R) -> R {
+    pub(crate) fn with_inner_write<R>(&self, f: impl FnOnce(&mut Option<AxonAuth>) -> R) -> R {
         let mut guard = self.inner.write();
         f(&mut guard)
     }
 
     /// Closure-scoped read counterpart to [`Self::with_inner_write`].
     #[inline]
-    pub(crate) fn with_inner_read<R>(&self, f: impl FnOnce(Option<&GrokAuth>) -> R) -> R {
+    pub(crate) fn with_inner_read<R>(&self, f: impl FnOnce(Option<&AxonAuth>) -> R) -> R {
         let guard = self.inner.read();
         f(guard.as_ref())
     }
@@ -714,14 +714,14 @@ impl AuthManager {
 
     /// In-memory bearer regardless of the early-invalidation buffer.
     /// Prefer [`Self::auth`] when `.await` is available.
-    pub(crate) fn current_or_expired(&self) -> Option<GrokAuth> {
+    pub(crate) fn current_or_expired(&self) -> Option<AxonAuth> {
         self.current().or_else(|| self.expired_auth())
     }
 
     /// Cached token if still wire-valid ([`Self::is_token_hard_expired`]),
     /// ignoring the early-invalidation buffer. For sync callers that cannot
     /// refresh and must not demote a still-accepted token.
-    pub(crate) fn current_wire_valid(&self) -> Option<GrokAuth> {
+    pub(crate) fn current_wire_valid(&self) -> Option<AxonAuth> {
         let auth = self
             .inner
             .read()
@@ -755,7 +755,7 @@ impl AuthManager {
     }
 
     /// Expired in-memory entry (for its `refresh_token`).
-    pub(crate) fn expired_auth(&self) -> Option<GrokAuth> {
+    pub(crate) fn expired_auth(&self) -> Option<AxonAuth> {
         let auth = self
             .inner
             .read()
@@ -768,7 +768,7 @@ impl AuthManager {
     /// Expiry policy: `expires_at - early_invalidation` if present;
     /// `External` with `auth_token_ttl` -> `create_time + ttl`;
     /// fallback `create_time + 30d` (WebLogin-style).
-    fn is_token_expired(&self, auth: &GrokAuth) -> bool {
+    fn is_token_expired(&self, auth: &AxonAuth) -> bool {
         self.token_expired_with_buffer(auth, early_invalidation())
     }
 
@@ -777,16 +777,16 @@ impl AuthManager {
     /// ([`Self::has_usable_token`]) uses this instead of [`Self::is_token_expired`]
     /// because a token still inside the buffer is sent — and accepted — on the
     /// wire via `current_or_expired()`, so it must not count as unusable.
-    fn is_token_hard_expired(&self, auth: &GrokAuth) -> bool {
+    fn is_token_hard_expired(&self, auth: &AxonAuth) -> bool {
         self.token_expired_with_buffer(auth, Duration::zero())
     }
 
-    fn token_expired_with_buffer(&self, auth: &GrokAuth, buffer: Duration) -> bool {
+    fn token_expired_with_buffer(&self, auth: &AxonAuth, buffer: Duration) -> bool {
         if auth.expires_at.is_some() {
             return is_expired_with_buffer(auth, buffer);
         }
         if auth.auth_mode == AuthMode::External
-            && let Some(ttl) = self.grok_com_config.auth_token_ttl
+            && let Some(ttl) = self.axon_com_config.auth_token_ttl
         {
             let age = Utc::now().signed_duration_since(auth.create_time);
             return age >= Duration::seconds(ttl as i64) - buffer;
@@ -804,9 +804,9 @@ impl AuthManager {
     /// - **Caller holds the `auth.json` file lock** (production callers:
     ///   `refresh_chain` Success arm, `flow::run_auth_flow`).
     ///
-    /// Returns the input `GrokAuth` BEFORE enrichment lands; callers
+    /// Returns the input `AxonAuth` BEFORE enrichment lands; callers
     /// needing the post-enrichment view re-read `current()`.
-    pub(crate) async fn update(self: &Arc<Self>, auth: GrokAuth) -> std::io::Result<GrokAuth> {
+    pub(crate) async fn update(self: &Arc<Self>, auth: AxonAuth) -> std::io::Result<AxonAuth> {
         let update_started = std::time::Instant::now();
         let map = match read_auth_json_or_empty_recovering_corrupt(&self.path) {
             Ok(map) => map,
@@ -867,8 +867,8 @@ impl AuthManager {
     /// (already merged inline, or a stale fetch must not race a fresh write).
     pub(crate) async fn save_without_enrichment(
         &self,
-        auth: GrokAuth,
-    ) -> std::io::Result<GrokAuth> {
+        auth: AxonAuth,
+    ) -> std::io::Result<AxonAuth> {
         let started = std::time::Instant::now();
         let map = match read_auth_json_or_empty_recovering_corrupt(&self.path) {
             Ok(map) => map,
@@ -915,17 +915,17 @@ impl AuthManager {
     }
 
     /// Spawn the `/user` enrichment task; body in the `enrichment` submodule.
-    fn spawn_user_info_enrichment(self: &Arc<Self>, auth: GrokAuth) {
+    fn spawn_user_info_enrichment(self: &Arc<Self>, auth: AxonAuth) {
         enrichment::spawn(Arc::clone(self), auth);
     }
 
     /// Blocking `/user` enrichment for login flows that exit before the background task lands.
-    pub(crate) async fn enrich_auth_inline(&self, auth: &mut GrokAuth) {
+    pub(crate) async fn enrich_auth_inline(&self, auth: &mut AxonAuth) {
         enrichment::enrich_inline(self, auth).await;
     }
 
-    pub(crate) fn grok_com_config(&self) -> &GrokComConfig {
-        &self.grok_com_config
+    pub(crate) fn axon_com_config(&self) -> &AxonComConfig {
+        &self.axon_com_config
     }
 
     /// Handle notified after every successful token refresh.
@@ -957,13 +957,13 @@ impl AuthManager {
 
     /// Run the external auth command and parse its output. Pure: no
     /// state mutation, no logging (refresher logs once on its arm).
-    pub(crate) fn run_external_refresh_command(&self, command: &str) -> Option<GrokAuth> {
+    pub(crate) fn run_external_refresh_command(&self, command: &str) -> Option<AxonAuth> {
         let prev = self.inner_auth_or_external_default();
         crate::auth::refresh_with_command(command, &prev)
     }
 
     /// Hot-swap credentials (called by config watcher). Does NOT write to disk.
-    pub(crate) fn hot_swap(&self, new_auth: GrokAuth) {
+    pub(crate) fn hot_swap(&self, new_auth: AxonAuth) {
         self.with_inner_write(|inner| *inner = Some(new_auth));
     }
 
@@ -980,9 +980,9 @@ impl AuthManager {
     /// disk key must differ from in-memory (else no one refreshed).
     pub(crate) fn try_use_disk_token(
         &self,
-        disk_auth: Option<&GrokAuth>,
+        disk_auth: Option<&AxonAuth>,
         reason: RefreshReason,
-    ) -> Option<GrokAuth> {
+    ) -> Option<AxonAuth> {
         let disk_auth = disk_auth?;
         if self.is_token_expired(disk_auth) {
             return None;
@@ -1003,7 +1003,7 @@ impl AuthManager {
     /// telemetry on success. Combines `read_disk_auth` +
     /// `try_use_disk_token` + the structured log that was previously
     /// duplicated at each callsite in `refresh_chain`.
-    fn try_adopt_disk_token(&self, reason: RefreshReason, msg: &str) -> Option<GrokAuth> {
+    fn try_adopt_disk_token(&self, reason: RefreshReason, msg: &str) -> Option<AxonAuth> {
         let disk_auth = self.read_disk_auth();
         let refreshed = self.try_use_disk_token(disk_auth.as_ref(), reason)?;
         let adopted = token_suffix(&refreshed.key);
@@ -1024,8 +1024,8 @@ impl AuthManager {
     /// path only** -- the placeholder's `auth_mode = External` would
     /// mis-classify an OIDC token. Carries user fields forward into the
     /// binary's freshly-minted token.
-    fn inner_auth_or_external_default(&self) -> GrokAuth {
-        self.inner.read().clone().unwrap_or_else(|| GrokAuth {
+    fn inner_auth_or_external_default(&self) -> AxonAuth {
+        self.inner.read().clone().unwrap_or_else(|| AxonAuth {
             auth_mode: AuthMode::External,
             ..Default::default()
         })
@@ -1034,7 +1034,7 @@ impl AuthManager {
     /// Test-only hot_swap + disk write (skips proxy `/user`).
     /// Production persistence routes through `update()`.
     #[cfg(test)]
-    fn persist_and_swap(&self, auth: GrokAuth) -> Option<GrokAuth> {
+    fn persist_and_swap(&self, auth: AxonAuth) -> Option<AxonAuth> {
         self.hot_swap(auth.clone());
         let mut map = match read_auth_json_or_empty(&self.path) {
             Ok(m) => m,
@@ -1074,7 +1074,7 @@ impl AuthManager {
     }
 
     /// Re-read `auth.json` from disk without updating in-memory state.
-    pub(crate) fn read_disk_auth(&self) -> Option<GrokAuth> {
+    pub(crate) fn read_disk_auth(&self) -> Option<AxonAuth> {
         self.read_disk_auth_with_state().0
     }
 
@@ -1082,7 +1082,7 @@ impl AuthManager {
     /// `disk_state` write, no transition telemetry). For side-effect-free
     /// getters like [`Self::attempted_verdict_key`]; prefer [`Self::read_disk_auth`]
     /// when the read should drive transition logging.
-    fn read_disk_auth_silent(&self) -> Option<GrokAuth> {
+    fn read_disk_auth_silent(&self) -> Option<AxonAuth> {
         read_auth_json(&self.path)
             .ok()
             .and_then(|map| lookup_auth(&map, &self.scope))
@@ -1110,7 +1110,7 @@ impl AuthManager {
     /// can tell a transient disk anomaly (`FileMissing`/`Unreadable`) apart from
     /// a genuine logout (`EntryMissing`). Observes the state for transition
     /// logging, exactly like `read_disk_auth`.
-    pub(crate) fn read_disk_auth_with_state(&self) -> (Option<GrokAuth>, DiskAuthState) {
+    pub(crate) fn read_disk_auth_with_state(&self) -> (Option<AxonAuth>, DiskAuthState) {
         let (auth, state, err_detail) = match read_auth_json(&self.path) {
             Ok(map) => {
                 let found = lookup_auth(&map, &self.scope);
@@ -1144,7 +1144,7 @@ impl AuthManager {
     fn observe_disk_state(
         &self,
         new_state: DiskAuthState,
-        auth: Option<&GrokAuth>,
+        auth: Option<&AxonAuth>,
         err_detail: Option<String>,
     ) {
         let prev = {
@@ -1263,7 +1263,7 @@ impl AuthManager {
     /// Also the team-pin gate: a cached/refreshed wrong-team session is cleared
     /// and rejected here, never handed to a consumer.
     #[tracing::instrument(skip(self), fields(token_type = tracing::field::Empty))]
-    pub async fn auth(self: &Arc<Self>) -> Result<GrokAuth, AuthError> {
+    pub async fn auth(self: &Arc<Self>) -> Result<AxonAuth, AuthError> {
         let auth = self.auth_dispatch().await?;
         if let Some(e) = self.cached_token_policy_error(&auth) {
             self.reject_and_clear(&e);
@@ -1272,10 +1272,10 @@ impl AuthManager {
         Ok(auth)
     }
 
-    async fn auth_dispatch(self: &Arc<Self>) -> Result<GrokAuth, AuthError> {
+    async fn auth_dispatch(self: &Arc<Self>) -> Result<AxonAuth, AuthError> {
         // Snapshot inner ONCE for dispatch atomicity (closes a TOCTOU
         // where a concurrent `clear()` raced `token_type()` + `inner.read()`).
-        let snapshot: Option<GrokAuth> = self.with_inner_read(|inner| inner.cloned());
+        let snapshot: Option<AxonAuth> = self.with_inner_read(|inner| inner.cloned());
         let token_type = TokenType::from_auth(snapshot.as_ref());
         tracing::Span::current().record("token_type", tracing::field::debug(token_type));
 
@@ -1306,7 +1306,7 @@ impl AuthManager {
             }
             // On devboxes, try minting fresh credentials before giving up.
             // preferred_method=api_key forbids automatic OIDC mint.
-            if !self.grok_com_config.blocks_automatic_oidc()
+            if !self.axon_com_config.blocks_automatic_oidc()
                 && self.is_devbox_environment()
                 && let Ok(auth) = self.try_devbox_recovery().await
             {
@@ -1376,7 +1376,7 @@ impl AuthManager {
         // the new OIDC entry so we start from a clean state.
         // preferred_method=api_key forbids automatic OIDC mint.
         if result.is_err()
-            && !self.grok_com_config.blocks_automatic_oidc()
+            && !self.axon_com_config.blocks_automatic_oidc()
             && self.is_devbox_environment()
             && let Ok(auth) = self.try_devbox_recovery().await
         {
@@ -1409,8 +1409,8 @@ impl AuthManager {
     ///
     /// Fail-closed under `preferred_method=api_key` (no automatic OIDC mint),
     /// including direct callers such as sampler 401 recovery.
-    pub(crate) async fn try_devbox_recovery(self: &Arc<Self>) -> Result<GrokAuth, AuthError> {
-        if self.grok_com_config.blocks_automatic_oidc() {
+    pub(crate) async fn try_devbox_recovery(self: &Arc<Self>) -> Result<AxonAuth, AuthError> {
+        if self.axon_com_config.blocks_automatic_oidc() {
             tracing::debug!(
                 "auth: devbox recovery skipped (preferred_method=api_key blocks automatic OIDC)"
             );
@@ -1488,7 +1488,7 @@ impl AuthManager {
         self: &Arc<Self>,
         token_type: TokenType,
         reason: RefreshReason,
-    ) -> Result<GrokAuth, AuthError> {
+    ) -> Result<AxonAuth, AuthError> {
         // 0. Sticky permanent-failure short-circuit, checked BEFORE acquiring
         //    the refresh lock so a backed-off chain doesn't block concurrent
         //    traffic. Mirrors `auth()` so callers routing through
@@ -1758,7 +1758,7 @@ impl AuthManager {
         reason: RefreshReason,
         attempted_key: Option<String>,
         _lock: &AuthFileLock,
-    ) -> Result<GrokAuth, AuthError> {
+    ) -> Result<AxonAuth, AuthError> {
         let pre_key_prefix = attempted_key.as_deref().map(token_suffix);
         match outcome {
             RefreshOutcome::Success(new_auth) => match self.update(*new_auth).await {
@@ -1858,7 +1858,7 @@ impl AuthManager {
     }
 
     /// Check if a candidate auth has a different token than what's in memory.
-    pub(crate) fn is_different_token(&self, candidate: &GrokAuth) -> bool {
+    pub(crate) fn is_different_token(&self, candidate: &AxonAuth) -> bool {
         let current_key = self.inner.read().as_ref().map(|a| a.key.clone());
         current_key.as_deref() != Some(&candidate.key)
     }
@@ -1985,7 +1985,7 @@ impl AuthManager {
     /// one-shot recovery off the live bearer, use `try_recover_unauthorized()`.
     pub(crate) fn unauthorized_recovery(
         self: &Arc<Self>,
-        rejected: Option<GrokAuth>,
+        rejected: Option<AxonAuth>,
         source: crate::auth::recovery::RecoverySource,
     ) -> crate::auth::recovery::UnauthorizedRecovery {
         crate::auth::recovery::UnauthorizedRecovery::new(self.clone(), rejected, source)
@@ -2220,7 +2220,7 @@ pub(crate) fn compute_proactive_sleep(this: &AuthManager) -> StdDuration {
         }
         // No expires_at (typical for external binaries): poll every
         // BACKOFF_INTERVAL. Operators wanting tighter feedback set
-        // `[grok_com] auth_token_ttl` to drive a real schedule.
+        // `[axon_com] auth_token_ttl` to drive a real schedule.
         None => BACKOFF_INTERVAL,
     }
 }
@@ -2262,23 +2262,23 @@ impl axon_tools::types::ApiKeyProvider for SharedAuthKeyProvider {
 
 fn prefers_static_api_key(am: &AuthManager) -> bool {
     matches!(
-        am.grok_com_config.preferred_method,
+        am.axon_com_config.preferred_method,
         Some(super::config::PreferredAuthMethod::ApiKey)
     )
 }
 
 /// Env → process model key → disk. Off under kill-switch / oidc pin.
 fn resolve_static_api_key(am: &AuthManager) -> Option<String> {
-    if am.grok_com_config.api_key_auth_disabled() {
+    if am.axon_com_config.api_key_auth_disabled() {
         return None;
     }
     if matches!(
-        am.grok_com_config.preferred_method,
+        am.axon_com_config.preferred_method,
         Some(super::config::PreferredAuthMethod::Oidc)
     ) {
         return None;
     }
-    non_empty_key(crate::agent::auth_method::read_xai_api_key_env().ok())
+    non_empty_key(crate::agent::auth_method::read_axon_api_key_env().ok())
         .or_else(|| non_empty_key(am.process_static_api_key.read().clone()))
         .or_else(|| am.cached_disk_api_key())
 }
@@ -2309,7 +2309,7 @@ fn auth_file_stamp(path: &Path) -> Option<AuthFileStamp> {
 }
 
 impl AuthManager {
-    /// `xai::api_key` from this manager's auth file, memoized on
+    /// `axon::api_key` from this manager's auth file, memoized on
     /// [`AuthFileStamp`]: bearer resolution runs per tool call, so this
     /// costs a `stat` instead of a read+parse on the hot path.
     fn cached_disk_api_key(&self) -> Option<String> {

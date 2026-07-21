@@ -5,18 +5,18 @@
     unreachable_code,
     dead_code
 )]
-//! Shared test utilities for grok-build crates: mock inference server, SSE
+//! Shared test utilities for axon-build crates: mock inference server, SSE
 //! generators, ACP stdio client, headless runner, env sandbox.
 //!
 //! Provides:
 //! - [`MockInferenceServer`] — Mock /v1/chat/completions + /v1/responses with request logging
-//! - [`GrokStdioClient`] — ACP client that drives `axon agent stdio` as a subprocess
+//! - [`AxonStdioClient`] — ACP client that drives `axon agent stdio` as a subprocess
 //! - [`RawStdioClient`] — raw-wire ACP driver for bytes the typed client can't
 //!   produce (Foundation `\/` methods, string UUID ids)
 //! - [`leader::LeaderStdioClient`] — ACP client that drives `axon agent --leader stdio` (unix)
 //! - [`run_headless`] — Run `axon -p` against the mock server and capture output
 //! - [`git_workdir`] — Create a temp directory with git repo (forces libgit2 init)
-//! - [`grok_binary`] — Resolve the grok binary path (AXON_BINARY env or cargo_bin)
+//! - [`axon_binary`] — Resolve the axon binary path (AXON_BINARY env or cargo_bin)
 //! - [`spawn_counting_server`] — Connection-counting HTTP/1.1 server for wire/pooling tests
 //! - [`uds_proxy::UdsProxy`] — Frame-aware fault-injection proxy for leader IPC sockets (unix)
 pub mod acp_client;
@@ -32,9 +32,9 @@ pub mod scripted;
 pub mod sse;
 #[cfg(unix)]
 pub mod uds_proxy;
-pub use acp_client::{GrokStdioClient, RawStdioClient};
+pub use acp_client::{AxonStdioClient, RawStdioClient};
 pub use counting_server::spawn_counting_server;
-pub use env::{EnvGuard, git_workdir, grok_binary};
+pub use env::{EnvGuard, git_workdir, axon_binary};
 pub use headless::{
     HeadlessResult, assert_headless_success, assert_no_crashes, run_headless,
     run_headless_with_cmd, stderr_tail,

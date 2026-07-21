@@ -50,13 +50,13 @@ fn ambient_ctx_injects_session_turn_and_prompt_id() {
         axon_telemetry::session_ctx::begin_prompt_id();
         axon_telemetry::log_event(axon_telemetry::events::PromptSubmitted {
             prompt_length: 42,
-            model_id: "grok-4".into(),
+            model_id: "axon-4".into(),
             client_identifier: None,
             screen_mode: None,
             prompt_text: None,
         });
         axon_telemetry::log_event(axon_telemetry::events::ModelResponseReceived {
-            model_id: "grok-4".into(),
+            model_id: "axon-4".into(),
             duration_ms: 5,
             stop_reason: Some("stop".into()),
             prompt_tokens: Some(11),
@@ -76,7 +76,7 @@ fn ambient_ctx_injects_session_turn_and_prompt_id() {
     );
 
     // ── Event carries session.id, turn_number, prompt.id, event.sequence ──
-    let prompt = col::find_event(&collected, "grok_code.user_prompt").expect("user_prompt present");
+    let prompt = col::find_event(&collected, "axon_code.user_prompt").expect("user_prompt present");
     assert_eq!(
         prompt.attrs.get("session.id").and_then(|v| v.as_str()),
         Some("sess-ctx"),
@@ -99,7 +99,7 @@ fn ambient_ctx_injects_session_turn_and_prompt_id() {
     );
 
     // ── prompt.id / turn_number NEVER on metrics ────────────────────────
-    let tokens = col::find_metric(&collected, "grok_code.token.usage");
+    let tokens = col::find_metric(&collected, "axon_code.token.usage");
     assert!(!tokens.is_empty(), "token.usage must export");
     for p in &tokens {
         assert!(

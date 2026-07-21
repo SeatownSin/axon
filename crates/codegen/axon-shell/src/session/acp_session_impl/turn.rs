@@ -61,7 +61,7 @@ impl UsageDrainOutcome {
     /// sticky and background → report only.
     pub(super) fn from_outstanding_reply(
         reply: Option<
-            &axon_tools::implementations::grok_build::task::types::SubagentOutstandingReply,
+            &axon_tools::implementations::axon_build::task::types::SubagentOutstandingReply,
         >,
     ) -> Self {
         match reply {
@@ -170,7 +170,7 @@ impl SessionActor {
                 .iter()
                 .map(ImageCompressedEntry::from)
                 .collect();
-            self.send_xai_notification(XaiSessionUpdate::ImageCompressed { images, message })
+            self.send_axon_notification(AxonSessionUpdate::ImageCompressed { images, message })
                 .await;
         }
         if !norm_result.re_encode_fallbacks.is_empty() {
@@ -180,7 +180,7 @@ impl SessionActor {
                     is_cursor,
                 ),
             );
-            self.send_xai_notification(XaiSessionUpdate::ImageCompressed {
+            self.send_axon_notification(AxonSessionUpdate::ImageCompressed {
                 images: vec![],
                 message: norm_result.re_encode_fallbacks.join(" "),
             })
@@ -191,7 +191,7 @@ impl SessionActor {
             is_cursor,
         ) {
             text_out.push_str(&notice);
-            self.send_xai_notification(XaiSessionUpdate::ImageDropped { notes })
+            self.send_axon_notification(AxonSessionUpdate::ImageDropped { notes })
                 .await;
         }
         user_images
@@ -1233,7 +1233,7 @@ impl SessionActor {
         let Some(tx) = &self.tool_context.subagent_event_tx else {
             return false;
         };
-        use axon_tools::implementations::grok_build::task::types::{
+        use axon_tools::implementations::axon_build::task::types::{
             SubagentEvent, SubagentMarkUsageNotAppliedRequest,
         };
         let (respond_to, ack) = tokio::sync::oneshot::channel();
@@ -1257,12 +1257,12 @@ impl SessionActor {
     /// `push_user_message`, NOT `inject_synthetic_user_message`: the latter
     /// persists a `UserMessageChunk` to `updates.jsonl`, which resume
     /// replays — the raw XML would render as a user prompt. Clients see
-    /// monitor events only via the structured `x.ai/monitor_event` channel.
+    /// monitor events only via the structured `axon/monitor_event` channel.
     pub(crate) async fn inject_pending_monitor_events(&self) {
         let Some(buffer) = &self.tool_context.monitor_event_buffer else {
             return;
         };
-        let mine = axon_tools::implementations::grok_build::task::types::drain_owned(
+        let mine = axon_tools::implementations::axon_build::task::types::drain_owned(
             buffer,
             Some(self.session_info.id.0.as_ref()),
         );
@@ -1438,7 +1438,7 @@ impl SessionActor {
                     "Auto-recovery exhausted after {attempt} attempts for session {}: {error_desc}",
                     self.session_info.id.0,
                 );
-                self.send_xai_notification(XaiSessionUpdate::AutoRecoveryExhausted {
+                self.send_axon_notification(AxonSessionUpdate::AutoRecoveryExhausted {
                     attempts: attempt,
                     error: error_desc,
                 })
@@ -1457,7 +1457,7 @@ impl SessionActor {
                 self.session_info.id.0,
                 delay.as_millis(),
             );
-            self.send_xai_notification(XaiSessionUpdate::AutoRecoveryStarted {
+            self.send_axon_notification(AxonSessionUpdate::AutoRecoveryStarted {
                 attempt,
                 max_retries: recovery.max_retries,
                 error: error_desc,
@@ -1896,12 +1896,12 @@ impl SessionActor {
                 )),
             );
             let mut request = request;
-            request.x_grok_session_id = Some(self.session_info.id.to_string());
-            request.x_grok_turn_idx =
+            request.x_axon_session_id = Some(self.session_info.id.to_string());
+            request.x_axon_turn_idx =
                 Some(self.chat_state_handle.get_prompt_index().await.to_string());
-            request.x_grok_agent_id = Some(axon_telemetry::id::agent_id());
-            if request.x_grok_deployment_id.is_none() {
-                request.x_grok_deployment_id = crate::managed_config::resolve_deployment_id(
+            request.x_axon_agent_id = Some(axon_telemetry::id::agent_id());
+            if request.x_axon_deployment_id.is_none() {
+                request.x_axon_deployment_id = crate::managed_config::resolve_deployment_id(
                     crate::managed_config::resolve_deployment_key().as_deref(),
                 );
             }
@@ -1953,7 +1953,7 @@ impl SessionActor {
                                 delay_ms, }
                             )),
                         );
-                        self.send_xai_notification(XaiSessionUpdate::RetryState(
+                        self.send_axon_notification(AxonSessionUpdate::RetryState(
                             crate::extensions::notification::RetryState::Retrying {
                                 attempt,
                                 max_retries: AuthRetrySchedule::MAX_RETRIES,
@@ -2436,7 +2436,7 @@ mod user_echo_broadcast_tests {
         );
     }
     /// Interject-fallback turns are persist-only: every pane already rendered
-    /// the text from the `x.ai/session/interjection` broadcast, so a live
+    /// the text from the `axon/session/interjection` broadcast, so a live
     /// echo would duplicate the block.
     #[test]
     fn interject_fallback_turn_is_persist_only() {

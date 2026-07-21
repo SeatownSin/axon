@@ -251,7 +251,7 @@
             TerminalName::Rio,
             TerminalName::Foot,
             TerminalName::JetBrains,
-            TerminalName::GrokDesktop,
+            TerminalName::AxonDesktop,
             TerminalName::Vte,
             TerminalName::Terminator,
             TerminalName::WindowsTerminal,
@@ -277,7 +277,7 @@
                 | TerminalName::Rio
                 | TerminalName::Foot
                 | TerminalName::JetBrains
-                | TerminalName::GrokDesktop
+                | TerminalName::AxonDesktop
                 | TerminalName::Vte
                 | TerminalName::Terminator
                 | TerminalName::WindowsTerminal
@@ -397,7 +397,7 @@
         use std::path::PathBuf;
 
         let mut img = test_image();
-        img.source_path = Some(PathBuf::from("/tmp/grok-test-image.png"));
+        img.source_path = Some(PathBuf::from("/tmp/axon-test-image.png"));
 
         let mut pw = ghostty_prompt();
         pw.insert_image(img).unwrap();
@@ -407,12 +407,12 @@
             "chip text should be path-free: {full:?}"
         );
         assert!(
-            !full.contains("/tmp/grok-test-image.png"),
+            !full.contains("/tmp/axon-test-image.png"),
             "source path must not appear in the buffer chip: {full:?}"
         );
         assert_eq!(
             pw.images[0].source_path.as_deref(),
-            Some(std::path::Path::new("/tmp/grok-test-image.png")),
+            Some(std::path::Path::new("/tmp/axon-test-image.png")),
             "source_path retained on the PastedImage record"
         );
 
@@ -420,7 +420,7 @@
         let selected = pw.textarea.selected_text().expect("selected text");
         assert!(selected.contains("[Image #1]"));
         assert!(
-            !selected.contains("/tmp/grok-test-image.png"),
+            !selected.contains("/tmp/axon-test-image.png"),
             "select-all must not copy the filepath from the chip"
         );
     }
@@ -1582,7 +1582,7 @@
         let models = crate::acp::model_state::ModelState::default();
 
         // Cursor inside the command token with args already present.
-        pw.textarea.insert_str("/mod grok-4");
+        pw.textarea.insert_str("/mod axon-4");
         pw.textarea.set_cursor(3);
         pw.refresh_slash(&models);
 
@@ -1600,7 +1600,7 @@
         assert!(pw.accept_slash_completion(&models));
         assert_eq!(
             pw.textarea.text(),
-            "/model grok-4",
+            "/model axon-4",
             "the row's trailing space must not stack on the existing separator"
         );
         // Absorb (not trim-the-insert): the cursor must land after the
@@ -1687,10 +1687,10 @@
 
         let mut pw = PromptWidget::new();
         let mut models = crate::acp::model_state::ModelState::default();
-        let model_id = agent_client_protocol::ModelId::new(Arc::from("grok-4.5"));
+        let model_id = agent_client_protocol::ModelId::new(Arc::from("axon-4.5"));
         models.available.insert(
             model_id.clone(),
-            agent_client_protocol::ModelInfo::new(model_id, "Grok 4.5".to_string()),
+            agent_client_protocol::ModelInfo::new(model_id, "Axon 4.5".to_string()),
         );
 
         // Type "/model gr" and position cursor at end (in args).
@@ -1701,11 +1701,11 @@
         assert!(snap.open, "arg suggestions should be open");
         assert!(snap.args_range.is_some());
 
-        // Accept arg completion → should replace "gr" with "Grok 4.5".
+        // Accept arg completion → should replace "gr" with "Axon 4.5".
         pw.accept_slash_completion(&models);
         let text = pw.textarea.text().to_string();
         assert!(
-            text.contains("Grok 4.5"),
+            text.contains("Axon 4.5"),
             "arg should be replaced, got: {:?}",
             text
         );
@@ -4326,7 +4326,7 @@
     // -- Predicted-next-prompt suggestion through PromptWidget ----------------
 
     /// Widget with an active gate and a loaded suggestion — the state right
-    /// after a turn ends with `x.ai/suggestPrompt` resolved.
+    /// after a turn ends with `axon/suggestPrompt` resolved.
     fn widget_with_prompt_suggestion(text: &str) -> PromptWidget {
         let mut pw = PromptWidget::new();
         pw.prompt_suggestion_active = true;

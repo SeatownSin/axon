@@ -1,4 +1,4 @@
-//! axon-pager — Grok Build TUI.
+//! axon-pager — Axon Build TUI.
 //!
 //! A clean-room implementation built on the v3 pager rendering engine.
 

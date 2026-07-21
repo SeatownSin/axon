@@ -6,11 +6,11 @@
 
 use std::path::{Path, PathBuf};
 
-// ── Grok state directory ────────────────────────────────────────────────────
+// ── Axon state directory ────────────────────────────────────────────────────
 
-/// Grok state directory — always writable (`$AXON_HOME` or `~/.axon`).
-pub(crate) fn grok_home() -> PathBuf {
-    axon_config::grok_home()
+/// Axon state directory — always writable (`$AXON_HOME` or `~/.axon`).
+pub(crate) fn axon_home() -> PathBuf {
+    axon_config::axon_home()
 }
 
 // ── Device files & directories ──────────────────────────────────────────────
@@ -79,7 +79,7 @@ pub(crate) fn temp_writable_paths() -> Vec<PathBuf> {
 /// Writable directory paths for profiles that allow workspace writes (workspace, devbox, strict).
 /// Device files are handled separately via `allow_file` in `to_capability_set_with_config`.
 pub(crate) fn essential_writable_paths(workspace: &Path) -> Vec<PathBuf> {
-    let mut paths = vec![workspace.to_path_buf(), grok_home()];
+    let mut paths = vec![workspace.to_path_buf(), axon_home()];
     paths.extend(temp_writable_paths());
     paths
 }
@@ -87,7 +87,7 @@ pub(crate) fn essential_writable_paths(workspace: &Path) -> Vec<PathBuf> {
 /// Writable directory paths for the read-only profile (minimal: just ~/.axon + temp).
 /// Device files are handled separately via `allow_file` in `to_capability_set_with_config`.
 pub(crate) fn essential_writable_paths_minimal() -> Vec<PathBuf> {
-    let mut paths = vec![grok_home()];
+    let mut paths = vec![axon_home()];
     paths.extend(temp_writable_paths());
     paths
 }

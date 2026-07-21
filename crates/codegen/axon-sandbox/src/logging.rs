@@ -94,7 +94,7 @@ impl SandboxLogger {
     }
 
     fn log_file_path() -> PathBuf {
-        axon_config::grok_home().join("sandbox-events.jsonl")
+        axon_config::axon_home().join("sandbox-events.jsonl")
     }
 }
 

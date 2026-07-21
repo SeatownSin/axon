@@ -1,7 +1,7 @@
 //! Memory system for cross-session knowledge persistence.
 //!
 //! This crate provides a markdown-based memory storage layer that allows
-//! Grok to persist important information across sessions. Memory files are
+//! Axon to persist important information across sessions. Memory files are
 //! stored under `~/.axon/memory/` with workspace-scoped subdirectories
 //! keyed by a blake3 hash of the workspace path.
 //!

@@ -6,7 +6,7 @@ use std::time::Duration as StdDuration;
 use super::AuthManager;
 use super::lock::try_lock_auth_file_async;
 use crate::auth::manager::AUTH_LOCK_TIMEOUT;
-use crate::auth::model::{GrokAuth, UserInfo, lookup_auth};
+use crate::auth::model::{AxonAuth, UserInfo, lookup_auth};
 use crate::auth::storage::{read_auth_json, write_auth_json};
 
 /// `/user` fetch budget, shared by the inline (login) and background paths.
@@ -40,7 +40,7 @@ impl Drop for EnrichmentExitGuard {
     }
 }
 
-pub(super) fn spawn(manager: Arc<AuthManager>, auth: GrokAuth) {
+pub(super) fn spawn(manager: Arc<AuthManager>, auth: AxonAuth) {
     tokio::spawn(async move {
         let mut exit_guard = EnrichmentExitGuard {
             started: std::time::Instant::now(),
@@ -53,15 +53,15 @@ pub(super) fn spawn(manager: Arc<AuthManager>, auth: GrokAuth) {
 
 async fn fetch_user_info(manager: &AuthManager, key: &str, log_label: &str) -> Option<UserInfo> {
     let user_url = format!("{}/user", manager.proxy_base_url);
-    let token_header = &manager.grok_com_config.token_header;
+    let token_header = &manager.axon_com_config.token_header;
     let started = std::time::Instant::now();
     let http_client = crate::http::shared_client();
     let response = http_client
         .get(&user_url)
         .timeout(USER_FETCH_TIMEOUT)
         .header("Authorization", format!("Bearer {}", key))
-        .header("X-XAI-Token-Auth", token_header.as_str())
-        .header("x-grok-client-version", axon_version::VERSION)
+        .header("X-AXON-Token-Auth", token_header.as_str())
+        .header("x-axon-client-version", axon_version::VERSION)
         .header(
             crate::http::CLIENT_MODE_HEADER,
             crate::http::process_client_mode(),
@@ -124,14 +124,14 @@ async fn fetch_user_info(manager: &AuthManager, key: &str, log_label: &str) -> O
 }
 
 /// Blocking login-time enrichment: merge `/user` fields before the first save.
-pub(super) async fn enrich_inline(manager: &AuthManager, auth: &mut GrokAuth) {
+pub(super) async fn enrich_inline(manager: &AuthManager, auth: &mut AxonAuth) {
     let Some(ui) = fetch_user_info(manager, &auth.key, "auth login enrichment").await else {
         return;
     };
     apply_user_info_enrichment(auth, ui);
 }
 
-async fn run_user_info_enrichment(manager: &AuthManager, auth: GrokAuth) {
+async fn run_user_info_enrichment(manager: &AuthManager, auth: AxonAuth) {
     let started = std::time::Instant::now();
     let Some(user_info) = fetch_user_info(manager, &auth.key, "auth update enrichment").await
     else {
@@ -220,7 +220,7 @@ async fn run_user_info_enrichment(manager: &AuthManager, auth: GrokAuth) {
 }
 
 /// Merge enrichment fields into disk auth. Does not touch token fields.
-pub(super) fn apply_user_info_enrichment(disk: &mut GrokAuth, user_info: UserInfo) {
+pub(super) fn apply_user_info_enrichment(disk: &mut AxonAuth, user_info: UserInfo) {
     disk.user_id = user_info.user_id;
     disk.first_name = user_info.first_name.or(disk.first_name.take());
     disk.last_name = user_info.last_name.or(disk.last_name.take());

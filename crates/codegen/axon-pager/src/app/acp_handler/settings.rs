@@ -1,14 +1,14 @@
 use super::*;
 use serde::Deserialize;
 
-/// Handle `x.ai/models/update` — model list changed (etag-triggered refresh).
+/// Handle `axon/models/update` — model list changed (etag-triggered refresh).
 pub(super) fn handle_models_update(notif: &acp::ExtNotification, app: &mut AppView) -> bool {
     if let Ok(model_state) = serde_json::from_str::<acp::SessionModelState>(notif.params.get()) {
         use crate::acp::model_state::ModelState;
         let new_models = ModelState::from(Some(model_state));
         tracing::info!(
             count = new_models.available.len(),
-            "models updated via x.ai/models/update"
+            "models updated via blocked.invalid/models/update"
         );
 
         let shell_fallback_current = new_models.current.clone();
@@ -46,15 +46,15 @@ pub(super) fn handle_models_update(notif: &acp::ExtNotification, app: &mut AppVi
         }
         true
     } else {
-        tracing::warn!("Failed to parse x.ai/models/update");
+        tracing::warn!("Failed to parse blocked.invalid/models/update");
         false
     }
 }
 
-/// Handle `x.ai/settings/update` — remote settings refreshed on `/new`.
+/// Handle `axon/settings/update` — remote settings refreshed on `/new`.
 pub(super) fn handle_settings_update(notif: &acp::ExtNotification, app: &mut AppView) -> bool {
     let Ok(update) = serde_json::from_str::<PagerSettingsUpdate>(notif.params.get()) else {
-        tracing::warn!("Failed to parse x.ai/settings/update");
+        tracing::warn!("Failed to parse blocked.invalid/settings/update");
         return false;
     };
 
@@ -116,7 +116,7 @@ pub(super) fn handle_settings_update(notif: &acp::ExtNotification, app: &mut App
         }
     }
     // Tier before voice: same payload may set "API Key" and voice_mode_enabled=false.
-    // Always recompute is_api_key_auth from the tier so a later Free/SuperGrok
+    // Always recompute is_api_key_auth from the tier so a later Free/SuperAxon
     // stamp does not leave API-key bypass / hidden `/usage` stuck.
     if let Some(v) = update.subscription_tier_display {
         let was_api_key = app.is_api_key_auth;
@@ -284,14 +284,14 @@ pub(super) fn handle_settings_update(notif: &acp::ExtNotification, app: &mut App
             Some(&remote_tips),
         );
         if !app.tips.is_empty() {
-            let grok_home = axon_tools::util::grok_home::grok_home();
-            app.tip = axon_shell::util::tips::pick_and_advance(&app.tips, &grok_home);
+            let axon_home = axon_tools::util::axon_home::axon_home();
+            app.tip = axon_shell::util::tips::pick_and_advance(&app.tips, &axon_home);
         } else {
             app.tip = None;
         }
     }
 
-    tracing::info!("settings updated via x.ai/settings/update");
+    tracing::info!("settings updated via blocked.invalid/settings/update");
     true
 }
 
@@ -320,7 +320,7 @@ pub(super) fn apply_soft_default_permission_mode(
 }
 
 /// Tell live sessions to leave Auto on the mid-session kill-switch: fire the
-/// `x.ai/yolo_mode_changed` notification the agent maps to
+/// `axon/yolo_mode_changed` notification the agent maps to
 /// `SetAutoMode { enabled: false }`, fire-and-forget over the shared ACP channel.
 /// The notification is CLIENT-scoped (the agent applies it to every session of
 /// the sending client), so one send covers all affected sessions. `yolo_mode` is
@@ -335,7 +335,7 @@ pub(super) fn notify_sessions_leave_auto(app: &AppView, session_ids: &[acp::Sess
         "permission_mode": "ask",
     });
     let notification = acp::ExtNotification::new(
-        "x.ai/yolo_mode_changed",
+        "axon/yolo_mode_changed",
         serde_json::value::to_raw_value(&params)
             .expect("serialize yolo_mode_changed params")
             .into(),
@@ -348,12 +348,12 @@ pub(super) fn notify_sessions_leave_auto(app: &AppView, session_ids: &[acp::Sess
     let _ = app.acp_tx.send(args.into());
 }
 
-/// Handle `x.ai/sessions/changed` — the leader broadcasts roster
+/// Handle `axon/sessions/changed` — the leader broadcasts roster
 /// upserts/removals to all clients (FleetView dashboard).
 pub(super) fn handle_sessions_changed(notif: &acp::ExtNotification, app: &mut AppView) -> bool {
     let Ok(changed) = serde_json::from_str::<crate::app::roster::RosterChanged>(notif.params.get())
     else {
-        tracing::warn!("Failed to parse x.ai/sessions/changed");
+        tracing::warn!("Failed to parse blocked.invalid/sessions/changed");
         return false;
     };
     let mut affected = false;
@@ -452,7 +452,7 @@ pub(super) fn pick_random_announcement(
     announcements.get(idx).cloned()
 }
 
-/// Deserialization type for the `x.ai/settings/update` notification payload.
+/// Deserialization type for the `axon/settings/update` notification payload.
 ///
 /// This is intentionally a separate struct from `SettingsUpdateNotification` in
 /// `axon-shell/src/agent/mvp_agent.rs`. The shell side derives `Serialize`
@@ -480,7 +480,7 @@ pub(super) struct PagerSettingsUpdate {
     #[serde(default)]
     tips: Option<Vec<String>>,
     // `announcements` is deliberately NOT consumed here: every shell writer of
-    // remote_settings also emits gen-ordered `x.ai/announcements/update`
+    // remote_settings also emits gen-ordered `axon/announcements/update`
     // (emit_announcements_if_changed), and a gen-less apply on this path could
     // clobber a newer push. Single ingest path: handle_announcements_update.
     #[serde(default)]

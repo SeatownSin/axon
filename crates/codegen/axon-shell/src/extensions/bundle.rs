@@ -106,15 +106,15 @@ pub struct EntryGetResult {
 }
 pub async fn handle(agent: &MvpAgent, args: &acp::ExtRequest) -> ExtResult {
     match args.method.as_ref() {
-        "x.ai/bundle/sync" => {
+        "axon/bundle/sync" => {
             let req: BundleSyncRequest = parse_params(args)?;
             to_ext_response(sync_bundle(agent, req).await)
         }
-        "x.ai/bundle/status" => {
+        "axon/bundle/status" => {
             let _req: BundleStatusRequest = parse_params(args)?;
             to_ext_response(status_bundle())
         }
-        "x.ai/bundle/entry/get" => {
+        "axon/bundle/entry/get" => {
             let req: EntryGetRequest = parse_params(args)?;
             to_ext_response(get_entry(&req.kind, &req.name))
         }
@@ -462,8 +462,8 @@ mod tests {
             .insert("review".to_string(), "# Review skill\n".to_string());
         bundle
     }
-    fn test_auth() -> crate::auth::GrokAuth {
-        crate::auth::GrokAuth {
+    fn test_auth() -> crate::auth::AxonAuth {
+        crate::auth::AxonAuth {
             key: "token".to_string(),
             auth_mode: crate::auth::AuthMode::Oidc,
             create_time: chrono::Utc::now(),
@@ -483,7 +483,7 @@ mod tests {
             user_blocked_reason: None,
             team_blocked_reasons: vec![],
             coding_data_retention_opt_out: false,
-            has_grok_code_access: None,
+            has_axon_code_access: None,
             refresh_token: None,
             expires_at: Some(chrono::Utc::now() + chrono::Duration::hours(1)),
             oidc_issuer: None,
@@ -492,7 +492,7 @@ mod tests {
     }
     fn test_auth_manager() -> Arc<crate::auth::AuthManager> {
         let dir = tempfile::tempdir().unwrap();
-        let mgr = crate::auth::AuthManager::new(dir.path(), crate::auth::GrokComConfig::default());
+        let mgr = crate::auth::AuthManager::new(dir.path(), crate::auth::AxonComConfig::default());
         mgr.hot_swap(test_auth());
         std::mem::forget(dir);
         Arc::new(mgr)
@@ -538,7 +538,7 @@ mod tests {
                                 .and_then(|v| v.to_str().ok())
                                 .map(str::to_owned),
                             token_auth: headers
-                                .get("x-xai-token-auth")
+                                .get("x-axon-token-auth")
                                 .and_then(|v| v.to_str().ok())
                                 .map(str::to_owned),
                             user_id: headers

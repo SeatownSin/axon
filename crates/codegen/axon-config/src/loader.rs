@@ -5,7 +5,7 @@
 
 use std::path::Path;
 
-use crate::paths::{system_config_dir, user_grok_home};
+use crate::paths::{system_config_dir, user_axon_home};
 use crate::validation::{load_requirements, load_system_requirements};
 use crate::version_overrides::{self, apply_version_overrides};
 
@@ -73,7 +73,7 @@ fn line_col(src: &str, byte: usize) -> (usize, usize) {
 }
 
 /// [`load_toml_file`] plus that layer's `[[version_overrides]]`. Use for
-/// grok config files; use [`load_toml_file`] directly for unrelated TOML.
+/// axon config files; use [`load_toml_file`] directly for unrelated TOML.
 pub fn load_config_file(path: &Path) -> std::io::Result<toml::Value> {
     let mut v = load_toml_file(path)?;
     apply_version_overrides_with_registered(&mut v)?;
@@ -81,7 +81,7 @@ pub fn load_config_file(path: &Path) -> std::io::Result<toml::Value> {
 }
 
 pub fn load_from_disk() -> std::io::Result<toml::Value> {
-    load_user_config_layer(user_grok_home().as_deref(), "config.toml")
+    load_user_config_layer(user_axon_home().as_deref(), "config.toml")
 }
 
 /// Managed config filename, shared by the loaders in this module.
@@ -91,7 +91,7 @@ pub const MANAGED_CONFIG_FILENAME: &str = "managed_config.toml";
 pub const REQUIREMENTS_FILENAME: &str = "requirements.toml";
 
 pub fn load_managed_config() -> std::io::Result<toml::Value> {
-    load_user_config_layer(user_grok_home().as_deref(), MANAGED_CONFIG_FILENAME)
+    load_user_config_layer(user_axon_home().as_deref(), MANAGED_CONFIG_FILENAME)
 }
 
 /// Load a user-tier config layer from `<home>/<filename>`. With no resolvable
@@ -119,7 +119,7 @@ pub fn load_system_managed_config() -> std::io::Result<toml::Value> {
 pub struct ManagedConfigLayer {
     pub value: toml::Value,
     pub path: std::path::PathBuf,
-    /// `true` for the root-owned system layer (`/etc/grok`), derived from the
+    /// `true` for the root-owned system layer (`/etc/axon`), derived from the
     /// load directory.
     pub is_system: bool,
 }
@@ -128,7 +128,7 @@ pub struct ManagedConfigLayer {
 /// Absent layers are skipped; unparsable layers are skipped with a warning.
 /// One bad layer never drops the others.
 pub fn managed_config_layers() -> Vec<ManagedConfigLayer> {
-    managed_config_layers_at(system_config_dir().as_deref(), user_grok_home().as_deref())
+    managed_config_layers_at(system_config_dir().as_deref(), user_axon_home().as_deref())
 }
 
 /// [`managed_config_layers`] with explicit directories.
@@ -387,7 +387,7 @@ pub fn campaigns_state_path(home: &std::path::Path) -> std::path::PathBuf {
 
 /// Fail-open dismissed ids from `$AXON_HOME/campaigns_state.json`.
 pub fn load_dismissed_ids_from_home() -> std::collections::HashSet<String> {
-    let Some(home) = crate::user_grok_home() else {
+    let Some(home) = crate::user_axon_home() else {
         return std::collections::HashSet::new();
     };
     let Ok(contents) = std::fs::read_to_string(campaigns_state_path(&home)) else {
@@ -640,7 +640,7 @@ mod tests {
     fn load_user_config_layer_reads_file_when_home_present() {
         use std::io::Write;
 
-        let dir = std::env::temp_dir().join(format!("grok-load-layer-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("axon-load-layer-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let mut f = std::fs::File::create(dir.join("config.toml")).unwrap();
         writeln!(f, "[telemetry]\nmode = \"from_file\"\n").unwrap();
@@ -654,13 +654,13 @@ mod tests {
     /// snippet, which can carry a secret and would reach a client caller.
     #[test]
     fn parse_error_keeps_kind_but_not_snippet() {
-        let dir = std::env::temp_dir().join(format!("grok-toml-leak-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("axon-toml-leak-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("bad.toml");
         // Duplicate key: the message names the key; the secret-bearing source line is only in Display.
         std::fs::write(
             &path,
-            "api_key = \"xai-secretmustnotleak\"\napi_key = \"xai-secretmustnotleak2\"\n",
+            "api_key = \"axon-secretmustnotleak\"\napi_key = \"axon-secretmustnotleak2\"\n",
         )
         .unwrap();
 
@@ -671,7 +671,7 @@ mod tests {
         );
         assert!(msg.contains("duplicate key"), "want parser kind: {msg}");
         assert!(
-            !msg.contains("xai-secretmustnotleak"),
+            !msg.contains("axon-secretmustnotleak"),
             "leaked the secret value: {msg}"
         );
         assert!(

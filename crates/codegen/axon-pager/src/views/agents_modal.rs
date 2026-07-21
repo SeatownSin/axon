@@ -255,7 +255,7 @@ pub struct AgentsModalState {
     /// Snapshot of bundle catalog used to merge persona lists.
     bundle: BundleState,
     /// Resolved startup agent name (same chain as shell: `[agent]`, `AXON_AGENT`,
-    /// model `agentType`, then `grok-build`).
+    /// model `agentType`, then `axon-build`).
     pub default_agent: String,
     /// Agent running in the current session (`session/info` `agentName`).
     pub active_agent: Option<String>,
@@ -269,12 +269,12 @@ pub struct AgentsModalState {
     pub persona_expanded: std::collections::HashSet<usize>,
 }
 /// Built-in agent names that should be shown to the user.
-/// Skips internal variants (GrokBuildConcise, GrokBuildPlan,
-/// GrokBuildPlanNoSubagents, GrokBuildAskUser, Codex, Opencode,
-/// CursorExtended, GrokBuildOrchestrator).
+/// Skips internal variants (AxonBuildConcise, AxonBuildPlan,
+/// AxonBuildPlanNoSubagents, AxonBuildAskUser, Codex, Opencode,
+/// CursorExtended, AxonBuildOrchestrator).
 fn user_visible_builtins() -> &'static [BuiltinAgentName] {
     &[
-        BuiltinAgentName::GrokBuild,
+        BuiltinAgentName::AxonBuild,
         BuiltinAgentName::GeneralPurpose,
         BuiltinAgentName::Explore,
         BuiltinAgentName::Plan,
@@ -474,8 +474,8 @@ pub fn merge_persona_lists(bundle: &BundleState, cwd: &Path) -> Vec<PersonaDetai
     let mut list = personas_from_bundle(bundle);
     let mut names: std::collections::HashSet<String> =
         list.iter().map(|p| p.name.clone()).collect();
-    let grok_home = axon_config::grok_home();
-    let bundled_dir = grok_home.join("bundled").join("personas");
+    let axon_home = axon_config::axon_home();
+    let bundled_dir = axon_home.join("bundled").join("personas");
     for persona in &mut list {
         if persona.source_path.is_none() {
             let path = bundled_dir.join(format!("{}.toml", persona.name));
@@ -489,7 +489,7 @@ pub fn merge_persona_lists(bundle: &BundleState, cwd: &Path) -> Vec<PersonaDetai
     }
     let dirs = [
         (ConfigFileScope::Project, cwd.join(".axon").join("personas")),
-        (ConfigFileScope::User, grok_home.join("personas")),
+        (ConfigFileScope::User, axon_home.join("personas")),
     ];
     for (scope, dir) in dirs {
         append_local_personas_in_dir(&dir, scope, &mut list, &mut names);
@@ -602,7 +602,7 @@ pub fn sanitize_config_name(name: &str) -> Result<String, String> {
 }
 fn personas_dir_for_scope(scope: ConfigFileScope, cwd: &Path) -> PathBuf {
     match scope {
-        ConfigFileScope::User => axon_config::grok_home().join("personas"),
+        ConfigFileScope::User => axon_config::axon_home().join("personas"),
         ConfigFileScope::Project => cwd.join(".axon").join("personas"),
     }
 }
@@ -656,8 +656,8 @@ fn config_path_is_user_or_project(path: &Path, subdir: &str) -> bool {
     {
         return false;
     }
-    let grok_home = axon_config::grok_home();
-    let in_user = dunce::canonicalize(grok_home.join(subdir))
+    let axon_home = axon_config::axon_home();
+    let in_user = dunce::canonicalize(axon_home.join(subdir))
         .ok()
         .is_some_and(|d| canonical.starts_with(&d));
     let project_suffix = std::path::Path::new(".axon").join(subdir);
@@ -725,7 +725,7 @@ fn refresh_default_agent(state: &mut AgentsModalState) {
 ///
 /// Pass `Some(name)` to set, `None` to clear (remove the key).
 pub fn set_default_agent(name: Option<&str>) -> Result<(), String> {
-    let config_path = axon_config::grok_home().join("config.toml");
+    let config_path = axon_config::axon_home().join("config.toml");
     if let Some(parent) = config_path.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
@@ -749,7 +749,7 @@ pub fn set_default_agent(name: Option<&str>) -> Result<(), String> {
 }
 /// Toggle an agent's enabled state via `[subagents.toggle]` in config.toml.
 pub fn toggle_agent(name: &str, enabled: bool) -> Result<(), String> {
-    let config_path = axon_config::grok_home().join("config.toml");
+    let config_path = axon_config::axon_home().join("config.toml");
     if let Some(parent) = config_path.parent() {
         let _ = std::fs::create_dir_all(parent);
     }

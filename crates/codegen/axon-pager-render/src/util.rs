@@ -4,41 +4,41 @@ use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-pub use axon_config::grok_home;
+pub use axon_config::axon_home;
 
 /// Path to `$AXON_HOME/pager.toml`.
 pub fn pager_toml_path() -> PathBuf {
-    grok_home().join("pager.toml")
+    axon_home().join("pager.toml")
 }
 
-/// User-facing label for the user grok directory (``~/.axon`` or ``$AXON_HOME``).
+/// User-facing label for the user axon directory (``~/.axon`` or ``$AXON_HOME``).
 ///
-/// Derived from resolved [`grok_home()`] vs `axon_config::default_grok_home()`,
+/// Derived from resolved [`axon_home()`] vs `axon_config::default_axon_home()`,
 /// not from whether `AXON_HOME` is set in the environment.
-pub fn display_grok_home_prefix() -> String {
-    if grok_home() == axon_config::default_grok_home() {
+pub fn display_axon_home_prefix() -> String {
+    if axon_home() == axon_config::default_axon_home() {
         "~/.axon".to_string()
     } else {
         "$AXON_HOME".to_string()
     }
 }
 
-/// User-facing path under [`grok_home()`], e.g. ``~/.axon/config.toml``.
-pub fn display_user_grok_path(relative: impl AsRef<Path>) -> String {
+/// User-facing path under [`axon_home()`], e.g. ``~/.axon/config.toml``.
+pub fn display_user_axon_path(relative: impl AsRef<Path>) -> String {
     let rel = relative.as_ref();
-    let prefix = display_grok_home_prefix();
+    let prefix = display_axon_home_prefix();
     if rel.as_os_str().is_empty() {
         return prefix;
     }
     format!("{prefix}/{}", rel.display())
 }
 
-/// Abbreviate an absolute path for display: prefer [`grok_home()`], then `$HOME`.
+/// Abbreviate an absolute path for display: prefer [`axon_home()`], then `$HOME`.
 pub fn abbreviate_path(path: &str) -> Cow<'_, str> {
     let path_buf = Path::new(path);
-    let grok = grok_home();
-    if let Ok(rest) = path_buf.strip_prefix(&grok) {
-        let prefix = display_grok_home_prefix();
+    let axon = axon_home();
+    if let Ok(rest) = path_buf.strip_prefix(&axon) {
+        let prefix = display_axon_home_prefix();
         if rest.as_os_str().is_empty() {
             return Cow::Owned(prefix);
         }
@@ -58,9 +58,9 @@ pub fn abbreviate_path(path: &str) -> Cow<'_, str> {
     Cow::Borrowed(path)
 }
 
-/// True when `path` is under user [`grok_home()`] (not project `{cwd}/.axon`).
-pub fn is_under_user_grok_home(path: &Path) -> bool {
-    path.starts_with(grok_home())
+/// True when `path` is under user [`axon_home()`] (not project `{cwd}/.axon`).
+pub fn is_under_user_axon_home(path: &Path) -> bool {
+    path.starts_with(axon_home())
 }
 
 /// Format a duration as a compact human-friendly string.
@@ -396,22 +396,22 @@ mod tests {
     }
 
     #[test]
-    fn display_grok_home_prefix_default_install() {
+    fn display_axon_home_prefix_default_install() {
         if std::env::var("AXON_HOME").is_ok() {
             return;
         }
-        assert_eq!(display_grok_home_prefix(), "~/.axon");
+        assert_eq!(display_axon_home_prefix(), "~/.axon");
     }
 
     #[test]
-    fn display_user_grok_path_joins_relative() {
-        let path = display_user_grok_path("config.toml");
+    fn display_user_axon_path_joins_relative() {
+        let path = display_user_axon_path("config.toml");
         assert!(path.ends_with("/config.toml") || path.ends_with("\\config.toml"));
         assert!(path.contains(".axon") || path.contains("$AXON_HOME"));
     }
 
     #[test]
-    fn abbreviate_path_uses_home_when_under_default_grok() {
+    fn abbreviate_path_uses_home_when_under_default_axon() {
         if let Ok(home) = std::env::var("HOME") {
             if home.is_empty() {
                 return;

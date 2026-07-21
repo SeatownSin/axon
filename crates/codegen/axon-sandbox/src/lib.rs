@@ -5,7 +5,7 @@
     unreachable_code,
     dead_code
 )]
-//! OS-level sandboxing for Grok Build via [nono](https://crates.io/crates/nono).
+//! OS-level sandboxing for Axon Build via [nono](https://crates.io/crates/nono).
 //!
 //! Applied once at process startup. Covers in-process `tokio::fs` calls
 //! and child processes. Network is left open at the process level (agent
@@ -306,15 +306,15 @@ fn chmod_000(path: &Path) -> Option<()> {
     std::fs::set_permissions(path, perms).ok()?;
     Some(())
 }
-/// Zero-permission placeholder (file or dir) under `grok_home` used by bwrap bind-over.
+/// Zero-permission placeholder (file or dir) under `axon_home` used by bwrap bind-over.
 ///
-/// The placeholder name is suffixed with the current PID so concurrent grok
+/// The placeholder name is suffixed with the current PID so concurrent axon
 /// processes don't race each other's create/remove/chmod on a shared path (which
 /// could yield `None` and the silent dropped-bind fail-open this avoids).
 #[cfg(all(feature = "enforce", target_os = "linux"))]
 fn bwrap_blocked_placeholder(name: &str, want_dir: bool) -> Option<PathBuf> {
     use std::fs::OpenOptions;
-    let path = paths::grok_home().join(format!("{name}.{}", std::process::id()));
+    let path = paths::axon_home().join(format!("{name}.{}", std::process::id()));
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).ok()?;
     }
@@ -638,10 +638,10 @@ mod tests {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        let ws = std::env::temp_dir().join(format!("grok-{tag}-{}-{nanos}", std::process::id()));
-        let grok = ws.join(".axon");
-        std::fs::create_dir_all(&grok).unwrap();
-        std::fs::write(grok.join("sandbox.toml"), toml_body).unwrap();
+        let ws = std::env::temp_dir().join(format!("axon-{tag}-{}-{nanos}", std::process::id()));
+        let axon = ws.join(".axon");
+        std::fs::create_dir_all(&axon).unwrap();
+        std::fs::write(axon.join("sandbox.toml"), toml_body).unwrap();
         ws
     }
     /// Create a temp workspace defining a `denytest` profile (extends `workspace`)
@@ -677,7 +677,7 @@ mod tests {
     #[cfg(all(feature = "enforce", target_os = "linux"))]
     fn bwrap_reexec_uses_dir_placeholder_for_directories() {
         let _g = EnvGuard::remove(BWRAP_ENV_VAR);
-        let dir = std::env::temp_dir().join(format!("grok-deny-dir-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("axon-deny-dir-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let dir_str = dir.to_string_lossy().to_string();
         let result = bwrap_reexec_command(&[], &[&dir_str]);
@@ -686,7 +686,7 @@ mod tests {
             .get_args()
             .map(|a| a.to_string_lossy().to_string())
             .collect();
-        let blocked_dir = paths::grok_home()
+        let blocked_dir = paths::axon_home()
             .join(format!("sandbox-blocked-dir.{}", std::process::id()))
             .to_string_lossy()
             .to_string();

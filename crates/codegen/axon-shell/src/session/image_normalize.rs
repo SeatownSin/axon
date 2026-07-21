@@ -913,11 +913,11 @@ mod tests {
     #[test]
     fn re_encode_fallback_notice_picks_tag_per_harness() {
         let notes = vec!["Image 1 could not be re-encoded under the cap.".to_string()];
-        let grok = render_re_encode_fallback_notice(&notes, false);
-        assert!(grok.contains("<system-reminder>"));
-        assert!(grok.contains("</system-reminder>"));
-        assert!(!grok.contains("<system_reminder>"));
-        assert!(grok.contains("<image_re_encode_fallback>"));
+        let axon = render_re_encode_fallback_notice(&notes, false);
+        assert!(axon.contains("<system-reminder>"));
+        assert!(axon.contains("</system-reminder>"));
+        assert!(!axon.contains("<system_reminder>"));
+        assert!(axon.contains("<image_re_encode_fallback>"));
     }
     #[test]
     fn display_format() {
@@ -1317,12 +1317,12 @@ mod tests {
     #[test]
     fn image_dropped_notice_picks_tag_per_harness() {
         let notes = vec!["Image 5 was dropped before send: corrupt".to_string()];
-        let grok = render_image_dropped_notice(&notes, false);
-        assert!(grok.contains("<system-reminder>"));
-        assert!(grok.contains("</system-reminder>"));
-        assert!(!grok.contains("<system_reminder>"));
-        assert!(grok.contains("<image_dropped_notice>"));
-        assert!(grok.contains("Image 5"));
+        let axon = render_image_dropped_notice(&notes, false);
+        assert!(axon.contains("<system-reminder>"));
+        assert!(axon.contains("</system-reminder>"));
+        assert!(!axon.contains("<system_reminder>"));
+        assert!(axon.contains("<image_dropped_notice>"));
+        assert!(axon.contains("Image 5"));
         assert_eq!(render_image_dropped_notice(&[], false), "");
     }
     /// Large flat-color images compress better as PNG than JPEG; the

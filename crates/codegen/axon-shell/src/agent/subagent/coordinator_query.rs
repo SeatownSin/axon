@@ -21,7 +21,7 @@ use crate::upload::trace::{
 };
 use crate::upload::turn::{PromptTraceContext, complete_prompt_trace};
 use axon_acp_lib::AcpAgentGatewaySender as GatewaySender;
-use axon_tools::implementations::grok_build::task::types::*;
+use axon_tools::implementations::axon_build::task::types::*;
 use axon_workspace::file_system::AsyncFileSystem;
 use axon_hunk_tracker::HunkTrackerHandle;
 use super::*;
@@ -353,7 +353,7 @@ impl SubagentCoordinator {
     /// asynchronously after dropping the coordinator borrow.
     ///
     /// Returns an empty `Vec` if no active subagents match the given
-    /// parent session ID. Callers (e.g. the `x.ai/subagent/list_running`
+    /// parent session ID. Callers (e.g. the `axon/subagent/list_running`
     /// ACP handler) should treat an empty result as a normal "no running
     /// subagents" response, not an error.
     pub(crate) fn list_running_for_parent(

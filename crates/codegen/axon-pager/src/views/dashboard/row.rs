@@ -19,7 +19,7 @@ pub struct DashboardRow {
     /// Display label (e.g. `"implementer · fix login bug"`).
     pub label: String,
     /// Right-of-label subtitle painted after a ` · ` separator in
-    /// dim text (e.g. `"xai my-branch-2 worktree"`). `None` when the
+    /// dim text (e.g. `"axon my-branch-2 worktree"`). `None` when the
     /// row has no repo / branch context worth surfacing.
     pub subtitle: Option<String>,
     /// Coarse state used for grouping.
@@ -1665,12 +1665,12 @@ mod tests {
     fn append_roster_rows_uses_model_id_as_secondary_line() {
         let empty = std::collections::BTreeSet::new();
         let entry = RosterEntry {
-            model_id: Some("grok-4.5".to_string()),
+            model_id: Some("axon-4.5".to_string()),
             ..roster_entry_with("m", Some("Fix the bug"), RosterActivity::Dormant)
         };
         let rows = collect_roster(&[entry], &empty);
         assert_eq!(rows.len(), 1);
-        assert_eq!(rows[0].secondary_line.as_deref(), Some("grok-4.5"));
+        assert_eq!(rows[0].secondary_line.as_deref(), Some("axon-4.5"));
     }
     /// Without a model id there's genuinely nothing to show, so the
     /// second line stays empty rather than rendering a placeholder.
@@ -1744,7 +1744,7 @@ mod tests {
     /// the list uncluttered).
     #[test]
     fn idle_local_agent_without_message_has_blank_secondary() {
-        let agent = make_idle_agent_with_model(Some("grok-4.5"));
+        let agent = make_idle_agent_with_model(Some("axon-4.5"));
         assert_eq!(classify_top_level(&agent), RowState::Idle);
         let row = top_level_row(AgentId(0), &agent, false, false, None);
         assert_eq!(
@@ -1792,7 +1792,7 @@ mod tests {
     #[test]
     fn subtitle_non_worktree_shows_branch_and_folder() {
         let mut agent = make_idle_agent_with_model(None);
-        agent.session.cwd = PathBuf::from("/home/me/xai/crates/foo");
+        agent.session.cwd = PathBuf::from("/home/me/axon/crates/foo");
         agent.is_worktree = false;
         agent.current_branch = Some("main".to_string());
         assert_eq!(top_level_subtitle(&agent).as_deref(), Some("main foo"));

@@ -5,10 +5,10 @@ use std::sync::LazyLock;
 const REDACTED: &str = "[REDACTED_SECRET]";
 const REDACTED_URL_VALUE: &str = "redacted";
 
-/// Vendor API keys with `sk-`/`sk_` prefixes and xAI (`xai-`) keys. `\b`-anchored so
+/// Vendor API keys with `sk-`/`sk_` prefixes and Axon (`axon-`) keys. `\b`-anchored so
 /// `task-`/`disk-`/`risk-` don't fold a stray `sk-`.
 static API_KEY_PREFIX_REGEX: LazyLock<Regex> =
-    LazyLock::new(|| compile(r"\b(?:sk[-_]|xai-)[A-Za-z0-9_-]{20,}"));
+    LazyLock::new(|| compile(r"\b(?:sk[-_]|axon-)[A-Za-z0-9_-]{20,}"));
 /// AWS long-term (`AKIA`) and temporary (`ASIA`) access-key IDs.
 static AWS_ACCESS_KEY_REGEX: LazyLock<Regex> =
     LazyLock::new(|| compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b"));
@@ -336,7 +336,7 @@ mod tests {
             redact_secrets("just a normal log line"),
             Cow::Borrowed(_)
         ));
-        assert!(matches!(redact_secrets("model=grok-3"), Cow::Borrowed(_)));
+        assert!(matches!(redact_secrets("model=axon-3"), Cow::Borrowed(_)));
     }
 
     /// Joins fixture fragments at runtime so realistic-looking fake tokens
@@ -352,8 +352,8 @@ mod tests {
     fn redacts_known_secret_shapes() {
         let cases = [
             (
-                fixture(&["key: xai-", "abc123XYZdef456GHIjkl789"]),
-                "xai api key",
+                fixture(&["key: axon-", "abc123XYZdef456GHIjkl789"]),
+                "axon api key",
             ),
             (
                 fixture(&["aws AKIA", "ABCDEFGHIJKLMNOP key"]),
@@ -461,14 +461,14 @@ mod tests {
 
     #[test]
     fn redacts_sensitive_url_query_params() {
-        let out = redact_secrets("callback https://x.ai/cb?code=ABC123XYZ&state=xyz789 failed");
+        let out = redact_secrets("callback https://blocked.invalid/cb?code=ABC123XYZ&state=xyz789 failed");
         assert!(!out.contains("ABC123XYZ"), "OAuth code leaked: {out}");
         assert!(!out.contains("xyz789"), "state leaked: {out}");
     }
 
     #[test]
     fn url_regex_excludes_trailing_punctuation() {
-        let out = redact_secrets("see `https://x.ai/cb?code=ABCD12345`");
+        let out = redact_secrets("see `https://blocked.invalid/cb?code=ABCD12345`");
         assert!(out.ends_with('`'), "trailing backtick lost: {out}");
     }
 

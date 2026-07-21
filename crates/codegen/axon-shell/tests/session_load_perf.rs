@@ -614,20 +614,20 @@ async fn full_session_load_e2e() {
         .await
         .unwrap();
 
-    let grok_home = TempDir::new().unwrap();
+    let axon_home = TempDir::new().unwrap();
     let cwd = TempDir::new().unwrap();
     let opts = GenOpts::from_env();
-    let instr_log = grok_home.path().join("instr.jsonl");
+    let instr_log = axon_home.path().join("instr.jsonl");
 
     // SAFETY: single-threaded current-thread runtime; set before any agent code
-    // reads these process-globals (grok_home()/instrumentation mode are OnceLock).
+    // reads these process-globals (axon_home()/instrumentation mode are OnceLock).
     unsafe {
-        std::env::set_var("AXON_HOME", grok_home.path());
+        std::env::set_var("AXON_HOME", axon_home.path());
         std::env::set_var("AXON_INSTRUMENTATION", "log");
         std::env::set_var("AXON_INSTRUMENTATION_LOG", &instr_log);
         std::env::set_var("AXON_CLI_CHAT_PROXY_BASE_URL", server.url());
-        std::env::set_var("AXON_XAI_API_BASE_URL", server.url());
-        std::env::set_var("XAI_API_KEY", "test-key-for-ci");
+        std::env::set_var("AXON_AXON_API_BASE_URL", server.url());
+        std::env::set_var("AXON_API_KEY", "test-key-for-ci");
         std::env::set_var("AXON_TELEMETRY_ENABLED", "false");
         std::env::set_var("AXON_FEEDBACK_ENABLED", "false");
         std::env::set_var("AXON_TRACE_UPLOAD", "false");
@@ -641,7 +641,7 @@ async fn full_session_load_e2e() {
         .with(axon_shell::instrumentation::layer::<Registry>())
         .try_init();
 
-    let (info, dir) = prepare_session(grok_home.path(), cwd.path(), &opts).await;
+    let (info, dir) = prepare_session(axon_home.path(), cwd.path(), &opts).await;
     let updates_path = dir.join("updates.jsonl");
     let rewind_path = dir.join("rewind_points.jsonl");
     eprintln!(
@@ -710,7 +710,7 @@ async fn full_session_load_e2e() {
             .expect("initialize timed out")
             .expect("initialize failed");
 
-            if let Some(method) = init.auth_methods.iter().find(|m| &*m.id().0 == "xai.api_key") {
+            if let Some(method) = init.auth_methods.iter().find(|m| &*m.id().0 == "axon.api_key") {
                 let _ = client_conn
                     .authenticate(acp::AuthenticateRequest::new(method.id().clone()).meta(serde_json::json!({ "headless": true }).as_object().cloned()))
                     .await;

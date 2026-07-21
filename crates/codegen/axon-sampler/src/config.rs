@@ -38,7 +38,7 @@ pub enum AuthScheme {
 /// composing chat-state's `axon_sampling_types::SamplingConfig`
 /// with `Credentials` (api key, client version).
 ///
-/// URL-derived request headers (e.g. `X-XAI-Token-Auth` for the
+/// URL-derived request headers (e.g. `X-AXON-Token-Auth` for the
 /// cli-chat-proxy) are
 /// folded into [`Self::extra_headers`] by
 /// `agent::config::inject_url_derived_headers` before the
@@ -113,7 +113,7 @@ pub struct SamplerConfig {
     pub compaction_at_tokens: Option<CompactionAtTokens>,
 
     /// Server-side doom-loop check policy; `None` disables it. When set, the
-    /// client itself sends the opt-in `x-grok-doom-loop-check` header on
+    /// client itself sends the opt-in `x-axon-doom-loop-check` header on
     /// streaming Responses API requests and absorbs the reported trigger
     /// events (unlike the environment headers in [`Self::extra_headers`],
     /// this header gates the client's own decode behavior, so it lives with

@@ -23,20 +23,20 @@ use tracing_subscriber::layer::{Context, Layer};
 use tracing_subscriber::registry::LookupSpan;
 
 use crate::session_ctx::SESSION_ID_FIELD;
-use axon_config::grok_home;
+use axon_config::axon_home;
 
 /// Which env var requested a single-file debug log (drives filter and diagnostics).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum DebugSource {
-    GrokLogFile,
-    GrokDebugLog,
+    AxonLogFile,
+    AxonDebugLog,
 }
 
 impl DebugSource {
     fn label(self) -> &'static str {
         match self {
-            Self::GrokLogFile => "AXON_LOG_FILE",
-            Self::GrokDebugLog => "AXON_DEBUG_LOG",
+            Self::AxonLogFile => "AXON_LOG_FILE",
+            Self::AxonDebugLog => "AXON_DEBUG_LOG",
         }
     }
 }
@@ -62,7 +62,7 @@ pub const RMCP_SSE_NOISE_TARGET: &str = "rmcp::transport::common::client_side_ss
 
 // Broad firehose filter for the routing/AXON_DEBUG_LOG sources: capture our
 // crates at debug regardless of a narrowing RUST_LOG, with deps at info so they
-// don't flood. Curated first-party allowlist: new grok crates default to `info`
+// don't flood. Curated first-party allowlist: new axon crates default to `info`
 // until added here.
 const FIREHOSE_BASE_DIRECTIVES: &str = "info,axon_pager=debug,axon_shell=debug,axon_tools=debug,axon_telemetry=debug,axon_agent=debug,axon_mcp=debug,axon_acp_lib=debug,sampling_log=off";
 
@@ -382,8 +382,8 @@ where
         }
         Some(DebugTarget::SingleFile { path, src }) => {
             let filter = match src {
-                DebugSource::GrokLogFile => default_file_filter(),
-                DebugSource::GrokDebugLog => firehose_filter(),
+                DebugSource::AxonLogFile => default_file_filter(),
+                DebugSource::AxonDebugLog => firehose_filter(),
             };
             match build_file_layer::<S>(&path, filter) {
                 Ok(layer) => registry.with(layer).init(),
@@ -417,12 +417,12 @@ pub(crate) enum DebugTarget {
 ///
 /// Read via `var_os` (not `var`) so a non-UTF-8 path isn't silently dropped.
 pub(crate) fn resolve_debug_target() -> Option<DebugTarget> {
-    let grok_log_file = std::env::var_os("AXON_LOG_FILE");
-    let grok_debug_log = std::env::var_os("AXON_DEBUG_LOG");
+    let axon_log_file = std::env::var_os("AXON_LOG_FILE");
+    let axon_debug_log = std::env::var_os("AXON_DEBUG_LOG");
     resolve_debug_target_inner(
-        grok_log_file.as_deref(),
-        grok_debug_log.as_deref(),
-        &grok_home().join("debug"),
+        axon_log_file.as_deref(),
+        axon_debug_log.as_deref(),
+        &axon_home().join("debug"),
     )
 }
 
@@ -447,19 +447,19 @@ fn os_path(v: &OsStr) -> PathBuf {
 // `OsStr` so non-UTF-8 paths round-trip; only the bool-vs-path discrimination
 // needs UTF-8 (a non-UTF-8 value can't be a bool keyword, so it's a path).
 fn resolve_debug_target_inner(
-    grok_log_file: Option<&OsStr>,
-    grok_debug_log: Option<&OsStr>,
+    axon_log_file: Option<&OsStr>,
+    axon_debug_log: Option<&OsStr>,
     debug_dir: &Path,
 ) -> Option<DebugTarget> {
-    if let Some(raw) = grok_log_file
+    if let Some(raw) = axon_log_file
         && !is_blank(raw)
     {
         return Some(DebugTarget::SingleFile {
             path: os_path(raw),
-            src: DebugSource::GrokLogFile,
+            src: DebugSource::AxonLogFile,
         });
     }
-    let raw = grok_debug_log?;
+    let raw = axon_debug_log?;
     match raw.to_str().map(str::trim) {
         Some("" | "0" | "false" | "off" | "no") => None,
         Some("1" | "true" | "on" | "yes") => Some(DebugTarget::PerSession {
@@ -468,7 +468,7 @@ fn resolve_debug_target_inner(
         // Any other UTF-8 value, or a non-UTF-8 value (`None`), is an explicit path.
         _ => Some(DebugTarget::SingleFile {
             path: os_path(raw),
-            src: DebugSource::GrokDebugLog,
+            src: DebugSource::AxonDebugLog,
         }),
     }
 }
@@ -481,7 +481,7 @@ const LOG_RETENTION: std::time::Duration = std::time::Duration::from_secs(7 * 24
 /// unbounded. Age-based (not count-based) so a still-open log from a concurrent
 /// process is never unlinked mid-write; best-effort, ignore errors.
 pub(crate) fn sweep_old_logs() {
-    prune_old_logs(&grok_home().join("debug"), LOG_RETENTION);
+    prune_old_logs(&axon_home().join("debug"), LOG_RETENTION);
 }
 
 // Pure prune core: remove `*.txt` files and orphaned `latest.txt` swap temps in
@@ -596,7 +596,7 @@ mod tests {
             target,
             DebugTarget::SingleFile {
                 path: PathBuf::from("/tmp/custom.log"),
-                src: DebugSource::GrokDebugLog,
+                src: DebugSource::AxonDebugLog,
             }
         );
     }
@@ -613,7 +613,7 @@ mod tests {
             target,
             DebugTarget::SingleFile {
                 path: PathBuf::from("/tmp/explicit.log"),
-                src: DebugSource::GrokLogFile,
+                src: DebugSource::AxonLogFile,
             }
         );
     }
@@ -651,7 +651,7 @@ mod tests {
         let target = resolve_debug_target_inner(None, Some(raw), Path::new("/debug")).unwrap();
         match target {
             DebugTarget::SingleFile { path, src } => {
-                assert_eq!(src, DebugSource::GrokDebugLog);
+                assert_eq!(src, DebugSource::AxonDebugLog);
                 assert_eq!(path.as_os_str(), raw);
             }
             other => panic!("expected SingleFile for non-UTF-8 path, got {other:?}"),
@@ -954,7 +954,7 @@ mod tests {
     fn prune_old_logs_missing_dir_is_noop() {
         // Best-effort: a nonexistent debug dir must not panic.
         prune_old_logs(
-            Path::new("/no/such/grok/debug/dir"),
+            Path::new("/no/such/axon/debug/dir"),
             std::time::Duration::from_secs(1),
         );
     }
