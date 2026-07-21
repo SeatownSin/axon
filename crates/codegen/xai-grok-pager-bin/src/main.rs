@@ -1669,6 +1669,22 @@ fn main() {
         .enable_all()
         .build()
         .unwrap_or_else(|e| panic!("failed to start tokio runtime: {e}"));
+    // `async_main()` composes into a very large future. Windows gives the main
+    // thread only ~1 MB of stack, which `block_on` overflows the instant it
+    // places that future on the calling thread's stack — even `--version` dies
+    // before it can parse. Run the runtime on a thread with a generous stack
+    // there (and construct the future on it, never on the main stack). Other
+    // platforms' 8 MB main stack holds it fine, and staying on the main thread
+    // avoids surprising desktop integrations that expect it.
+    #[cfg(windows)]
+    let result = std::thread::Builder::new()
+        .name("grok-main".to_string())
+        .stack_size(64 * 1024 * 1024)
+        .spawn(move || run_and_shutdown(runtime, async_main(), RUNTIME_SHUTDOWN_GRACE))
+        .expect("failed to spawn grok-main runtime thread")
+        .join()
+        .unwrap_or_else(|e| std::panic::resume_unwind(e));
+    #[cfg(not(windows))]
     let result = run_and_shutdown(runtime, async_main(), RUNTIME_SHUTDOWN_GRACE);
     xai_grok_telemetry::debug_log::flush();
     if let Err(e) = result {
