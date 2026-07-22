@@ -1,0 +1,123 @@
+name: Release
+
+# Builds the `axon` binary for all six platforms the updater knows about and
+# attaches them to a GitHub Release, named to match what `axon update` and the
+# install scripts resolve: `axon-<version>-<os>-<arch>[.exe]`
+# (os ∈ macos|linux|windows, arch ∈ x86_64|aarch64).
+#
+# Trigger either way:
+#   - push a tag `vX.Y.Z`         → builds + creates/updates that release
+#   - run manually (workflow_dispatch) with an existing tag → backfills assets
+#
+# Each target builds NATIVELY on its own runner (no cross-compilation). The
+# arm64 Linux/Windows runners are free for public repositories.
+
+on:
+  push:
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to build and attach assets to (e.g. v0.3.0)"
+        required: true
+
+concurrency:
+  group: release-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: build ${{ matrix.os_label }}-${{ matrix.arch_label }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os_label: linux,   arch_label: x86_64,  runner: ubuntu-22.04,     ext: "" }
+          - { os_label: linux,   arch_label: aarch64, runner: ubuntu-22.04-arm, ext: "" }
+          - { os_label: macos,   arch_label: x86_64,  runner: macos-13,         ext: "" }
+          - { os_label: macos,   arch_label: aarch64, runner: macos-14,         ext: "" }
+          - { os_label: windows, arch_label: x86_64,  runner: windows-2022,     ext: ".exe" }
+          - { os_label: windows, arch_label: aarch64, runner: windows-11-arm,   ext: ".exe" }
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: meta
+        shell: bash
+        run: |
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Install protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Export PROTOC path
+        shell: bash
+        run: echo "PROTOC=$(command -v protoc)" >> "$GITHUB_ENV"
+
+      - name: Install Rust toolchain (pinned by rust-toolchain.toml)
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+
+      - name: Build release binary
+        shell: bash
+        env:
+          AXON_VERSION: ${{ steps.meta.outputs.version }}
+        run: cargo build --release -p axon-pager-bin
+
+      - name: Smoke-check version
+        shell: bash
+        run: |
+          OUT="$("target/release/axon-pager${{ matrix.ext }}" --version)"
+          echo "$OUT"
+          case "$OUT" in
+            *"${{ steps.meta.outputs.version }}"*) echo "version ok" ;;
+            *) echo "::error::built binary did not report ${{ steps.meta.outputs.version }}: $OUT"; exit 1 ;;
+          esac
+
+      - name: Stage asset
+        id: stage
+        shell: bash
+        run: |
+          ASSET="axon-${{ steps.meta.outputs.version }}-${{ matrix.os_label }}-${{ matrix.arch_label }}${{ matrix.ext }}"
+          cp "target/release/axon-pager${{ matrix.ext }}" "$ASSET"
+          echo "asset=$ASSET" >> "$GITHUB_OUTPUT"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: axon-${{ matrix.os_label }}-${{ matrix.arch_label }}
+          path: ${{ steps.stage.outputs.asset }}
+          if-no-files-found: error
+
+  release:
+    name: publish release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Resolve tag
+        id: meta
+        shell: bash
+        run: echo "tag=${{ github.event.inputs.tag || github.ref_name }}" >> "$GITHUB_OUTPUT"
+
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: List assets
+        shell: bash
+        run: ls -la dist
+
+      - name: Attach assets to the release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          files: dist/*
+          fail_on_unmatched_files: true
