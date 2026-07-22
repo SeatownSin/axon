@@ -1,6 +1,6 @@
 #
 # Axon CLI installer for PowerShell
-# https://github.com/SeatownSin/grok-build-local
+# https://github.com/SeatownSin/axon
 #
 # Downloads a released `axon` binary from this fork's GitHub Releases and
 # installs it to %USERPROFILE%\.axon\bin. Makes no calls to xAI infrastructure.
@@ -8,7 +8,7 @@
 # Env: AXON_CHANNEL (stable|alpha, default: stable), AXON_BIN_DIR
 #
 # Usage:
-#   irm https://raw.githubusercontent.com/SeatownSin/grok-build-local/main/crates/codegen/axon-pager/scripts/install.ps1 | iex   # latest stable
+#   irm https://raw.githubusercontent.com/SeatownSin/axon/main/crates/codegen/axon-pager/scripts/install.ps1 | iex   # latest stable
 #   $env:AXON_VERSION="0.2.0"; irm <url> | iex                                                                                   # specific version
 #
 
@@ -30,7 +30,7 @@ if (-not $Version -and $env:AXON_VERSION) {
     $Version = $env:AXON_VERSION
 }
 
-$Repo = 'SeatownSin/grok-build-local'
+$Repo = 'SeatownSin/axon'
 
 # This script is Windows-only. PS 5.1 has no Platform property and only runs on Windows.
 if ($PSVersionTable.Platform -and $PSVersionTable.Platform -ne 'Win32NT') {

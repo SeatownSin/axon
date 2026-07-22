@@ -1,6 +1,6 @@
 #
 # Axon CLI installer for PowerShell (enterprise / managed deployment)
-# https://github.com/SeatownSin/grok-build-local
+# https://github.com/SeatownSin/axon
 #
 # Standalone installer for managed enterprise deployments. Makes no calls to
 # xAI infrastructure. Optional managed config: set AXON_DEPLOYMENT_KEY and
@@ -10,7 +10,7 @@
 # Env: AXON_BIN_DIR, AXON_DEPLOYMENT_KEY, AXON_PROXY_URL
 #
 # Usage:
-#   irm https://raw.githubusercontent.com/SeatownSin/grok-build-local/main/crates/codegen/axon-pager/scripts/install-enterprise.ps1 | iex
+#   irm https://raw.githubusercontent.com/SeatownSin/axon/main/crates/codegen/axon-pager/scripts/install-enterprise.ps1 | iex
 #
 
 param(
@@ -28,7 +28,7 @@ if (-not $Version -and $env:AXON_VERSION) {
     $Version = $env:AXON_VERSION
 }
 
-$Repo = 'SeatownSin/grok-build-local'
+$Repo = 'SeatownSin/axon'
 
 if ($PSVersionTable.Platform -and $PSVersionTable.Platform -ne 'Win32NT') {
     Write-Error "This installer is for Windows. On macOS/Linux, use the install-enterprise.sh script."

@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # Axon CLI installer
-# https://github.com/SeatownSin/grok-build-local
+# https://github.com/SeatownSin/axon
 #
 # Downloads a released `axon` binary from this fork's GitHub Releases and
 # installs it to ~/.axon/bin. Makes no calls to xAI infrastructure.
@@ -9,7 +9,7 @@
 # Env: AXON_CHANNEL (stable|alpha, default: stable), AXON_BIN_DIR
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/SeatownSin/grok-build-local/main/crates/codegen/axon-pager/scripts/install.sh | bash            # latest stable
+#   curl -fsSL https://raw.githubusercontent.com/SeatownSin/axon/main/crates/codegen/axon-pager/scripts/install.sh | bash            # latest stable
 #   ... | bash -s 0.2.0   # specific version
 #
 # Windows: run under Git for Windows / MSYS2 Bash (same curl | bash flow); WSL
@@ -24,7 +24,7 @@ if [[ -n "$TARGET" ]] && [[ ! "$TARGET" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9._
     exit 1
 fi
 
-REPO="SeatownSin/grok-build-local"
+REPO="SeatownSin/axon"
 
 DOWNLOADER=""
 if command -v curl >/dev/null 2>&1; then

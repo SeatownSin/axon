@@ -2,7 +2,7 @@
 
 A local-first, privacy-focused AI coding agent for your terminal. Fast, flicker-free TUI built for plans, subagents, and parallel work — running entirely against your local or BYOK models, with no calls to xAI infrastructure by default.
 
-**[Repository](https://github.com/SeatownSin/grok-build-local)**
+**[Repository](https://github.com/SeatownSin/axon)**
 
 > Axon is an independent fork of xAI's Apache-2.0-licensed **Grok Build**. Not affiliated with, endorsed by, or supported by xAI.
 
@@ -57,5 +57,5 @@ npm i -g @axon-official/axon@latest
 ## Documentation
 
 Full documentation lives in the repository's
-[`docs/user-guide`](https://github.com/SeatownSin/grok-build-local/tree/main/crates/codegen/axon-pager/docs/user-guide):
+[`docs/user-guide`](https://github.com/SeatownSin/axon/tree/main/crates/codegen/axon-pager/docs/user-guide):
 configuration, MCP servers, custom models, headless mode, agent mode, and more.

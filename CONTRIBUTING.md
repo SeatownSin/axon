@@ -1,6 +1,6 @@
 # Contributing
 
-**grok-build-local** is a personal, local-first fork of xAI's Grok Build (see
+**Axon** is a personal, local-first fork of xAI's Grok Build (see
 [Relationship to upstream](README.md#relationship-to-upstream)). It is **not**
 the upstream project, and it is maintained on a best-effort basis with no
 support guarantees.

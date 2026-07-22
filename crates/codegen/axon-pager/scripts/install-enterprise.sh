@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # Axon CLI installer (enterprise / managed deployment)
-# https://github.com/SeatownSin/grok-build-local
+# https://github.com/SeatownSin/axon
 #
 # Standalone installer for managed enterprise deployments. This is intentionally
 # a full copy of the install logic (not a wrapper around install.sh) so that
@@ -15,7 +15,7 @@
 # Env: AXON_BIN_DIR, AXON_DEPLOYMENT_KEY, AXON_PROXY_URL
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/SeatownSin/grok-build-local/main/crates/codegen/axon-pager/scripts/install-enterprise.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/SeatownSin/axon/main/crates/codegen/axon-pager/scripts/install-enterprise.sh | bash
 #   ... | bash -s 0.2.0   # specific version
 #
 # Windows: run under Git for Windows / MSYS2 Bash (same curl | bash flow); WSL
@@ -30,7 +30,7 @@ if [[ -n "$TARGET" ]] && [[ ! "$TARGET" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9._
     exit 1
 fi
 
-REPO="SeatownSin/grok-build-local"
+REPO="SeatownSin/axon"
 
 DOWNLOADER=""
 if command -v curl >/dev/null 2>&1; then

@@ -440,7 +440,7 @@ Browse in-TUI How-to Guides, open the online documentation, or jump to a guide b
 ```
 
 - Bare `/docs` (or `/docs how-to`) opens the How-to Guides picker
-- `/docs web` opens the online documentation (https://github.com/SeatownSin/grok-build-local) in the browser
+- `/docs web` opens the online documentation (https://github.com/SeatownSin/axon) in the browser
 - `/docs <title>` opens a specific guide (case-insensitive title match)
 
 Aliases: `/howto`, `/guides`

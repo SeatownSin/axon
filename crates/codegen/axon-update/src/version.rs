@@ -13,7 +13,7 @@ const TTL_SECONDS_BEFORE_AUTO_UPDATE: Duration = Duration::from_secs(60 * 30);
 const NPM_PACKAGE: &str = "@axon-official/axon";
 /// GitHub repo `axon update` checks and installs from. This local build
 /// tracks the user's fork, not Axon's distribution repo.
-pub const GH_RELEASE_REPO: &str = "SeatownSin/grok-build-local";
+pub const GH_RELEASE_REPO: &str = "SeatownSin/axon";
 
 /// Primary CLI base URL: Cloudflare-fronted blocked.invalid endpoint with edge caching
 /// for binaries and origin-respecting no-cache for channel pointers.

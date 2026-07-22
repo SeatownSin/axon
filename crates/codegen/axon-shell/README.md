@@ -65,8 +65,8 @@ axon agent stdio
 **Build from source** (requires a Rust toolchain). Clone the repository and run the binary crate:
 
 ```bash
-git clone https://github.com/SeatownSin/grok-build-local
-cd grok-build-local
+git clone https://github.com/SeatownSin/axon
+cd axon
 cargo run -p axon-pager-bin
 ```
 
@@ -89,7 +89,7 @@ axon --version
 ```
 
 Update to the latest version. `axon update` pulls the newest binary from the
-project's GitHub Releases (`SeatownSin/grok-build-local`):
+project's GitHub Releases (`SeatownSin/axon`):
 
 ```bash
 axon update

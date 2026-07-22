@@ -16,7 +16,7 @@ scripting and CI/CD, or integrate it into editors via the Agent Client Protocol
 ## Installation
 
 Axon is distributed through the project repository,
-[SeatownSin/grok-build-local](https://github.com/SeatownSin/grok-build-local).
+[SeatownSin/axon](https://github.com/SeatownSin/axon).
 
 Install the CLI from npm (macOS, Linux, or Windows via Git Bash or PowerShell):
 

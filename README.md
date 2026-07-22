@@ -4,7 +4,7 @@
 terminal-based AI coding agent — rebranded and modified so it makes **no
 network calls to xAI infrastructure by default** and runs entirely against
 **local or third-party (BYOK) models**. It is published as the
-[`grok-build-local`](https://github.com/SeatownSin/grok-build-local) repository.
+[`axon`](https://github.com/SeatownSin/axon) repository.
 
 > **Not affiliated with, endorsed by, or supported by xAI.** This is an
 > independent modification of xAI's Apache-2.0-licensed source. See
@@ -67,7 +67,7 @@ servers, and adds first-class support for local models. The changes:
   too (the async runtime is given a large stack, so the composed entrypoint
   doesn't overflow the small Windows main-thread stack at startup).
 - **Updates from this repo.** `axon update` pulls GitHub Releases from
-  `SeatownSin/grok-build-local`, not the x.ai CDN.
+  `SeatownSin/axon`, not the x.ai CDN.
 
 The inference request path itself is unchanged and provider-neutral (OpenAI
 Chat Completions / Responses, or Anthropic Messages) — only *where* it is
@@ -137,7 +137,7 @@ usual. Full details:
 ## Updates
 
 `axon update` checks **GitHub Releases** on this repo
-(`SeatownSin/grok-build-local`) via the `gh` CLI. Publish releases with a
+(`SeatownSin/axon`) via the `gh` CLI. Publish releases with a
 `v<version>` tag and assets named `axon-<version>-<os>-<arch>` (a `.exe` suffix
 is also accepted on Windows). Automatic on-launch update checks are removed;
 `axon update` is explicit only.

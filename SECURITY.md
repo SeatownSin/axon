@@ -1,6 +1,6 @@
 # Security Policy
 
-**grok-build-local** is a personal, local-first fork of xAI's Grok Build. It
+**Axon** is a personal, local-first fork of xAI's Grok Build. It
 carries no formal security program, bounty, or guaranteed response time —
 reports are handled on a best-effort basis and are appreciated.
 
@@ -12,7 +12,7 @@ Please do **not** open public GitHub issues for security problems.
   Windows-build modifications described in the
   [README](README.md#whats-different-from-upstream): report it privately via
   GitHub's "Report a vulnerability" on this repository
-  ([Security → Advisories](https://github.com/SeatownSin/grok-build-local/security/advisories/new)).
+  ([Security → Advisories](https://github.com/SeatownSin/axon/security/advisories/new)).
   If that feature isn't enabled, open a minimal private channel with the
   maintainer rather than a public issue.
 
