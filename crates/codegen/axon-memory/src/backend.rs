@@ -154,7 +154,7 @@ async fn build_embedding_provider(
             .ok()
             .and_then(|u| u.host_str().map(|h| h.to_ascii_lowercase()));
         if let Some(host) = host
-            && ["blocked.invalid", "blocked.invalid"]
+            && ["blocked.invalid"]
                 .iter()
                 .any(|b| host == *b || host.ends_with(&format!(".{b}")))
         {

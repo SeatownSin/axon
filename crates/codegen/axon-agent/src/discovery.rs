@@ -191,16 +191,18 @@ fn merge_subagents(
 /// Deduplicates by name — higher-priority definitions win.
 /// User-level agent directories in priority order: user axon agents, `.claude`
 /// compat agents, then bundled. `.axon` dirs resolve from `axon_home`
-/// (AXON_HOME-aware) plus the legacy literal `~/.axon` when AXON_HOME points
+/// (AXON_HOME-aware) plus the default `~/.axon` when AXON_HOME points
 /// elsewhere; `.claude` resolves from `home`.
 pub(crate) fn user_agent_dirs(
     home: Option<&Path>,
     axon_home: Option<&Path>,
 ) -> Vec<(std::path::PathBuf, AgentScope)> {
-    // Legacy literal ~/.axon, included only when it differs from axon_home
-    // (i.e. AXON_HOME points elsewhere) so agents left in the old location are
-    // still discovered and stay consistent with scope_from_path classification.
-    let legacy_axon = home
+    // The default ~/.axon, included only when it differs from axon_home (i.e.
+    // AXON_HOME points elsewhere) so agents in the default location are still
+    // discovered and stay consistent with scope_from_path classification.
+    // (Not a pre-rename path: the default and the current name are the same,
+    // so this is purely the AXON_HOME-points-elsewhere case.)
+    let default_axon = home
         .map(|h| h.join(".axon"))
         .filter(|legacy| axon_home != Some(legacy.as_path()));
 
@@ -208,7 +210,7 @@ pub(crate) fn user_agent_dirs(
     if let Some(g) = axon_home {
         dirs.push((g.join("agents"), AgentScope::User));
     }
-    if let Some(l) = &legacy_axon {
+    if let Some(l) = &default_axon {
         dirs.push((l.join("agents"), AgentScope::User));
     }
     if let Some(h) = home {
@@ -217,7 +219,7 @@ pub(crate) fn user_agent_dirs(
     if let Some(g) = axon_home {
         dirs.push((g.join("bundled").join("agents"), AgentScope::Bundled));
     }
-    if let Some(l) = &legacy_axon {
+    if let Some(l) = &default_axon {
         dirs.push((l.join("bundled").join("agents"), AgentScope::Bundled));
     }
     dirs
@@ -763,7 +765,7 @@ mod tests {
     }
 
     #[test]
-    fn user_agent_dirs_includes_legacy_axon_when_axon_home_differs() {
+    fn user_agent_dirs_includes_default_axon_when_axon_home_differs() {
         let home = Path::new("/home/u");
         let axon = Path::new("/custom/axonhome");
         let paths: Vec<_> = user_agent_dirs(Some(home), Some(axon))

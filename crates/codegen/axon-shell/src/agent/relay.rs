@@ -409,11 +409,11 @@ async fn connect_to_relay(
     tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>,
 > {
     let req = build_relay_request(config)?;
-    // This build never contacts Axon infrastructure; the stock relay lives
-    // at `code.blocked.invalid` / `blocked.invalid`. Self-hosted relays still connect.
+    // This build never contacts Axon infrastructure; the stock relay lived under
+    // `blocked.invalid`. Self-hosted relays still connect.
     if let Some(host) = req.uri().host() {
         let host = host.to_ascii_lowercase();
-        if ["blocked.invalid", "blocked.invalid"]
+        if ["blocked.invalid"]
             .iter()
             .any(|b| host == *b || host.ends_with(&format!(".{b}")))
         {

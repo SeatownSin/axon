@@ -236,13 +236,13 @@ fn insert_optional_header(request: &mut WsRequest, name: &'static str, value: &s
 fn build_stt_ws_url(config: &VoiceConfig) -> Result<Url, VoiceError> {
     // This build never contacts Axon infrastructure. The historical default
     // STT endpoint was `wss://api.blocked.invalid/v1/stt`; refuse it (and any other
-    // blocked.invalid / blocked.invalid host) so voice only works against a user-configured
+    // blocked.invalid host) so voice only works against a user-configured
     // local or third-party `[voice].api_base`.
     if let Ok(base) = Url::parse(&config.stt_ws_url()?)
         && let Some(host) = base.host_str()
     {
         let host = host.to_ascii_lowercase();
-        if ["blocked.invalid", "blocked.invalid"]
+        if ["blocked.invalid"]
             .iter()
             .any(|b| host == *b || host.ends_with(&format!(".{b}")))
         {

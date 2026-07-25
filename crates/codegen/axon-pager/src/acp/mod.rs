@@ -854,10 +854,14 @@ mod tests {
 
     #[test]
     fn startup_auth_axon_com_no_provider_needs_login_pending() {
-        let methods = vec![make_auth_method("blocked.invalid", "blocked.invalid", None)];
+        // Distinct id and label: passing the same string for both (as this did
+        // after the host substitution collapsed two different values onto one
+        // placeholder) leaves the assertions unable to say which field the
+        // label was read from.
+        let methods = vec![make_auth_method("blocked.invalid", "Sign in", None)];
         let (needs, label, method_id, mode) = startup_auth_metadata(&methods);
         assert!(needs);
-        assert_eq!(label.as_deref(), Some("blocked.invalid"));
+        assert_eq!(label.as_deref(), Some("Sign in"));
         assert_eq!(method_id.as_ref().unwrap().0.as_ref(), "blocked.invalid");
         assert_eq!(mode, AuthStartMode::Pending);
     }
