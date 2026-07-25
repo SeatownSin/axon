@@ -1,9 +1,13 @@
 # Axon
 
+[![CI](https://github.com/SeatownSin/axon/actions/workflows/ci.yml/badge.svg)](https://github.com/SeatownSin/axon/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/SeatownSin/axon?sort=semver)](https://github.com/SeatownSin/axon/releases/latest)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
+
 **Axon** is a **local-first, privacy-focused fork** of **Grok Build** — xAI's
 terminal-based AI coding agent — rebranded and modified so it makes **no
-network calls to xAI infrastructure by default** and runs entirely against
-**local or third-party (BYOK) models**. It is published as the
+network calls to xAI infrastructure** and runs entirely against **local or
+third-party (BYOK) models**. It is published as the
 [`axon`](https://github.com/SeatownSin/axon) repository.
 
 > **Not affiliated with, endorsed by, or supported by xAI.** This is an
@@ -17,6 +21,7 @@ Protocol (ACP). The build artifact is `axon-pager` and installs as the `axon`
 command; its config lives in `~/.axon`.
 
 [What's different](#whats-different-from-upstream) ·
+[Install](#install) ·
 [Building](#building-from-source) ·
 [Local models](#configuring-a-local-model) ·
 [Updates](#updates) ·
@@ -54,8 +59,8 @@ servers, and adds first-class support for local models. The changes:
   branding is shown in the UI. The bundled themes are **Axon Night** (a cerebral
   cool-slate default) and **Axon Day**. The rename runs all the way down: the
   `axon` command, the `axon-*` crates, `~/.axon`, `AXON_*` env vars, and the
-  theme names — with legacy `GROK_HOME` / `~/.grok` still honored and migrated
-  for pre-rename installs.
+  theme names. `AXON_API_KEY` and `AXON_HOME` are the only names read — there
+  are no pre-rename aliases.
 - **First-run setup wizard.** With no model configured, launch drops into a
   short wizard that scans **`localhost` and your local network** for running
   model servers — probing the ports actually in use, so it finds servers on
@@ -73,12 +78,36 @@ The inference request path itself is unchanged and provider-neutral (OpenAI
 Chat Completions / Responses, or Anthropic Messages) — only *where* it is
 allowed to connect changed.
 
-> **The one xAI-origin path that remains** is the optional plugin marketplace:
-> its official source is `github.com/xai-org/plugin-marketplace` (GitHub, not
-> `x.ai`/`grok.com`). Auto-registration of that source is **off by default**
-> (the remote-config path that could enable it is removed), so it is never
-> fetched unless you explicitly opt in and run a plugin command. Point it at
-> your own source, or don't use it, to stay fully clear of xAI-origin content.
+> **The plugin marketplace ships pointing at nobody.** Upstream hardcoded
+> `github.com/xai-org/plugin-marketplace` as the "official" source, registered
+> it into your config on first run, and cloned it when you accepted a plugin
+> suggestion. That default is gone: name your own source with
+> `[marketplace] official_source` (or `AXON_MARKETPLACE_OFFICIAL_SOURCE`) and
+> it gets that status. Unconfigured, nothing is registered and nothing is
+> fetched.
+
+## Install
+
+Prebuilt binaries are attached to every [release](https://github.com/SeatownSin/axon/releases/latest)
+for **Linux and Windows** on `x86_64` and `aarch64`. There is no prebuilt macOS
+binary (the runners are billed for this account) — macOS users
+[build from source](#building-from-source), which is fully supported.
+
+```sh
+# macOS / Linux / Git-Bash / WSL — installs to ~/.axon/bin
+curl -fsSL https://raw.githubusercontent.com/SeatownSin/axon/main/crates/codegen/axon-pager/scripts/install.sh | bash
+```
+
+```powershell
+# Windows PowerShell
+irm https://raw.githubusercontent.com/SeatownSin/axon/main/crates/codegen/axon-pager/scripts/install.ps1 | iex
+```
+
+Both scripts download from this repo's GitHub Releases and touch no xAI
+infrastructure. Pass a version to pin one (`... | bash -s 0.3.1`); set
+`AXON_BIN_DIR` to install elsewhere. Or just grab the asset for your platform
+and put it on your `PATH` — it is a single static binary named
+`axon-<version>-<os>-<arch>`.
 
 ## Building from source
 
@@ -144,14 +173,18 @@ is also accepted on Windows). Automatic on-launch update checks are removed;
 
 ## Running the tests
 
-Most of the test suite assumes a Unix layout (hard-coded `/tmp` paths in
-helpers, advisory file locking), so **~600 tests fail on Windows-native for
-harness reasons, not product bugs**. Run the suite under **WSL2 / Linux** for a
-clean signal:
+The workspace **builds** on Linux and Windows, and CI gates both. Test *runs*
+are a different story: much of the suite assumes a Unix layout (hard-coded
+`/tmp` paths in helpers, advisory file locking), so **~600 tests fail on
+Windows-native for harness reasons, not product bugs**. Run the suite under
+**WSL2 / Linux** for a clean signal:
 
 ```sh
 PROTOC=/path/to/protoc cargo test -p axon-shell --lib
 ```
+
+Working from a Windows checkout over `/mnt`? Point `CARGO_TARGET_DIR` at a
+Linux-native path — building onto the 9p mount is dramatically slower.
 
 A `.gitattributes` pins LF line endings so a Windows checkout doesn't break the
 pinned-copy template tests.
@@ -177,10 +210,26 @@ pinned-copy template tests.
 ## Development
 
 ```sh
-cargo check -p <crate>        # always target specific crates; full-workspace builds are slow
-cargo test -p axon-config # per-crate tests (see "Running the tests" re: WSL)
-cargo clippy -p <crate>       # lint config: clippy.toml at the repo root
-cargo fmt --all               # rustfmt.toml at the repo root
+cargo check -p <crate>     # always target specific crates; full-workspace builds are slow
+cargo test -p axon-config  # per-crate tests (see "Running the tests" re: WSL)
+cargo clippy -p <crate>    # lint config: clippy.toml at the repo root
+cargo fmt --all            # rustfmt.toml at the repo root
+```
+
+CI runs `fmt`, `clippy`, and `cargo check --workspace --all-targets` on Linux
+**and Windows**, with warnings promoted to errors. To see what it will see
+before you push:
+
+```sh
+RUSTFLAGS="-D warnings" cargo check --workspace --all-targets
+```
+
+`--all-targets` matters — tests, examples and benches are where
+platform-specific breakage hides, and a plain `cargo build` never compiles
+them. One-time setup so `git blame` skips the workspace-wide rustfmt commit:
+
+```sh
+git config blame.ignoreRevsFile .git-blame-ignore-revs
 ```
 
 ## Relationship to upstream
