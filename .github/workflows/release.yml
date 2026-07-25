@@ -52,6 +52,11 @@ jobs:
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
 
+      # Stays on arduino/setup-protoc (Node 20, deprecation-warned) on purpose:
+      # this matrix includes windows-11-arm, and upstream protobuf publishes no
+      # win-arm64 protoc — only win32/win64. This action installs the x64 build
+      # and lets Windows-on-ARM emulate it. taiki-e/install-action, used in
+      # ci.yml, has no aarch64_windows mapping and would fail that job.
       - name: Install protoc
         uses: arduino/setup-protoc@v3
         with:
