@@ -48,7 +48,11 @@ impl MvpAgent {
                 cfg.client_version.clone(),
             )
         };
-        let config = match crate::agent::config::resolve_aux_model_sampling_config(
+        // Same finalize as image-describe: when the title slug has no route of
+        // its own, keep the active session's model — forcing the slug onto the
+        // session endpoint 404s wherever that endpoint has never heard of it
+        // (BYOK, or any local server), and a session then never gets a title.
+        let resolved = crate::agent::config::resolve_aux_model_sampling_config(
             &slug,
             &models,
             &endpoints,
@@ -56,21 +60,13 @@ impl MvpAgent {
             disable_api_key_auth,
             alpha_test_key,
             client_version,
-        ) {
-            Some(mut cfg) => {
-                cfg.client_identifier = primary.client_identifier.clone();
-                cfg.attribution_callback = primary.attribution_callback.clone();
-                cfg.bearer_resolver = primary.bearer_resolver.clone();
-                cfg.max_retries = primary.max_retries;
-                cfg
-            }
-            None => {
-                let mut fallback = primary.clone();
-                fallback.model = slug;
-                fallback
-            }
-        };
-        let model = config.model.clone();
+        );
+        let (model, config) = crate::agent::config::finalize_aux_sampler_config(
+            resolved,
+            primary,
+            primary.client_identifier.clone(),
+            primary.max_retries,
+        );
         let client = OaiCompatClient::new(config).map_err(map_sampling_err_to_acp)?;
         Ok((client, model))
     }

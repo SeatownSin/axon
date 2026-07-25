@@ -4607,14 +4607,15 @@ pub fn resolve_aux_model_sampling_config(
     );
     None
 }
-/// Finalize image-describe model + sampler config for user attachments.
-/// Shared so the aux resolve happy path and the
+/// Finalize an auxiliary model + sampler config (image describe, session
+/// title, ...). Shared so the aux resolve happy path and the
 /// `None` fallback cannot diverge between those entry points.
 ///
 /// On aux resolve `Some`, stamp session-local fields (client id, attribution, bearer,
 /// retries) onto the helper config. On `None`, fall back to the active session model and
-/// full config (not forcing `image_description_model` onto the agent endpoint, which 404s
-/// on BYOK / non-proxy routes for internal slugs like `axon-build`).
+/// full config (not forcing the helper slug onto the agent endpoint, which 404s
+/// on BYOK / non-proxy routes for internal slugs like `axon-build` — or on a
+/// local server that has never heard of the slug at all).
 /// Stamp the session-local fields (client id, attribution, bearer resolver,
 /// retries) from the active session onto a routed aux `SamplerConfig` so a
 /// helper model keeps the session's auth/attribution. Shared by image-describe
@@ -4630,7 +4631,7 @@ pub fn stamp_session_local_sampler_fields(
     cfg.bearer_resolver = active_session_config.bearer_resolver.clone();
     cfg.max_retries = max_retries;
 }
-pub fn finalize_image_describe_sampler_config(
+pub fn finalize_aux_sampler_config(
     resolved_aux: Option<SamplerConfig>,
     active_session_config: &SamplerConfig,
     client_identifier: Option<String>,
@@ -5319,18 +5320,18 @@ reasoning_effort = "low"
         );
     }
     #[test]
-    fn finalize_image_describe_sampler_none_uses_active_session_model_not_forced_helper() {
+    fn finalize_aux_sampler_none_uses_active_session_model_not_forced_helper() {
         let active = SamplerConfig {
             model: "composer-session-model".into(),
             ..Default::default()
         };
-        let (model, cfg) = finalize_image_describe_sampler_config(None, &active, None, Some(3));
+        let (model, cfg) = finalize_aux_sampler_config(None, &active, None, Some(3));
         assert_eq!(model, "composer-session-model");
         assert_eq!(cfg.model, "composer-session-model");
         assert_ne!(cfg.model, "axon-build");
     }
     #[test]
-    fn finalize_image_describe_sampler_some_stamps_session_fields() {
+    fn finalize_aux_sampler_some_stamps_session_fields() {
         let active = SamplerConfig {
             model: "composer-session-model".into(),
             ..Default::default()
@@ -5340,7 +5341,7 @@ reasoning_effort = "low"
             ..Default::default()
         };
         let (model, cfg) =
-            finalize_image_describe_sampler_config(Some(aux), &active, Some("cli".into()), Some(7));
+            finalize_aux_sampler_config(Some(aux), &active, Some("cli".into()), Some(7));
         assert_eq!(model, "axon-build");
         assert_eq!(cfg.model, "axon-build");
         assert_eq!(cfg.client_identifier.as_deref(), Some("cli"));

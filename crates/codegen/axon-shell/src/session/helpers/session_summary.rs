@@ -53,6 +53,23 @@ fn title_source_text(user_message: &str) -> String {
     display
 }
 
+/// Recover a title from a plain-text answer, for backends that ignore
+/// `tool_choice` and reply in prose instead of calling `session_title`.
+/// Takes the first non-empty line, unwraps quoting/labelling, and applies the
+/// same 10-word cap as the user-text fallback. `None` when nothing is left.
+fn title_from_assistant_text(text: &str) -> Option<String> {
+    let line = text.lines().map(str::trim).find(|l| !l.is_empty())?;
+    let cleaned = line
+        .trim_start_matches("Session title:")
+        .trim_start_matches("session_title:")
+        .trim_start_matches("Title:")
+        .trim()
+        .trim_matches(|c| matches!(c, '"' | '\'' | '`' | '*' | '#'))
+        .trim();
+    let words: Vec<&str> = cleaned.split_whitespace().take(10).collect();
+    (!words.is_empty()).then(|| words.join(" "))
+}
+
 pub(crate) fn title_fallback_from_user_text(user_message: &str) -> String {
     let text = title_source_text(user_message);
     let s = text
@@ -113,15 +130,26 @@ Just generate the session_title and nothing else"#,
     }])
     .with_max_output_tokens(100)
     .with_temperature(1.0)
-    .with_tool_choice(ConversationToolChoice::Function("session_title".to_owned()));
+    // `Required`, not `Function("session_title")`: only one tool is offered, so
+    // the two are equivalent here, but the named form serializes as an object
+    // and several OpenAI-compatible servers (LM Studio among them) accept only
+    // the string presets — they 400 the whole request, costing every title.
+    .with_tool_choice(ConversationToolChoice::Required);
 
     match client.conversation_collect(request).await {
         Ok(response) => {
-            if let Some(a) = response.assistant()
-                && let Some(tool_call) = a.tool_calls.first()
-                && let Ok(result) = serde_json::from_str::<SessionTitle>(&tool_call.arguments)
-            {
-                return result.session_title;
+            if let Some(a) = response.assistant() {
+                if let Some(tool_call) = a.tool_calls.first()
+                    && let Ok(result) = serde_json::from_str::<SessionTitle>(&tool_call.arguments)
+                {
+                    return result.session_title;
+                }
+                // Backends that ignore `tool_choice` answer with the title as
+                // plain text; that is still a generated title, so use it rather
+                // than falling back to the truncated user message.
+                if let Some(title) = title_from_assistant_text(a.content.as_ref()) {
+                    return title;
+                }
             }
             tracing::debug!(
                 model = %model,
@@ -143,8 +171,37 @@ Just generate the session_title and nothing else"#,
 mod tests {
     use super::{
         TITLE_SOURCE_MAX_BYTES, strip_system_reminder_blocks, title_fallback_from_user_text,
-        title_source_text,
+        title_from_assistant_text, title_source_text,
     };
+
+    #[test]
+    fn assistant_text_title_unwraps_quotes_and_labels() {
+        assert_eq!(
+            title_from_assistant_text("Title: \"Fix the auth redirect loop\""),
+            Some("Fix the auth redirect loop".to_owned())
+        );
+        assert_eq!(
+            title_from_assistant_text("**Raise the read_file image budget**"),
+            Some("Raise the read_file image budget".to_owned())
+        );
+    }
+
+    #[test]
+    fn assistant_text_title_takes_first_line_and_caps_words() {
+        let out = title_from_assistant_text(
+            "\n  one two three four five six seven eight nine ten eleven\nsecond line\n",
+        );
+        assert_eq!(
+            out,
+            Some("one two three four five six seven eight nine ten".to_owned())
+        );
+    }
+
+    #[test]
+    fn assistant_text_title_none_when_blank() {
+        assert_eq!(title_from_assistant_text("   \n\t\n"), None);
+        assert_eq!(title_from_assistant_text("\"\""), None);
+    }
 
     #[test]
     fn title_source_text_caps_oversized_input() {
