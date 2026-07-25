@@ -19,8 +19,10 @@ to file a security problem publicly — which is the intent.
   [README](README.md#whats-different-from-upstream): report it privately via
   GitHub's "Report a vulnerability" on this repository
   ([Security → Advisories](https://github.com/SeatownSin/axon/security/advisories/new)).
-  If that form is unavailable to you, contact the maintainer privately through
-  their GitHub profile rather than publishing details.
+  Private reporting is enabled, so that form is the route — it opens a private
+  advisory only the maintainer can see. If you cannot use it, contact the
+  maintainer privately through their GitHub profile rather than publishing
+  details.
 
 - **A problem inherited from upstream** that also affects xAI's Grok Build
   (unmodified code): report it to xAI through their program at
