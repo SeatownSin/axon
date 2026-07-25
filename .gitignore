@@ -1,3 +1,9 @@
 /target
 **/*.rs.bk
 .DS_Store
+
+# Local agent working notes (oh-my-axon): handoffs/plans/audits are personal
+# session state, not project content.
+.axon/handoffs/
+.axon/plans/
+.axon/audits/
