@@ -91,9 +91,8 @@ where
     }
 
     // Filter for both hooks and plugins targets at debug level
-    let filter = tracing_subscriber::filter::EnvFilter::new(
-        "axon_hooks=debug,axon_agent::plugins=debug",
-    );
+    let filter =
+        tracing_subscriber::filter::EnvFilter::new("axon_hooks=debug,axon_agent::plugins=debug");
     let fmt_layer = tracing_subscriber::fmt::layer()
         .with_target(true)
         .with_ansi(false)

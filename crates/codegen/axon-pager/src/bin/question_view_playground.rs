@@ -1,6 +1,12 @@
 use std::io::{self, stdout};
 use std::time::Duration;
 
+use axon_pager::theme::Theme;
+use axon_pager::views::prompt_widget::StashedPrompt;
+use axon_pager::views::question_view::{
+    QUESTION_VIEW_HPAD, QuestionViewState, question_view_height, render_question_view,
+};
+use axon_tools::implementations::axon_build::ask_user_question::{Question, QuestionOption};
 use crossterm::ExecutableCommand;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
 use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
@@ -10,12 +16,6 @@ use ratatui::layout::{Constraint, Layout};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
-use axon_pager::theme::Theme;
-use axon_pager::views::prompt_widget::StashedPrompt;
-use axon_pager::views::question_view::{
-    QUESTION_VIEW_HPAD, QuestionViewState, question_view_height, render_question_view,
-};
-use axon_tools::implementations::axon_build::ask_user_question::{Question, QuestionOption};
 
 /// Hardcoded example question sets for UI playground scenarios.
 fn example_scenarios() -> Vec<(&'static str, Vec<Question>)> {

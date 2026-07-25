@@ -219,11 +219,11 @@ mod mcp_apps_tests {
 mod unit_tests {
     #[test]
     fn test_mcp_tool_schema_preserves_required() {
+        use axon_mcp::rmcp;
+        use axon_mcp::rmcp::model::Tool as RmcpTool;
         use serde_json::json;
         use std::borrow::Cow;
         use std::sync::Arc;
-        use axon_mcp::rmcp;
-        use axon_mcp::rmcp::model::Tool as RmcpTool;
 
         // Simulate an MCP tool schema like browser_goto would have
         let schema_json = json!({
@@ -264,11 +264,11 @@ mod unit_tests {
     ///   "tools.N.custom.input_schema.type: Field required"
     #[test]
     fn test_mcp_registration_carries_server_schema_not_schemars_derived() {
+        use axon_mcp::rmcp;
+        use axon_mcp::rmcp::model::Tool as RmcpTool;
         use serde_json::json;
         use std::borrow::Cow;
         use std::sync::Arc;
-        use axon_mcp::rmcp;
-        use axon_mcp::rmcp::model::Tool as RmcpTool;
 
         // Build an rmcp Tool with a real schema (properties, required, etc.)
         let server_schema = json!({

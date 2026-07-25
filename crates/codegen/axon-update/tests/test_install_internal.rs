@@ -18,9 +18,9 @@ use serial_test::serial;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
-use common::{reset_home, test_home};
 use axon_update::UpdateConfig;
 use axon_update::auto_update::{install_internal_from_base, install_internal_from_bases};
+use common::{reset_home, test_home};
 
 fn host_platform() -> String {
     let os = if cfg!(target_os = "macos") {

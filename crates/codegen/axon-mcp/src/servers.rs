@@ -3789,8 +3789,7 @@ impl McpClient {
         &self,
         mcp_state: Arc<Mutex<McpState>>,
     ) -> Result<Vec<McpToolRegistration>, McpError> {
-        let _ensure_init_timer =
-            axon_telemetry::instrumentation::timer("mcp_ensure_initialized");
+        let _ensure_init_timer = axon_telemetry::instrumentation::timer("mcp_ensure_initialized");
         let mcp_service = self.ensure_initialized().await?;
 
         let mut all_tools = Vec::new();
@@ -4086,24 +4085,24 @@ pub async fn start_mcp_server(
             }
             axon_tools::util::detach_command(&mut cmd);
 
-            let (transport, stderr_handle) =
-                SafeTokioChildProcess::spawn(cmd, name.clone(), event_writer.clone()).map_err(
-                    |e| {
-                        tracing::error!("Failed to spawn MCP server '{}': {}", name, e);
-                        axon_telemetry::session_ctx::log_event(
-                            axon_telemetry::events::McpServerFailed {
-                                server_name: name.clone(),
-                                error_type: axon_telemetry::events::McpErrorType::SpawnFailed,
-                                duration_ms: spawn_start.elapsed().as_millis() as u64,
-                                timeout_sec: startup_timeout,
-                            },
-                        );
-                        McpError::SpawnFailed {
-                            server: name.clone(),
-                            source: e,
-                        }
-                    },
-                )?;
+            let (transport, stderr_handle) = SafeTokioChildProcess::spawn(
+                cmd,
+                name.clone(),
+                event_writer.clone(),
+            )
+            .map_err(|e| {
+                tracing::error!("Failed to spawn MCP server '{}': {}", name, e);
+                axon_telemetry::session_ctx::log_event(axon_telemetry::events::McpServerFailed {
+                    server_name: name.clone(),
+                    error_type: axon_telemetry::events::McpErrorType::SpawnFailed,
+                    duration_ms: spawn_start.elapsed().as_millis() as u64,
+                    timeout_sec: startup_timeout,
+                });
+                McpError::SpawnFailed {
+                    server: name.clone(),
+                    source: e,
+                }
+            })?;
 
             tracing::debug!("MCP server '{}' spawned: PID={:?}", name, transport.id());
 

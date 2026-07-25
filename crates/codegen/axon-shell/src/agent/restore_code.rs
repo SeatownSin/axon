@@ -1,10 +1,8 @@
 //! Thin wire-format adapter that wraps the shared
 //! [`axon_workspace::session::git::build_restore_decision`] helper
 //! into the JSON shape emitted by `LoadSession` on `_meta.codeRestore`.
+use axon_workspace::session::git::{CheckoutSessionOutcome, RestoreKind, build_restore_decision};
 use serde_json::Value;
-use axon_workspace::session::git::{
-    CheckoutSessionOutcome, RestoreKind, build_restore_decision,
-};
 /// Build the `codeRestore` JSON meta, or `None` when no restore should
 /// be reported (no checkout AND no archive applied). The shared
 /// [`build_restore_decision`] is the source of truth; this function

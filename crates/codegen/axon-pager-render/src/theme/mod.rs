@@ -10,10 +10,10 @@
 //! capability level via [`Theme::quantized`]. Runtime-generated colors (syntax
 //! highlighting, blending) are also quantized via [`color_support::quantize`].
 
-pub mod cache;
-pub mod color_support;
 mod axonday;
 mod axonnight;
+pub mod cache;
+pub mod color_support;
 pub mod md_style;
 pub mod osc11;
 mod oscura;

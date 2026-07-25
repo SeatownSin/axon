@@ -5,11 +5,11 @@
 
 use super::support::*;
 use super::*;
+use axon_tools::implementations::axon_build::task::types::{SubagentEvent, SubagentResult};
 use serial_test::serial;
 use std::sync::Arc as StdArc;
 use std::sync::atomic::{AtomicUsize, Ordering as SeqOrd};
 use tempfile::TempDir;
-use axon_tools::implementations::axon_build::task::types::{SubagentEvent, SubagentResult};
 
 /// Spawn behaviour knobs for the planner-coordinator stub.
 enum SpawnBehaviour {

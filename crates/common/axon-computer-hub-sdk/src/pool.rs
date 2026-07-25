@@ -9,11 +9,11 @@
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use axon_tool_protocol::ConnectionKind;
 use dashmap::DashMap;
 use tokio::sync::OnceCell;
 use tokio::task::JoinHandle;
 use url::Url;
-use axon_tool_protocol::ConnectionKind;
 
 use crate::auth::AuthProvider;
 use crate::connection::{

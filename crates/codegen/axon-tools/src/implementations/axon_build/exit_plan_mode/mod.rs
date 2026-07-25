@@ -208,7 +208,10 @@ mod tests {
     #[test]
     fn tool_name_and_description() {
         let tool = ExitPlanModeTool;
-        assert_eq!(axon_tool_runtime::Tool::id(&tool).as_str(), "exit_plan_mode");
+        assert_eq!(
+            axon_tool_runtime::Tool::id(&tool).as_str(),
+            "exit_plan_mode"
+        );
         let desc = crate::types::tool_metadata::ToolMetadata::description_template(&tool);
         assert!(desc.contains("Exit plan mode"));
         assert!(desc.contains("plan file"));

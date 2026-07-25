@@ -1,6 +1,6 @@
 use agent_client_protocol as acp;
-use serde::{Deserialize, Serialize};
 use axon_acp_lib::AcpAgentGatewaySender as GatewaySender;
+use serde::{Deserialize, Serialize};
 
 // Re-export from workspace crate (canonical home for fuzzy search).
 pub use axon_workspace::file_system::{ClientId, TargetClientId};

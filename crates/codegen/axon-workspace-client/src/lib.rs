@@ -15,11 +15,8 @@
 //! No deadline is imposed by default ([`WorkspaceClient::with_deadline`]
 //! opts in), preserving `WorkspaceOps::rpc_raw` semantics where callers
 //! own their timeouts.
-use serde_json::Value;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Duration;
 use axon_computer_hub_sdk::harness::ToolHarness;
+use axon_tool_runtime::{ToolCallContext, ToolStreamItem, TypedToolOutput};
 use axon_workspace_types::rpc::agents_md::{AgentConfigFile, DiscoverAgentsMdReq};
 use axon_workspace_types::rpc::code_nav::{
     CodeFindDefinitionsReq, CodeFindReferencesReq, CodeGotoDefinitionReq, CodeGotoReferencesReq,
@@ -60,7 +57,10 @@ use axon_workspace_types::rpc::worktree::{
     WorktreeGcReq, WorktreeListReq, WorktreeShowReq,
 };
 use axon_workspace_types::rpc::{RpcEnvelope, RpcError, WORKSPACE_RPC_TOOL_ID, WorkspaceRpc};
-use axon_tool_runtime::{ToolCallContext, ToolStreamItem, TypedToolOutput};
+use serde_json::Value;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Duration;
 #[derive(Debug, thiserror::Error)]
 pub enum WorkspaceClientError {
     /// A previous call observed a fatal transport error and no
@@ -554,13 +554,13 @@ impl WorkspaceClient {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use schemars::JsonSchema;
-    use serde::Deserialize;
     use axon_computer_hub_sdk::harness::LocalRegistry;
-    use axon_workspace_types::rpc::skills::SkillScope;
     use axon_tool_protocol::{SessionId, ToolId};
     use axon_tool_runtime::{Tool, ToolError};
     use axon_tool_types::ToolDescription;
+    use axon_workspace_types::rpc::skills::SkillScope;
+    use schemars::JsonSchema;
+    use serde::Deserialize;
     #[derive(Debug, Deserialize, JsonSchema)]
     struct RpcArgs {
         method: String,

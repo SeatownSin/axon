@@ -18,9 +18,9 @@
 //! cargo test -p axon-shell --test test_agent_type_invariant -- --ignored
 //! ```
 use agent_client_protocol::Agent as _;
+use axon_test_support::*;
 use std::future::Future;
 use std::time::Duration;
-use axon_test_support::*;
 async fn with_local_set<F, Fut>(f: F)
 where
     F: FnOnce() -> Fut,

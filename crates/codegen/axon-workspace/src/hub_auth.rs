@@ -10,10 +10,10 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use url::Url;
 use axon_computer_hub_sdk::{
     AuthCredential, AuthIdentity, AuthProvider, OidcAuthProviderBuilder, RefreshEvent,
 };
+use url::Url;
 
 /// Plain bearer provider that also carries the owner identity parsed from the
 /// same auth.json entry. Used for the loopback / local-dev path (no OIDC

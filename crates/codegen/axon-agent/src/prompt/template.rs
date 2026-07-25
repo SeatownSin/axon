@@ -58,9 +58,9 @@ pub const COMPACT_SYSTEM_PROMPT: &str = "You are an AI coding agent. You operate
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::HashMap;
     use axon_tools::types::template_renderer::TemplateRenderer;
     use axon_tools::types::tool::ToolKind;
+    use std::collections::HashMap;
 
     /// Verify the pre-generated encrypted file matches the current template sources.
     /// If this fails, run: `python3 scripts/encrypt_templates.py`

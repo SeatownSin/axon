@@ -45,8 +45,7 @@ async fn main() -> anyhow::Result<()> {
     if args.mic_only {
         #[cfg(feature = "audio")]
         {
-            let (bytes, chunks) =
-                axon_voice::run_mic_only_probe(config.sample_rate, args.seconds)?;
+            let (bytes, chunks) = axon_voice::run_mic_only_probe(config.sample_rate, args.seconds)?;
             println!("Mic-only OK: {bytes} bytes in {chunks} chunks");
             if bytes == 0 {
                 println!("WARNING: no audio — grant mic access to the terminal");

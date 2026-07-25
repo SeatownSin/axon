@@ -578,10 +578,10 @@ pub fn sync_pending_marks(app: &mut AppView) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ratatui::style::Color;
     use axon_pager::scrollback::block::RenderBlock;
     use axon_pager::scrollback::entry::ScrollbackEntry;
     use axon_pager::scrollback::state::ScrollbackState;
+    use ratatui::style::Color;
 
     fn test_cwd() -> &'static std::path::Path {
         std::path::Path::new("/test/session")
@@ -888,10 +888,7 @@ mod tests {
     fn btw_block_emits_once_across_repeated_frontier_passes() {
         let mut s = ScrollbackState::new();
         s.push(ScrollbackEntry::new(RenderBlock::Btw(
-            axon_pager::scrollback::blocks::BtwBlock::new(
-                "original question",
-                "original answer",
-            ),
+            axon_pager::scrollback::blocks::BtwBlock::new("original question", "original answer"),
         )));
 
         let mut emitted = Vec::new();
@@ -1107,8 +1104,8 @@ mod tests {
     /// syntect RGB.
     #[test]
     fn terminal_native_lock_paints_only_native_colors() {
-        use ratatui::buffer::Buffer;
         use axon_pager::theme::cache as theme_cache;
+        use ratatui::buffer::Buffer;
 
         let _guard = theme_cache::test_lock()
             .lock()
@@ -1271,10 +1268,10 @@ mod tests {
 
     #[test]
     fn committed_edit_keeps_diff_line_backgrounds() {
+        use axon_pager::diff::DiffLine;
         use ratatui::buffer::Buffer;
         use ratatui::layout::Rect;
         use similar::ChangeTag;
-        use axon_pager::diff::DiffLine;
 
         let hunk = vec![
             DiffLine {

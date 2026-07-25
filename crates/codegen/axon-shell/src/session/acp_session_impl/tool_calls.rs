@@ -568,8 +568,7 @@ impl SessionActor {
                         )
                         .await;
                     deferred_followups.extend(err_followups);
-                    if self
-                        .hook_event_active(axon_hooks::event::HookEventName::PostToolUseFailure)
+                    if self.hook_event_active(axon_hooks::event::HookEventName::PostToolUseFailure)
                     {
                         let raw_input: serde_json::Value =
                             serde_json::from_str(&prepared.raw_arguments)
@@ -677,15 +676,13 @@ impl SessionActor {
             } else {
                 (None, None)
             };
-            axon_telemetry::session_ctx::log_event(
-                axon_telemetry::events::ToolCallCompleted {
-                    tool_name: prepared.tool_name.clone(),
-                    outcome: tool_outcome,
-                    duration_ms,
-                    file_path: ext_file_path,
-                    parameters: ext_parameters,
-                },
-            );
+            axon_telemetry::session_ctx::log_event(axon_telemetry::events::ToolCallCompleted {
+                tool_name: prepared.tool_name.clone(),
+                outcome: tool_outcome,
+                duration_ms,
+                file_path: ext_file_path,
+                parameters: ext_parameters,
+            });
             tracing::info_span!(
                 "tool.execution", tool_name = % prepared.tool_name, tool_use_id = %
                 prepared.call_id, tool_input_size_bytes = prepared.raw_arguments.len() as
@@ -934,8 +931,7 @@ impl SessionActor {
             if let Some(registry) = hook_registry_snapshot {
                 let ctx = self.hook_run_ctx();
                 let pre_result =
-                    axon_hooks::dispatcher::dispatch_pre_tool_use(&registry, &envelope, &ctx)
-                        .await;
+                    axon_hooks::dispatcher::dispatch_pre_tool_use(&registry, &envelope, &ctx).await;
                 self.send_hook_execution(
                     "pre_tool_use",
                     Some(&resolved_tool_name),
@@ -1034,15 +1030,13 @@ impl SessionActor {
             } else {
                 axon_telemetry::enums::PermissionMode::Ask
             };
-            axon_telemetry::session_ctx::log_event(
-                axon_telemetry::events::PermissionPrompted {
-                    tool_name: call.function.name.clone(),
-                    access_kind: telemetry_access_kind,
-                    permission_mode: perm_mode,
-                    subagent_session_id: subagent_session_id.clone(),
-                    subagent_type: None,
-                },
-            );
+            axon_telemetry::session_ctx::log_event(axon_telemetry::events::PermissionPrompted {
+                tool_name: call.function.name.clone(),
+                access_kind: telemetry_access_kind,
+                permission_mode: perm_mode,
+                subagent_session_id: subagent_session_id.clone(),
+                subagent_type: None,
+            });
             let perm_start = self.events.permission_requested(&call.function.name);
             debug_assert!(
                 !self.session_info.id.0.is_empty(),
@@ -1120,14 +1114,10 @@ impl SessionActor {
                     axon_telemetry::events::PermissionOutcome::Deny,
                     Some(reason.to_string()),
                 ),
-                Decision::Cancelled => (
-                    axon_telemetry::events::PermissionOutcome::Cancelled,
-                    None,
-                ),
-                Decision::FollowupMessage(_) => (
-                    axon_telemetry::events::PermissionOutcome::Followup,
-                    None,
-                ),
+                Decision::Cancelled => (axon_telemetry::events::PermissionOutcome::Cancelled, None),
+                Decision::FollowupMessage(_) => {
+                    (axon_telemetry::events::PermissionOutcome::Followup, None)
+                }
             };
             tracing::info_span!(
                 "tool.decision", tool_name = % call.function.name, tool_use_id = % call
@@ -1602,12 +1592,9 @@ impl SessionActor {
             ToolInput::ReadFile(read_file) => (
                 format!("Read `{}`", read_file.path.clone()),
                 acp::ToolKind::Read,
-                vec![
-                    acp::ToolCallLocation::new(read_file.path).line(
-                        axon_tools::normalization::norm_offset_i64(read_file.offset)
-                            .map(|l| l as u32),
-                    ),
-                ],
+                vec![acp::ToolCallLocation::new(read_file.path).line(
+                    axon_tools::normalization::norm_offset_i64(read_file.offset).map(|l| l as u32),
+                )],
                 Vec::new(),
             ),
             ToolInput::TodoWrite(_) => (
@@ -1685,12 +1672,10 @@ impl SessionActor {
                 vec![],
             ),
             ToolInput::Skill(skill) => {
-                axon_telemetry::session_ctx::log_event(
-                    axon_telemetry::events::SkillDispatched {
-                        skill_name: skill.skill.clone(),
-                        plugin_source: None,
-                    },
-                );
+                axon_telemetry::session_ctx::log_event(axon_telemetry::events::SkillDispatched {
+                    skill_name: skill.skill.clone(),
+                    plugin_source: None,
+                });
                 tracing::info_span!(
                     "skill.activated", skill_name = % skill.skill, invocation_trigger =
                     "skill_tool",
@@ -1998,9 +1983,7 @@ impl SessionActor {
                 }
                 if ops.pr_merged {
                     self.signals_handle().record_pr_merged();
-                    axon_telemetry::session_ctx::log_event(
-                        axon_telemetry::events::PrMerged {},
-                    );
+                    axon_telemetry::session_ctx::log_event(axon_telemetry::events::PrMerged {});
                 }
             }
             axon_tools::types::output::ToolOutput::MCP(m)
@@ -2936,8 +2919,8 @@ mod wait_interrupt_tests {
         BlockingWaitGuard, interrupted_wait_tool_result, is_interruptible_wait_tool,
         wait_for_pending_interjection,
     };
-    use axon_tools::types::output::ToolOutput;
     use axon_tool_types::TaskOutputOutput;
+    use axon_tools::types::output::ToolOutput;
     /// The interruptible-wait select arms: a pending interjection aborts an
     /// in-flight wait, and `biased` prefers an already-completed wait result
     /// over the abort. (Unit-level: the full dispatch loop has no test seam.)

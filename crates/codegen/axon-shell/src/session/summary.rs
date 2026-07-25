@@ -11,8 +11,8 @@ use crate::session::helpers::session_summary::generate_session_summary;
 use crate::session::info::Info;
 use crate::session::persistence::PersistenceMsg;
 use agent_client_protocol as acp;
-use tokio::sync::mpsc;
 use axon_acp_lib::AcpAgentGatewaySender as GatewaySender;
+use tokio::sync::mpsc;
 
 /// Internal state for the summary generation lifecycle.
 enum State {

@@ -613,8 +613,8 @@ mod factory_tests {
     use super::*;
     use crate::index::{MemoryIndex, init_sqlite_vec};
     use crate::storage::MemoryStorage;
-    use tempfile::TempDir;
     use axon_config_types::{MemoryEmbeddingConfig, MemorySearchConfig};
+    use tempfile::TempDir;
 
     fn make_storage(tmp: &TempDir) -> MemoryStorage {
         let global = tmp.path().join("memory");
@@ -1192,8 +1192,8 @@ mod factory_tests {
     /// never sync. Prevents memory_search 401s on rotated tokens.
     #[tokio::test]
     async fn make_embedding_provider_uses_async_api_key_resolution() {
-        use std::sync::atomic::{AtomicU32, Ordering};
         use axon_tools::types::ApiKeyProvider;
+        use std::sync::atomic::{AtomicU32, Ordering};
 
         struct AsyncProbe {
             sync_calls: Arc<AtomicU32>,
@@ -1266,8 +1266,8 @@ mod factory_tests {
 mod tests {
     use super::*;
     use crate::index::{MemoryIndex, init_sqlite_vec};
-    use tempfile::TempDir;
     use axon_config_types::MemoryIndexConfig;
+    use tempfile::TempDir;
 
     /// An api-key provider that fails the test if its key is ever resolved,
     /// proving a scoped-away credential is never consulted.
@@ -1386,12 +1386,8 @@ mod tests {
         // former `api.blocked.invalid` fixture would be refused — see the dedicated
         // test below).
         let endpoint = "https://embeddings.example.com/v1";
-        let scoped = EndpointScopedCredentials::for_endpoint(
-            endpoint,
-            |_| true,
-            Some(auth),
-            Some(api_key),
-        );
+        let scoped =
+            EndpointScopedCredentials::for_endpoint(endpoint, |_| true, Some(auth), Some(api_key));
         assert!(!scoped.is_empty(), "trusted endpoint keeps the credential");
 
         let config = axon_config_types::MemoryEmbeddingConfig {
@@ -1421,11 +1417,21 @@ mod tests {
             model: Some("test-embedding-model".to_string()),
             ..Default::default()
         };
-        for endpoint in ["https://api.blocked.invalid/v1", "https://cli-chat-proxy.blocked.invalid/v1"] {
-            let scoped =
-                EndpointScopedCredentials::for_endpoint(endpoint, |_| true, None, Some(api_key.clone()));
+        for endpoint in [
+            "https://api.blocked.invalid/v1",
+            "https://cli-chat-proxy.blocked.invalid/v1",
+        ] {
+            let scoped = EndpointScopedCredentials::for_endpoint(
+                endpoint,
+                |_| true,
+                None,
+                Some(api_key.clone()),
+            );
             let provider = build_embedding_provider(Some(&config), &scoped, None, endpoint).await;
-            assert!(provider.is_none(), "Axon endpoint {endpoint} must be refused");
+            assert!(
+                provider.is_none(),
+                "Axon endpoint {endpoint} must be refused"
+            );
         }
     }
 

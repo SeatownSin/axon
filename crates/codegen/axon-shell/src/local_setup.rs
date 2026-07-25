@@ -191,7 +191,11 @@ async fn scan_lan(client: &reqwest::Client) -> Vec<LocalModelServer> {
 
     let targets: Vec<(Ipv4Addr, &'static str, u16)> = hosts
         .iter()
-        .flat_map(|&host| PROBE_PORTS.iter().map(move |&(label, port)| (host, label, port)))
+        .flat_map(|&host| {
+            PROBE_PORTS
+                .iter()
+                .map(move |&(label, port)| (host, label, port))
+        })
         .collect();
 
     futures::stream::iter(targets)
@@ -221,7 +225,12 @@ async fn tcp_open(host: Ipv4Addr, port: u16, timeout: Duration) -> bool {
 /// The machine's own private (RFC1918) IPv4 addresses, one per interface.
 fn local_private_v4_ips() -> Vec<Ipv4Addr> {
     if_addrs::get_if_addrs()
-        .map(|ifaces| ifaces.iter().filter_map(|i| scannable_private_v4(i.ip())).collect())
+        .map(|ifaces| {
+            ifaces
+                .iter()
+                .filter_map(|i| scannable_private_v4(i.ip()))
+                .collect()
+        })
         .unwrap_or_default()
 }
 
@@ -230,9 +239,7 @@ fn local_private_v4_ips() -> Vec<Ipv4Addr> {
 /// sweep never reaches beyond the local wire, and never a routable range.
 fn scannable_private_v4(ip: std::net::IpAddr) -> Option<Ipv4Addr> {
     match ip {
-        std::net::IpAddr::V4(v4)
-            if v4.is_private() && !v4.is_loopback() && !v4.is_link_local() =>
-        {
+        std::net::IpAddr::V4(v4) if v4.is_private() && !v4.is_loopback() && !v4.is_link_local() => {
             Some(v4)
         }
         _ => None,
@@ -328,7 +335,10 @@ pub fn write_local_model_config(
     }
     let existing = crate::util::config::read_to_string_or_empty(config_path)?;
     let mut doc = existing.parse::<toml_edit::DocumentMut>().map_err(|e| {
-        std::io::Error::new(std::io::ErrorKind::InvalidData, format!("invalid TOML: {e}"))
+        std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            format!("invalid TOML: {e}"),
+        )
     })?;
 
     let model_tbl = doc
@@ -396,7 +406,11 @@ mod tests {
             .create_async()
             .await;
         let client = crate::http::shared_client();
-        assert!(probe_endpoint(&client, "Mock", &server.url()).await.is_none());
+        assert!(
+            probe_endpoint(&client, "Mock", &server.url())
+                .await
+                .is_none()
+        );
     }
 
     #[test]
@@ -457,7 +471,11 @@ mod tests {
 
         // Re-parse through the real config loader to prove it round-trips.
         let toml: toml::Value = toml::from_str(&written).unwrap();
-        assert!(toml.get("model").and_then(|m| m.get("local-llama")).is_some());
+        assert!(
+            toml.get("model")
+                .and_then(|m| m.get("local-llama"))
+                .is_some()
+        );
     }
 
     #[test]
@@ -478,8 +496,14 @@ mod tests {
     fn write_reparses_via_model_override_parser() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("config.toml");
-        write_local_model_config(&path, "local", "http://127.0.0.1:1234/v1", "some-model", false)
-            .unwrap();
+        write_local_model_config(
+            &path,
+            "local",
+            "http://127.0.0.1:1234/v1",
+            "some-model",
+            false,
+        )
+        .unwrap();
         let raw = std::fs::read_to_string(&path).unwrap();
         let cfg = crate::agent::config::Config::new_from_toml_cfg(&toml::from_str(&raw).unwrap())
             .expect("written config must parse");
@@ -509,7 +533,10 @@ mod tests {
     #[test]
     fn candidate_hosts_dedupes_subnet_excludes_self_and_caps() {
         // Two addresses on the same /24 → 254 hosts minus the two own = 252.
-        let same = [Ipv4Addr::new(192, 168, 1, 50), Ipv4Addr::new(192, 168, 1, 77)];
+        let same = [
+            Ipv4Addr::new(192, 168, 1, 50),
+            Ipv4Addr::new(192, 168, 1, 77),
+        ];
         let hosts = candidate_hosts(&same, MAX_LAN_PROBES);
         assert_eq!(hosts.len(), 252);
         assert!(!hosts.contains(&Ipv4Addr::new(192, 168, 1, 50)));
@@ -563,7 +590,9 @@ mod tests {
         assert!(is_local_reachable(IpAddr::V6(Ipv6Addr::LOCALHOST)));
         assert!(is_local_reachable(IpAddr::V6(Ipv6Addr::UNSPECIFIED)));
         // A LAN or public bind is not localhost-reachable.
-        assert!(!is_local_reachable(IpAddr::V4(Ipv4Addr::new(192, 168, 1, 5))));
+        assert!(!is_local_reachable(IpAddr::V4(Ipv4Addr::new(
+            192, 168, 1, 5
+        ))));
         assert!(!is_local_reachable(IpAddr::V4(Ipv4Addr::new(8, 8, 8, 8))));
     }
 }

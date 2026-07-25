@@ -3,8 +3,8 @@
 use std::num::NonZeroU64;
 use std::time::Duration;
 
-use tokio::sync::mpsc;
 use axon_sampling_types::{ConversationItem, SamplingConfig};
+use tokio::sync::mpsc;
 
 use crate::actor::ChatStateActor;
 use crate::events::ChatStateEvent;
@@ -1465,30 +1465,29 @@ async fn parallel_tool_calls_accept_first_reject_second_skip_third() {
     // The model's single assistant message contains all 3 tool calls.
     // In the real code, this is built from the streaming response and pushed
     // via `push_assistant_response`.
-    let assistant_with_tools =
-        ConversationItem::Assistant(axon_sampling_types::AssistantItem {
-            content: "I'll read the file, fix it, and run tests.".into(),
-            tool_calls: vec![
-                ToolCall {
-                    id: "call_1".into(),
-                    name: "read_file".to_string(),
-                    arguments: r#"{"target_file":"src/main.rs"}"#.into(),
-                },
-                ToolCall {
-                    id: "call_2".into(),
-                    name: "edit_file".to_string(),
-                    arguments: r#"{"target_file":"src/main.rs","new_string":"fixed"}"#.into(),
-                },
-                ToolCall {
-                    id: "call_3".into(),
-                    name: "run_terminal_cmd".to_string(),
-                    arguments: r#"{"command":"cargo test"}"#.into(),
-                },
-            ],
-            model_id: Some("axon-3".to_string()),
-            model_fingerprint: None,
-            reasoning_effort: None,
-        });
+    let assistant_with_tools = ConversationItem::Assistant(axon_sampling_types::AssistantItem {
+        content: "I'll read the file, fix it, and run tests.".into(),
+        tool_calls: vec![
+            ToolCall {
+                id: "call_1".into(),
+                name: "read_file".to_string(),
+                arguments: r#"{"target_file":"src/main.rs"}"#.into(),
+            },
+            ToolCall {
+                id: "call_2".into(),
+                name: "edit_file".to_string(),
+                arguments: r#"{"target_file":"src/main.rs","new_string":"fixed"}"#.into(),
+            },
+            ToolCall {
+                id: "call_3".into(),
+                name: "run_terminal_cmd".to_string(),
+                arguments: r#"{"command":"cargo test"}"#.into(),
+            },
+        ],
+        model_id: Some("axon-3".to_string()),
+        model_fingerprint: None,
+        reasoning_effort: None,
+    });
     h.handle.push_assistant_response(assistant_with_tools);
 
     // ── Tool execution results (simulating execute_tool_calls) ──────────
@@ -3656,9 +3655,7 @@ async fn context_window_downgrade_triggers_auto_compact() {
 /// produced by the From impl is directly the wire shape (modulo
 /// `patch_reasoning_text_types` which only stamps a `type` field on nested
 /// reasoning content blocks and does not reorder items).
-fn serialize_via_public_api(
-    req: &axon_sampling_types::ConversationRequest,
-) -> serde_json::Value {
+fn serialize_via_public_api(req: &axon_sampling_types::ConversationRequest) -> serde_json::Value {
     use axon_sampling_types::rs;
     let create_response: rs::CreateResponse = req.into();
     let mut body = serde_json::to_value(&create_response).unwrap();

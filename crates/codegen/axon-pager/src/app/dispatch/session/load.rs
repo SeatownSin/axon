@@ -314,8 +314,7 @@ pub(in crate::app::dispatch) fn dispatch_pick_session(
     if axon_shell::session::resolve_local_session(&session_id, &local_cwd).is_some() {
         return dispatch_load_session(app, session_id, None, false);
     }
-    if let Some(original_cwd) = axon_shell::session::resolve_local_session_any_cwd(&session_id)
-    {
+    if let Some(original_cwd) = axon_shell::session::resolve_local_session_any_cwd(&session_id) {
         return dispatch_load_session(
             app,
             session_id,
@@ -748,8 +747,7 @@ pub(in crate::app::dispatch) fn dispatch_pick_content_session(
     if axon_shell::session::resolve_local_session(&session_id, &local_cwd).is_some() {
         return dispatch_load_session(app, session_id, None, false);
     }
-    if let Some(original_cwd) = axon_shell::session::resolve_local_session_any_cwd(&session_id)
-    {
+    if let Some(original_cwd) = axon_shell::session::resolve_local_session_any_cwd(&session_id) {
         return dispatch_load_session(
             app,
             session_id,

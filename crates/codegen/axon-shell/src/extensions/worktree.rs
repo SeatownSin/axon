@@ -403,10 +403,7 @@ pub async fn handle(
         }
         "axon/git/worktree/db/stats" => {
             let result = ops
-                .dispatch(
-                    &axon_workspace::workspace_ops::WorktreeDbStatsReq {},
-                    None,
-                )
+                .dispatch(&axon_workspace::workspace_ops::WorktreeDbStatsReq {}, None)
                 .await
                 .map_err(|e| acp::Error::internal_error().data(e.to_string()))?;
             to_response(Ok(result))
@@ -423,10 +420,7 @@ pub async fn handle(
         }
         "axon/git/worktree/db/path" => {
             let result = ops
-                .dispatch(
-                    &axon_workspace::workspace_ops::WorktreeDbPathReq {},
-                    None,
-                )
+                .dispatch(&axon_workspace::workspace_ops::WorktreeDbPathReq {}, None)
                 .await
                 .map_err(|e| acp::Error::internal_error().data(e.to_string()))?;
             to_response(Ok(result))

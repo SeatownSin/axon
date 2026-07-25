@@ -14,7 +14,6 @@ use std::sync::Once;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::Duration;
 
-use chrono::{Duration as ChronoDuration, Utc};
 use axon_shell::auth::{AuthManager, AuthMode, AxonAuth, AxonComConfig};
 use axon_shell::heap_profile::{
     self, HeapProfileHooks, HeapProfileMonitor, HeapProfileUploadHandles,
@@ -25,6 +24,7 @@ use axon_shell::session::repo_changes::UploadMethod;
 use axon_shell::util::config::RemoteSettings;
 use axon_test_support::{EnvGuard, MockInferenceServer};
 use axon_version::TEST_VERSION_ENV;
+use chrono::{Duration as ChronoDuration, Utc};
 
 const SID: &str = "11111111-1111-4111-8111-111111111111";
 const TEST_VERSION: &str = "9.9.9-heaptest";

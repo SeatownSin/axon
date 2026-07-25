@@ -516,9 +516,9 @@ fn measure_entries(entries: &[PickerEntry<'_>]) -> u16 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ratatui::layout::Rect;
     use axon_pager::views::extensions_modal::ExtensionsModalState;
     use axon_pager::views::mcps_modal::{McpServerDisplayStatus, McpServerInfo, McpWireSource};
+    use ratatui::layout::Rect;
 
     fn agent() -> AgentView {
         minimal_api::test_agent_view(Some("s1"), std::path::PathBuf::from("/tmp/repo"))

@@ -26,8 +26,8 @@ use tokio::time::Instant;
 use super::search_fts::{SessionDoc, SessionSearchIndex, SessionSearchRow};
 use super::search_remote_sync;
 use super::{
-    ContentPeek, PromptExtractEvent, RawLinePeek, RawParamsPeek, StorageAdapter,
-    AXON_SESSION_UPDATE_METHOD, collect_prompts_from_events,
+    AXON_SESSION_UPDATE_METHOD, ContentPeek, PromptExtractEvent, RawLinePeek, RawParamsPeek,
+    StorageAdapter, collect_prompts_from_events,
 };
 use crate::session::info::Info;
 use crate::session::persistence::Summary;
@@ -918,14 +918,14 @@ fn collect_all_indexable_content_single_pass(updates_path: &Path) -> io::Result<
         }
 
         // Step 1: Peek at envelope to get method + raw params
-        let (raw_params, is_axon) = if let Ok(env) = serde_json::from_str::<RawLinePeek<'_>>(trimmed)
-        {
-            let raw = env.params.map(|p| p.get()).unwrap_or(trimmed);
-            let axon = env.method == Some(AXON_SESSION_UPDATE_METHOD);
-            (raw, axon)
-        } else {
-            (trimmed, false)
-        };
+        let (raw_params, is_axon) =
+            if let Ok(env) = serde_json::from_str::<RawLinePeek<'_>>(trimmed) {
+                let raw = env.params.map(|p| p.get()).unwrap_or(trimmed);
+                let axon = env.method == Some(AXON_SESSION_UPDATE_METHOD);
+                (raw, axon)
+            } else {
+                (trimmed, false)
+            };
 
         // Step 2: Peek at the sessionUpdate discriminant tag.
         // Preserve the full RawUpdatePeek so rewind_marker can read
@@ -1173,14 +1173,14 @@ fn collect_delta_content(updates_path: &Path, offset: u64) -> io::Result<DeltaRe
             continue;
         }
 
-        let (raw_params, is_axon) = if let Ok(env) = serde_json::from_str::<RawLinePeek<'_>>(trimmed)
-        {
-            let raw = env.params.map(|p| p.get()).unwrap_or(trimmed);
-            let axon = env.method == Some(AXON_SESSION_UPDATE_METHOD);
-            (raw, axon)
-        } else {
-            (trimmed, false)
-        };
+        let (raw_params, is_axon) =
+            if let Ok(env) = serde_json::from_str::<RawLinePeek<'_>>(trimmed) {
+                let raw = env.params.map(|p| p.get()).unwrap_or(trimmed);
+                let axon = env.method == Some(AXON_SESSION_UPDATE_METHOD);
+                (raw, axon)
+            } else {
+                (trimmed, false)
+            };
 
         let tag = serde_json::from_str::<RawParamsPeek<'_>>(raw_params)
             .ok()

@@ -1222,8 +1222,8 @@ mod tests {
     #[tokio::test]
     async fn test_shutdown_with_upload_queue_drains() {
         use crate::session::repo_changes::{TraceExportConfig, UploadMethod};
-        use std::sync::Arc;
         use axon_file_utils::queue::{TraceExportSource, UploadQueue, UploadRetryPolicy};
+        use std::sync::Arc;
 
         // Create a mock resolver for the queue
         struct MockResolver;

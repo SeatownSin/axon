@@ -376,8 +376,7 @@ fn purge_keeps_marker_when_an_artifact_removal_fails() {
 
     remove_managed_config_files(home);
     assert!(
-        home.join(axon_config::MANAGED_CONFIG_CACHE_FILE)
-            .exists(),
+        home.join(axon_config::MANAGED_CONFIG_CACHE_FILE).exists(),
         "a failed artifact removal must keep the marker (detector stays armed)"
     );
 
@@ -388,9 +387,7 @@ fn purge_keeps_marker_when_an_artifact_removal_fails() {
         assert!(!home.join(name).exists(), "{name} must be purged");
     }
     assert!(
-        !home
-            .join(axon_config::MANAGED_CONFIG_CACHE_FILE)
-            .exists(),
+        !home.join(axon_config::MANAGED_CONFIG_CACHE_FILE).exists(),
         "with every artifact removed, the marker goes last"
     );
 }

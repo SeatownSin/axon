@@ -1,10 +1,10 @@
 //! Workspace and session configuration types.
 use crate::capability::CapabilityMode;
 use crate::hub::HubConfig;
+use axon_tools::registry::types::{SessionContext, ToolRegistryBuilder, ToolServerConfig};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
-use axon_tools::registry::types::{SessionContext, ToolRegistryBuilder, ToolServerConfig};
 /// Default capacity for the workspace event broadcast channel.
 pub const DEFAULT_EVENT_BUFFER_CAPACITY: usize = 64;
 /// A session-lifetime terminal backend paired with its explicit shutdown hook.

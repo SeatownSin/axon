@@ -128,12 +128,19 @@ mod tests {
 
     #[test]
     fn scheme_less_and_wss_bases() {
-        for base in ["api.blocked.invalid", "wss://api.blocked.invalid", "HTTPS://api.blocked.invalid"] {
+        for base in [
+            "api.blocked.invalid",
+            "wss://api.blocked.invalid",
+            "HTTPS://api.blocked.invalid",
+        ] {
             let cfg = VoiceConfig {
                 api_base: base.into(),
                 ..VoiceConfig::default()
             };
-            assert_eq!(cfg.stt_ws_url().unwrap(), "wss://api.blocked.invalid/v1/stt");
+            assert_eq!(
+                cfg.stt_ws_url().unwrap(),
+                "wss://api.blocked.invalid/v1/stt"
+            );
         }
     }
 
@@ -219,7 +226,10 @@ api_base = "  "
         .unwrap();
         let cfg = VoiceConfig::from_config_table(&table, None);
         assert_eq!(cfg.api_base, VoiceConfig::default().api_base);
-        assert_eq!(cfg.stt_ws_url().unwrap(), "wss://api.blocked.invalid/v1/stt");
+        assert_eq!(
+            cfg.stt_ws_url().unwrap(),
+            "wss://api.blocked.invalid/v1/stt"
+        );
     }
 
     #[test]
@@ -265,7 +275,10 @@ language = "es"
         let cfg = VoiceConfig::from_config_table(&table, None);
         assert_eq!(cfg.api_base, "https://api.blocked.invalid");
         assert_eq!(cfg.language, "es");
-        assert_eq!(cfg.stt_ws_url().unwrap(), "wss://api.blocked.invalid/v1/stt");
+        assert_eq!(
+            cfg.stt_ws_url().unwrap(),
+            "wss://api.blocked.invalid/v1/stt"
+        );
     }
 
     #[test]

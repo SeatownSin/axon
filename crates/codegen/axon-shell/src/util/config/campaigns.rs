@@ -414,10 +414,10 @@ pub async fn persist_models_default(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serial_test::serial;
-    use tempfile::tempdir;
     use axon_config::ConfigLayers;
     use axon_test_support::EnvGuard;
+    use serial_test::serial;
+    use tempfile::tempdir;
 
     fn models_default_patch(default: &str) -> toml::Table {
         let mut models = toml::map::Map::new();

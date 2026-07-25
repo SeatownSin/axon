@@ -11,7 +11,6 @@
 
 mod common;
 
-use common::{create_test_client, test_sampler_config};
 use axon_sampler::RetryPolicy;
 use axon_sampling_types::doom_loop::{DoomLoopSignalKind, SAMPLE_CHECK_EVENT_DATA_CUMULATIVE};
 use axon_shell::sampling::{
@@ -24,6 +23,7 @@ use axon_test_support::sse::{
     responses_api_with_doom_loop_frame,
 };
 use axon_test_support::{MockInferenceServer, MockModelEntry, ScriptedResponse};
+use common::{create_test_client, test_sampler_config};
 
 const MODEL: &str = "test-model";
 

@@ -1,10 +1,10 @@
 use crate::auth::AuthManager;
 use crate::util::axon_auth_credentials::AxonAuthCredentials;
-use reqwest::RequestBuilder;
-use std::sync::Arc;
 use axon_auth::{
     AuthCredentialProvider, CredentialSnapshot, HttpAuth, StaticAuthCredentialProvider,
 };
+use reqwest::RequestBuilder;
+use std::sync::Arc;
 /// `api_key.id` for the active credential: hash the stable API key, never the
 /// OIDC bearer (which rotates). `None` for non-API-key auth.
 fn api_key_id_for(auth: Option<&crate::auth::AxonAuth>) -> Option<String> {
@@ -204,7 +204,9 @@ impl StorageClientAttributionBridge {
         }
     }
 }
-impl axon_file_utils::storage_client::Auth401AttributionCallback for StorageClientAttributionBridge {
+impl axon_file_utils::storage_client::Auth401AttributionCallback
+    for StorageClientAttributionBridge
+{
     fn record_401(&self, operation: &str, sent_bearer_prefix: Option<&str>) {
         crate::auth::attribution::record_consumer_401(
             self.auth_manager.as_ref(),
@@ -421,9 +423,9 @@ mod tests {
     use crate::auth::AxonAuth;
     use crate::auth::AxonComConfig;
     use crate::auth::manager::AuthManager;
+    use axon_auth::AuthCredentialProvider;
     use chrono::{Duration as ChronoDuration, Utc};
     use std::sync::Mutex;
-    use axon_auth::AuthCredentialProvider;
     /// Serializes tests that pin `AXON_AUTH_EARLY_INVALIDATION_SECS`, since
     /// env vars are process-global and parallel tests would race.
     static EARLY_INVALIDATION_LOCK: Mutex<()> = Mutex::new(());
@@ -596,7 +598,10 @@ mod tests {
         );
         let api_key_provider: axon_tools::types::SharedApiKeyProvider =
             Arc::new(crate::auth::manager::SharedAuthKeyProvider(mgr.clone()));
-        for denied in ["https://byok.attacker.example/v1", "http://api.blocked.invalid/v1"] {
+        for denied in [
+            "https://byok.attacker.example/v1",
+            "http://api.blocked.invalid/v1",
+        ] {
             let resolved =
                 embedding_session_credentials(denied, Some(&mgr), Some(api_key_provider.clone()));
             assert!(

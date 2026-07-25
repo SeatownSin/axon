@@ -26,9 +26,6 @@ mod jemalloc_malloc_conf {
     static MALLOC_CONF: MallocConfPtr = MallocConfPtr(CONF.as_ptr());
 }
 use anyhow::Result;
-use std::env;
-use std::net::SocketAddr;
-use tokio_util::sync::CancellationToken;
 use axon_pager::app::{
     AgentCmd, Command, HeadlessArgs, LeaderMgmtArgs, LeaderMgmtCommand, LeaderTargetArgs,
     PagerArgs, join_early_prefetch, resolve_use_leader,
@@ -45,6 +42,9 @@ use axon_shell::leader::{
     ControlPayload, LeaderClient, LeaderEnvUrls, connect_or_spawn, socket_path_for_ws_url,
 };
 use axon_update::{UpdateConfig, auto_update, enforce_minimum_version_or_exit};
+use std::env;
+use std::net::SocketAddr;
+use tokio_util::sync::CancellationToken;
 /// Apply headless args to an existing config, only overriding values that are
 /// explicitly set. This allows environment defaults to be preserved when
 /// specific args are not provided.
@@ -57,10 +57,7 @@ fn apply_headless_args_to_config(args: &HeadlessArgs, config: &mut AgentConfig) 
     }
 }
 /// Apply global endpoint CLI args to an existing config.
-fn apply_agent_endpoint_args(
-    agent_args: &axon_pager::app::AgentArgs,
-    config: &mut AgentConfig,
-) {
+fn apply_agent_endpoint_args(agent_args: &axon_pager::app::AgentArgs, config: &mut AgentConfig) {
     if let Some(v) = &agent_args.cli_chat_proxy_base_url {
         config.endpoints.cli_chat_proxy_base_url = Some(v.clone());
     }
@@ -103,8 +100,8 @@ fn print_serve_startup_info(bind_addr: SocketAddr, secret: &str) {
 const HEADLESS_ENTRYPOINT: &str = "headless";
 /// Initialize simple tracing for non-TUI agent modes.
 fn init_tracing_simple(app_entrypoint: &'static str) {
-    use tracing_subscriber::{EnvFilter, Layer as _, fmt, layer::SubscriberExt as _};
     use axon_telemetry::debug_log::RMCP_SSE_NOISE_TARGET;
+    use tracing_subscriber::{EnvFilter, Layer as _, fmt, layer::SubscriberExt as _};
     let default_filter = if app_entrypoint == HEADLESS_ENTRYPOINT {
         "off"
     } else {
@@ -137,15 +134,13 @@ fn init_tracing_simple(app_entrypoint: &'static str) {
             axon_shell::auth::credential_provider::build_default_otel_layer_config(),
         ));
     axon_telemetry::debug_log::install_firehose(registry, app_entrypoint);
-    axon_telemetry::external::init(
-        axon_shell::agent::config::resolve_external_otel_config(
-            axon_telemetry::external::config::ExternalClientInfo {
-                service_version: env!("VERSION_WITH_COMMIT").to_owned(),
-                client_version: axon_version::VERSION.to_owned(),
-                app_entrypoint: app_entrypoint.to_owned(),
-            },
-        ),
-    );
+    axon_telemetry::external::init(axon_shell::agent::config::resolve_external_otel_config(
+        axon_telemetry::external::config::ExternalClientInfo {
+            service_version: env!("VERSION_WITH_COMMIT").to_owned(),
+            client_version: axon_version::VERSION.to_owned(),
+            app_entrypoint: app_entrypoint.to_owned(),
+        },
+    ));
 }
 /// `axon setup`: rendering + exit codes only; fetch logic lives in `axon_shell::managed_config`.
 /// `json` prints the served configuration instead of installing it.
@@ -1001,8 +996,8 @@ async fn run_agent_command(
     let _signal_flush = tokio::spawn(async {
         #[cfg(unix)]
         {
-            use tokio::signal::unix::{SignalKind, signal};
             use axon_pager::app::signal_handler::next_signal_code;
+            use tokio::signal::unix::{SignalKind, signal};
             let mut term = signal(SignalKind::terminate()).ok();
             let mut hup = signal(SignalKind::hangup()).ok();
             let code = next_signal_code(&mut term, &mut hup).await;
@@ -1142,12 +1137,12 @@ async fn run_agent_command(
         if !agent_args.plugin_dirs.is_empty() {
             eprintln!("{PLUGIN_DIR_LEADER_WARNING}");
         }
-        use std::sync::Arc;
-        use tokio::io::AsyncWriteExt;
-        use tokio::sync::Mutex as TokioMutex;
         use axon_shell::leader::{
             ClientCapabilities, ClientMode, LeaderReconnector, ReconnectPolicy, connect_or_spawn,
         };
+        use std::sync::Arc;
+        use tokio::io::AsyncWriteExt;
+        use tokio::sync::Mutex as TokioMutex;
         let mode = match &agent_args.mode {
             Some(AgentCmd::Stdio) => ClientMode::Stdio,
             Some(AgentCmd::Headless(_)) | None => ClientMode::Headless,
@@ -1351,8 +1346,7 @@ async fn run_agent_command(
                             match auto_update::ensure_latest_on_disk(&uc).await {
                                 Ok(outcome) => {
                                     if let Some(v) = &outcome.installed {
-                                        if let Err(e) = axon_shell::managed_config::sync().await
-                                        {
+                                        if let Err(e) = axon_shell::managed_config::sync().await {
                                             tracing::warn!(
                                                 "Leader auto-update: managed config refresh failed: {e}"
                                             );
@@ -1618,9 +1612,7 @@ fn main() {
     if let Some(code) = axon_pager::app::mermaid_worker::maybe_run_render_subprocess() {
         std::process::exit(code);
     }
-    axon_pager::memory_trace::start(
-        axon_shell::util::axon_home::axon_home().join("memtrace"),
-    );
+    axon_pager::memory_trace::start(axon_shell::util::axon_home::axon_home().join("memtrace"));
     raise_fd_limit();
     if let Err(e) = axon_config::validate_requirements() {
         eprintln!("Couldn't start Axon: {e}");
@@ -1745,11 +1737,7 @@ async fn async_main() -> Result<()> {
             std::process::exit(1);
         }
     };
-    axon_shell::config::apply_sandbox(
-        None,
-        sandbox_profile_arg.as_deref(),
-        args.cwd.as_deref(),
-    );
+    axon_shell::config::apply_sandbox(None, sandbox_profile_arg.as_deref(), args.cwd.as_deref());
     flag_dashboard_at_startup_if_requested(&mut args)?;
     let is_interactive = args.command.is_none()
         && args.single.is_none()
@@ -2414,9 +2402,7 @@ mod tests {
     #[serial_test::serial(jemalloc_heap_profile)]
     fn install_heap_profile_hooks_wires_shell_apis() {
         install_heap_profile_hooks();
-        assert_stats_sane(
-            axon_shell::heap_profile::stats().expect("shell stats after install"),
-        );
+        assert_stats_sane(axon_shell::heap_profile::stats().expect("shell stats after install"));
         if !require_opt_prof() {
             assert!(!axon_shell::heap_profile::prof_available());
             return;

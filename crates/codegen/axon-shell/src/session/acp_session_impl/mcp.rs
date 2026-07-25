@@ -1691,18 +1691,16 @@ impl SessionActor {
                     "mcp_bg_handshake: clients inserted, calling notify_waiters"
                 );
                 mcp_handshakes_done.notify_waiters();
-                axon_telemetry::session_ctx::log_event(
-                    axon_telemetry::events::McpInitCompleted {
-                        total_duration_ms: handshake_start.elapsed().as_millis() as u64,
-                        server_count,
-                        servers_succeeded,
-                        servers_failed,
-                        servers_auth_required,
-                        total_tools_registered,
-                        strategy: mcp_strategy,
-                        is_reinit,
-                    },
-                );
+                axon_telemetry::session_ctx::log_event(axon_telemetry::events::McpInitCompleted {
+                    total_duration_ms: handshake_start.elapsed().as_millis() as u64,
+                    server_count,
+                    servers_succeeded,
+                    servers_failed,
+                    servers_auth_required,
+                    total_tools_registered,
+                    strategy: mcp_strategy,
+                    is_reinit,
+                });
                 event_writer.emit(axon_file_utils::events::Event::McpInitCompleted {
                     total_servers: server_count,
                     succeeded: servers_succeeded,

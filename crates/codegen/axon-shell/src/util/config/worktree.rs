@@ -1,8 +1,8 @@
 use super::RemoteSettings;
 use super::mcp::use_leader_from_toml;
+use axon_fast_worktree::CreationMode;
 use serde::{Deserialize, Serialize};
 use toml::Value as TomlValue;
-use axon_fast_worktree::CreationMode;
 
 /// Worktree creation type configuration.
 ///

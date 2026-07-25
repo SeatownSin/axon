@@ -98,9 +98,8 @@ pub fn maybe_commit_welcome(app: &mut AppView, terminal: &mut PagerTerminal) {
 
     // RGB themes: blend a soft border. Terminal-native (both Reset): fall
     // through to Reset so the terminal default fg draws the chrome.
-    let border_color =
-        axon_pager::render::color::blend_color(theme.bg_base, theme.gray_dim, 0.45)
-            .unwrap_or(theme.gray_dim);
+    let border_color = axon_pager::render::color::blend_color(theme.bg_base, theme.gray_dim, 0.45)
+        .unwrap_or(theme.gray_dim);
 
     let inserted = terminal.insert_before(height, move |buf| {
         let area = buf.area;

@@ -3,14 +3,14 @@
 //! These tests create real file trees, index them, send incremental events,
 //! and measure RSS to detect memory regressions.
 
-use std::fs;
-use std::path::Path;
-use std::sync::Arc;
-use tempfile::tempdir;
 use axon_codebase_graph::{
     FileEvent, IndexBuilder, IndexManager, IndexManagerConfig, ScopeGraphIndex, load_index,
     save_index,
 };
+use std::fs;
+use std::path::Path;
+use std::sync::Arc;
+use tempfile::tempdir;
 
 /// Read current process RSS in bytes. Supports Linux and macOS.
 /// Returns `None` on unsupported platforms.

@@ -1,7 +1,7 @@
 use super::*;
 use crate::auth::{AuthManager, AuthMode, AxonAuth, AxonComConfig};
-use std::sync::atomic::{AtomicUsize, Ordering};
 use axon_tools::types::output::{ToolOutput, ToolRunResult};
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 fn succeeding_am() -> Arc<AuthManager> {
     let dir = tempfile::tempdir().unwrap();
@@ -156,7 +156,9 @@ fn is_auth_tool_error_classification() {
         // catches it via the message-string fallback.
         (
             true,
-            axon_tool_runtime::ToolError::invalid_arguments("response: invalid api key for project"),
+            axon_tool_runtime::ToolError::invalid_arguments(
+                "response: invalid api key for project",
+            ),
         ),
         // Fallback path: OAuth 2.0 `invalid_token` payload (RFC 6749)
         // surfaced as raw JSON without a structured status code.

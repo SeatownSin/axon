@@ -6,8 +6,8 @@
 
 use crate::session::acp_session::support::*;
 use crate::session::acp_session::*;
-use std::sync::Arc;
 use axon_mcp::servers::McpClient;
+use std::sync::Arc;
 
 const MANAGED: &str = "axon_com_testconnector";
 

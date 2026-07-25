@@ -3,9 +3,9 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 use agent_client_protocol as acp;
+use axon_acp_lib::AcpAgentGatewaySender as GatewaySender;
 use chrono::Utc;
 use tokio::sync::{mpsc, oneshot};
-use axon_acp_lib::AcpAgentGatewaySender as GatewaySender;
 
 use crate::permission::auto_mode::script_sets_unsafe_env;
 use crate::permission::bash_command_splitting::{
@@ -23,9 +23,7 @@ use crate::permission::types::{
 };
 use axon_mcp::servers::parse_mcp_qualified_name;
 use axon_paths::AbsPathBuf;
-use axon_tools::implementations::axon_build::web_fetch::{
-    DomainMatcher, domain::normalize_domain,
-};
+use axon_tools::implementations::axon_build::web_fetch::{DomainMatcher, domain::normalize_domain};
 use axon_tools::types::resources::resolve_model_path;
 
 /// Canonical `decision_reason` triggers for the uploaded artifact. Single source

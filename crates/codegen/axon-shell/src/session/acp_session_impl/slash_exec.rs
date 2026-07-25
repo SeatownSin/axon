@@ -25,13 +25,11 @@ impl SessionActor {
                 let actual = self.permissions.is_yolo_mode();
                 if let Some(actual) = yolo_toggle_report(was, actual) {
                     self.emit_event(crate::session::events::Event::YoloToggled { enabled: actual });
-                    axon_telemetry::session_ctx::log_event(
-                        axon_telemetry::events::YoloToggled {
-                            enabled: actual,
-                            previous_state: was,
-                            trigger: axon_telemetry::events::YoloTrigger::SlashCommand,
-                        },
-                    );
+                    axon_telemetry::session_ctx::log_event(axon_telemetry::events::YoloToggled {
+                        enabled: actual,
+                        previous_state: was,
+                        trigger: axon_telemetry::events::YoloTrigger::SlashCommand,
+                    });
                     tracing::info_span!(
                         "session.permission_mode_changed",
                         from_mode = crate::session::telemetry::permission_mode_label(was),
@@ -476,19 +474,15 @@ impl SessionActor {
 
                     if !trust {
                         let install_source =
-                            axon_agent::plugins::git_install::parse_install_source(
-                                &source, cwd,
-                            );
+                            axon_agent::plugins::git_install::parse_install_source(&source, cwd);
                         let source_desc = match &install_source {
                             axon_agent::plugins::git_install::InstallSource::Git {
-                                url,
-                                ..
+                                url, ..
                             } => {
                                 format!("remote git repo: {url}")
                             }
                             axon_agent::plugins::git_install::InstallSource::Local {
-                                path,
-                                ..
+                                path, ..
                             } => {
                                 format!("local directory: {}", path.display())
                             }

@@ -177,14 +177,13 @@ impl SessionRegistryClient {
     /// Attach an `AuthManager` so the request signing and 401
     /// recovery go through the consolidated auth path.
     pub fn with_auth(mut self, auth_manager: std::sync::Arc<crate::auth::AuthManager>) -> Self {
-        let provider: std::sync::Arc<dyn axon_auth::AuthCredentialProvider> =
-            std::sync::Arc::new(
-                crate::auth::credential_provider::ShellAuthCredentialProvider::new(
-                    auth_manager.clone(),
-                    self.credentials.deployment_key.clone(),
-                    self.credentials.alpha_test_key.clone(),
-                ),
-            );
+        let provider: std::sync::Arc<dyn axon_auth::AuthCredentialProvider> = std::sync::Arc::new(
+            crate::auth::credential_provider::ShellAuthCredentialProvider::new(
+                auth_manager.clone(),
+                self.credentials.deployment_key.clone(),
+                self.credentials.alpha_test_key.clone(),
+            ),
+        );
         self.credentials = self.credentials.with_auth_manager(auth_manager);
         self.client = crate::http::with_auth_retry(self.raw_client.clone(), provider);
         self

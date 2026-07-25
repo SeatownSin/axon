@@ -6,10 +6,10 @@
 //! 3. Test worktree creation from worktree types
 
 use agent_client_protocol as acp;
-use tempfile::TempDir;
 use axon_shell::sampling::ConversationItem;
 use axon_shell::session::info::Info;
 use axon_shell::session::storage::{JsonlStorageAdapter, StorageAdapter};
+use tempfile::TempDir;
 
 /// Helper to create a test session in a temp directory
 async fn create_test_session(storage: &JsonlStorageAdapter, session_id: &str, cwd: &str) -> Info {

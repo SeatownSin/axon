@@ -641,9 +641,9 @@ mod tests {
         assert!(!t.has_pending_activation());
         assert_eq!(t.state(), PlanModeState::Active);
     }
-    use std::collections::HashMap;
     use axon_tools::types::template_renderer::TemplateRenderer;
     use axon_tools::types::tool::ToolKind;
+    use std::collections::HashMap;
     /// Build a test TemplateRenderer with standard Axon Build tool mappings.
     fn test_renderer() -> TemplateRenderer {
         let tools: HashMap<ToolKind, String> = [

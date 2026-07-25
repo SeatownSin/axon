@@ -796,10 +796,7 @@ async fn list_skills(
 /// `ConfigSource` and reject unknown tags, so runtime stamping must wait
 /// until clients without these variants have aged out. Until then this
 /// mapping is the single owner of the scope→source translation.
-fn skill_entry_source(
-    s: &axon_agent::prompt::skills::SkillInfo,
-    axon_home: &Path,
-) -> ConfigSource {
+fn skill_entry_source(s: &axon_agent::prompt::skills::SkillInfo, axon_home: &Path) -> ConfigSource {
     use axon_tools::implementations::skills::types::SkillScope;
 
     if let Some(source) = s.config_source.clone() {

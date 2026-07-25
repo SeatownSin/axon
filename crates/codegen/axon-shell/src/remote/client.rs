@@ -140,14 +140,13 @@ async fn fetch_bundle_inner(
     let archive_url = format!("{}/bundle/archive", cli_chat_proxy_base_url);
     let raw_client = crate::http::shared_client();
     let client: reqwest_middleware::ClientWithMiddleware = if let Some(am) = auth_manager {
-        let provider: std::sync::Arc<dyn axon_auth::AuthCredentialProvider> =
-            std::sync::Arc::new(
-                crate::auth::credential_provider::ShellAuthCredentialProvider::new(
-                    am.clone(),
-                    deployment_key.map(str::to_owned),
-                    alpha_test_key.map(str::to_owned),
-                ),
-            );
+        let provider: std::sync::Arc<dyn axon_auth::AuthCredentialProvider> = std::sync::Arc::new(
+            crate::auth::credential_provider::ShellAuthCredentialProvider::new(
+                am.clone(),
+                deployment_key.map(str::to_owned),
+                alpha_test_key.map(str::to_owned),
+            ),
+        );
         crate::http::with_auth_retry(raw_client, provider)
     } else {
         reqwest_middleware::ClientBuilder::new(raw_client).build()
@@ -1587,7 +1586,10 @@ mod tests {
     #[test]
     fn inference_url_defaults_to_proxy() {
         let ep = endpoints("https://proxy.blocked.invalid/v1", None, None);
-        assert_eq!(ep.resolve_inference_base_url(), "https://proxy.blocked.invalid/v1");
+        assert_eq!(
+            ep.resolve_inference_base_url(),
+            "https://proxy.blocked.invalid/v1"
+        );
     }
     #[test]
     fn inference_url_uses_models_base_url() {
@@ -1628,7 +1630,10 @@ mod tests {
             Some("https://api.blocked.invalid/v1"),
             None,
         );
-        assert_eq!(ep.resolve_models_list_url(), "https://api.blocked.invalid/v1/models");
+        assert_eq!(
+            ep.resolve_models_list_url(),
+            "https://api.blocked.invalid/v1/models"
+        );
     }
     #[test]
     fn list_url_explicit_overrides_derivation() {
@@ -1666,13 +1671,22 @@ mod tests {
             .unwrap(),
         );
         let session = ListModelsEndpoint::from_endpoints(&cfg, ModelFetchAuth::Session);
-        assert_eq!(session.url, "https://cli-chat-proxy.blocked.invalid/v1/models");
+        assert_eq!(
+            session.url,
+            "https://cli-chat-proxy.blocked.invalid/v1/models"
+        );
         assert_eq!(session.auth, EndpointAuth::Session);
         let deployment = ListModelsEndpoint::from_endpoints(&cfg, ModelFetchAuth::Deployment);
-        assert_eq!(deployment.url, "https://cli-chat-proxy.blocked.invalid/v1/models");
+        assert_eq!(
+            deployment.url,
+            "https://cli-chat-proxy.blocked.invalid/v1/models"
+        );
         assert_eq!(deployment.auth, EndpointAuth::Session);
         let api = ListModelsEndpoint::from_endpoints(&cfg, ModelFetchAuth::ApiKey);
-        assert_eq!(api.url, "https://inference.acme-corp.example/axon/v1/models");
+        assert_eq!(
+            api.url,
+            "https://inference.acme-corp.example/axon/v1/models"
+        );
         assert_eq!(api.auth, EndpointAuth::ApiKey);
         let default = EndpointsConfig::from_config_value(&toml::Value::Table(Default::default()));
         assert_eq!(
@@ -1711,7 +1725,10 @@ mod tests {
         )
         .unwrap();
         let url = EndpointsConfig::from_config_value(&managed).resolve_managed_config_url();
-        assert_eq!(url, "https://cli-chat-proxy.blocked.invalid/v1/deployment/config");
+        assert_eq!(
+            url,
+            "https://cli-chat-proxy.blocked.invalid/v1/deployment/config"
+        );
         assert!(
             !url.contains("acme-corp"),
             "deployment key would be sent to the inference host: {url}"

@@ -5,9 +5,9 @@
 //! at the SDK boundary so consumers can match on a single enum without
 //! re-deriving the numeric/string code mapping.
 
+use axon_tool_protocol::{IdError, JsonRpcError, ToolCallId, ToolErrorWire};
 use thiserror::Error;
 use url::Url;
-use axon_tool_protocol::{IdError, JsonRpcError, ToolCallId, ToolErrorWire};
 
 /// Errors surfaced by the client SDK.
 #[derive(Debug, Error)]
@@ -195,11 +195,11 @@ impl From<tokio::sync::oneshot::error::RecvError> for ClientError {
 
 #[cfg(test)]
 mod tests {
-    use serde_json::json;
     use axon_tool_protocol::{
         WORKSPACE_UNAVAILABLE_SUBCODE, WorkspaceGonePhase, WorkspaceGoneReason,
         workspace_unavailable_wire,
     };
+    use serde_json::json;
 
     use super::*;
 

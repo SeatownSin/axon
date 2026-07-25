@@ -193,10 +193,8 @@ impl SessionActor {
         use axon_tools::types::ToolInput;
         // Use the stripped command as description so pager chrome shows the
         // real command (not a generic label) while still satisfying the required field.
-        let title_command = axon_tools::util::strip_redundant_session_cd(
-            &command,
-            self.tool_context.cwd.as_path(),
-        );
+        let title_command =
+            axon_tools::util::strip_redundant_session_cd(&command, self.tool_context.cwd.as_path());
         let tool_input = ToolInput::Bash(BashToolInput {
             command: command.clone(),
             timeout: None,

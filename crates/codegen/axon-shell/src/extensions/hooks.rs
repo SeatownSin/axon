@@ -6,10 +6,10 @@
 use std::collections::HashMap;
 
 use agent_client_protocol as acp;
-use serde::Deserialize;
 use axon_hooks::event::{HookEventEnvelope, HookEventName};
 use axon_hooks::matcher::HookMatcher;
 use axon_hooks_plugins_types::{HookEvent, HookHandlerType, HookInfo};
+use serde::Deserialize;
 
 use crate::agent::MvpAgent;
 
@@ -191,7 +191,9 @@ fn parse_hook_group(event: HookEventName, value: &serde_json::Value) -> Option<C
     }
 
     let group = WireGroup::deserialize(value)
-        .inspect_err(|err| tracing::warn!(%event, %err, "ignoring malformed blocked.invalid/hooks group"))
+        .inspect_err(
+            |err| tracing::warn!(%event, %err, "ignoring malformed blocked.invalid/hooks group"),
+        )
         .ok()?;
     if group.hook_callback_ids.is_empty() {
         tracing::warn!(%event, "ignoring blocked.invalid/hooks group with no hookCallbackIds");
@@ -252,10 +254,10 @@ pub async fn handle(agent: &MvpAgent, args: &acp::ExtRequest) -> ExtResult {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::HashMap;
-    use std::path::PathBuf;
     use axon_hooks::config::HookSpec;
     use axon_hooks::event::HookEventName;
+    use std::collections::HashMap;
+    use std::path::PathBuf;
 
     /// Minimal `HookSpec` for `hook_spec_to_info` tests (`handler_type` is unused;
     /// the DTO derives it from `url`).

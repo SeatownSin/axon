@@ -1,7 +1,7 @@
+use axon_tool_types::SubagentCompletedOutput;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use strip_ansi_escapes::strip_str;
-use axon_tool_types::SubagentCompletedOutput;
 /// `(added, removed)` line counts for the `edit.lines` telemetry counter.
 pub fn line_diff(old: &str, new: &str) -> (i64, i64) {
     let mut added = 0i64;
@@ -1273,9 +1273,9 @@ impl axon_tool_runtime::ToolOutput for MCPOutput {}
 mod tests {
     use super::*;
     use crate::implementations::axon_build::todo::{TodoPriority, TodoStatus};
-    use serde_json::json;
     use axon_tool_types::KillTaskResult;
     use axon_tool_types::TaskOutputResult;
+    use serde_json::json;
     /// Serialize a ToolOutput to JSON value
     fn to_json(output: ToolOutput) -> serde_json::Value {
         serde_json::to_value(&output).unwrap()

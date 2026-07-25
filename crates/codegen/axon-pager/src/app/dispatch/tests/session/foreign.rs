@@ -134,12 +134,11 @@ fn foreign_generation_drops_stale_closed_and_pre_reopen_results() {
 #[test]
 fn modal_refetch_clears_orphaned_welcome_foreign_loading() {
     let mut app = test_app_with_agent();
-    app.foreign_session_compat =
-        axon_workspace::foreign_sessions::EnabledForeignSessionSources {
-            claude: true,
-            codex: true,
-            cursor: true,
-        };
+    app.foreign_session_compat = axon_workspace::foreign_sessions::EnabledForeignSessionSources {
+        claude: true,
+        codex: true,
+        cursor: true,
+    };
     app.session_picker_lanes.foreign_loading = true;
     open_session_picker_with(&mut app, vec![]);
 
@@ -164,12 +163,11 @@ fn modal_foreign_scan_uses_native_list_cwd() {
     let mut app = test_app_with_agent();
     app.cwd = PathBuf::from("/native-list-cwd");
     app.agents.get_mut(&AgentId(0)).unwrap().session.cwd = PathBuf::from("/agent-worktree-cwd");
-    app.foreign_session_compat =
-        axon_workspace::foreign_sessions::EnabledForeignSessionSources {
-            claude: true,
-            codex: true,
-            cursor: true,
-        };
+    app.foreign_session_compat = axon_workspace::foreign_sessions::EnabledForeignSessionSources {
+        claude: true,
+        codex: true,
+        cursor: true,
+    };
     open_session_picker_with(&mut app, vec![]);
 
     let effects = dispatch(Action::FetchSessionList, &mut app);
@@ -969,12 +967,11 @@ fn foreign_selection_and_mutation_guards_remain_central() {
 fn chat_picker_never_launches_or_accepts_foreign_scan() {
     let mut app = test_app();
     app.chat_mode = true;
-    app.foreign_session_compat =
-        axon_workspace::foreign_sessions::EnabledForeignSessionSources {
-            claude: true,
-            codex: true,
-            cursor: true,
-        };
+    app.foreign_session_compat = axon_workspace::foreign_sessions::EnabledForeignSessionSources {
+        claude: true,
+        codex: true,
+        cursor: true,
+    };
     let effects = dispatch(Action::FetchSessionList, &mut app);
     assert!(matches!(
         effects.as_slice(),
@@ -994,12 +991,11 @@ fn chat_picker_never_launches_or_accepts_foreign_scan() {
 #[test]
 fn native_fetch_effect_precedes_background_foreign_gate() {
     let mut app = test_app();
-    app.foreign_session_compat =
-        axon_workspace::foreign_sessions::EnabledForeignSessionSources {
-            claude: true,
-            codex: true,
-            cursor: true,
-        };
+    app.foreign_session_compat = axon_workspace::foreign_sessions::EnabledForeignSessionSources {
+        claude: true,
+        codex: true,
+        cursor: true,
+    };
 
     let effects = dispatch(Action::FetchSessionList, &mut app);
 

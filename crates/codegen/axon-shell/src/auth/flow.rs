@@ -881,7 +881,9 @@ pub async fn run_cli_login(
     } else if cli_should_use_device(&config.axon_com_config, login_override).await {
         if config.axon_com_config.oauth2.is_none() {
             // No OIDC and no oauth2 here, so `--oauth` can't help.
-            anyhow::bail!("Sign-in is not available for this deployment. Set AXON_API_KEY instead.");
+            anyhow::bail!(
+                "Sign-in is not available for this deployment. Set AXON_API_KEY instead."
+            );
         }
         let axon_home = axon_home::axon_home();
         let auth_manager = Arc::new(AuthManager::new(&axon_home, config.axon_com_config.clone()));
@@ -985,9 +987,7 @@ pub fn perform_logout(
         // Clearing identity before the flush closes the window in which a
         // concurrent emission between flush and identity-reset would still
         // stamp the prior user's ids onto a customer-collector record.
-        axon_telemetry::external::set_identity(
-            axon_telemetry::external::IdentityAttrs::default(),
-        );
+        axon_telemetry::external::set_identity(axon_telemetry::external::IdentityAttrs::default());
         axon_telemetry::external::flush();
         if let Some(scope) = scope {
             auth_manager.remove_scope(scope)?;

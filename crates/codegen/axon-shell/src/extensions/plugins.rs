@@ -3,10 +3,10 @@
 //! Provides the plugins list endpoint for the pager's hooks/plugins modal.
 
 use agent_client_protocol as acp;
-use serde::Deserialize;
 use axon_hooks_plugins_types::{
     HookStatus, McpStatus, PluginInfo, PluginOrigin, PluginScope, PluginsListResponse,
 };
+use serde::Deserialize;
 
 use crate::agent::MvpAgent;
 

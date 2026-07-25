@@ -30,12 +30,11 @@ fn seed_foreign_resume_hint(
     app: &mut AppView,
     tool: axon_workspace::foreign_sessions::ForeignSessionTool,
 ) {
-    app.foreign_session_compat =
-        axon_workspace::foreign_sessions::EnabledForeignSessionSources {
-            claude: true,
-            codex: true,
-            cursor: true,
-        };
+    app.foreign_session_compat = axon_workspace::foreign_sessions::EnabledForeignSessionSources {
+        claude: true,
+        codex: true,
+        cursor: true,
+    };
     let Effect::CanonicalizeForeignResumeCwd {
         requested_cwd,
         launch_token,
@@ -333,7 +332,9 @@ fn announcements_open_cta_opens_promo_and_noops_under_critical() {
         let effects = dispatch(Action::AnnouncementsOpenCta(surface), &mut app);
         assert!(effects.is_empty(), "open is a side effect, not an Effect");
         assert!(
-            opened().lines().any(|l| l == "https://blocked.invalid/promo-open"),
+            opened()
+                .lines()
+                .any(|l| l == "https://blocked.invalid/promo-open"),
             "surface {surface:?} must open the promo url; got {:?}",
             opened()
         );
@@ -1408,9 +1409,7 @@ fn dispatch_fork_no_flag_always_reopens_modal_after_previous_answer() {
 #[test]
 fn translate_local_submit_skipped_returns_changed_with_no_action() {
     use crate::views::question_view::{LocalQuestionKind, QuestionViewState};
-    use axon_tools::implementations::axon_build::ask_user_question::{
-        Question, QuestionOption,
-    };
+    use axon_tools::implementations::axon_build::ask_user_question::{Question, QuestionOption};
     let q = Question {
         question: "?".into(),
         options: vec![QuestionOption {
@@ -1439,9 +1438,7 @@ fn translate_local_submit_skipped_returns_changed_with_no_action() {
 #[test]
 fn translate_local_submit_no_selection_returns_changed_no_action() {
     use crate::views::question_view::{LocalQuestionKind, QuestionViewState};
-    use axon_tools::implementations::axon_build::ask_user_question::{
-        Question, QuestionOption,
-    };
+    use axon_tools::implementations::axon_build::ask_user_question::{Question, QuestionOption};
     let q = Question {
         question: "?".into(),
         options: (0..2)
@@ -1470,9 +1467,7 @@ fn translate_local_submit_no_selection_returns_changed_no_action() {
 #[test]
 fn translate_local_submit_out_of_range_index_returns_changed_no_action() {
     use crate::views::question_view::{LocalQuestionKind, QuestionViewState};
-    use axon_tools::implementations::axon_build::ask_user_question::{
-        Question, QuestionOption,
-    };
+    use axon_tools::implementations::axon_build::ask_user_question::{Question, QuestionOption};
     let q = Question {
         question: "?".into(),
         options: (0..2)
@@ -1502,9 +1497,7 @@ fn translate_local_submit_out_of_range_index_returns_changed_no_action() {
 #[test]
 fn handle_ask_user_question_does_not_push_system_block_when_displaced_acp_modal() {
     use crate::views::question_view::QuestionViewState;
-    use axon_tools::implementations::axon_build::ask_user_question::{
-        Question, QuestionOption,
-    };
+    use axon_tools::implementations::axon_build::ask_user_question::{Question, QuestionOption};
     let mut app = fork_test_app();
     let id = AgentId(0);
     let stashed = app.agents.get_mut(&id).unwrap().prompt.stash();

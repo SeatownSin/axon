@@ -8,12 +8,12 @@ use crate::acp::tracker::{AcpUpdateTracker, TurnActivity};
 use crate::scrollback::EntryId;
 use crate::scrollback::state::ScrollbackState;
 use agent_client_protocol as acp;
-use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
-use std::path::PathBuf;
-use std::time::{Duration, Instant, SystemTime};
 use axon_acp_lib::AcpAgentTx;
 use axon_shell::extensions::notification::GoalClassifierVerdict;
 use axon_shell::sampling::types::ReasoningEffort;
+use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
+use std::path::PathBuf;
+use std::time::{Duration, Instant, SystemTime};
 /// Unique local identifier for an agent.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct AgentId(pub usize);

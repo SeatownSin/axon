@@ -17,15 +17,15 @@
 use super::support::*;
 use super::*;
 use crate::session::PromptOrigin;
+use axon_tools::implementations::axon_build::task::types::{
+    SubagentCancelOutcome, SubagentEvent, SubagentResult,
+};
+use axon_tools::implementations::axon_build::update_goal::{RejectReason, UpdateGoalInput};
 use serial_test::serial;
 use std::collections::VecDeque;
 use std::sync::Arc as StdArc;
 use std::sync::atomic::{AtomicUsize, Ordering as SeqOrd};
 use tokio::sync::Notify;
-use axon_tools::implementations::axon_build::task::types::{
-    SubagentCancelOutcome, SubagentEvent, SubagentResult,
-};
-use axon_tools::implementations::axon_build::update_goal::{RejectReason, UpdateGoalInput};
 const ENV_FLAG: &str = "AXON_GOAL_CLASSIFIER";
 /// Canned subagent response for a single verifier-skeptic spawn.
 /// Constructors mirror the verification-stage contract: each
@@ -2909,10 +2909,9 @@ async fn resolve_role_override_toolset_incapable_fails_open() {
                     can_read: true,
                     ..Default::default()
                 };
-            summary.tool_names.insert(
-                axon_tools::types::tool::ToolKind::Read,
-                "read_file".into(),
-            );
+            summary
+                .tool_names
+                .insert(axon_tools::types::tool::ToolKind::Read, "read_file".into());
             let (ov, log) = run_resolve(
                 &role_pair("good-model", "general-purpose"),
                 RoleCapability::Skeptic,

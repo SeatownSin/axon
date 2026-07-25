@@ -292,10 +292,7 @@ fn cmd_list(json: bool, available: bool) -> Result<()> {
 }
 
 fn installed_plugins(
-    repos: &[(
-        &str,
-        &axon_agent::plugins::install_registry::InstalledRepo,
-    )],
+    repos: &[(&str, &axon_agent::plugins::install_registry::InstalledRepo)],
 ) -> Vec<PluginEntry> {
     repos
         .iter()
@@ -327,7 +324,9 @@ fn available_plugins(registry: &InstallRegistry) -> Vec<PluginEntry> {
         .ok()
         .unwrap_or(toml::Value::Table(toml::map::Map::new()));
     let mut sources = axon_plugin_marketplace::load_sources(&config);
-    sources.extend(axon_plugin_marketplace::load_extra_sources_from_settings(&sources));
+    sources.extend(axon_plugin_marketplace::load_extra_sources_from_settings(
+        &sources,
+    ));
 
     let mut entries = Vec::new();
     for source in &sources {
@@ -413,8 +412,7 @@ fn log_plugin_installed(
 }
 
 fn cmd_install(source: &str, trust: bool) -> Result<()> {
-    if let Some(mref) = axon_plugin_marketplace::install_resolve::parse_marketplace_ref(source)
-    {
+    if let Some(mref) = axon_plugin_marketplace::install_resolve::parse_marketplace_ref(source) {
         return cmd_install_marketplace(source, &mref, trust);
     }
 
@@ -446,11 +444,7 @@ fn cmd_install(source: &str, trust: bool) -> Result<()> {
         Err(e) => {
             let cat = plugin::classify_install_error(&e);
             // On failure we don't know the kind; default to Git (matches canonical).
-            log_plugin_installed(
-                axon_telemetry::events::InstallKind::Git,
-                false,
-                Some(cat),
-            );
+            log_plugin_installed(axon_telemetry::events::InstallKind::Git, false, Some(cat));
             bail!("{e}");
         }
     }
@@ -527,12 +521,10 @@ fn cmd_install_marketplace(
 fn cmd_uninstall(name: &str, confirm: bool, keep_data: bool) -> Result<()> {
     match plugin::uninstall_plugin(name, confirm, keep_data) {
         Ok(outcome) => {
-            axon_telemetry::session_ctx::log_event(
-                axon_telemetry::events::PluginUninstalled {
-                    confirmed: true,
-                    success: true,
-                },
-            );
+            axon_telemetry::session_ctx::log_event(axon_telemetry::events::PluginUninstalled {
+                confirmed: true,
+                success: true,
+            });
             let suffix = if keep_data { " (data preserved)" } else { "" };
             println!(
                 "Uninstalled {} plugin(s): {}{suffix}",
@@ -790,7 +782,9 @@ async fn run_marketplace(cmd: MarketplaceCommand) -> Result<()> {
         .ok()
         .unwrap_or(toml::Value::Table(toml::map::Map::new()));
     let mut sources = axon_plugin_marketplace::load_sources(&config);
-    sources.extend(axon_plugin_marketplace::load_extra_sources_from_settings(&sources));
+    sources.extend(axon_plugin_marketplace::load_extra_sources_from_settings(
+        &sources,
+    ));
 
     match cmd {
         MarketplaceCommand::List { json } => marketplace_list(&sources, json),
@@ -1131,12 +1125,9 @@ mod tests {
             },
         };
 
-        let cache_dir = axon_plugin_marketplace::git::sync_source_cache(
-            &url,
-            Some("main"),
-            cache_root.path(),
-        )
-        .unwrap();
+        let cache_dir =
+            axon_plugin_marketplace::git::sync_source_cache(&url, Some("main"), cache_root.path())
+                .unwrap();
         let first_head = current_head(&cache_dir);
         add_commit(remote.path(), "second.txt", "second");
 

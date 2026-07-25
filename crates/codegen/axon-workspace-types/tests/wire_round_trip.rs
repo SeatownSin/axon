@@ -14,8 +14,8 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
-use chrono::{DateTime, TimeZone, Utc};
 use axon_workspace_types::*;
+use chrono::{DateTime, TimeZone, Utc};
 
 /// JSON round-trip helper. Asserts equality after a serialize +
 /// deserialize cycle.

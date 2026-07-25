@@ -16,15 +16,15 @@
 //! the bearer must resolve to the same user that owns the session — the
 //! access token from `~/.axon/auth.json` does (same identity).
 
+use axon_computer_hub_sdk::pool::HubConnectionPool;
+use axon_computer_hub_sdk::{AuthCredential, ToolHarnessBuilder};
+use axon_tool_protocol::{SessionId, ToolId};
+use axon_tool_runtime::{ToolCallContext, ToolStreamItem, TypedToolOutput};
 use base64::Engine;
 use clap::Parser;
 use serde_json::{Value, json};
 use url::Url;
 use uuid::Uuid;
-use axon_computer_hub_sdk::pool::HubConnectionPool;
-use axon_computer_hub_sdk::{AuthCredential, ToolHarnessBuilder};
-use axon_tool_protocol::{SessionId, ToolId};
-use axon_tool_runtime::{ToolCallContext, ToolStreamItem, TypedToolOutput};
 
 #[derive(Parser)]
 #[command(name = "workspace-server-probe")]

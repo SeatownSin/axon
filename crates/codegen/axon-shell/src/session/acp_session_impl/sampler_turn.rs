@@ -72,10 +72,7 @@ pub(super) async fn call_with_auth_retry<F, Fut>(
 where
     F: FnMut() -> Fut,
     Fut: std::future::Future<
-            Output = Result<
-                axon_tools::types::output::ToolRunResult,
-                axon_tool_runtime::ToolError,
-            >,
+            Output = Result<axon_tools::types::output::ToolRunResult, axon_tool_runtime::ToolError>,
         >,
 {
     let result = call().await;

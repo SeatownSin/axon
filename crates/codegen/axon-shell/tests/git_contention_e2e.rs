@@ -32,9 +32,6 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 
 use agent_client_protocol::{self as acp, Agent as _};
-use serde_json::{Value, json};
-use tempfile::TempDir;
-use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 use axon_acp_lib::{
     AcpAgentGatewayReceiver as GatewayReceiver, AcpAgentGatewaySender as GatewaySender,
     LineBufferedRead,
@@ -42,6 +39,9 @@ use axon_acp_lib::{
 use axon_shell::agent::config::Config as AgentConfig;
 use axon_shell::agent::mvp_agent::MvpAgent;
 use axon_test_support::{MockInferenceServer, ScriptedResponse, SseEvent};
+use serde_json::{Value, json};
+use tempfile::TempDir;
+use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
 const DUPLEX_BUFFER_BYTES: usize = 8 * 1024 * 1024;
 

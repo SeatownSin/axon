@@ -15,7 +15,8 @@ use super::*;
 pub(crate) use axon_interjection_core::{InterjectionBuffer, drain_formatted, format_interjection};
 
 /// Shell instantiation of the shared entry type: images are ACP content.
-pub(crate) type PendingInterjection = axon_interjection_core::PendingInterjection<acp::ImageContent>;
+pub(crate) type PendingInterjection =
+    axon_interjection_core::PendingInterjection<acp::ImageContent>;
 
 /// Prompt-id prefix for interjections that missed their turn and were
 /// converted into standalone prompt turns (arrived while idle, or after the
@@ -254,18 +255,14 @@ impl SessionActor {
         // turn, which this skill did not start. `SkillDispatched` still
         // carries `plugin_source`, so dispatch counts stay complete.
         for sk in &parsed {
-            axon_telemetry::session_ctx::log_event(
-                axon_telemetry::events::SlashCommandUsed {
-                    command: sk.name.clone(),
-                    args_provided: !sk.args.is_empty(),
-                },
-            );
-            axon_telemetry::session_ctx::log_event(
-                axon_telemetry::events::SkillDispatched {
-                    skill_name: sk.name.clone(),
-                    plugin_source: sk.plugin_name.clone(),
-                },
-            );
+            axon_telemetry::session_ctx::log_event(axon_telemetry::events::SlashCommandUsed {
+                command: sk.name.clone(),
+                args_provided: !sk.args.is_empty(),
+            });
+            axon_telemetry::session_ctx::log_event(axon_telemetry::events::SkillDispatched {
+                skill_name: sk.name.clone(),
+                plugin_source: sk.plugin_name.clone(),
+            });
         }
         slash_commands::build_skill_information_for_refs(
             &parsed,

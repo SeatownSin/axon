@@ -681,10 +681,7 @@ mod tests {
     const LONG_MSG: &str = "Enterprise security policy is now in effect for all \
 managed devices and accounts. Report security incidents";
 
-    fn ann(
-        title: Option<&str>,
-        message: Option<&str>,
-    ) -> axon_announcements::RemoteAnnouncement {
+    fn ann(title: Option<&str>, message: Option<&str>) -> axon_announcements::RemoteAnnouncement {
         axon_announcements::RemoteAnnouncement {
             title: title.map(str::to_string),
             message: message.map(str::to_string),

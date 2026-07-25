@@ -218,7 +218,8 @@ fn sigbus_produces_valid_crash_blob() {
         data.len()
     );
 
-    let blob = axon_crash_handler::format::CrashBlob::parse(&data).expect("crash blob should parse");
+    let blob =
+        axon_crash_handler::format::CrashBlob::parse(&data).expect("crash blob should parse");
 
     // On macOS SIGBUS=10, on Linux SIGBUS=7, SIGSEGV=11 on both.
     // The frame-pointer walker may cause a secondary SIGSEGV.
@@ -232,8 +233,8 @@ fn sigbus_produces_valid_crash_blob() {
     assert!(blob.timestamp > 0, "timestamp should be nonzero");
 
     // check_previous_crash should produce a report.
-    let report =
-        axon_crash_handler::check_previous_crash(tmp.path()).expect("should produce a crash report");
+    let report = axon_crash_handler::check_previous_crash(tmp.path())
+        .expect("should produce a crash report");
     assert!(report.signal_name.contains("SIGBUS"));
     assert_eq!(report.app_version, "0.0.0-test");
     assert!(report.report_path.exists(), "report file should be written");
@@ -264,7 +265,8 @@ fn sigsegv_produces_valid_crash_blob() {
     let crash_file = tmp.path().join("last-crash.bin");
     assert!(crash_file.exists(), "crash file should exist after SIGSEGV");
     let data = std::fs::read(&crash_file).expect("read crash file");
-    let blob = axon_crash_handler::format::CrashBlob::parse(&data).expect("crash blob should parse");
+    let blob =
+        axon_crash_handler::format::CrashBlob::parse(&data).expect("crash blob should parse");
     assert_eq!(blob.signal, 11, "signal should be SIGSEGV (11)");
     assert_eq!(blob.app_version, "0.0.0-test");
 }

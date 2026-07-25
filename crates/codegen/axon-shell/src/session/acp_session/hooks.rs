@@ -13,10 +13,10 @@ use std::time::Duration;
 
 use agent_client_protocol as acp;
 use agent_client_protocol::Client as _;
-use futures::stream::{FuturesUnordered, StreamExt as _};
-use serde_json::value::RawValue;
 use axon_hooks::event::{HookEventEnvelope, HookEventName, HookPayload};
 use axon_telemetry::events::ClientHookGateOutcome;
+use futures::stream::{FuturesUnordered, StreamExt as _};
+use serde_json::value::RawValue;
 
 use super::{SessionActor, ToolLoop};
 use crate::extensions::hooks::{

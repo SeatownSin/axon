@@ -13,8 +13,6 @@
 
 use std::time::Duration;
 
-use tempfile::TempDir;
-use tokio::net::UnixStream;
 use axon_shell::cpu_profile::ControlErrorCode;
 use axon_shell::leader::{
     ClientCapabilities, ClientMode, ControlCommand, ControlPayload, LeaderClient,
@@ -22,6 +20,8 @@ use axon_shell::leader::{
     protocol::{ClientMessage, ServerMessage, read_message, write_message},
     spawn_leader_server,
 };
+use tempfile::TempDir;
+use tokio::net::UnixStream;
 
 /// Pipe character used for ID namespacing (must match server.rs)
 const ID_NAMESPACE_SEP: char = '|';
@@ -2075,11 +2075,11 @@ async fn test_code_status_ext_request_forwarded_to_agent() {
 /// being used to test the intermediate `Registered { ready: false }` state.
 #[tokio::test]
 async fn test_raw_registration_handshake_not_ready_then_ready() {
+    use axon_shell::leader::run_leader_server;
     use std::sync::Arc;
     use std::sync::atomic::{AtomicBool, AtomicUsize};
     use tokio::sync::{mpsc, watch};
     use tokio_util::sync::CancellationToken;
-    use axon_shell::leader::run_leader_server;
 
     let temp = TempDir::new().unwrap();
     let sock_path = temp.path().join("leader.sock");
@@ -2230,11 +2230,11 @@ async fn test_raw_registration_handshake_not_ready_then_ready() {
 /// `initialize` immediately.
 #[tokio::test]
 async fn test_connect_waits_for_leader_ready() {
+    use axon_shell::leader::run_leader_server;
     use std::sync::Arc;
     use std::sync::atomic::{AtomicBool, AtomicUsize};
     use tokio::sync::{mpsc, watch};
     use tokio_util::sync::CancellationToken;
-    use axon_shell::leader::run_leader_server;
 
     let temp = TempDir::new().unwrap();
     let sock_path = temp.path().join("leader.sock");
@@ -2347,11 +2347,11 @@ async fn test_connect_waits_for_leader_ready() {
 /// that appears in dev builds where `VERSION_WITH_COMMIT` is not set.
 #[tokio::test]
 async fn test_version_mismatch_notification_sent_to_client() {
+    use axon_shell::leader::{ClientCapabilities, ClientMode, LeaderClient, run_leader_server};
     use std::sync::Arc;
     use std::sync::atomic::{AtomicBool, AtomicUsize};
     use tokio::sync::{mpsc, watch};
     use tokio_util::sync::CancellationToken;
-    use axon_shell::leader::{ClientCapabilities, ClientMode, LeaderClient, run_leader_server};
 
     let temp = TempDir::new().unwrap();
     let sock_path = temp.path().join("leader.sock");
@@ -2421,11 +2421,11 @@ async fn test_version_mismatch_notification_sent_to_client() {
 /// Confirm no mismatch notification is sent when versions match.
 #[tokio::test]
 async fn test_no_version_mismatch_notification_when_versions_match() {
+    use axon_shell::leader::{ClientCapabilities, ClientMode, LeaderClient, run_leader_server};
     use std::sync::Arc;
     use std::sync::atomic::{AtomicBool, AtomicUsize};
     use tokio::sync::{mpsc, watch};
     use tokio_util::sync::CancellationToken;
-    use axon_shell::leader::{ClientCapabilities, ClientMode, LeaderClient, run_leader_server};
 
     let temp = TempDir::new().unwrap();
     let sock_path = temp.path().join("leader.sock");
@@ -2660,11 +2660,11 @@ async fn test_relaunch_for_update_declines_when_not_newer() {
 /// relaunch is requested.
 #[tokio::test]
 async fn test_relaunch_for_update_waits_for_busy_then_exits() {
-    use std::sync::atomic::Ordering;
     use axon_shell::leader::{
         ClientCapabilities, ClientMode, ControlCommand, ControlPayload, LeaderClient,
         ShutdownReason,
     };
+    use std::sync::atomic::Ordering;
 
     let temp = TempDir::new().unwrap();
     let sock_path = temp.path().join("leader.sock");
@@ -2854,12 +2854,12 @@ async fn test_leader_code_nav_isolation_end_to_end() {
 /// this because they drove readiness via a bare `watch::channel`.
 #[tokio::test]
 async fn test_lock_released_before_connect_prevents_deadlock() {
+    use axon_shell::leader::run_leader_server;
     use fs2::FileExt;
     use std::sync::Arc;
     use std::sync::atomic::{AtomicBool, AtomicUsize};
     use tokio::sync::{mpsc, watch};
     use tokio_util::sync::CancellationToken;
-    use axon_shell::leader::run_leader_server;
 
     let temp = TempDir::new().unwrap();
     let sock_path = temp.path().join("leader.sock");

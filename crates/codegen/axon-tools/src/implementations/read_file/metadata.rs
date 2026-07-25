@@ -27,7 +27,9 @@ pub(crate) fn is_pdf_magic(bytes: &[u8]) -> bool {
 pub fn bytes_to_metadata(file_bytes: &[u8]) -> Result<FileMetadata, axon_tool_runtime::ToolError> {
     let size = file_bytes.len();
     let data = infer::get(file_bytes).ok_or_else(|| {
-        axon_tool_runtime::ToolError::invalid_arguments("failed to infer file type from magic bytes")
+        axon_tool_runtime::ToolError::invalid_arguments(
+            "failed to infer file type from magic bytes",
+        )
     })?;
 
     Ok(FileMetadata {

@@ -5,9 +5,9 @@
 //! wiring compiles, but [`build_otel_layer`] returns an inert layer and
 //! [`shutdown_otel`] only flushes the *external* (customer-controlled) OTLP
 //! stream, which remains available via the `external` module.
+use axon_auth::AuthCredentialProvider;
 use std::sync::Arc;
 use tracing_subscriber::registry::LookupSpan;
-use axon_auth::AuthCredentialProvider;
 
 /// Configuration for [`build_otel_layer`]. Retained for API compatibility;
 /// its contents are no longer used since span export was removed.

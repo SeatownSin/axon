@@ -31,6 +31,10 @@ use crate::demux::Demux;
 use crate::error::ClientError;
 use crate::handshake::send_hello;
 use crate::refcount::RefCountedSet;
+use axon_tool_protocol::{
+    ConnectionId, ConnectionKind, JsonRpcId, JsonRpcRequest, JsonRpcResponse, JsonRpcVersion,
+    Method, PongFrame, ResponseOutcome, SessionId,
+};
 use futures::stream::SplitSink;
 use futures::stream::SplitStream;
 use futures::{SinkExt, Stream, StreamExt};
@@ -48,10 +52,6 @@ use tokio_tungstenite::{MaybeTlsStream, WebSocketStream, connect_async};
 use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
 use url::Url;
-use axon_tool_protocol::{
-    ConnectionId, ConnectionKind, JsonRpcId, JsonRpcRequest, JsonRpcResponse, JsonRpcVersion,
-    Method, PongFrame, ResponseOutcome, SessionId,
-};
 /// Outbound mpsc bound. Picked to match the server's per-actor outbound
 /// buffer so a single-process roundtrip never dead-blocks on sender
 /// capacity.

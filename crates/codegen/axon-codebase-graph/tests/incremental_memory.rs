@@ -17,10 +17,10 @@
 //! test, give it its own file too rather than reintroducing the
 //! noisy-neighbor problem.
 
+use axon_codebase_graph::{FileEvent, IndexManager, IndexManagerConfig};
 use std::fs;
 use std::path::Path;
 use tempfile::tempdir;
-use axon_codebase_graph::{FileEvent, IndexManager, IndexManagerConfig};
 
 /// Read current process RSS in bytes. Supports Linux and macOS.
 /// Returns `None` on unsupported platforms.

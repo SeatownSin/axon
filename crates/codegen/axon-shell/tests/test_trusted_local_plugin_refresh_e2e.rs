@@ -17,8 +17,6 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use serial_test::serial;
-use tempfile::TempDir;
 use axon_agent::plugins::SharedPluginRegistryHandle;
 use axon_agent::plugins::discovery::DiscoveryConfig;
 use axon_agent::plugins::git_install::{InstallSource, install_from_source};
@@ -26,6 +24,8 @@ use axon_agent::plugins::install_registry::{
     InstallKind, InstallRegistry, InstalledRepo, RepoPlugin,
 };
 use axon_test_support::*;
+use serial_test::serial;
+use tempfile::TempDir;
 
 fn write_minimal_plugin(dir: &Path, name: &str) {
     std::fs::create_dir_all(dir).unwrap();
@@ -189,10 +189,7 @@ fn trusted_local_refresh_surfaces_new_agent_via_discovery() {
     let plugin = registry
         .get("session-plugin")
         .expect("session plugin discovered");
-    assert_eq!(
-        plugin.scope,
-        axon_agent::plugins::PluginScope::CliOverride
-    );
+    assert_eq!(plugin.scope, axon_agent::plugins::PluginScope::CliOverride);
     assert!(plugin.trusted && plugin.enabled);
     assert_eq!(registry.session_plugin_dirs(), session_dirs.as_slice());
 

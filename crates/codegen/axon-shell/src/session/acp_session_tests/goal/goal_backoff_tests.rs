@@ -2414,8 +2414,8 @@ async fn drain_goal_updates_blocked_reason_takes_precedence_over_completed() {
 // classifier sampler invoked); the full Achieved/NotAchieved/cap
 // E2E suite using `MockSpawner` lives separately.
 
-fn make_completed_cmd()
--> axon_tools::implementations::axon_build::update_goal::UpdateGoalEnvelope {
+fn make_completed_cmd() -> axon_tools::implementations::axon_build::update_goal::UpdateGoalEnvelope
+{
     let input = axon_tools::implementations::axon_build::update_goal::UpdateGoalInput {
         completed: Some(true),
         message: None,

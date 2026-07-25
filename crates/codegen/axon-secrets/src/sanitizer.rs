@@ -461,7 +461,9 @@ mod tests {
 
     #[test]
     fn redacts_sensitive_url_query_params() {
-        let out = redact_secrets("callback https://blocked.invalid/cb?code=ABC123XYZ&state=xyz789 failed");
+        let out = redact_secrets(
+            "callback https://blocked.invalid/cb?code=ABC123XYZ&state=xyz789 failed",
+        );
         assert!(!out.contains("ABC123XYZ"), "OAuth code leaked: {out}");
         assert!(!out.contains("xyz789"), "state leaked: {out}");
     }

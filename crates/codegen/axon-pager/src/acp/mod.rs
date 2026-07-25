@@ -945,7 +945,7 @@ mod tests {
     /// either passes or fails on a meaningful new code path.
     #[test]
     fn startup_auth_axon_api_key_not_first_still_requires_login() {
-        use axon_shell::agent::auth_method::{AXON_COM_METHOD_ID, AXON_API_KEY_METHOD_ID};
+        use axon_shell::agent::auth_method::{AXON_API_KEY_METHOD_ID, AXON_COM_METHOD_ID};
 
         let methods = vec![
             make_auth_method(AXON_COM_METHOD_ID, "Axon", None),
@@ -970,7 +970,11 @@ mod tests {
     #[test]
     fn startup_auth_external_provider_false_is_pending() {
         let meta = serde_json::json!({ "external_provider": false });
-        let methods = vec![make_auth_method("blocked.invalid", "blocked.invalid", Some(meta))];
+        let methods = vec![make_auth_method(
+            "blocked.invalid",
+            "blocked.invalid",
+            Some(meta),
+        )];
         let (_, _, _, mode) = startup_auth_metadata(&methods);
         assert_eq!(mode, AuthStartMode::Pending);
     }

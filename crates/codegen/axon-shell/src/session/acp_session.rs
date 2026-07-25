@@ -54,16 +54,6 @@ use crate::terminal::{DEFAULT_TIMEOUT, TerminalRunRequest};
 use crate::tools::ToolContext;
 use agent_client_protocol as acp;
 use agent_client_protocol::ContentBlock;
-use parking_lot::Mutex;
-use serde_json::json;
-use std::collections::{HashMap, VecDeque};
-use std::path::Path;
-use std::sync::Arc;
-#[cfg(test)]
-use std::sync::OnceLock;
-use tokio::sync::{Mutex as TokioMutex, mpsc, oneshot};
-use tokio::time::{Duration, sleep};
-use tokio_retry::strategy::ExponentialBackoff;
 use axon_acp_lib::AcpAgentGatewaySender as GatewaySender;
 use axon_agent::AgentDefinition;
 use axon_agent::prompt::agents_md::LEGACY_AGENTS_MD_REMINDER_PREFIX;
@@ -83,6 +73,16 @@ use axon_workspace::permission::{
     AccessKind, ClientType, Decision, PermissionEvent, PermissionHandle,
 };
 use axon_workspace::session::file_state::{FileStateHandle, FileStateTracker};
+use parking_lot::Mutex;
+use serde_json::json;
+use std::collections::{HashMap, VecDeque};
+use std::path::Path;
+use std::sync::Arc;
+#[cfg(test)]
+use std::sync::OnceLock;
+use tokio::sync::{Mutex as TokioMutex, mpsc, oneshot};
+use tokio::time::{Duration, sleep};
+use tokio_retry::strategy::ExponentialBackoff;
 const SESSION_LOG: &str = "axon_session";
 #[path = "compaction.rs"]
 mod compaction;
@@ -413,8 +413,9 @@ fn managed_gateway_error_to_tool_error(
             } else if status == reqwest::StatusCode::FORBIDDEN {
                 axon_tool_runtime::ToolError::permission_denied(detail)
             } else {
-                let tool_id = axon_tool_protocol::ToolId::new(caller)
-                    .unwrap_or_else(|_| axon_tool_protocol::ToolId::new("use_tool").expect("valid"));
+                let tool_id = axon_tool_protocol::ToolId::new(caller).unwrap_or_else(|_| {
+                    axon_tool_protocol::ToolId::new("use_tool").expect("valid")
+                });
                 axon_tool_runtime::ToolError::execution(tool_id, detail)
             };
             match err.details.as_mut() {
@@ -919,8 +920,7 @@ pub(crate) struct SessionActor {
     /// `None` when no plugin registry was supplied at spawn time.
     /// Wrapped in `RefCell` for mid-session reload from `&self` methods.
     /// Safe: session actor is single-threaded (LocalSet), no concurrent access.
-    pub(crate) hook_registry:
-        std::cell::RefCell<Option<Arc<axon_hooks::discovery::HookRegistry>>>,
+    pub(crate) hook_registry: std::cell::RefCell<Option<Arc<axon_hooks::discovery::HookRegistry>>>,
     /// Client hooks from `session/new` `_meta["axon/hooks"]`; gated in
     /// [`crate::session::acp_session::hooks`]. `RefCell` so `load_session` reconnect can
     /// replace the set on the live actor (see `SessionCommand::SetClientHooks`).
@@ -1133,7 +1133,10 @@ impl SessionActor {
     }
     /// Send an after-turn hook via the local workspace channel.
     /// Fire-and-forget — failures are logged but do not interrupt the turn.
-    async fn send_after_turn_event(&self, payload: axon_tool_protocol::turn_hook::AfterTurnPayload) {
+    async fn send_after_turn_event(
+        &self,
+        payload: axon_tool_protocol::turn_hook::AfterTurnPayload,
+    ) {
         self.workspace_ops
             .on_after_turn(&self.session_id_string(), &payload)
             .await;
@@ -1163,9 +1166,7 @@ impl SessionActor {
         &self,
         tool_names: &[String],
     ) -> slash_commands::CommandAvailability {
-        use axon_tools::implementations::memory::{
-            MEMORY_GET_TOOL_NAME, MEMORY_SEARCH_TOOL_NAME,
-        };
+        use axon_tools::implementations::memory::{MEMORY_GET_TOOL_NAME, MEMORY_SEARCH_TOOL_NAME};
         let memory_read_registered = tool_names
             .iter()
             .any(|n| n == MEMORY_SEARCH_TOOL_NAME || n == MEMORY_GET_TOOL_NAME);
@@ -1174,9 +1175,9 @@ impl SessionActor {
             feedback: self.feedback_manager.is_enabled(),
             memory: self.memory.is_enabled() && memory_read_registered,
             memory_configured: self.memory.backend_params.is_some(),
-            scheduler: tool_names.iter().any(|n| {
-                n == axon_tools::implementations::axon_build::SCHEDULER_CREATE_TOOL_NAME
-            }),
+            scheduler: tool_names
+                .iter()
+                .any(|n| n == axon_tools::implementations::axon_build::SCHEDULER_CREATE_TOOL_NAME),
             hooks: self.hook_registry.borrow().is_some(),
             plugins: self.plugin_registry.borrow().is_some(),
             goal,
@@ -1331,9 +1332,7 @@ fn load_system_prompt_from_dir(session_dir: &std::path::Path) -> Option<String> 
 ///
 /// Returns `None` for sessions without a persisted context.
 #[expect(dead_code, reason = "API for future viewers/debug tools")]
-pub(crate) fn load_prompt_context(
-    session_info: &SessionInfo,
-) -> Option<axon_agent::PromptContext> {
+pub(crate) fn load_prompt_context(session_info: &SessionInfo) -> Option<axon_agent::PromptContext> {
     let dir = crate::session::persistence::session_dir(session_info);
     load_prompt_context_from_dir(&dir)
 }
@@ -1623,10 +1622,10 @@ mod tool_meta_stamp_tests {
     use super::replay_buffer_send_update_tests::make_replay_send_update_fixture;
     use super::support::test_agent_with_tools;
     use super::*;
-    use tokio::sync::mpsc;
     use axon_tools::registry::types::ToolConfig;
     use axon_tools::tool_taxonomy::TOOL_META_KEY;
     use axon_workspace::permission::PermissionCommand;
+    use tokio::sync::mpsc;
     fn read_file_call() -> crate::sampling::types::ToolCallResponse {
         crate::sampling::types::ToolCallResponse {
             id: "call-stamp-1".to_string(),
@@ -1674,13 +1673,15 @@ mod tool_meta_stamp_tests {
                     }
                 }
                 let early = early.expect("early ToolCall emitted");
-                let t = tool_meta(early.as_ref()).expect("early ToolCall carries blocked.invalid/tool");
+                let t =
+                    tool_meta(early.as_ref()).expect("early ToolCall carries blocked.invalid/tool");
                 assert_eq!(t["name"], "read_file");
                 assert_eq!(t["kind"], "read");
                 assert_eq!(t["namespace"], "axon_build");
                 assert!(t.get("input").is_none(), "identity-only before parse");
                 let refined = refined.expect("refinement ToolCallUpdate emitted");
-                let t = tool_meta(refined.as_ref()).expect("refinement carries blocked.invalid/tool");
+                let t =
+                    tool_meta(refined.as_ref()).expect("refinement carries blocked.invalid/tool");
                 assert_eq!(t["input"]["path"], "/tmp/stamp.txt");
             })
             .await;

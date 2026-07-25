@@ -1248,9 +1248,7 @@ fn project_picker_skip_falls_back_to_original_cwd() {
 fn project_picker_freeform_path_used_when_no_option_selected() {
     use crate::views::prompt_widget::StashedPrompt;
     use crate::views::question_view::{LocalQuestionKind, QuestionViewState};
-    use axon_tools::implementations::axon_build::ask_user_question::{
-        Question, QuestionOption,
-    };
+    use axon_tools::implementations::axon_build::ask_user_question::{Question, QuestionOption};
     let q = Question {
         question: "Pick".into(),
         id: None,
@@ -1289,9 +1287,7 @@ fn project_picker_freeform_path_used_when_no_option_selected() {
 fn project_picker_freeform_overrides_dont_ask() {
     use crate::views::prompt_widget::StashedPrompt;
     use crate::views::question_view::{LocalQuestionKind, QuestionSelection, QuestionViewState};
-    use axon_tools::implementations::axon_build::ask_user_question::{
-        Question, QuestionOption,
-    };
+    use axon_tools::implementations::axon_build::ask_user_question::{Question, QuestionOption};
     let opt = |label: &str| QuestionOption {
         label: label.into(),
         description: String::new(),
@@ -1348,9 +1344,7 @@ fn needs_project_picker_false_when_disabled() {
 fn project_picker_dont_ask_again_sets_disable_flag() {
     use crate::views::prompt_widget::StashedPrompt;
     use crate::views::question_view::{LocalQuestionKind, QuestionSelection, QuestionViewState};
-    use axon_tools::implementations::axon_build::ask_user_question::{
-        Question, QuestionOption,
-    };
+    use axon_tools::implementations::axon_build::ask_user_question::{Question, QuestionOption};
     let opt = |label: &str| QuestionOption {
         label: label.into(),
         description: String::new(),
@@ -1388,9 +1382,7 @@ fn project_picker_dont_ask_again_sets_disable_flag() {
 fn project_picker_recent_project_selection_uses_that_path() {
     use crate::views::prompt_widget::StashedPrompt;
     use crate::views::question_view::{LocalQuestionKind, QuestionSelection, QuestionViewState};
-    use axon_tools::implementations::axon_build::ask_user_question::{
-        Question, QuestionOption,
-    };
+    use axon_tools::implementations::axon_build::ask_user_question::{Question, QuestionOption};
     let opt = |label: &str| QuestionOption {
         label: label.into(),
         description: String::new(),

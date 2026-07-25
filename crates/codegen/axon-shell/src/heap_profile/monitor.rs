@@ -595,7 +595,8 @@ async fn upload_pair(
     };
     let config = gcs_config.with_auth(Some(Arc::clone(&handles.auth_manager)));
 
-    if let Err(e) = axon_file_utils::gcs::upload_file(&config, heap_object, heap_path, heap_ct).await
+    if let Err(e) =
+        axon_file_utils::gcs::upload_file(&config, heap_object, heap_path, heap_ct).await
     {
         return log_upload_result(heap_object, file_size, false, Some(&e.to_string()));
     }

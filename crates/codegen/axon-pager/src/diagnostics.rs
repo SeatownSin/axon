@@ -182,8 +182,7 @@ pub fn collect_startup_warnings(
 
     // Apple Terminal.app does not support OSC 52. Over SSH, this means
     // clipboard writes can never reach the user's local machine.
-    if ctx.brand == TerminalName::AppleTerminal
-        && axon_shell::util::clipboard::is_remote_session()
+    if ctx.brand == TerminalName::AppleTerminal && axon_shell::util::clipboard::is_remote_session()
     {
         warnings.push(TerminalWarning::new(
             WarningCategory::UnsupportedTerminal,

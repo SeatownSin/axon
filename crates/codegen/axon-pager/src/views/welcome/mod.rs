@@ -763,10 +763,7 @@ pub fn render_welcome(
             let (menu_rects, post_flush_escapes) = render_welcome_blocked(
                 content_area,
                 buf,
-                Some((
-                    "Axon is not available for this account.",
-                    theme.gray_bright,
-                )),
+                Some(("Axon is not available for this account.", theme.gray_bright)),
                 &menu,
                 params.selected,
                 None,
@@ -3587,9 +3584,18 @@ mod tests {
             Some("GOOD"),
         );
         // No code param, empty code, and unexpected characters all yield None.
-        assert_eq!(extract_user_code("https://blocked.invalid/oauth2/device"), None);
-        assert_eq!(extract_user_code("https://blocked.invalid/d?user_code="), None);
-        assert_eq!(extract_user_code("https://blocked.invalid/d?user_code=AB%20CD"), None);
+        assert_eq!(
+            extract_user_code("https://blocked.invalid/oauth2/device"),
+            None
+        );
+        assert_eq!(
+            extract_user_code("https://blocked.invalid/d?user_code="),
+            None
+        );
+        assert_eq!(
+            extract_user_code("https://blocked.invalid/d?user_code=AB%20CD"),
+            None
+        );
     }
 
     #[test]
@@ -3717,7 +3723,8 @@ mod tests {
         let theme = Theme::current();
         // 40-col terminal; URL longer than one row must wrap at the exact
         // screen edge with no leading spaces so copy-paste stays intact.
-        let url = "https://accounts.blocked.invalid/oauth2/device?user_code=WXYZ-1234&extra=0123456789";
+        let url =
+            "https://accounts.blocked.invalid/oauth2/device?user_code=WXYZ-1234&extra=0123456789";
 
         render_welcome_authenticating(
             area,

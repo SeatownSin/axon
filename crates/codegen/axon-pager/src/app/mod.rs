@@ -47,6 +47,7 @@ pub mod signal_handler;
 mod turn_completion;
 mod xt_filter;
 pub(crate) use crate::terminal::kitty_flags_pushed;
+use axon_shell::util::config;
 pub use cli::{
     AgentArgs, AgentCmd, Command, HeadlessArgs, LeaderArgs, LeaderMgmtArgs, LeaderMgmtCommand,
     LeaderTargetArgs, OutputFormat, PagerArgs, ServeArgs, WrapArgs,
@@ -67,7 +68,6 @@ use std::io::{self, Write};
 use std::panic;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tokio_util::sync::CancellationToken;
-use axon_shell::util::config;
 /// Tracks the extra Kitty keyboard layer pushed while the `/gboom` game is
 /// open (see [`push_gboom_keyboard_flags`]). Kept separate from
 /// `KITTY_FLAGS_PUSHED` so teardown pops both, in LIFO order.
@@ -451,19 +451,17 @@ pub async fn run(
     let startup_start = std::time::Instant::now();
     let raw_config = axon_shell::config::load_effective_config()
         .map_err(|e| anyhow::anyhow!("Failed to load config: {e}"))?;
-    let axon_com_config =
-        match axon_shell::agent::config::Config::new_from_toml_cfg(&raw_config) {
-            Ok(c) => c.axon_com_config,
-            Err(e) => {
-                tracing::warn!(
-                    error = % e, "failed to parse config for auth refresh, using defaults"
-                );
-                axon_shell::auth::AxonComConfig::default()
-            }
-        };
+    let axon_com_config = match axon_shell::agent::config::Config::new_from_toml_cfg(&raw_config) {
+        Ok(c) => c.axon_com_config,
+        Err(e) => {
+            tracing::warn!(
+                error = % e, "failed to parse config for auth refresh, using defaults"
+            );
+            axon_shell::auth::AxonComConfig::default()
+        }
+    };
     let refreshed_auth = axon_shell::auth::try_ensure_fresh_auth(&axon_com_config).await;
-    let early_prefetch =
-        axon_shell::agent::models::start_early_prefetch_with_auth(refreshed_auth);
+    let early_prefetch = axon_shell::agent::models::start_early_prefetch_with_auth(refreshed_auth);
     axon_shell::agent::mvp_agent::warm_async_http_client();
     tokio::task::spawn_blocking(|| {});
     if let Ok(cwd) = std::env::current_dir() {
@@ -1102,9 +1100,7 @@ fn init_terminal(
             })?;
         }
         if mode.is_fullscreen() {
-            axon_shell::util::with_locked_stderr(|stderr| {
-                execute!(stderr, EnterAlternateScreen)
-            })?;
+            axon_shell::util::with_locked_stderr(|stderr| execute!(stderr, EnterAlternateScreen))?;
         }
         #[cfg(windows)]
         if want_minimal {

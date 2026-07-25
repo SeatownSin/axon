@@ -24,13 +24,13 @@ use crate::session::two_pass::{
     note_for_two_pass_pass2, split_conversation_for_two_pass,
 };
 use agent_client_protocol as acp;
-use std::sync::Arc;
 use axon_chat_state::compaction_utils::{
     CompactedHistoryInput, CompactionAttempt, build_compacted_history, is_degenerate_summary,
     prepare_conversation_for_verbatim_summarization, sanitize_compacted_history,
     validate_compacted_history,
 };
 use axon_sampling_types::{ApiBackend, ConversationItem};
+use std::sync::Arc;
 /// Default percentage points below the auto-compact threshold at which prefire
 /// (background pass-1) starts, giving pass-1 runway to finish before the limit.
 /// Override with `AXON_PREFIRE_LEAD_PERCENT`.
@@ -669,13 +669,11 @@ impl SessionActor {
                 context_window,
                 "auto-compaction suppressed after deterministic compaction failure"
             );
-            axon_telemetry::session_ctx::log_event(
-                axon_telemetry::events::AutoCompactSuppressed {
-                    reason: reason.as_str(),
-                    estimated_tokens,
-                    context_window,
-                },
-            );
+            axon_telemetry::session_ctx::log_event(axon_telemetry::events::AutoCompactSuppressed {
+                reason: reason.as_str(),
+                estimated_tokens,
+                context_window,
+            });
             let message = match reason {
                 SuppressReason::CreditBlock => {
                     "out of credits or over your spending limit. Add credits and retry."
@@ -945,12 +943,11 @@ impl SessionActor {
             .into_iter()
             .map(axon_sampling_types::ToolSpec::from)
             .collect();
-        let compaction_hosted_tools: Vec<axon_sampling_types::HostedTool> =
-            if use_backend_search {
-                self.agent.borrow().hosted_tools().to_vec()
-            } else {
-                Vec::new()
-            };
+        let compaction_hosted_tools: Vec<axon_sampling_types::HostedTool> = if use_backend_search {
+            self.agent.borrow().hosted_tools().to_vec()
+        } else {
+            Vec::new()
+        };
         tracing::info!(
             num_tools = compaction_tools.len(),
             tool_tokens = compaction_tool_tokens,
@@ -1954,11 +1951,7 @@ impl SessionActor {
         .await;
         let compact_start = std::time::Instant::now();
         let result = self
-            .run_compact_inner(
-                None,
-                None,
-                axon_telemetry::events::CompactionTrigger::Auto,
-            )
+            .run_compact_inner(None, None, axon_telemetry::events::CompactionTrigger::Auto)
             .await;
         let elapsed_ms = compact_start.elapsed().as_millis() as i64;
         match result {
@@ -2128,11 +2121,11 @@ mod inline_auto_compact_flow_tests {
     use crate::session::acp_session::McpReminderMode;
     use crate::terminal::AsyncTerminalRunner;
     use crate::terminal::runner::{TerminalError, TerminalRunRequest, TerminalRunResult};
-    use std::sync::OnceLock;
-    use tokio::sync::mpsc;
     use axon_paths::AbsPathBuf;
     use axon_workspace::file_system::MockFs;
     use axon_workspace::permission::PermissionHandle;
+    use std::sync::OnceLock;
+    use tokio::sync::mpsc;
     #[derive(Debug)]
     struct DummyTerminal;
     #[async_trait::async_trait]
@@ -2724,8 +2717,8 @@ mod inline_auto_compact_flow_tests {
     #[tokio::test(flavor = "current_thread")]
     async fn forked_prefix_released_under_pressure_and_stays_released() {
         use crate::session::compaction_config::SUPPRESS_NONE;
-        use std::sync::atomic::Ordering::Relaxed;
         use axon_test_support::MockInferenceServer;
+        use std::sync::atomic::Ordering::Relaxed;
         let local = tokio::task::LocalSet::new();
         local
             .run_until(async {
@@ -2799,8 +2792,8 @@ mod inline_auto_compact_flow_tests {
     #[tokio::test(flavor = "current_thread")]
     async fn forked_release_still_over_threshold_suppresses_auto() {
         use crate::session::compaction_config::SUPPRESS_STICKY;
-        use std::sync::atomic::Ordering::Relaxed;
         use axon_test_support::MockInferenceServer;
+        use std::sync::atomic::Ordering::Relaxed;
         let local = tokio::task::LocalSet::new();
         local
             .run_until(async {

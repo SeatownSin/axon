@@ -141,11 +141,11 @@ fn finish_transcript(app: &mut AppView, id: axon_pager::app::agent::AgentId, out
         }
         Err(e) => {
             if let Some(agent) = app.agents.get_mut(&id) {
-                agent.scrollback.push_block(
-                    axon_pager::scrollback::block::RenderBlock::system(format!(
+                agent
+                    .scrollback
+                    .push_block(axon_pager::scrollback::block::RenderBlock::system(format!(
                         "Failed to write transcript: {e}"
-                    )),
-                );
+                    )));
             }
         }
     }

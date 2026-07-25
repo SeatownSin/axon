@@ -18,12 +18,12 @@ use crate::scrollback::render::ScratchBuffer;
 use crate::views::prompt_widget::PromptWidget;
 use crate::views::welcome::WelcomePromptFocus;
 use agent_client_protocol as acp;
+use axon_acp_lib::AcpAgentTx;
 use crossterm::event::{Event, KeyCode, KeyEventKind, MouseButton, MouseEventKind};
 use indexmap::IndexMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use axon_acp_lib::AcpAgentTx;
 /// State for the "New Worktree" popup dialog on the welcome screen.
 #[derive(Debug, Default)]
 pub struct NewWorktreeDialogState {
@@ -195,8 +195,7 @@ impl WorktreeMode {
     }
     /// Same as [`Self::resolve_from_hints`], for merged effective config (`toml::Value`).
     pub fn resolve_from_hints_value(hints: Option<&toml::Value>) -> (Self, Self) {
-        let (new_session, fork) =
-            axon_shell::util::config::WorktreeHintMode::resolve_pair(hints);
+        let (new_session, fork) = axon_shell::util::config::WorktreeHintMode::resolve_pair(hints);
         (new_session.into(), fork.into())
     }
     fn resolve_from_hint_strings(get_str: impl Fn(&str) -> Option<Self>) -> (Self, Self) {
@@ -1183,12 +1182,10 @@ impl AppView {
         self.gate = meta.gate.clone();
         if was_gated && self.gate.is_none() {
             self.paywall_check_started = None;
-            axon_telemetry::session_ctx::log_event(
-                axon_telemetry::events::SubscriptionActivated {
-                    auth_method: self.login_method_id.as_ref().map(|id| id.0.to_string()),
-                    upsell_shown_this_session: self.access_gate_shown_logged,
-                },
-            );
+            axon_telemetry::session_ctx::log_event(axon_telemetry::events::SubscriptionActivated {
+                auth_method: self.login_method_id.as_ref().map(|id| id.0.to_string()),
+                upsell_shown_this_session: self.access_gate_shown_logged,
+            });
         }
         self.subscription_tier = meta.subscription_tier.clone();
         let was_api_key = self.is_api_key_auth;
@@ -2810,8 +2807,7 @@ struct WelcomeInputCtx<'a> {
     is_zdr_blocked: bool,
     sp_entries: &'a mut Option<Vec<SessionPickerEntry>>,
     sp_state: &'a mut crate::views::picker::PickerState,
-    sp_content_results:
-        &'a Option<Vec<axon_shell::extensions::session_search::SearchSessionHit>>,
+    sp_content_results: &'a Option<Vec<axon_shell::extensions::session_search::SearchSessionHit>>,
     sp_content_loading: bool,
     /// The query `sp_entries` were server-fetched with (see
     /// [`crate::views::session_picker::effective_filter_query`]).
@@ -4072,8 +4068,7 @@ impl AppView {
                             self.access_gate_shown_logged = true;
                             axon_telemetry::session_ctx::log_event(
                                 axon_telemetry::events::SuperAxonUpsellShown {
-                                    source:
-                                        axon_telemetry::events::SuperAxonUpsell::WelcomeScreen,
+                                    source: axon_telemetry::events::SuperAxonUpsell::WelcomeScreen,
                                     auth_method: self
                                         .login_method_id
                                         .as_ref()

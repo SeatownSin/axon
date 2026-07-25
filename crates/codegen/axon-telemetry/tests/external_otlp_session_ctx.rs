@@ -8,8 +8,8 @@ mod otlp_collector;
 
 use std::sync::Arc;
 
-use otlp_collector as col;
 use axon_telemetry::external;
+use otlp_collector as col;
 
 #[test]
 fn ambient_ctx_injects_session_turn_and_prompt_id() {

@@ -17,14 +17,14 @@
 use super::support::*;
 use super::*;
 use crate::session::goal_strategist::GOAL_STRATEGIST_SUBAGENT_DESCRIPTION;
-use serial_test::serial;
-use std::collections::VecDeque;
-use std::sync::Arc as StdArc;
-use std::sync::atomic::{AtomicUsize, Ordering as SeqOrd};
 use axon_tools::implementations::axon_build::task::types::{
     SubagentCancelOutcome, SubagentEvent, SubagentResult,
 };
 use axon_tools::implementations::axon_build::update_goal::UpdateGoalInput;
+use serial_test::serial;
+use std::collections::VecDeque;
+use std::sync::Arc as StdArc;
+use std::sync::atomic::{AtomicUsize, Ordering as SeqOrd};
 
 const ENV_FLAG: &str = "AXON_GOAL_CLASSIFIER";
 

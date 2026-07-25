@@ -15,10 +15,7 @@ fn axon_home_override_path_helpers() {
         axon_pager::util::pager_toml_path(),
         axon_home.join("pager.toml")
     );
-    assert_eq!(
-        axon_pager::util::display_axon_home_prefix(),
-        "$AXON_HOME"
-    );
+    assert_eq!(axon_pager::util::display_axon_home_prefix(), "$AXON_HOME");
     assert_eq!(
         axon_pager::util::display_user_axon_path("config.toml"),
         "$AXON_HOME/config.toml"

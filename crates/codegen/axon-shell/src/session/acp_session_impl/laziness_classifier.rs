@@ -506,11 +506,9 @@ pub(crate) fn build_classifier_turns(
                 if !text.is_empty() {
                     // Neutralize so the user's own text can't forge a turn, then cap.
                     let text = neutralize_transcript_user_text(&text);
-                    let text = axon_tools::util::truncate_str_with_marker(
-                        &text,
-                        CLASSIFIER_TURN_MAX_LEN,
-                    )
-                    .into_owned();
+                    let text =
+                        axon_tools::util::truncate_str_with_marker(&text, CLASSIFIER_TURN_MAX_LEN)
+                            .into_owned();
                     turns.push(ClassifierTurn::UserText(text));
                 }
             }
@@ -524,11 +522,9 @@ pub(crate) fn build_classifier_turns(
                     // unescaped newlines / a leading role label that would forge a
                     // transcript line via the assistant-tool_use channel), then cap.
                     let args = neutralize_transcript_user_text(&args);
-                    let args = axon_tools::util::truncate_str_with_marker(
-                        &args,
-                        CLASSIFIER_TURN_MAX_LEN,
-                    )
-                    .into_owned();
+                    let args =
+                        axon_tools::util::truncate_str_with_marker(&args, CLASSIFIER_TURN_MAX_LEN)
+                            .into_owned();
                     turns.push(ClassifierTurn::AssistantToolUse {
                         tool: tc.name.clone(),
                         args,

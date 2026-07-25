@@ -5,9 +5,9 @@ use std::collections::{HashMap, VecDeque};
 use std::io::{Read, Write};
 use std::sync::{Arc, LazyLock};
 
+use axon_acp_lib::AcpAgentGatewaySender as GatewaySender;
 use portable_pty::{CommandBuilder, MasterPty, PtySize, native_pty_system};
 use tokio::sync::{Mutex, mpsc};
-use axon_acp_lib::AcpAgentGatewaySender as GatewaySender;
 
 use crate::extensions::routing::{TargetClientId, send_routed_notification};
 use crate::terminal::{TerminalExtError, TerminalInfo, TerminalStatus};

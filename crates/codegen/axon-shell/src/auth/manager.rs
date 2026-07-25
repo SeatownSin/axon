@@ -1180,11 +1180,7 @@ impl AuthManager {
             DiskAuthState::FileMissing
             | DiskAuthState::EntryMissing
             | DiskAuthState::Unreadable => {
-                axon_telemetry::unified_log::warn(
-                    "auth disk state: entry lost",
-                    None,
-                    Some(ctx),
-                );
+                axon_telemetry::unified_log::warn("auth disk state: entry lost", None, Some(ctx));
             }
         }
     }

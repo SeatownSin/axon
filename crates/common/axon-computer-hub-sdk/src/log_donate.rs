@@ -13,6 +13,7 @@ use std::sync::{Arc, LazyLock};
 use std::time::{Duration, Instant};
 
 use arc_swap::ArcSwapOption;
+use axon_tool_protocol::{MAX_DONATION_BYTES, MAX_LOG_RECORDS_PER_DONATION};
 use base64::Engine as _;
 use fastrace::collector::SpanContext;
 use opentelemetry_proto::tonic::collector::logs::v1::ExportLogsServiceRequest;
@@ -25,7 +26,6 @@ use tracing::Level;
 use tracing::field::{Field, Visit};
 use tracing_subscriber::Layer;
 use tracing_subscriber::layer::Context;
-use axon_tool_protocol::{MAX_DONATION_BYTES, MAX_LOG_RECORDS_PER_DONATION};
 
 use crate::donate_pump::{
     PENDING_FLUSHES, PumpMsg, drain_via, make_resource, now_unix_nanos, run_pump, string_kv,

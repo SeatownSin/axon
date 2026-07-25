@@ -1,9 +1,9 @@
 use anyhow::Result;
-use clap::Subcommand;
 use axon_shell::agent::config::Config as AgentConfig;
 use axon_shell::auth::{AuthManager, try_ensure_fresh_auth};
 use axon_shell::session::merge::MergedSession;
 use axon_shell::util::axon_home::axon_home;
+use clap::Subcommand;
 #[derive(Debug, clap::Args, Clone)]
 pub struct SessionsArgs {
     #[command(subcommand)]
@@ -59,19 +59,15 @@ pub async fn run(args: SessionsArgs, agent_config: &AgentConfig) -> Result<()> {
 
     match args.command {
         SessionsCommand::List { limit } => {
-            let sessions = axon_shell::session::merge::fetch_merged(
-                Some(&client),
-                cwd.to_str(),
-                None,
-                limit,
-            )
-            .await;
+            let sessions =
+                axon_shell::session::merge::fetch_merged(Some(&client), cwd.to_str(), None, limit)
+                    .await;
             print_sessions_grouped(&sessions);
         }
         SessionsCommand::Search { query, limit } => {
-            use std::collections::HashSet;
             use axon_shell::session::merge::REMOTE_TIMEOUT;
             use axon_shell::session::storage::search::{SessionSearchRequest, execute_search};
+            use std::collections::HashSet;
 
             let req = SessionSearchRequest {
                 query,

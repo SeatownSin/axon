@@ -9,13 +9,13 @@
 use crate::capability::{CapabilityMode, kind_allowed};
 use crate::config::SessionContextFactory;
 use crate::error::{WorkspaceError, WorkspaceResult};
-use std::collections::HashMap;
-use std::path::PathBuf;
-use std::sync::Arc;
 use axon_tools::registry::types::{
     FinalizedToolset, ToolConfig, ToolRegistryBuilder, ToolServerConfig,
 };
 use axon_tools::types::tool::ToolKind;
+use std::collections::HashMap;
+use std::path::PathBuf;
+use std::sync::Arc;
 /// Create-shaped entry of the resolution pipeline: run
 /// [`resolve_session_toolset_rebuild`] around a FRESH factory-built
 /// session-lifetime terminal backend, and return that backend so the caller
@@ -340,7 +340,10 @@ impl WorkspaceSessionContextFactory {
         }
     }
     /// Factory with auth — gen tools use the provider's live token.
-    pub fn with_auth(auth: axon_computer_hub_sdk::SharedAuthProvider, api_base_url: String) -> Self {
+    pub fn with_auth(
+        auth: axon_computer_hub_sdk::SharedAuthProvider,
+        api_base_url: String,
+    ) -> Self {
         Self {
             auth: Some(auth),
             api_base_url: Some(api_base_url),
@@ -512,8 +515,7 @@ fn build_proxy_headers(base_url: &str) -> indexmap::IndexMap<String, String> {
 }
 /// Build web fetch config. Enabled with default params unless
 /// `AXON_DISABLE_WEB_FETCH=1` is set.
-fn build_web_fetch_config() -> axon_tools::implementations::axon_build::web_fetch::WebFetchConfig
-{
+fn build_web_fetch_config() -> axon_tools::implementations::axon_build::web_fetch::WebFetchConfig {
     use axon_tools::implementations::axon_build::web_fetch::{WebFetchConfig, WebFetchParams};
     if std::env::var("AXON_DISABLE_WEB_FETCH").is_ok_and(|v| v == "1" || v == "true") {
         return WebFetchConfig::Disabled;
@@ -533,16 +535,16 @@ fn default_web_search_model() -> String {
 #[cfg(any(test, feature = "test-support"))]
 pub mod test_support {
     use crate::config::SessionContextFactory;
-    use std::collections::HashMap;
-    use std::path::PathBuf;
-    use std::sync::Arc;
-    use tempfile::TempDir;
     use axon_tools::computer::local::{LocalFs, LocalTerminalBackend};
     use axon_tools::notification::ToolNotificationHandle;
     use axon_tools::registry::types::{
         SessionContext, ToolConfig, ToolRegistryBuilder, ToolServerConfig,
     };
     use axon_tools::types::tool::ToolKind;
+    use std::collections::HashMap;
+    use std::path::PathBuf;
+    use std::sync::Arc;
+    use tempfile::TempDir;
     /// Test factory: builds a `SessionContext` rooted at a per-test temp dir.
     pub struct TestSessionContextFactory {
         pub temp: TempDir,
@@ -632,10 +634,10 @@ pub mod test_support {
 mod tests {
     use super::*;
     use crate::config::SessionContextFactory;
+    use axon_tools::types::tool::ToolKind;
     use std::collections::HashMap;
     use std::path::PathBuf;
     use std::sync::Arc;
-    use axon_tools::types::tool::ToolKind;
     fn factory_for_test() -> Arc<dyn SessionContextFactory> {
         Arc::new(test_support::TestSessionContextFactory::new())
     }

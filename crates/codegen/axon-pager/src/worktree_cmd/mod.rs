@@ -1,9 +1,9 @@
 mod display;
 
 use anyhow::{Result, bail};
+use axon_fast_worktree::WorktreeRecord;
 use clap::Subcommand;
 use tokio_util::sync::CancellationToken;
-use axon_fast_worktree::WorktreeRecord;
 
 use agent_client_protocol as acp;
 use axon_acp_lib::acp_send;

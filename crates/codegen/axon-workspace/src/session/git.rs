@@ -1,6 +1,11 @@
 //! Git operations: CLI for simple actions (stage, commit, push); git2 for structured data (status, diffs).
 #![allow(dead_code)]
 use anyhow::Result;
+pub use axon_workspace_types::rpc::git::{
+    ChangeType, CommitData, CommitResult, DiscardScope, GitBranchEntry, GitBranchListData,
+    GitDiffsData, GitError, GitFileChange, GitInfoData, GitReadFile, GitReadFilesData,
+    GitStatusData, StageData, VcsKind,
+};
 use git2::{DiffOptions, Repository, StatusOptions};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeSet, HashMap, HashSet};
@@ -9,11 +14,6 @@ use std::time::Duration;
 use tokio::process::Command;
 use tokio::sync::Mutex;
 use url::Url;
-pub use axon_workspace_types::rpc::git::{
-    ChangeType, CommitData, CommitResult, DiscardScope, GitBranchEntry, GitBranchListData,
-    GitDiffsData, GitError, GitFileChange, GitInfoData, GitReadFile, GitReadFilesData,
-    GitStatusData, StageData, VcsKind,
-};
 pub const ERROR_CODE_DIFF_SIZE_EXCEEDED: &str = "DIFF_SIZE_EXCEEDED";
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

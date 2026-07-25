@@ -334,7 +334,11 @@ mod links {
     #[test]
     fn emit_id_param_included() {
         let mut t = term(20, 3);
-        let out = frame(&mut t, "AB", &[span(0, 2, "https://blocked.invalid", Some(7))]);
+        let out = frame(
+            &mut t,
+            "AB",
+            &[span(0, 2, "https://blocked.invalid", Some(7))],
+        );
         assert!(
             out.contains("\x1b]8;id=7;https://blocked.invalid\x07"),
             "id param missing: {out:?}"

@@ -534,13 +534,8 @@ impl SessionActor {
                     .conversation_stream_responses(request)
                     .await
                     .ok()?;
-                let events = axon_sampler::stream_responses(
-                    raw,
-                    meta,
-                    request_id,
-                    idle_timeout,
-                    doom_loop,
-                );
+                let events =
+                    axon_sampler::stream_responses(raw, meta, request_id, idle_timeout, doom_loop);
                 axon_sampler::collect_response(events).await
             }
             crate::sampling::ApiBackend::Messages => {

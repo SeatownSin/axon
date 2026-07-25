@@ -202,7 +202,6 @@ impl ChangelogManager {
     }
 }
 
-
 fn read_cache(path: &std::path::Path) -> Option<String> {
     std::fs::read_to_string(path)
         .ok()

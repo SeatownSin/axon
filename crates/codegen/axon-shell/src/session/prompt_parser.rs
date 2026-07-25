@@ -1,10 +1,8 @@
 use crate::session::user_message::user_query;
 use agent_client_protocol::{self as acp, ImageContent};
+use axon_workspace::file_system::{FileReference, render_embedded_resource, render_file_reference};
 use serde::Deserialize;
 use std::path::PathBuf;
-use axon_workspace::file_system::{
-    FileReference, render_embedded_resource, render_file_reference,
-};
 /// Parsed prompt with context and query kept separate.
 ///
 /// Some templates put `<user_query>` last (context first); Axon puts it first.

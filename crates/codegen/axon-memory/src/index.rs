@@ -14,8 +14,8 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Once;
 
-use rusqlite::params;
 use axon_sqlite_journal::JournalMode;
+use rusqlite::params;
 
 use super::chunker::{chunk_hash, chunk_markdown};
 use super::schema;

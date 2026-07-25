@@ -1,7 +1,7 @@
 use crate::{
     computer::types::{AsyncFileSystem, TerminalBackend},
     implementations::{
-        codex, axon_build, axon_build_concise, axon_build_hashline, opencode,
+        axon_build, axon_build_concise, axon_build_hashline, codex, opencode,
         skills::types::SkillInfo,
     },
     notification::ToolNotificationHandle,
@@ -2970,9 +2970,11 @@ mod tests {
             _input: serde_json::Value,
         ) -> axon_tool_runtime::ToolStream<String> {
             Box::pin(futures::stream::iter(vec![
-                axon_tool_runtime::ToolStreamItem::Progress(axon_tool_runtime::ToolProgress::Text {
-                    text: "progress-1".into(),
-                }),
+                axon_tool_runtime::ToolStreamItem::Progress(
+                    axon_tool_runtime::ToolProgress::Text {
+                        text: "progress-1".into(),
+                    },
+                ),
                 axon_tool_runtime::ToolStreamItem::Terminal(Ok("terminal-value".to_string())),
             ]))
         }

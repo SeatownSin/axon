@@ -386,16 +386,10 @@ mod tests {
 
     #[test]
     fn estimate_tool_definitions_tokens_sums_across_slice() {
-        let a = axon_sampling_types::ToolDefinition::function(
-            "a",
-            None::<&str>,
-            serde_json::json!({}),
-        );
-        let b = axon_sampling_types::ToolDefinition::function(
-            "b",
-            None::<&str>,
-            serde_json::json!({}),
-        );
+        let a =
+            axon_sampling_types::ToolDefinition::function("a", None::<&str>, serde_json::json!({}));
+        let b =
+            axon_sampling_types::ToolDefinition::function("b", None::<&str>, serde_json::json!({}));
         let single = estimate_tool_definition_tokens(&a);
         assert_eq!(estimate_tool_definitions_tokens(&[a, b]), single * 2);
     }

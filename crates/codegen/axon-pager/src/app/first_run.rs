@@ -220,7 +220,11 @@ fn endpoint_host(base_url: &str) -> String {
         .strip_prefix("http://")
         .or_else(|| base_url.strip_prefix("https://"))
         .unwrap_or(base_url);
-    after_scheme.split('/').next().unwrap_or(after_scheme).to_string()
+    after_scheme
+        .split('/')
+        .next()
+        .unwrap_or(after_scheme)
+        .to_string()
 }
 
 fn write_and_report(

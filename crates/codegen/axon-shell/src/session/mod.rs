@@ -20,10 +20,12 @@ pub use self::persistence::{
 };
 pub use self::result::{Empty, ExtMethodResult};
 pub use self::share::{ShareSessionRequest, ShareSessionResponse};
+pub use axon_fsnotify::{
+    FsConfig, FsEvent, FsEventKind, FsEventSource, FsNotifyError, GitMetaKind,
+};
 pub use prod_mc_cli_chat_proxy_types::feedback_types::{
     ClientType, FeedbackTerminalInfo, RatingType,
 };
-pub use axon_fsnotify::{FsConfig, FsEvent, FsEventKind, FsEventSource, FsNotifyError, GitMetaKind};
 /// `false` twin: this template is not compiled into this build, so no
 /// template matches. Keeps ungated call sites compiling in both
 /// configurations.

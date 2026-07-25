@@ -155,12 +155,11 @@ async fn pre_tool_use_resolves_meta_dispatch_tool_name_end_to_end() {
                 tokio::sync::mpsc::unbounded_channel::<PersistenceMsg>();
             let actor = create_test_actor(0, 256_000, 85, gateway_tx, persistence_tx).await;
             // The toolset must know `use_tool` so it parses to `ToolInput::UseTool`.
-            *actor.agent.borrow_mut() = test_agent_with_tools(vec![
-                axon_tools::registry::types::ToolConfig::for_tool::<
+            *actor.agent.borrow_mut() =
+                test_agent_with_tools(vec![axon_tools::registry::types::ToolConfig::for_tool::<
                     axon_tools::implementations::use_tool::UseTool,
-                >(),
-            ])
-            .await;
+                >()])
+                .await;
 
             let mut client_hooks = crate::extensions::hooks::ClientHooks::new();
             client_hooks.insert(

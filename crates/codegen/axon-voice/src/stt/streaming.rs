@@ -327,16 +327,20 @@ mod tests {
         assert!(url.query().unwrap_or_default().contains("language=ja"));
     }
 
-
     /// The default STT endpoint is Axon-hosted; this build refuses it.
     #[test]
     fn stt_url_refuses_axon_default() {
         let err = build_stt_ws_url(&VoiceConfig::default());
-        assert!(err.is_err(), "default api.blocked.invalid STT base must be refused");
+        assert!(
+            err.is_err(),
+            "default api.blocked.invalid STT base must be refused"
+        );
     }
     #[test]
     fn optional_header_inserted_when_present_skipped_when_empty() {
-        let mut req = "wss://api.blocked.invalid/v1/stt".into_client_request().unwrap();
+        let mut req = "wss://api.blocked.invalid/v1/stt"
+            .into_client_request()
+            .unwrap();
         insert_optional_header(&mut req, "x-axon-client-identifier", "axon-shell");
         insert_optional_header(&mut req, "User-Agent", "");
         assert_eq!(
@@ -351,7 +355,9 @@ mod tests {
 
     #[test]
     fn optional_header_skips_invalid_value_without_panic() {
-        let mut req = "wss://api.blocked.invalid/v1/stt".into_client_request().unwrap();
+        let mut req = "wss://api.blocked.invalid/v1/stt"
+            .into_client_request()
+            .unwrap();
         // A control char is not a valid header value; it must be dropped
         // silently, never panic or fail the (already-authorized) handshake.
         insert_optional_header(&mut req, "User-Agent", "bad\nvalue");

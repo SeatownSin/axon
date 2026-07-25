@@ -48,14 +48,12 @@ impl SessionActor {
             if entered && turn_in_flight {
                 self.activate_plan_mode_mid_turn().await;
             }
-            axon_telemetry::session_ctx::log_event(
-                axon_telemetry::events::PlanModeToggled {
-                    enabled: true,
-                    trigger: axon_telemetry::events::PlanModeTrigger::User,
-                    turn_in_flight,
-                    was_previously_active: !entered,
-                },
-            );
+            axon_telemetry::session_ctx::log_event(axon_telemetry::events::PlanModeToggled {
+                enabled: true,
+                trigger: axon_telemetry::events::PlanModeTrigger::User,
+                turn_in_flight,
+                was_previously_active: !entered,
+            });
             if entered {
                 tracing::info_span!(
                     "session.permission_mode_changed",
@@ -82,14 +80,12 @@ impl SessionActor {
                 session_id = % self.session_info.id.0, new_mode = % session_mode_id.0,
                 turn_in_flight, "Plan mode toggled OFF"
             );
-            axon_telemetry::session_ctx::log_event(
-                axon_telemetry::events::PlanModeToggled {
-                    enabled: false,
-                    trigger: axon_telemetry::events::PlanModeTrigger::User,
-                    turn_in_flight,
-                    was_previously_active: true,
-                },
-            );
+            axon_telemetry::session_ctx::log_event(axon_telemetry::events::PlanModeToggled {
+                enabled: false,
+                trigger: axon_telemetry::events::PlanModeTrigger::User,
+                turn_in_flight,
+                was_previously_active: true,
+            });
             tracing::info_span!(
                 "session.permission_mode_changed", from_mode = "plan", to_mode = %
                 session_mode_id.0, trigger = "user", enabled = false,

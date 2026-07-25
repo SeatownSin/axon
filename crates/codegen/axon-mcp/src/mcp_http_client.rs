@@ -418,9 +418,7 @@ mod tests {
 
     impl tracing::Subscriber for LogCapture {
         fn enabled(&self, metadata: &tracing::Metadata<'_>) -> bool {
-            metadata
-                .target()
-                .starts_with("axon_mcp::mcp_http_client")
+            metadata.target().starts_with("axon_mcp::mcp_http_client")
         }
         fn new_span(&self, _: &tracing::span::Attributes<'_>) -> tracing::span::Id {
             tracing::span::Id::from_u64(1)

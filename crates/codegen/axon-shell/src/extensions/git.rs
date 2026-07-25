@@ -14,11 +14,6 @@ use super::{Empty, ExtResult, parse_params, to_ext_response, to_ext_response_par
 use crate::agent::MvpAgent;
 use crate::session::ExtMethodResult;
 use agent_client_protocol as acp;
-use parking_lot::Mutex;
-use serde::Deserialize;
-use std::collections::HashMap;
-use std::path::PathBuf;
-use std::time::Instant;
 use axon_workspace::session::git::{
     self, DiscardScope, GIT_STATUS_CACHE_TTL, GitDiffsData, GitStatusData, check_diff_size_limits,
 };
@@ -27,6 +22,11 @@ use axon_workspace::workspace_ops::{
     GitDiffReq, GitDiscardReq, GitFilesReq, GitInfoReq, GitStageContentReq, GitStageReq,
     GitStashReq, GitStatusExtReq, GitStatusFormat, GitUnstageReq,
 };
+use parking_lot::Mutex;
+use serde::Deserialize;
+use std::collections::HashMap;
+use std::path::PathBuf;
+use std::time::Instant;
 /// Global cache for git status results, keyed by git_root path.
 /// This provides caching at the extension API layer while keeping git::status pure.
 static GIT_STATUS_CACHE: std::sync::LazyLock<Mutex<HashMap<PathBuf, GitStatusCacheEntry>>> =

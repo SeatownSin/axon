@@ -1,6 +1,6 @@
+pub mod axon_home;
 pub mod changelog;
 pub mod event_id;
-pub mod axon_home;
 pub mod secure_file;
 pub mod tips;
 pub mod uname;
@@ -195,7 +195,10 @@ fn deobfuscate_host(enc: &[u8]) -> String {
 /// place of a plaintext vendor name. All are treated as blocked infrastructure:
 /// the real hosts (obfuscated above) and the unroutable placeholder alike.
 pub fn blocked_hosts() -> Vec<String> {
-    let mut hosts: Vec<String> = BLOCKED_HOSTS_ENC.iter().map(|e| deobfuscate_host(e)).collect();
+    let mut hosts: Vec<String> = BLOCKED_HOSTS_ENC
+        .iter()
+        .map(|e| deobfuscate_host(e))
+        .collect();
     hosts.push("blocked.invalid".to_string());
     hosts
 }
@@ -384,16 +387,24 @@ mod tests {
     fn test_is_axon_api_url() {
         let (v, g) = vendor_hosts();
         assert!(is_axon_api_url(&format!("https://api.{v}/v1")));
-        assert!(is_axon_api_url(&format!("https://api.{v}/v1/chat/completions")));
+        assert!(is_axon_api_url(&format!(
+            "https://api.{v}/v1/chat/completions"
+        )));
         assert!(is_axon_api_url(&format!("https://{v}")));
         assert!(is_axon_api_url(&format!(
             "https://cli-chat-proxy.{g}/v1/chat/completions"
         )));
         assert!(!is_axon_api_url("https://api.openai.com/v1"));
         assert!(!is_axon_api_url("https://api.anthropic.com/v1"));
-        assert!(!is_axon_api_url("https://generativelanguage.googleapis.com"));
-        assert!(!is_axon_api_url(&format!("https://api.{v}.evil.example/v1")));
-        assert!(!is_axon_api_url(&format!("https://evil-{v}.attacker.com/v1")));
+        assert!(!is_axon_api_url(
+            "https://generativelanguage.googleapis.com"
+        ));
+        assert!(!is_axon_api_url(&format!(
+            "https://api.{v}.evil.example/v1"
+        )));
+        assert!(!is_axon_api_url(&format!(
+            "https://evil-{v}.attacker.com/v1"
+        )));
         assert!(!is_axon_api_url(&format!("https://prefix{v}/v1")));
         assert!(!is_axon_api_url("not-a-url"));
         assert!(!is_axon_api_url(""));
@@ -433,18 +444,25 @@ mod tests {
         let (v, g) = vendor_hosts();
         assert!(is_axon_infrastructure_url(&format!("https://api.{v}/v1")));
         assert!(is_axon_infrastructure_url(&format!("https://{v}/cli")));
-        assert!(is_axon_infrastructure_url(&format!("https://cli-chat-proxy.{g}/v1")));
+        assert!(is_axon_infrastructure_url(&format!(
+            "https://cli-chat-proxy.{g}/v1"
+        )));
         assert!(is_axon_infrastructure_url(&format!("https://assets.{g}")));
         assert!(is_axon_infrastructure_url(&format!("wss://api.{v}/v1/stt")));
         // Case-insensitive: an uppercased vendor host is still blocked.
-        assert!(is_axon_infrastructure_url(&format!("http://{}", g.to_uppercase())));
+        assert!(is_axon_infrastructure_url(&format!(
+            "http://{}",
+            g.to_uppercase()
+        )));
 
         // Local model servers must never be classified as vendor infra,
         // even though `is_axon_api_url` counts localhost as proxy-like.
         assert!(!is_axon_infrastructure_url("http://localhost:11434/v1"));
         assert!(!is_axon_infrastructure_url("http://127.0.0.1:8080/v1"));
         // Spoofs and third parties.
-        assert!(!is_axon_infrastructure_url(&format!("https://api.{v}.evil.example/v1")));
+        assert!(!is_axon_infrastructure_url(&format!(
+            "https://api.{v}.evil.example/v1"
+        )));
         assert!(!is_axon_infrastructure_url(&format!("https://not{g}/v1")));
         assert!(!is_axon_infrastructure_url("https://api.openai.com/v1"));
         assert!(!is_axon_infrastructure_url("not-a-url"));
@@ -460,8 +478,13 @@ mod tests {
             assert!(!is_axon_api_bearer_url("https://127.0.0.2:11434/v1"));
             assert!(!is_axon_api_bearer_url("https://[::1]:11434/v1"));
         }
-        assert!(is_axon_api_bearer_url(&format!("https://API.{}/v1", v.to_uppercase())));
-        assert!(!is_axon_api_bearer_url(&format!("https://api.{v}@attacker.example/v1")));
+        assert!(is_axon_api_bearer_url(&format!(
+            "https://API.{}/v1",
+            v.to_uppercase()
+        )));
+        assert!(!is_axon_api_bearer_url(&format!(
+            "https://api.{v}@attacker.example/v1"
+        )));
         // Cyrillic homoglyph host must not be treated as the vendor host.
         assert!(!is_axon_api_bearer_url("https://\u{0445}.ai/v1"));
     }

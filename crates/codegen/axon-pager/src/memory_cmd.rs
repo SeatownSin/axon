@@ -2,8 +2,8 @@ use std::io::Write;
 use std::path::PathBuf;
 
 use anyhow::Result;
-use clap::Subcommand;
 use axon_shell::session::memory::storage::MemoryStorage;
+use clap::Subcommand;
 
 #[derive(Debug, clap::Args, Clone)]
 pub struct MemoryArgs {

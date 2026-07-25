@@ -12,15 +12,15 @@
 use std::collections::HashSet;
 use std::time::Instant;
 
-use ratatui::buffer::Buffer;
-use ratatui::layout::Rect;
-use ratatui::style::{Modifier, Style};
-use ratatui::text::{Line, Span};
 use axon_acp_lib::AcpResult;
 use axon_markdown::StreamingMarkdownRenderer;
 pub use axon_tools::implementations::axon_build::ask_user_question::{
     AskUserQuestionMode, Question, QuestionOption,
 };
+use ratatui::buffer::Buffer;
+use ratatui::layout::Rect;
+use ratatui::style::{Modifier, Style};
+use ratatui::text::{Line, Span};
 
 use unicode_width::UnicodeWidthStr;
 
@@ -829,11 +829,11 @@ impl QuestionViewState {
         &self,
     ) -> axon_tools::implementations::axon_build::ask_user_question::AskUserQuestionExtResponse
     {
-        use indexmap::IndexMap;
-        use std::collections::HashMap;
         use axon_tools::implementations::axon_build::ask_user_question::{
             AskUserQuestionExtResponse, QuestionAnnotation,
         };
+        use indexmap::IndexMap;
+        use std::collections::HashMap;
 
         let mut answers = IndexMap::new();
         let mut annotations: HashMap<String, QuestionAnnotation> = HashMap::new();

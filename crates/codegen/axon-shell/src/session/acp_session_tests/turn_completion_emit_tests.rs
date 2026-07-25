@@ -41,15 +41,17 @@ fn is_agent_message_delta(m: &PersistenceMsg) -> bool {
 /// `TurnCompleted`, if any.
 fn turn_completed_fields(msgs: &[PersistenceMsg]) -> Option<(String, String, Option<String>)> {
     msgs.iter().find_map(|m| match m {
-        PersistenceMsg::Update(crate::session::storage::SessionUpdate::Axon(n)) => match &n.update {
-            AxonSessionUpdate::TurnCompleted {
-                prompt_id,
-                stop_reason,
-                agent_result,
-                ..
-            } => Some((prompt_id.clone(), stop_reason.clone(), agent_result.clone())),
-            _ => None,
-        },
+        PersistenceMsg::Update(crate::session::storage::SessionUpdate::Axon(n)) => {
+            match &n.update {
+                AxonSessionUpdate::TurnCompleted {
+                    prompt_id,
+                    stop_reason,
+                    agent_result,
+                    ..
+                } => Some((prompt_id.clone(), stop_reason.clone(), agent_result.clone())),
+                _ => None,
+            }
+        }
         _ => None,
     })
 }

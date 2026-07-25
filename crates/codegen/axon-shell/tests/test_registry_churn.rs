@@ -5,11 +5,6 @@
 //! Counts the echo workload never populates are pinned at their zero
 //! baseline only.
 use agent_client_protocol::{self as acp, Agent as _};
-use serde_json::json;
-use std::sync::Arc;
-use std::time::Duration;
-use tempfile::TempDir;
-use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 use axon_acp_lib::{
     AcpAgentGatewayReceiver as GatewayReceiver, AcpAgentGatewaySender as GatewaySender,
     LineBufferedRead,
@@ -17,6 +12,11 @@ use axon_acp_lib::{
 use axon_shell::agent::config::Config as AgentConfig;
 use axon_shell::agent::mvp_agent::MvpAgent;
 use axon_test_support::MockInferenceServer;
+use serde_json::json;
+use std::sync::Arc;
+use std::time::Duration;
+use tempfile::TempDir;
+use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 /// Matches production's `MAX_BUFFER_SIZE` in `agent::app`.
 const DUPLEX_BUFFER_BYTES: usize = 8 * 1024 * 1024;
 /// Enough that a per-cycle leak is unambiguous; well under a minute

@@ -9,6 +9,9 @@
 use std::io::{self, stdout};
 use std::time::Duration;
 
+use axon_pager::appearance::LayoutConfig;
+use axon_pager::views::todo_pane::TodoPane;
+use axon_shell::tools::{TodoItem, TodoPriority, TodoStatus};
 use crossterm::ExecutableCommand;
 use crossterm::event::{self, Event, KeyCode, KeyModifiers};
 use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
@@ -18,9 +21,6 @@ use ratatui::layout::{Constraint, Layout};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
-use axon_pager::appearance::LayoutConfig;
-use axon_pager::views::todo_pane::TodoPane;
-use axon_shell::tools::{TodoItem, TodoPriority, TodoStatus};
 
 type Scenario = (&'static str, &'static str, Vec<TodoItem>);
 

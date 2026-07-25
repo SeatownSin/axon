@@ -6,10 +6,10 @@ use super::*;
 use crate::auth::error::RefreshTokenFailedReason;
 use crate::auth::recovery::RecoverySource;
 use crate::auth::{AxonAuth, AxonComConfig};
+use axon_telemetry::events::{AuthTokenKind, ManualAuthReason};
 use chrono::{Duration, Utc};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
-use axon_telemetry::events::{AuthTokenKind, ManualAuthReason};
 
 /// Mock IdP: OIDC discovery + a `/token` endpoint returning a fixed
 /// `(status, body)` and counting every hit, plus the `/user` endpoint

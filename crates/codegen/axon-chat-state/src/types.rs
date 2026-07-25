@@ -3,8 +3,8 @@
 use std::collections::BTreeSet;
 use std::num::NonZeroU64;
 
-use serde::{Deserialize, Serialize};
 use axon_sampling_types::{ConversationItem, SamplingConfig};
+use serde::{Deserialize, Serialize};
 
 /// Canonical marker for an injected memory-context block. Shared by the
 /// emitter in `axon-shell` and the upsert/detection here — a drift would

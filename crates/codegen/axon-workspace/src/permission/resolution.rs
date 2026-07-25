@@ -438,9 +438,7 @@ impl ResolveInputs<'static> {
         Self {
             policy_block: yolo_disabled_by_policy(),
             managed: managed_settings(),
-            managed_config_rules: managed_config_permissions(
-                &axon_config::managed_config_layers(),
-            ),
+            managed_config_rules: managed_config_permissions(&axon_config::managed_config_layers()),
         }
     }
 }
@@ -4165,8 +4163,7 @@ mod tests {
         )
         .unwrap();
 
-        let layers =
-            axon_config::managed_config_layers_at(Some(system.path()), Some(user.path()));
+        let layers = axon_config::managed_config_layers_at(Some(system.path()), Some(user.path()));
         assert!(layers[0].is_system && layers[0].path.starts_with(system.path()));
         assert!(!layers[1].is_system && layers[1].path.starts_with(user.path()));
         let rules = managed_config_permissions(&layers);

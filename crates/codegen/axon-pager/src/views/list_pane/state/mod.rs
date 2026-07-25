@@ -6,8 +6,8 @@
 
 use std::ops::Range;
 
-use ratatui::layout::Rect;
 use axon_ratatui_textarea::{ClipboardProvider, InternalClipboard, TextArea, TextAreaState};
+use ratatui::layout::Rect;
 
 use super::ListItem;
 use super::layout::{ListLayoutCache, WrapMode};

@@ -12,11 +12,11 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use agent_client_protocol as acp;
+use axon_tool_types::{KillTaskOutput, TaskOutputOutput};
 use axon_tools::types::output::{
     ApplyPatchOutput, CodexGrepFilesOutput, ListDirOutput, MCPOutputDetails, ReadFileOutput,
     SearchReplaceEditContextInformation, SearchReplaceEditDetail, SearchReplaceOutput, ToolOutput,
 };
-use axon_tool_types::{KillTaskOutput, TaskOutputOutput};
 
 /// Rewrites real worktree paths to display paths in serialized output.
 ///
@@ -567,8 +567,7 @@ pub fn acp_tool_update(
                     message.clone()
                 }
                 axon_tools::types::output::AskUserQuestionOutput::QuestionsSent {
-                    message,
-                    ..
+                    message, ..
                 } => message.clone(),
             };
             Some(acp::ToolCallUpdate::new(
@@ -600,12 +599,12 @@ pub fn acp_tool_update(
         }
         ToolOutput::ExitPlanMode(exit) => {
             let message = match exit {
-                axon_tools::types::output::ExitPlanModeOutput::PlanReady {
-                    message, ..
-                } => message.clone(),
-                axon_tools::types::output::ExitPlanModeOutput::EmptyPlan {
-                    message, ..
-                } => message.clone(),
+                axon_tools::types::output::ExitPlanModeOutput::PlanReady { message, .. } => {
+                    message.clone()
+                }
+                axon_tools::types::output::ExitPlanModeOutput::EmptyPlan { message, .. } => {
+                    message.clone()
+                }
             };
             Some(acp::ToolCallUpdate::new(
                 acp::ToolCallId::new(Arc::from(tool_call_id)),
@@ -748,8 +747,8 @@ fn build_apply_patch_edit_details(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
     use axon_tools::types::output::*;
+    use std::path::PathBuf;
 
     #[test]
     fn test_acp_tool_update_read_file_success() {
@@ -782,9 +781,7 @@ mod tests {
     #[test]
     fn test_turn_end_plan_cleanup_preserves_semantics_and_priority() {
         use crate::tools::todo::plan_entry_from_todo_item;
-        use axon_tools::implementations::axon_build::todo::{
-            TodoItem, TodoPriority, TodoStatus,
-        };
+        use axon_tools::implementations::axon_build::todo::{TodoItem, TodoPriority, TodoStatus};
 
         // Simulate a mixed todo list at turn end.
         let items = [
@@ -852,16 +849,12 @@ mod tests {
     fn test_acp_plan_update_todo() {
         let output = ToolOutput::Todo(TodoWriteOutput::TodosUpdated(TodoWriteSuccess {
             summary_for_prompt: "tasks".to_string(),
-            todos: vec![
-                axon_tools::implementations::axon_build::todo::TodoItem {
-                    content: "Task 1".to_string(),
-                    priority:
-                        axon_tools::implementations::axon_build::todo::TodoPriority::Medium,
-                    status:
-                        axon_tools::implementations::axon_build::todo::TodoStatus::Completed,
-                    meta: None,
-                },
-            ],
+            todos: vec![axon_tools::implementations::axon_build::todo::TodoItem {
+                content: "Task 1".to_string(),
+                priority: axon_tools::implementations::axon_build::todo::TodoPriority::Medium,
+                status: axon_tools::implementations::axon_build::todo::TodoStatus::Completed,
+                meta: None,
+            }],
             state: axon_tools::implementations::axon_build::todo::TodoState::default(),
         }));
         let plan = acp_plan_update(&output).unwrap();

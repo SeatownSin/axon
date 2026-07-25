@@ -172,8 +172,7 @@ pub(crate) fn replay_inherited_updates(
 ) {
     let home = effective_axon_home();
     let updates =
-        match axon_shell::session::storage::load_updates_for_replay_at(child_session_id, &home)
-        {
+        match axon_shell::session::storage::load_updates_for_replay_at(child_session_id, &home) {
             Ok(Some(u)) => u,
             Ok(None) => return,
             Err(e) => {

@@ -3,8 +3,8 @@
 //! These are stateless functions that operate on conversation data only —
 //! no I/O, no actor state. They live in `axon-chat-state` so that both
 //! this crate and `axon-shell` can share them without duplication.
-use std::collections::BTreeSet;
 use axon_sampling_types::{ContentPart, ConversationItem, ToolResultItem};
+use std::collections::BTreeSet;
 /// Drops tool results and flattens assistant `tool_calls` into
 /// `[Called tools: ...]` text annotations.
 ///

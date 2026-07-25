@@ -10,9 +10,9 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result};
+use axon_sqlite_journal::JournalMode;
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
-use axon_sqlite_journal::JournalMode;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]

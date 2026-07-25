@@ -1,4 +1,7 @@
 //! [`WorkspaceHandle`] -- public handle to a workspace instance.
+use axon_hunk_tracker::{HunkTrackerActor, HunkTrackerHandle, TrackingMode};
+use axon_tool_protocol::ToolServerStatusPayload;
+use axon_tool_protocol::turn_hook::TurnHookOutcome;
 use fastrace::future::FutureExt as _;
 use fastrace::local::LocalSpan;
 use prometheus::{
@@ -7,9 +10,6 @@ use prometheus::{
 };
 use std::path::PathBuf;
 use std::sync::Arc;
-use axon_hunk_tracker::{HunkTrackerActor, HunkTrackerHandle, TrackingMode};
-use axon_tool_protocol::ToolServerStatusPayload;
-use axon_tool_protocol::turn_hook::TurnHookOutcome;
 /// Default SIGTERM drain budget (ms); override via
 /// `AXON_WORKSPACE_TERMINATION_GRACE_MS`. 45s fits under the K8s grace period.
 const DEFAULT_TERMINATION_GRACE_MS: u64 = 45_000;
@@ -543,9 +543,7 @@ impl WorkspaceHandle {
             if servers.is_empty() {
                 None
             } else {
-                use axon_tools::implementations::lsp::{
-                    LspBackend, LspBackendAdapter, LspManager,
-                };
+                use axon_tools::implementations::lsp::{LspBackend, LspBackendAdapter, LspManager};
                 let mgr = Arc::new(tokio::sync::Mutex::new(LspManager::new(
                     servers,
                     config.root_cwd.clone(),
@@ -2540,27 +2538,26 @@ impl WorkspaceHandle {
         let session_id_owned = session_id.to_owned();
         let event_writer = self.shared.session_event_writer(session_id);
         let rt_handle = tokio::runtime::Handle::current();
-        let mcp_results: Vec<
-            Result<axon_mcp::servers::McpClient, axon_mcp::servers::McpError>,
-        > = tokio::task::spawn_blocking(move || {
-            use std::collections::HashMap;
-            use axon_mcp::oauth_config::McpOAuthConfigMap;
-            use axon_mcp::servers::{McpClientTimeoutOverrides, McpMetaConfigMap};
-            let overrides_map: HashMap<String, McpClientTimeoutOverrides> = HashMap::new();
-            let meta_config_map = McpMetaConfigMap::new();
-            let oauth_config_map = McpOAuthConfigMap::new();
-            rt_handle.block_on(axon_mcp::servers::start_mcp_servers(
-                configs,
-                Some(&session_id_owned),
-                &overrides_map,
-                &meta_config_map,
-                &oauth_config_map,
-                &event_writer,
-                axon_mcp::servers::OauthInteractivity::Interactive,
-            ))
-        })
-        .await
-        .map_err(|e| WorkspaceError::JoinError(e.to_string()))?;
+        let mcp_results: Vec<Result<axon_mcp::servers::McpClient, axon_mcp::servers::McpError>> =
+            tokio::task::spawn_blocking(move || {
+                use axon_mcp::oauth_config::McpOAuthConfigMap;
+                use axon_mcp::servers::{McpClientTimeoutOverrides, McpMetaConfigMap};
+                use std::collections::HashMap;
+                let overrides_map: HashMap<String, McpClientTimeoutOverrides> = HashMap::new();
+                let meta_config_map = McpMetaConfigMap::new();
+                let oauth_config_map = McpOAuthConfigMap::new();
+                rt_handle.block_on(axon_mcp::servers::start_mcp_servers(
+                    configs,
+                    Some(&session_id_owned),
+                    &overrides_map,
+                    &meta_config_map,
+                    &oauth_config_map,
+                    &event_writer,
+                    axon_mcp::servers::OauthInteractivity::Interactive,
+                ))
+            })
+            .await
+            .map_err(|e| WorkspaceError::JoinError(e.to_string()))?;
         let mcp_state = session.mcp_state.clone();
         let mut started = Vec::new();
         let mut failed = Vec::new();
@@ -2654,12 +2651,12 @@ impl WorkspaceHandle {
             "session MCP servers initialized"
         );
         if !started.is_empty() {
-            let _ =
-                self.shared
-                    .events
-                    .send(axon_workspace_types::WorkspaceEvent::ToolsChanged {
-                        session_id: session_id.to_owned(),
-                    });
+            let _ = self
+                .shared
+                .events
+                .send(axon_workspace_types::WorkspaceEvent::ToolsChanged {
+                    session_id: session_id.to_owned(),
+                });
         }
         Ok(McpStartResult { started, failed })
     }
@@ -3505,9 +3502,8 @@ fn build_session_routed_handlers(
             Some(def.function.parameters.clone()),
             ws.clone(),
         ) {
-            Ok(handler) => {
-                handlers.push(Arc::new(handler) as Arc<dyn axon_computer_hub_sdk::ToolServerHandler>)
-            }
+            Ok(handler) => handlers
+                .push(Arc::new(handler) as Arc<dyn axon_computer_hub_sdk::ToolServerHandler>),
             Err(e) => {
                 tracing::warn!(
                     tool = % def.function.name, error = % e,
@@ -3541,9 +3537,7 @@ pub(crate) fn apply_background_task_notification(
 /// notifications aren't misattributed across sessions.
 pub(crate) async fn run_activity_feed(
     tracker: Arc<crate::activity::ActivityTracker>,
-    mut rx: tokio::sync::mpsc::UnboundedReceiver<
-        axon_tools::notification::types::ToolNotification,
-    >,
+    mut rx: tokio::sync::mpsc::UnboundedReceiver<axon_tools::notification::types::ToolNotification>,
 ) {
     while let Some(notification) = rx.recv().await {
         apply_background_task_notification(&tracker, &notification);
@@ -4390,10 +4384,10 @@ pub(crate) mod tests {
     use crate::session::tool_config::test_support::{
         TestSessionContextFactory, baseline_config, tc,
     };
-    use std::sync::Arc;
     use axon_tools::registry::types::ToolServerConfig;
     use axon_tools::types::tool::ToolKind;
     use axon_workspace_types::WorkspaceEvent;
+    use std::sync::Arc;
     /// Create a test workspace handle with a "main" session pre-created.
     pub(crate) fn make_handle() -> WorkspaceHandle {
         make_handle_with_rewind_all_outcomes(false)
@@ -4498,8 +4492,7 @@ pub(crate) mod tests {
             &self,
             _ctx: axon_tool_runtime::ToolCallContext,
             _input: serde_json::Value,
-        ) -> Result<axon_tools::types::output::ToolOutput, axon_tool_runtime::ToolError>
-        {
+        ) -> Result<axon_tools::types::output::ToolOutput, axon_tool_runtime::ToolError> {
             let output = BASH_CCO_STUB_STDOUT.as_bytes();
             Ok(axon_tools::types::output::ToolOutput::Bash(
                 axon_tools::types::output::BashOutput {
@@ -4553,8 +4546,8 @@ pub(crate) mod tests {
             Item = axon_tool_runtime::ToolStreamItem<axon_tool_runtime::TypedToolOutput>,
         > + Unpin,
     ) -> axon_tool_runtime::TypedToolOutput {
-        use futures::StreamExt;
         use axon_tool_runtime::ToolStreamItem;
+        use futures::StreamExt;
         while let Some(item) = stream.next().await {
             match item {
                 ToolStreamItem::Terminal(Ok(t)) => return t,

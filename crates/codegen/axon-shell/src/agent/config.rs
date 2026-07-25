@@ -3,11 +3,6 @@ use crate::auth::{AuthManager, AxonComConfig, OidcAuthConfig};
 use crate::remote::DEFAULT_CONTEXT_WINDOW;
 use crate::{config::StorageMode, sampling::ApiBackend, tools::config::ShellToolsetConfig};
 use agent_client_protocol as acp;
-use indexmap::IndexMap;
-use serde::{Deserialize, Serialize};
-use std::num::NonZeroU64;
-use std::path::PathBuf;
-use std::sync::Arc;
 use axon_agent::prompt::skills::SkillsConfig;
 use axon_sampler::{AuthScheme, SamplerConfig};
 use axon_sampling_types::{
@@ -18,6 +13,11 @@ use axon_sampling_types::{
 use axon_tools::types::compat::{
     COMPAT_CELLS, CompatConfig, CompatConfigToml, CompatRemoteKey, CompatSurface, CompatVendor,
 };
+use indexmap::IndexMap;
+use serde::{Deserialize, Serialize};
+use std::num::NonZeroU64;
+use std::path::PathBuf;
+use std::sync::Arc;
 /// The mode in which the agent is running.
 /// Determines behavior like relay sync enablement.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -4971,8 +4971,8 @@ impl ModelSwitchIncompatibleAgentError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serial_test::serial;
     use axon_test_support::EnvGuard;
+    use serial_test::serial;
     #[test]
     fn main_cli_tools_override_preserves_profile_injection_policy() {
         let overrides = CliAgentOverrides {
@@ -5707,7 +5707,7 @@ reasoning_effort = "low"
     #[test]
     #[serial]
     fn resolve_credentials_empty_env_key_falls_through_to_global_key() {
-        use crate::agent::auth_method::{LEGACY_AXON_API_KEY_ENV_VAR, AXON_API_KEY_ENV_VAR};
+        use crate::agent::auth_method::{AXON_API_KEY_ENV_VAR, LEGACY_AXON_API_KEY_ENV_VAR};
         use axon_chat_state::AuthType;
         use axon_test_support::EnvGuard;
         let sentinel = "axon-global-sentinel-key";
@@ -6258,7 +6258,13 @@ reasoning_effort = "low"
     }
     #[test]
     fn sampling_config_context_window_from_entry_or_default() {
-        let model = test_model_entry("any-model", "https://api.blocked.invalid/v1", None, None, None);
+        let model = test_model_entry(
+            "any-model",
+            "https://api.blocked.invalid/v1",
+            None,
+            None,
+            None,
+        );
         let config = sampling_config_for_model(
             &model,
             resolve_credentials(&model, None),
@@ -6268,7 +6274,13 @@ reasoning_effort = "low"
             None,
         );
         assert_eq!(config.context_window, 200_000);
-        let mut model = test_model_entry("any-model", "https://api.blocked.invalid/v1", None, None, None);
+        let mut model = test_model_entry(
+            "any-model",
+            "https://api.blocked.invalid/v1",
+            None,
+            None,
+            None,
+        );
         model.info.context_window = NonZeroU64::new(256_000).unwrap();
         let config = sampling_config_for_model(
             &model,
@@ -7259,7 +7271,7 @@ reasoning_effort = "low"
     /// membership can't be verified from a bare API key, so it needs IdP login).
     #[test]
     fn force_login_team_uuid_implies_api_key_auth_disabled() {
-        use crate::auth::{ForceLoginTeam, AxonComConfig};
+        use crate::auth::{AxonComConfig, ForceLoginTeam};
         let base = AxonComConfig {
             disable_api_key_auth: None,
             force_login_team_uuid: None,
@@ -7471,7 +7483,13 @@ reasoning_effort = "low"
         let mut prefetched = IndexMap::new();
         prefetched.insert(
             dm.to_string(),
-            test_model_entry(dm, "https://cli-chat-proxy.blocked.invalid/v1", None, None, None),
+            test_model_entry(
+                dm,
+                "https://cli-chat-proxy.blocked.invalid/v1",
+                None,
+                None,
+                None,
+            ),
         );
         let (_, models) = resolve_models_from_toml(
             &format!(
@@ -7585,7 +7603,10 @@ reasoning_effort = "low"
         assert_eq!(sampling.base_url, "https://inference.example.com/v1");
         let sampling = resolve_sampling(default, Some("session-key"));
         assert_eq!(sampling.api_key.as_deref(), Some("session-key"));
-        assert_eq!(sampling.base_url, "https://cli-chat-proxy.blocked.invalid/v1",);
+        assert_eq!(
+            sampling.base_url,
+            "https://cli-chat-proxy.blocked.invalid/v1",
+        );
     }
     #[test]
     fn e2e_enterprise_custom_endpoint_skips_axon_defaults() {
@@ -10994,8 +11015,14 @@ default = "axon-4.5"
         let resolved = resolve_model_list(&cfg, Some(p));
         assert!(resolved.contains_key(dm), "kept in catalog");
         assert!(resolved[dm].info.hidden, "Axon default must be hidden");
-        assert!(!resolved[dm].visible_for_auth(true), "hidden from session picker");
-        assert!(!resolved[dm].visible_for_auth(false), "hidden from api-key picker");
+        assert!(
+            !resolved[dm].visible_for_auth(true),
+            "hidden from session picker"
+        );
+        assert!(
+            !resolved[dm].visible_for_auth(false),
+            "hidden from api-key picker"
+        );
     }
     /// A locally-hosted model configured via `[model.*]` is NOT hidden and
     /// appears in the picker in both auth modes.

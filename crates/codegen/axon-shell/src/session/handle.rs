@@ -6,11 +6,11 @@
 use super::commands::SessionCommand;
 use super::persistence::{LocalFeedbackEntry, PersistenceMsg};
 use agent_client_protocol as acp;
+use axon_file_utils::queue::UploadQueue;
+use axon_hunk_tracker::HunkTrackerHandle;
+use axon_sampling_types::ReasoningEffort;
 use std::collections::{HashMap, HashSet};
 use tokio::sync::{mpsc, oneshot};
-use axon_file_utils::queue::UploadQueue;
-use axon_sampling_types::ReasoningEffort;
-use axon_hunk_tracker::HunkTrackerHandle;
 /// Coarse lifecycle state of a session as known to the leader/agent.
 ///
 /// A axon session has no
@@ -152,13 +152,11 @@ pub struct SessionHandle {
     pub workspace_ops: axon_workspace::WorkspaceOps,
     /// Terminal backend for this session. Subagents inherit the parent's
     /// backend so background tasks and monitors survive the subagent's exit.
-    pub terminal_backend:
-        Option<std::sync::Arc<dyn axon_tools::computer::types::TerminalBackend>>,
+    pub terminal_backend: Option<std::sync::Arc<dyn axon_tools::computer::types::TerminalBackend>>,
     /// Notification handle for this session's tool bridge. Subagents use
     /// this to reparent surviving tasks' notification handles on exit so
     /// events route to the parent's notification bridge.
-    pub tools_notification_handle:
-        Option<axon_tools::notification::types::ToolNotificationHandle>,
+    pub tools_notification_handle: Option<axon_tools::notification::types::ToolNotificationHandle>,
     /// Scheduler handle for this session. Subagents inherit the parent's
     /// handle so scheduled tasks survive the subagent's exit.
     pub scheduler_handle:

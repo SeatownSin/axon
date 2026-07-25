@@ -4,8 +4,8 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Result, bail};
-use clap::{Subcommand, ValueEnum};
 use axon_shell::util::config::{McpServerConfig, McpServerTransportConfig};
+use clap::{Subcommand, ValueEnum};
 
 use crate::util::display_user_axon_path;
 
@@ -457,9 +457,7 @@ fn current_dir_or_exit() -> PathBuf {
 fn scope_target(scope: McpScope) -> PathBuf {
     match scope {
         McpScope::User => axon_shell::util::config::user_config_path(),
-        McpScope::Project => {
-            axon_shell::util::config::project_config_path(&current_dir_or_exit())
-        }
+        McpScope::Project => axon_shell::util::config::project_config_path(&current_dir_or_exit()),
     }
 }
 
@@ -515,12 +513,7 @@ fn surviving_definition(
     project_site
         .map(|path| (McpScope::Project, path))
         .or_else(|| {
-            user_defined.then(|| {
-                (
-                    McpScope::User,
-                    axon_shell::util::config::user_config_path(),
-                )
-            })
+            user_defined.then(|| (McpScope::User, axon_shell::util::config::user_config_path()))
         })
 }
 

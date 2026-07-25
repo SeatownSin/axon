@@ -38,10 +38,6 @@
 //! must reuse the **same** senders so the existing coordinator keeps
 //! receiving requests; we cannot mint a fresh channel without orphaning
 //! the running coordinator.
-use std::collections::HashMap;
-use std::path::PathBuf;
-use std::sync::Arc;
-use tokio::sync::mpsc::UnboundedSender;
 use axon_agent::config::AgentDefinition;
 use axon_agent::error::AgentBuildError;
 use axon_agent::prompt::context::PromptAudience;
@@ -62,6 +58,10 @@ use axon_tools::notification::ToolNotificationHandle;
 use axon_tools::types::SharedApiKeyProvider;
 use axon_tools::types::compat::CompatConfig;
 use axon_tools::types::memory_backend::MemoryBackend;
+use std::collections::HashMap;
+use std::path::PathBuf;
+use std::sync::Arc;
+use tokio::sync::mpsc::UnboundedSender;
 /// Shell-resolved per-tool `ToolConfig.params` JSON maps, bundled into one
 /// named struct so the spawn telescopes carry a single argument instead of
 /// adjacent identically-typed positionals that a caller could transpose.
@@ -125,8 +125,7 @@ pub(crate) struct AgentRebuildSpec {
     pub respect_gitignore: bool,
     pub path_not_found_hints: bool,
     pub mcp_state: Arc<tokio::sync::Mutex<crate::session::mcp_servers::McpState>>,
-    pub managed_gateway_tool_client:
-        Option<axon_tools::types::resources::ManagedGatewayToolClient>,
+    pub managed_gateway_tool_client: Option<axon_tools::types::resources::ManagedGatewayToolClient>,
     pub is_non_interactive: bool,
     pub system_prompt_label: String,
     pub owner_session_id: Option<String>,

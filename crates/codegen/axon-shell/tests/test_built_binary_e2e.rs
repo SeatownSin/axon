@@ -26,9 +26,9 @@ use std::path::Path;
 use std::process::Command;
 use std::time::Duration;
 
-use serde_json::Value;
 use axon_test_support::env::test_env_cmd_tokio;
 use axon_test_support::*;
+use serde_json::Value;
 
 /// Run an async test body inside a `LocalSet` (required by ACP's `!Send` futures).
 /// Eliminates the `let local = LocalSet::new(); local.run_until(async { ... }).await`

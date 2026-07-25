@@ -9,8 +9,6 @@ use std::path::PathBuf;
 use std::sync::{Arc, OnceLock};
 
 use agent_client_protocol as acp;
-use serial_test::serial;
-use tokio::sync::{mpsc, oneshot};
 use axon_acp_lib::{AcpAgentGatewaySender, AcpClientMessage};
 use axon_paths::AbsPathBuf;
 use axon_workspace::permission::types::{
@@ -20,6 +18,8 @@ use axon_workspace::permission::{
     AccessKind, ClientType, Decision, PermissionCommand, PermissionHandle, PermissionState,
     spawn_permission_manager, spawn_permission_manager_with_hub,
 };
+use serial_test::serial;
+use tokio::sync::{mpsc, oneshot};
 
 /// Shared `AXON_HOME` for the entire test binary. The `OnceLock` in
 /// `axon-config` only allows one value per process, so all tests share

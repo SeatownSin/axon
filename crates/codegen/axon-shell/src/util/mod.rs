@@ -1,5 +1,5 @@
-pub mod config;
 pub mod axon_auth_credentials;
+pub mod config;
 pub mod hooks;
 
 // The foundation utilities live in `axon-shell-base` (upstream of this

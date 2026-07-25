@@ -8,11 +8,11 @@
 use std::sync::{Mutex, OnceLock};
 
 use agent_client_protocol as acp;
-use tokio::runtime::Handle;
 use axon_acp_lib::AcpAgentTx;
 use axon_telemetry::unified_log::{
     ClientLogEntry, LOG_METHOD, LogLevel, LogNotificationParams, LogSource,
 };
+use tokio::runtime::Handle;
 
 static ACP_TX: OnceLock<AcpAgentTx> = OnceLock::new();
 static BUFFER: Mutex<Vec<ClientLogEntry>> = Mutex::new(Vec::new());

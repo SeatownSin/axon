@@ -472,9 +472,7 @@ fn open_fork_question_refuses_when_existing_question_is_open() {
     let mut app = fork_test_app();
     // Plant an existing question (e.g. an ACP-driven one).
     use crate::views::question_view::QuestionViewState;
-    use axon_tools::implementations::axon_build::ask_user_question::{
-        Question, QuestionOption,
-    };
+    use axon_tools::implementations::axon_build::ask_user_question::{Question, QuestionOption};
     let q = Question {
         question: "existing ACP question?".into(),
         options: vec![QuestionOption {
@@ -1070,9 +1068,7 @@ fn fork_session_failed_pushes_turn_failed_block() {
 #[test]
 fn translate_local_submit_yes_returns_worktree_true_action() {
     use crate::views::question_view::{LocalQuestionKind, QuestionViewState};
-    use axon_tools::implementations::axon_build::ask_user_question::{
-        Question, QuestionOption,
-    };
+    use axon_tools::implementations::axon_build::ask_user_question::{Question, QuestionOption};
     let q = Question {
         question: "?".into(),
         options: (0..2)
@@ -1115,9 +1111,7 @@ fn translate_local_submit_yes_returns_worktree_true_action() {
 #[test]
 fn translate_local_submit_no_returns_worktree_false_action() {
     use crate::views::question_view::{LocalQuestionKind, QuestionViewState};
-    use axon_tools::implementations::axon_build::ask_user_question::{
-        Question, QuestionOption,
-    };
+    use axon_tools::implementations::axon_build::ask_user_question::{Question, QuestionOption};
     let q = Question {
         question: "?".into(),
         options: (0..2)
@@ -1158,9 +1152,7 @@ fn translate_local_submit_no_returns_worktree_false_action() {
 #[test]
 fn translate_local_submit_always_returns_persist_always_for_fork() {
     use crate::views::question_view::{LocalQuestionKind, QuestionViewState};
-    use axon_tools::implementations::axon_build::ask_user_question::{
-        Question, QuestionOption,
-    };
+    use axon_tools::implementations::axon_build::ask_user_question::{Question, QuestionOption};
     let q = Question {
         question: "?".into(),
         options: (0..4)
@@ -1202,9 +1194,7 @@ fn translate_local_submit_always_returns_persist_always_for_fork() {
 #[test]
 fn translate_local_submit_never_returns_persist_never_for_fork() {
     use crate::views::question_view::{LocalQuestionKind, QuestionViewState};
-    use axon_tools::implementations::axon_build::ask_user_question::{
-        Question, QuestionOption,
-    };
+    use axon_tools::implementations::axon_build::ask_user_question::{Question, QuestionOption};
     let q = Question {
         question: "?".into(),
         options: (0..4)
@@ -1247,9 +1237,7 @@ fn translate_local_submit_never_returns_persist_never_for_fork() {
 fn handle_ask_user_question_pushes_system_block_when_displaced_local_fork_modal() {
     use crate::scrollback::block::RenderBlock;
     use crate::views::question_view::{LocalQuestionKind, QuestionViewState};
-    use axon_tools::implementations::axon_build::ask_user_question::{
-        Question, QuestionOption,
-    };
+    use axon_tools::implementations::axon_build::ask_user_question::{Question, QuestionOption};
 
     let mut app = fork_test_app();
     let id = AgentId(0);

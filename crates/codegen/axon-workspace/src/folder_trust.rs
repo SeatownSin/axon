@@ -27,8 +27,8 @@
 use std::io::IsTerminal;
 use std::path::Path;
 
-use toml::Value as TomlValue;
 use axon_config_types::{BoolFlag, RemoteSettings};
+use toml::Value as TomlValue;
 
 use crate::trust::{TrustStore, workspace_key};
 

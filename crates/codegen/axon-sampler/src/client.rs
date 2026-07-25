@@ -1928,8 +1928,8 @@ impl SamplingClient {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use indexmap::IndexMap;
     use axon_sampling_types::types::ChatRequestMessage;
+    use indexmap::IndexMap;
 
     fn minimal_config() -> SamplerConfig {
         SamplerConfig {

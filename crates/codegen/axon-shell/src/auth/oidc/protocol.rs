@@ -3,7 +3,7 @@
 //!
 //! No `AuthManager` mutation here. The login orchestration is in
 //! [`super::login`]; refresh primitives are in [`super::refresh`].
-use super::super::config::{ForceLoginTeam, AxonComConfig, OAuth2ProviderConfig, OidcAuthConfig};
+use super::super::config::{AxonComConfig, ForceLoginTeam, OAuth2ProviderConfig, OidcAuthConfig};
 use super::super::{AuthMode, AxonAuth};
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;

@@ -8,9 +8,7 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
 // Canonical in axon-workspace-types; re-exported for existing paths.
-pub use axon_workspace_types::rpc::search::{
-    ContentMatch, ContentMatchFile, ContentSearchData,
-};
+pub use axon_workspace_types::rpc::search::{ContentMatch, ContentMatchFile, ContentSearchData};
 
 #[derive(Debug, Clone, Default)]
 pub struct ContentSearchParams {

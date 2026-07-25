@@ -10,8 +10,8 @@
 //! - `resolve()` — config layering (CLI > env > TOML > remote) is
 //!   shell-specific. This crate receives already-resolved maps.
 
-use std::path::PathBuf;
 use axon_tools::implementations::skills::discovery::extract_first_paragraph;
+use std::path::PathBuf;
 
 use serde::Deserialize;
 

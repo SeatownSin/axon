@@ -4082,12 +4082,12 @@ fn dashboard_upgrade_cta_paints_arms_rect_and_ctrl_o_override() {
     use crate::views::dashboard::HeaderUpgradeCta;
     use crate::views::dashboard::render_dashboard;
     use crate::views::dashboard::state::DashboardState;
+    use axon_telemetry::events::AnnouncementCtaSurface;
     use crossterm::event::{
         Event, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
     };
     use ratatui::buffer::Buffer;
     use ratatui::layout::Rect;
-    use axon_telemetry::events::AnnouncementCtaSurface;
 
     let registry = ActionRegistry::defaults();
     let mut agents: indexmap::IndexMap<AgentId, crate::app::agent_view::AgentView> =

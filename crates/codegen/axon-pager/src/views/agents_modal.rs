@@ -9,6 +9,12 @@ use crate::theme::Theme;
 use crate::views::modal_window::{
     self, ModalContentArea, ModalSizing, ModalWindowConfig, ModalWindowState, Shortcut,
 };
+use axon_agent::config::{AgentDefinition, AgentScope, BuiltinAgentName};
+use axon_shell::agent::config::AgentSelectionConfig;
+use axon_tools::implementations::skills::discovery::extract_first_paragraph;
+use axon_tools::registry::types::ToolServerConfig;
+use axon_tools::types::template_renderer::TemplateRenderer;
+use axon_tools::types::tool::ToolKind;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKind};
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
@@ -16,12 +22,6 @@ use ratatui::style::{Modifier, Style};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use unicode_width::UnicodeWidthStr;
-use axon_agent::config::{AgentDefinition, AgentScope, BuiltinAgentName};
-use axon_shell::agent::config::AgentSelectionConfig;
-use axon_tools::implementations::skills::discovery::extract_first_paragraph;
-use axon_tools::registry::types::ToolServerConfig;
-use axon_tools::types::template_renderer::TemplateRenderer;
-use axon_tools::types::tool::ToolKind;
 /// Which tab is active in the agents modal.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AgentsTab {

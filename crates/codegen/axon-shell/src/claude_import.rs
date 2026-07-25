@@ -2181,10 +2181,8 @@ extra_rule_dirs = ["/c/rules"]
         // our tempdir's `.claude/settings.json`. The dev's real ~/.axon
         // config rules (if any) are out of scope for this test.
         let resolved =
-            axon_workspace::permission::resolution::resolve_permissions_with_provenance(
-                dir.path(),
-            )
-            .await;
+            axon_workspace::permission::resolution::resolve_permissions_with_provenance(dir.path())
+                .await;
         if let Some(r) = resolved {
             let tempdir_claude = claude_dir.join("settings.json");
             use axon_workspace::permission::types::RequirementSource;

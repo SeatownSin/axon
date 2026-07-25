@@ -174,12 +174,10 @@ impl AppView {
             None,
             Some(serde_json::json!({ "tier": self.subscription_tier })),
         );
-        axon_telemetry::session_ctx::log_event(
-            axon_telemetry::events::SubscriptionActivated {
-                auth_method: self.login_method_id.as_ref().map(|id| id.0.to_string()),
-                upsell_shown_this_session: self.access_gate_shown_logged,
-            },
-        );
+        axon_telemetry::session_ctx::log_event(axon_telemetry::events::SubscriptionActivated {
+            auth_method: self.login_method_id.as_ref().map(|id| id.0.to_string()),
+            upsell_shown_this_session: self.access_gate_shown_logged,
+        });
         vec![Effect::CheckSubscription { verify: None }]
     }
 

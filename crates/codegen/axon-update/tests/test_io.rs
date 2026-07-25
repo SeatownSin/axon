@@ -16,8 +16,8 @@ use std::time::Duration;
 
 use serial_test::serial;
 
-use common::{reset_home, test_home};
 use axon_update::write_version_cache;
+use common::{reset_home, test_home};
 
 /// Path to the version cache file inside the test home.
 fn version_cache_path() -> PathBuf {

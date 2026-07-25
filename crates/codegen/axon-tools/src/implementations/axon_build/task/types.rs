@@ -18,9 +18,9 @@
 
 use std::sync::Arc;
 
+use axon_tool_types::{SubagentCapabilityMode, SubagentIsolationMode, WaitMode};
 use educe::Educe;
 use tokio::sync::{mpsc, oneshot};
-use axon_tool_types::{SubagentCapabilityMode, SubagentIsolationMode, WaitMode};
 
 use crate::register_resource;
 

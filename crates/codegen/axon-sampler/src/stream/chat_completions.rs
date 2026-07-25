@@ -305,12 +305,12 @@ pub fn stream_chat_completions<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use futures_util::stream;
-    use std::pin::pin;
     use axon_sampling_types::{
         ChatChunkChoice, ChatChunkDelta, FinishReason, Role, ToolCallDelta as ChunkToolCallDelta,
         ToolCallFunctionDelta, Usage, rs,
     };
+    use futures_util::stream;
+    use std::pin::pin;
 
     fn rid() -> RequestId {
         RequestId::from("test-req")

@@ -15,8 +15,8 @@
 //! `AXON_OSC52_SINK` / `LC_AXON_OSC52_SINK`). Do not generalize this pattern
 //! to untrusted multiplexers without an explicit allowlist.
 
-use base64::Engine as _;
 use axon_pager_render::clipboard::{ImageData, osc52_sink_active};
+use base64::Engine as _;
 
 /// OSC body after `ESC ]` for a host image request.
 pub const REQUEST_BODY: &[u8] = b"999;AxonWrapClipboardImage?";

@@ -100,9 +100,7 @@ async fn rebuild_reinjects_goal_update_handle() {
 }
 #[tokio::test(flavor = "current_thread")]
 async fn rebuild_reinjects_task_completion_resource_identity() {
-    use axon_tools::reminders::task_completion::{
-        TaskCompletionReservations, TaskWakeSuppressed,
-    };
+    use axon_tools::reminders::task_completion::{TaskCompletionReservations, TaskWakeSuppressed};
     let local = tokio::task::LocalSet::new();
     local
         .run_until(async {

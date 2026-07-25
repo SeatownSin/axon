@@ -20,11 +20,11 @@ use std::time::Duration;
 
 use serial_test::serial;
 
-use common::FakeBinGuard;
 use axon_update::auto_update::install_npm_for_test;
 use axon_update::version::{
     GH_RELEASE_REPO, fetch_gh_release_version, fetch_npm_tag_for_test, fetch_npm_version_for_test,
 };
+use common::FakeBinGuard;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // fetch_npm_tag — reads a single dist-tag from `npm view`.

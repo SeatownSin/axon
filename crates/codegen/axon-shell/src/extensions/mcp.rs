@@ -1425,9 +1425,7 @@ impl axon_tools::types::resources::McpResourceProvider for McpStateResourceProvi
                 name: None,
                 description: None,
                 mime_type,
-                content: Some(axon_tools::types::resources::McpResourceContent::Text(
-                    text,
-                )),
+                content: Some(axon_tools::types::resources::McpResourceContent::Text(text)),
             }),
             rmcp::model::ResourceContents::BlobResourceContents {
                 uri: content_uri,

@@ -13,13 +13,13 @@
 //! files, skill registry, MCP servers) and hands them to
 //! `UserMessageContext::render`, which dispatches on `template`.
 use crate::prompt::agents_md::AgentConfigFile;
+use axon_tools::bridge::ToolBridge;
+use axon_tools::implementations::skills::types::SkillInfo;
+use axon_tools::types::skill_discovery_tracker::{XmlRenderMode, format_announcement_xml};
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::path::PathBuf;
-use axon_tools::bridge::ToolBridge;
-use axon_tools::implementations::skills::types::SkillInfo;
-use axon_tools::types::skill_discovery_tracker::{XmlRenderMode, format_announcement_xml};
 /// Date format for the `Today's date` field of the user-message preamble
 /// (e.g. "Friday Apr 24, 2026"). Any format change is observable to the model.
 pub const USER_MESSAGE_DATE_FORMAT: &str = "%A %b %-d, %Y";

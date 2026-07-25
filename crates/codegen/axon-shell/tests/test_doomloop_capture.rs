@@ -11,11 +11,11 @@
 
 mod common;
 
-use common::create_test_client;
 use axon_sampling_types::EmptyReason;
 use axon_shell::sampling::{ApiBackend, ConversationItem, ConversationRequest};
 use axon_test_support::sse::responses_api_reasoning_only_events;
 use axon_test_support::{MockInferenceServer, ScriptedResponse};
+use common::create_test_client;
 
 /// A `/v1/responses` stream that streams only reasoning and finishes with no
 /// visible content must be collected into a response the client classifies as

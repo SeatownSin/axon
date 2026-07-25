@@ -34,8 +34,8 @@ use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use tempfile::TempDir;
 use axon_test_support::*;
+use tempfile::TempDir;
 
 /// Run an async body inside a `LocalSet` (required by ACP's `!Send` futures).
 async fn with_local_set<F, Fut>(f: F)

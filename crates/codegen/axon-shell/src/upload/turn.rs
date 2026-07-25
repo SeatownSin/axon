@@ -1,8 +1,8 @@
 //! Turn lifecycle orchestration for trace uploads.
 use crate::session::repo_changes::TraceExportConfig;
+use axon_workspace::permission::PermissionEvent;
 use futures::FutureExt as _;
 use tokio::sync::oneshot;
-use axon_workspace::permission::PermissionEvent;
 /// Request to upload a trace for a synthetic auto-wake turn.
 ///
 /// Sent by the notification bridge (for bash task completions) or the

@@ -340,8 +340,8 @@ pub(crate) async fn read_file(
 
 #[cfg(test)]
 mod tests {
-    use base64::Engine;
     use axon_workspace_types::rpc::fs::FsReadEncoding;
+    use base64::Engine;
 
     use super::*;
     use crate::handle::tests::make_handle;

@@ -1612,14 +1612,12 @@ mod question_no_freeform_tests {
     use crate::app::agent_view::AgentView;
     use crate::views::prompt_widget::StashedPrompt;
     use crate::views::question_view::{QuestionFocus, QuestionSelection, QuestionViewState};
+    use axon_tools::implementations::axon_build::ask_user_question::{Question, QuestionOption};
     use crossterm::event::{
         KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
     };
     use ratatui::buffer::Buffer;
     use ratatui::layout::Rect;
-    use axon_tools::implementations::axon_build::ask_user_question::{
-        Question, QuestionOption,
-    };
     /// Fixed options, single-select — shaped like the free-usage upsell.
     fn upsell_question() -> Question {
         let opt = |label: &str, desc: &str| QuestionOption {

@@ -2904,8 +2904,8 @@ mod settings_memory_paste_routing_tests {
     use crate::views::memory_modal::{MemoryModalMode, MemoryModalState};
     use crate::views::modal::ActiveModal;
     use crate::views::settings_modal::SettingsModalState;
-    use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
     use axon_shell::agent::config::UiConfig;
+    use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 
     fn left() -> Event {
         Event::Key(KeyEvent::new(KeyCode::Left, KeyModifiers::NONE))

@@ -12,8 +12,8 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use serde::Deserialize;
 use axon_hooks_plugins_types::PluginComponents;
+use serde::Deserialize;
 
 /// Catalog format version this client understands.
 const SUPPORTED_VERSION: u64 = 1;

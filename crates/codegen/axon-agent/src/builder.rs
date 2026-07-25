@@ -7,14 +7,14 @@ use crate::discovery::{SubagentEntry, SubagentSource};
 use crate::error::AgentBuildError;
 use crate::prompt::context::PromptContext;
 use crate::system_reminder::ReminderPolicy;
-use std::collections::HashMap;
-use std::path::PathBuf;
-use std::sync::Arc;
 use axon_tools::bridge::ToolBridge;
 use axon_tools::computer::types::{AsyncFileSystem, TerminalBackend};
 use axon_tools::notification::ToolNotificationHandle;
 use axon_tools::registry::types::SessionContext;
 use axon_tools::types::tool::ToolKind;
+use std::collections::HashMap;
+use std::path::PathBuf;
+use std::sync::Arc;
 /// The Axon [`ToolKind`] a vendor-compat `tools:` allowlist entry resolves to, so
 /// a plugin's upstream allowlist still binds. Backed by the shared vendor-to-Axon
 /// tool registry in `axon-tools` (also used by the hook matcher).
@@ -563,10 +563,7 @@ impl AgentBuilder {
     /// Set the resolved vendor-compat config. Threaded into both startup
     /// discovery (`list_skills_with_plugins` / `read_agents_config_with_paths`)
     /// and the dynamic-discovery seeds (`SkillManager` / `AgentsMdTracker`).
-    pub fn with_compat_config(
-        mut self,
-        compat: axon_tools::types::compat::CompatConfig,
-    ) -> Self {
+    pub fn with_compat_config(mut self, compat: axon_tools::types::compat::CompatConfig) -> Self {
         self.compat = compat;
         self
     }
@@ -729,9 +726,9 @@ impl AgentBuilder {
                 tool_config
                     .tools
                     .push((&axon_tools::implementations::axon_build::ImageToVideoTool).into());
-                tool_config.tools.push(
-                    (&axon_tools::implementations::axon_build::ReferenceToVideoTool).into(),
-                );
+                tool_config
+                    .tools
+                    .push((&axon_tools::implementations::axon_build::ReferenceToVideoTool).into());
             }
             let has_write_tool = tool_config
                 .tools
@@ -1196,14 +1193,15 @@ impl AgentBuilder {
     }
 }
 /// CLI naming for the shared [`axon_tool_types::build_task_description`] builder.
-const TASK_TOOL_NAMING: axon_tool_types::TaskToolNaming<'static> = axon_tool_types::TaskToolNaming {
-    task_tool: "${{ tools.by_kind.task }}",
-    subagent_type_param: "${{ params.task.subagent_type }}",
-    run_in_background_param: "${{ params.task.run_in_background }}",
-    resume_from_param: "${{ params.task.resume_from }}",
-    background_retrieval_tool: "${{ tools.by_kind.background_task_action }}",
-    isolation_param: "${{ params.task.isolation }}",
-};
+const TASK_TOOL_NAMING: axon_tool_types::TaskToolNaming<'static> =
+    axon_tool_types::TaskToolNaming {
+        task_tool: "${{ tools.by_kind.task }}",
+        subagent_type_param: "${{ params.task.subagent_type }}",
+        run_in_background_param: "${{ params.task.run_in_background }}",
+        resume_from_param: "${{ params.task.resume_from }}",
+        background_retrieval_tool: "${{ tools.by_kind.background_task_action }}",
+        isolation_param: "${{ params.task.isolation }}",
+    };
 /// Concise task-tool description for child sessions. Delegation from a child
 /// is possible but discouraged — prefer doing the work directly.
 ///

@@ -22,7 +22,7 @@ pub mod tool_index;
 pub mod tool_io;
 pub mod tool_metadata;
 pub use api_key_provider::{ApiKeyProvider, SharedApiKeyProvider};
-pub use claude_alias::{claude_names_for, axon_names, axon_names_for, kind_for};
+pub use claude_alias::{axon_names, axon_names_for, claude_names_for, kind_for};
 pub use compat::{
     COMPAT_CELLS, CompatCell, CompatConfig, CompatConfigToml, CompatRemoteKey, CompatSurface,
     CompatVendor, VendorCompat, VendorCompatToml,

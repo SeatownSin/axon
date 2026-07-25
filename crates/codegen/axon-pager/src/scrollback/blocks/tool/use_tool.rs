@@ -1,8 +1,8 @@
 //! UseToolCallBlock — MCP integration tool dispatch.
 
+use axon_workspace::permission::{MCP_TOOL_NAME_DELIMITER, mcp_titleize_segment};
 use ratatui::style::Modifier;
 use ratatui::text::{Line, Span, Text};
-use axon_workspace::permission::{MCP_TOOL_NAME_DELIMITER, mcp_titleize_segment};
 
 use crate::render::line_utils::truncate_str;
 use crate::scrollback::block::BlockContent;

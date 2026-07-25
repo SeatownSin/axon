@@ -24,6 +24,7 @@ use crate::session::mcp_dispatcher::{
     McpServerStatus, McpServerStatusPayload, McpServerStatusReason, SERVER_STATUS_METHOD,
 };
 use agent_client_protocol as acp;
+use axon_mcp::servers::{ClientStateKind, HttpConfig, McpClient};
 use axum::body::Body;
 use axum::extract::State;
 use axum::http::{StatusCode, header};
@@ -33,7 +34,6 @@ use chrono::Utc;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use axon_mcp::servers::{ClientStateKind, HttpConfig, McpClient};
 
 const MANAGED: &str = "axon_com_testconnector";
 

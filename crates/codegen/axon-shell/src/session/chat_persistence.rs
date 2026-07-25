@@ -3,9 +3,9 @@
 //! Wraps an `mpsc::UnboundedSender<PersistenceMsg>` and translates
 //! `ChatPersistence` trait calls into the appropriate `PersistenceMsg` variants.
 
-use tokio::sync::mpsc;
 use axon_chat_state::ChatPersistence;
 use axon_sampling_types::ConversationItem;
+use tokio::sync::mpsc;
 
 use super::persistence::PersistenceMsg;
 

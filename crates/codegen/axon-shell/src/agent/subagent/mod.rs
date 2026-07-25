@@ -27,6 +27,10 @@ use crate::upload::trace::{
 };
 use crate::upload::turn::{PromptTraceContext, complete_prompt_trace};
 use agent_client_protocol as acp;
+use axon_acp_lib::AcpAgentGatewaySender as GatewaySender;
+use axon_hunk_tracker::HunkTrackerHandle;
+use axon_tools::implementations::axon_build::task::types::*;
+use axon_workspace::file_system::AsyncFileSystem;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -34,10 +38,6 @@ use std::sync::Arc;
 use std::sync::OnceLock;
 use tokio::sync::{Notify, mpsc, oneshot};
 use tokio_util::sync::CancellationToken;
-use axon_acp_lib::AcpAgentGatewaySender as GatewaySender;
-use axon_tools::implementations::axon_build::task::types::*;
-use axon_workspace::file_system::AsyncFileSystem;
-use axon_hunk_tracker::HunkTrackerHandle;
 mod coordinator_lifecycle;
 mod coordinator_query;
 mod handle_request;
@@ -200,8 +200,7 @@ pub(crate) struct SubagentSpawnContext {
     /// When a subagent exits, its surviving tasks (monitors, bg commands)
     /// need their notification handles swapped to this so events route
     /// to the parent's notification bridge.
-    pub parent_notification_handle:
-        Option<axon_tools::notification::types::ToolNotificationHandle>,
+    pub parent_notification_handle: Option<axon_tools::notification::types::ToolNotificationHandle>,
     /// Parent's scheduler handle. When `Some`, the subagent reuses the
     /// parent's scheduler actor so scheduled tasks survive subagent exit.
     pub parent_scheduler_handle:
@@ -1749,8 +1748,8 @@ fn resolve_subagent_toolset(
 fn summarize_tool_config(
     config: &axon_tools::registry::types::ToolServerConfig,
 ) -> SubagentTypeSummary {
-    use std::collections::HashMap;
     use axon_tools::types::tool::ToolKind;
+    use std::collections::HashMap;
     let mut tool_names: HashMap<ToolKind, String> = HashMap::new();
     for tc in &config.tools {
         let Some(kind) = tc.kind else { continue };
@@ -1884,8 +1883,7 @@ fn resolve_subagent_permission_mode(
 /// Main repo root for a subagent's source: the durable repo a completion snapshot is transferred into and the repo a resume rehydrates from — both arms MUST resolve this identically.
 fn resolve_subagent_source_repo(ctx: &SubagentSpawnContext) -> std::path::PathBuf {
     let source_cwd = parent_source_cwd(ctx);
-    axon_workspace::session::git::find_main_repo_root_from_path(&source_cwd)
-        .unwrap_or(source_cwd)
+    axon_workspace::session::git::find_main_repo_root_from_path(&source_cwd).unwrap_or(source_cwd)
 }
 enum SubagentWaitOutcome {
     Cancelled,

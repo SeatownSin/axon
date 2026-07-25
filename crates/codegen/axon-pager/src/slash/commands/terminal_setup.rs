@@ -74,8 +74,7 @@ impl SlashCommand for TerminalSetupCommand {
         );
         let route = crate::clipboard::clipboard_route();
         let is_ssh = axon_shell::util::clipboard::is_remote_session();
-        let container_no_display =
-            axon_shell::util::clipboard::is_containerized_without_display();
+        let container_no_display = axon_shell::util::clipboard::is_containerized_without_display();
 
         let mut out = String::new();
 

@@ -20,14 +20,14 @@ use crate::scrollback::entry::{EntryId, ScrollbackEntry};
 use crate::scrollback::state::ScrollbackState;
 use crate::scrollback::state::verb_group::verb_group_kind_changed;
 use agent_client_protocol as acp;
+use axon_tools::types::output::{BashOutput, ToolOutput};
+use axon_tools::types::output::{ReadFileOutput, SearchToolOutput, WebFetchOutput};
+use axon_tools::util::strip_redundant_session_cd;
 use chrono::{DateTime, Local, TimeZone};
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use tracing::debug;
-use axon_tools::types::output::{BashOutput, ToolOutput};
-use axon_tools::types::output::{ReadFileOutput, SearchToolOutput, WebFetchOutput};
-use axon_tools::util::strip_redundant_session_cd;
 /// Convert a UTC millisecond timestamp to local time.
 fn utc_ms_to_local(ms: i64) -> DateTime<Local> {
     chrono::Utc
@@ -1423,8 +1423,7 @@ fn user_message_hidden_from_scrollback(
         return true;
     }
     if let Some(pid) = meta.prompt_id.as_deref()
-        && axon_shell::session::PromptOrigin::from_prompt_id(pid)
-            .hide_user_echo_from_scrollback()
+        && axon_shell::session::PromptOrigin::from_prompt_id(pid).hide_user_echo_from_scrollback()
     {
         return true;
     }
@@ -3636,8 +3635,8 @@ mod tests {
     /// 4. Second Completed ToolCallUpdate (from acp_session completion handler)
     #[test]
     fn production_execute_sequence() {
-        use serde_json::json;
         use axon_tools::types::output::{BashOutput, ToolOutput};
+        use serde_json::json;
         let mut sb = ScrollbackState::new();
         let mut tracker = AcpUpdateTracker::new();
         let tc_id = "call_abc123";
@@ -6486,10 +6485,9 @@ mod tests {
     }
     #[test]
     fn media_gen_ref_skips_uploaded_only_video() {
-        let output =
-            ToolOutput::ImageToVideo(axon_tools::types::output::MediaGenOutput::uploaded(
-                "https://bucket.example/videos/x.mp4".into(),
-            ));
+        let output = ToolOutput::ImageToVideo(axon_tools::types::output::MediaGenOutput::uploaded(
+            "https://bucket.example/videos/x.mp4".into(),
+        ));
         let tc = acp::ToolCall::new(
             acp::ToolCallId::new(Arc::from("zdr-upload")),
             "image_to_video",

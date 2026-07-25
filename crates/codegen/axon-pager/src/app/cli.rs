@@ -861,10 +861,7 @@ impl PagerArgs {
         let cwd = cwd_str.as_deref();
         match self.resume_target() {
             ResumeTarget::SessionId(id) => {
-                axon_shell::session::persistence::resumed_session_sandbox_profile(
-                    Some(&id),
-                    cwd,
-                )
+                axon_shell::session::persistence::resumed_session_sandbox_profile(Some(&id), cwd)
             }
             ResumeTarget::MostRecentForCwd => {
                 axon_shell::session::persistence::resumed_session_sandbox_profile(None, cwd)

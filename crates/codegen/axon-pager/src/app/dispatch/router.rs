@@ -576,8 +576,7 @@ pub(crate) fn dispatch(action: Action, app: &mut AppView) -> Vec<Effect> {
             if group_toggled {
                 return vec![];
             }
-            let mut credit_card: Option<(String, axon_telemetry::events::CreditLimitChoice)> =
-                None;
+            let mut credit_card: Option<(String, axon_telemetry::events::CreditLimitChoice)> = None;
             with_scrollback(app, |s| {
                 if let Some(idx) = s.selected()
                     && let Some(entry) = s.entry(idx)

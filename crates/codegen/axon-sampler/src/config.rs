@@ -6,11 +6,11 @@
 //! avoids transitive dependencies on shell-specific types
 //! (`axon-tools`, etc.).
 
-use indexmap::IndexMap;
-use serde::{Deserialize, Serialize};
 use axon_sampling_types::{
     ApiBackend, CompactionAtTokens, CompactionsRemaining, DoomLoopRecoveryPolicy, ReasoningEffort,
 };
+use indexmap::IndexMap;
+use serde::{Deserialize, Serialize};
 
 use crate::attribution::SharedAttributionCallback;
 use crate::retry::{DEFAULT_MAX_RETRIES, RATE_LIMIT_RETRY_THRESHOLD};

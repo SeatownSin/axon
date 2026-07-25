@@ -6,11 +6,11 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use agent_client_protocol::{self as acp, Client as _};
-use tokio::sync::{Mutex as TokioMutex, mpsc};
 use axon_acp_lib::AcpAgentGatewaySender as GatewaySender;
+use axon_hunk_tracker::HunkTrackerHandle;
 use axon_tools::notification::types::{ToolNotification, ToolNotificationHandle};
 use axon_tools::types::output::{BashOutput, ToolOutput};
-use axon_hunk_tracker::HunkTrackerHandle;
+use tokio::sync::{Mutex as TokioMutex, mpsc};
 
 use crate::session::commands::SessionCommand;
 use crate::session::commands::{NotificationPriority, NotificationSource};
@@ -326,8 +326,7 @@ async fn handle_notification(
         }
 
         ToolNotification::TaskCompleted(task_snapshot) => {
-            let is_monitor =
-                task_snapshot.kind == axon_tools::computer::types::TaskKind::Monitor;
+            let is_monitor = task_snapshot.kind == axon_tools::computer::types::TaskKind::Monitor;
             let task_id = task_snapshot.task_id.clone();
             let goal_loop_active = config
                 .goal_loop_active
@@ -1672,8 +1671,8 @@ mod tests {
     #[tokio::test]
     async fn bash_output_chunk_persists_and_broadcasts_one_event_id() {
         let (config, mut gateway_rx, mut persistence_rx, _cmd_rx) = make_test_config_full();
-        let notification = ToolNotification::BashOutputChunk(
-            axon_tools::notification::types::BashOutputChunk {
+        let notification =
+            ToolNotification::BashOutputChunk(axon_tools::notification::types::BashOutputChunk {
                 base: axon_tools::notification::types::BashNotificationBase {
                     tool_call_id: "call-1".into(),
                     command: "echo hi".into(),
@@ -1682,8 +1681,7 @@ mod tests {
                     truncated: false,
                     cwd: PathBuf::from("/tmp"),
                 },
-            },
-        );
+            });
         let mut offsets = HashMap::new();
 
         handle_notification(&config, notification, &mut offsets).await;
@@ -2270,11 +2268,10 @@ mod tests {
     async fn plan_mode_entered_emits_current_mode_update_plan() {
         let (config, mut gateway_rx, mut persistence_rx, _cmd_rx) = make_test_config_full();
 
-        let notification = ToolNotification::PlanModeEntered(
-            axon_tools::notification::types::PlanModeEntered {
+        let notification =
+            ToolNotification::PlanModeEntered(axon_tools::notification::types::PlanModeEntered {
                 tool_call_id: "tc-enter-1".into(),
-            },
-        );
+            });
 
         let mut offsets = HashMap::new();
         handle_notification(&config, notification, &mut offsets).await;

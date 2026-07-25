@@ -9,7 +9,8 @@ use crate::register_resource;
 // Safety-boundary constants. Not configurable.
 pub const MAX_URL_LENGTH: usize = 2_000;
 pub const MAX_REDIRECTS: usize = 10;
-pub const USER_AGENT_STRING: &str = "Mozilla/5.0 (compatible; axon-agent/1.0; +https://blocked.invalid)";
+pub const USER_AGENT_STRING: &str =
+    "Mozilla/5.0 (compatible; axon-agent/1.0; +https://blocked.invalid)";
 
 /// Runtime-configurable parameters for the `web_fetch` tool.
 ///

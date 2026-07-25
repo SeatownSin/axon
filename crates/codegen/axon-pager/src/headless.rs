@@ -281,9 +281,7 @@ pub(crate) fn resolve_agent_arg(agent: &str) -> ResolvedAgent {
     }
 }
 
-fn parse_cli_agents(
-    json: &str,
-) -> anyhow::Result<Vec<axon_shell::agent::config::AgentDefinition>> {
+fn parse_cli_agents(json: &str) -> anyhow::Result<Vec<axon_shell::agent::config::AgentDefinition>> {
     let map: std::collections::HashMap<String, serde_json::Value> =
         serde_json::from_str(json).map_err(|e| anyhow::anyhow!("--agents: invalid JSON: {e}"))?;
     let mut agents = Vec::with_capacity(map.len());
@@ -534,8 +532,8 @@ async fn authenticate(
     let method_id = crate::acp::select_eager_auth_method(auths, default_auth_method_id)
         .ok_or_else(|| {
             use std::io::IsTerminal;
-            let interactive = std::io::stdin().is_terminal()
-                && !axon_shell::util::clipboard::is_remote_session();
+            let interactive =
+                std::io::stdin().is_terminal() && !axon_shell::util::clipboard::is_remote_session();
             anyhow::anyhow!("{}", auth_required_message(interactive))
         })?;
     let kind = AuthMethodKind::from_id(&method_id);
@@ -1060,14 +1058,12 @@ pub async fn run_single_turn(
     // Debug: track headless sessions in active_sessions.json when env var is set.
     let track_active = std::env::var("AXON_TRACK_HEADLESS").is_ok();
     if track_active {
-        let _ = axon_shell::active_sessions::register(
-            axon_shell::active_sessions::ActiveSession {
-                session_id: session_id.clone(),
-                pid: std::process::id(),
-                cwd: cwd.display().to_string(),
-                opened_at: chrono::Utc::now(),
-            },
-        );
+        let _ = axon_shell::active_sessions::register(axon_shell::active_sessions::ActiveSession {
+            session_id: session_id.clone(),
+            pid: std::process::id(),
+            cwd: cwd.display().to_string(),
+            opened_at: chrono::Utc::now(),
+        });
     }
 
     if let Err(e) = apply_headless_model_and_effort(

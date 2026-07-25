@@ -2,14 +2,14 @@
 use super::turn::{PromptTraceContext, UploadWait};
 use crate::sampling::types::ToolDefinition;
 use crate::session::repo_changes::{TraceExportConfig, UploadMethod};
+use axon_file_utils::queue::{EnqueueOutcome, TraceExportSource, UploadQueue, UploadRetryPolicy};
+use axon_workspace::permission::PermissionEvent;
 use base64::Engine as _;
 use serde::Serialize;
 use std::path::Path;
 use std::sync::Arc;
 use tokio::sync::oneshot;
 use url::Url;
-use axon_file_utils::queue::{EnqueueOutcome, TraceExportSource, UploadQueue, UploadRetryPolicy};
-use axon_workspace::permission::PermissionEvent;
 /// Upload request payload to cloud storage in the background (best-effort, non-blocking).
 ///
 /// Used by the legacy `stream_via_*` path to upload the per-request

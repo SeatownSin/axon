@@ -4512,10 +4512,7 @@ mod tests {
 
     // ── Skills search: substring-only, title-first ordering ─────────
 
-    fn make_skill(
-        name: &str,
-        desc: &str,
-    ) -> axon_tools::implementations::skills::types::SkillInfo {
+    fn make_skill(name: &str, desc: &str) -> axon_tools::implementations::skills::types::SkillInfo {
         axon_tools::implementations::skills::types::SkillInfo {
             name: name.to_string(),
             display_name: None,

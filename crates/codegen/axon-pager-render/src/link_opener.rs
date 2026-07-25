@@ -459,7 +459,11 @@ mod tests {
 
     #[test]
     fn ensure_query_param_appends_when_missing() {
-        let out = ensure_query_param("https://blocked.invalid/superaxon", "referrer", "axon-build");
+        let out = ensure_query_param(
+            "https://blocked.invalid/superaxon",
+            "referrer",
+            "axon-build",
+        );
         assert_eq!(out, "https://blocked.invalid/superaxon?referrer=axon-build");
     }
 
@@ -490,8 +494,15 @@ mod tests {
     fn ensure_query_param_preserves_fragment() {
         // The current remote settings value uses a hash fragment for client-side
         // routing (`blocked.invalid/#superaxon`); we still want the referrer attached.
-        let out = ensure_query_param("https://blocked.invalid/#superaxon", "referrer", "axon-build");
-        assert_eq!(out, "https://blocked.invalid/?referrer=axon-build#superaxon");
+        let out = ensure_query_param(
+            "https://blocked.invalid/#superaxon",
+            "referrer",
+            "axon-build",
+        );
+        assert_eq!(
+            out,
+            "https://blocked.invalid/?referrer=axon-build#superaxon"
+        );
     }
 
     #[test]
@@ -502,7 +513,11 @@ mod tests {
 
     #[test]
     fn ensure_query_param_url_encodes_value() {
-        let out = ensure_query_param("https://blocked.invalid/superaxon", "referrer", "axon build");
+        let out = ensure_query_param(
+            "https://blocked.invalid/superaxon",
+            "referrer",
+            "axon build",
+        );
         assert_eq!(out, "https://blocked.invalid/superaxon?referrer=axon+build");
     }
 

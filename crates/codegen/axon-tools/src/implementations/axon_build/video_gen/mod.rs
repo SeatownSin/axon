@@ -458,7 +458,9 @@ impl VideoGenClient {
     /// Download video bytes from a pre-signed temporary URL (no auth headers).
     async fn download_video(&self, url: &str) -> Result<Vec<u8>, axon_tool_runtime::ToolError> {
         let response = self.download_http.get(url).send().await.map_err(|e| {
-            axon_tool_runtime::ToolError::invalid_arguments(format!("Failed to download video: {e}"))
+            axon_tool_runtime::ToolError::invalid_arguments(format!(
+                "Failed to download video: {e}"
+            ))
         })?;
 
         if !response.status().is_success() {

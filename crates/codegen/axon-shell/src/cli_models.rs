@@ -92,11 +92,11 @@ pub async fn list_models(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::agent::auth_method::{LEGACY_AXON_API_KEY_ENV_VAR, AXON_API_KEY_ENV_VAR};
+    use crate::agent::auth_method::{AXON_API_KEY_ENV_VAR, LEGACY_AXON_API_KEY_ENV_VAR};
     use crate::agent::config::Config;
     use crate::auth::{AuthMode, AxonAuth};
-    use serial_test::serial;
     use axon_test_support::EnvGuard;
+    use serial_test::serial;
 
     /// Isolate process-global auth sources that `AuthStatus::resolve` consults.
     ///

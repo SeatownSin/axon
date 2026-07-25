@@ -24,17 +24,17 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use agent_client_protocol as acp;
+use axon_fast_worktree::{ListFilter, WorktreeDb, WorktreeKind, WorktreeRecord, WorktreeStatus};
+use axon_shell::session::info::Info;
+use axon_shell::session::persistence::Summary;
+use axon_shell::session::storage::{JsonlStorageAdapter, StorageAdapter};
+use axon_shell::session::unified_list::{ListReq, UnifiedListResult, build_unified_list};
 use chrono::{DateTime, Duration as ChronoDuration, Utc};
 use criterion::{
     BenchmarkId, Criterion, SamplingMode, Throughput, criterion_group, criterion_main,
 };
 use filetime::{FileTime, set_file_mtime};
 use tempfile::TempDir;
-use axon_fast_worktree::{ListFilter, WorktreeDb, WorktreeKind, WorktreeRecord, WorktreeStatus};
-use axon_shell::session::info::Info;
-use axon_shell::session::persistence::Summary;
-use axon_shell::session::storage::{JsonlStorageAdapter, StorageAdapter};
-use axon_shell::session::unified_list::{ListReq, UnifiedListResult, build_unified_list};
 
 const WORKSPACE_COUNT: usize = 3_000;
 // Bump whenever workload semantics change, even if aggregate counts do not.

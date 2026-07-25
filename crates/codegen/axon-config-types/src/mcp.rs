@@ -2,11 +2,11 @@
 //! (config dependency inversion).
 
 use agent_client_protocol as acp;
+use axon_mcp::oauth_config::McpOAuthConfig;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
-use axon_mcp::oauth_config::McpOAuthConfig;
 
 /// serde default helper. Kept module-local rather than shared — the `pool`
 /// module keeps its own copy for `PoolConfig`.

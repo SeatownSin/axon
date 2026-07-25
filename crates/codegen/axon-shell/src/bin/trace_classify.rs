@@ -24,8 +24,8 @@
 
 use std::path::PathBuf;
 
-use clap::Parser;
 use axon_shell::trace_classifier::{RunArgs, run, validate_min_confidence};
+use clap::Parser;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -187,7 +187,10 @@ mod tests {
                 .collect::<Vec<_>>()
         };
         assert_eq!(by_id("model"), vec!["axon-4.5"]);
-        assert_eq!(by_id("api_base_url"), vec!["https://api.blocked.invalid/v1"]);
+        assert_eq!(
+            by_id("api_base_url"),
+            vec!["https://api.blocked.invalid/v1"]
+        );
         assert!(by_id("min_confidence").is_empty(), "no default");
         assert!(by_id("include_reasoning").is_empty(), "no default");
     }

@@ -41,6 +41,7 @@
 //! Each frame is wrapped in `BeginSynchronizedUpdate` / `EndSynchronizedUpdate`
 //! so the terminal processes all escape sequences atomically. This prevents
 //! flicker and is critical for multiplexers like zellij and tmux.
+use axon_ratatui_inline::LinkSpan;
 use crossterm::terminal::{BeginSynchronizedUpdate, EndSynchronizedUpdate};
 use crossterm::{QueueableCommand, cursor};
 use ratatui::Frame;
@@ -49,7 +50,6 @@ use std::io::Write;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, mpsc};
 use std::time::{Duration, Instant};
-use axon_ratatui_inline::LinkSpan;
 /// Terminal type for the pager. Defined here (beside [`TermWriter`]) so the
 /// `render` module does not depend on `app`. Re-exported from `app` as
 /// `crate::app::PagerTerminal` for existing call sites.

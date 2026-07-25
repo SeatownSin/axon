@@ -27,9 +27,9 @@ use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::PathBuf;
 
-use clap::Parser;
 use axon_shell::sampling::conversation::{ConversationItem, conversation_item_to_chat_message};
 use axon_shell::sampling::types::{ChatRequestMessage, Role};
+use clap::Parser;
 
 /// normalize chat_history.jsonl, convert any v1 (ConversationItem) to v0 (ChatRequestMessage) format.
 #[derive(Parser)]

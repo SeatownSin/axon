@@ -2,6 +2,13 @@ use std::collections::VecDeque;
 use std::io::{self, stdout};
 use std::time::{Duration, Instant};
 
+use axon_pager::scrollback::text_selection::{
+    PersistentTextSelection, RangeHit, ResolvedSelectionModel, SelectionEndpoint, SelectionOrigin,
+    configured_word_separators, render_persistent_selection_overlay, url_range_at_col,
+    word_boundaries_at_col,
+};
+use axon_pager::scrollback::types::slice_display_cols;
+use axon_pager::scrollback::{RenderBlock, ScratchBuffer, ScrollbackPane, ScrollbackState};
 use crossterm::ExecutableCommand;
 use crossterm::event::{
     self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEvent, KeyModifiers,
@@ -15,13 +22,6 @@ use ratatui::layout::{Constraint, Layout};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
-use axon_pager::scrollback::text_selection::{
-    PersistentTextSelection, RangeHit, ResolvedSelectionModel, SelectionEndpoint, SelectionOrigin,
-    configured_word_separators, render_persistent_selection_overlay, url_range_at_col,
-    word_boundaries_at_col,
-};
-use axon_pager::scrollback::types::slice_display_cols;
-use axon_pager::scrollback::{RenderBlock, ScratchBuffer, ScrollbackPane, ScrollbackState};
 
 /// Maximum time (ms) between consecutive clicks to count as a multi-click.
 const MULTI_CLICK_TIMEOUT_MS: u128 = 300;

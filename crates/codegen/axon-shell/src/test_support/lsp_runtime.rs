@@ -1,12 +1,12 @@
 use crate::agent::subagent::SubagentSpawnContext;
 use crate::session::SessionCommand;
 use agent_client_protocol as acp;
+use axon_acp_lib::AcpAgentGatewaySender as GatewaySender;
+use axon_tools::implementations::axon_build::task::types::{SubagentRequest, SubagentResult};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot};
-use axon_acp_lib::AcpAgentGatewaySender as GatewaySender;
-use axon_tools::implementations::axon_build::task::types::{SubagentRequest, SubagentResult};
 pub(crate) type GatewayOut = <acp::AgentSide as axon_acp_lib::AcpSide>::OutMessage;
 pub(crate) fn test_gateway() -> GatewaySender {
     let (tx, _rx) = mpsc::unbounded_channel();
@@ -76,9 +76,9 @@ pub(crate) fn ctx_with_toggle(toggle: HashMap<String, bool>) -> SubagentSpawnCon
         subagent_event_tx: tx,
         hunk_tracker_handle: axon_hunk_tracker::HunkTrackerHandle::noop(),
         hunk_tracking_enabled: false,
-        fs: Arc::new(axon_workspace::file_system::LocalFs::new(
-            PathBuf::from("/tmp"),
-        )),
+        fs: Arc::new(axon_workspace::file_system::LocalFs::new(PathBuf::from(
+            "/tmp",
+        ))),
         terminal: Arc::new(crate::terminal::TerminalRunner::new(
             Arc::new(test_gateway()),
             acp::SessionId::new("test"),

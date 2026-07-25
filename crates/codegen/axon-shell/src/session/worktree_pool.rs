@@ -36,13 +36,13 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
+use axon_fast_worktree::{WorktreeBuilder, WorktreeSync};
 use tokio::sync::Notify;
 use tokio_util::sync::CancellationToken;
-use axon_fast_worktree::{WorktreeBuilder, WorktreeSync};
 
 const WORKTREE_POOL_LOG: &str = "axon_worktree_pool";
-use crate::util::config::PoolConfig;
 use crate::util::axon_home::axon_home;
+use crate::util::config::PoolConfig;
 
 use axon_tty_utils::git_command;
 

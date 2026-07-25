@@ -10,17 +10,17 @@ use crate::config::{MemoryConfig, SessionContextFactory};
 use crate::file_system::{AsyncFsWrapper, LocalFs};
 use crate::hub::{HubConfig, HubHandle};
 use crate::session::file_state::FileStateTracker;
+use axon_computer_hub_mcp_adapter::McpBridgeHandle;
+use axon_hunk_tracker::HunkTrackerHandle;
+use axon_mcp::servers::McpState;
+use axon_tool_protocol::ToolId;
+use axon_tool_runtime::WorkspaceViewerContext;
+use axon_tools::notification::types::{ToolNotification, ToolNotificationHandle};
+use axon_tools::registry::types::{FinalizedToolset, ToolConfig, ToolServerConfig};
 use parking_lot::RwLock;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use axon_computer_hub_mcp_adapter::McpBridgeHandle;
-use axon_mcp::servers::McpState;
-use axon_tools::notification::types::{ToolNotification, ToolNotificationHandle};
-use axon_tools::registry::types::{FinalizedToolset, ToolConfig, ToolServerConfig};
-use axon_hunk_tracker::HunkTrackerHandle;
-use axon_tool_protocol::ToolId;
-use axon_tool_runtime::WorkspaceViewerContext;
 /// Minimal result types for git error reporting (duplicated from shell session/result).
 pub mod result {
     use serde::Serialize;
@@ -854,11 +854,11 @@ impl WorkspaceShared {
                         &sid,
                         SwapAction::Applied,
                     );
-                    let _ =
-                        self.events
-                            .send(axon_workspace_types::WorkspaceEvent::ToolsChanged {
-                                session_id: sid,
-                            });
+                    let _ = self
+                        .events
+                        .send(axon_workspace_types::WorkspaceEvent::ToolsChanged {
+                            session_id: sid,
+                        });
                     rebuilt += 1;
                 }
                 Err(e) => {
@@ -921,8 +921,8 @@ pub(crate) fn get_or_open_session_writer(
 #[cfg(test)]
 mod tests {
     use super::get_or_open_session_writer;
-    use dashmap::DashMap;
     use axon_file_utils::events::{Event, EventWriter};
+    use dashmap::DashMap;
     fn count_lines(path: &std::path::Path) -> usize {
         std::fs::read_to_string(path)
             .unwrap()

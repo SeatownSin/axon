@@ -13,9 +13,9 @@
 
 use std::ops::Range;
 
+use axon_markdown::MarkdownRenderView;
 use ratatui::text::Line;
 use unicode_width::UnicodeWidthStr;
-use axon_markdown::MarkdownRenderView;
 
 use crate::appearance::RenderMermaid;
 use crate::scrollback::types::{BlockLine, BlockOutput};

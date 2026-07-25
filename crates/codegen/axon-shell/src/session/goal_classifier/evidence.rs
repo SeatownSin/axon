@@ -35,6 +35,7 @@
 //! updating the template (and bumping any prompt-eval baselines).
 
 use super::GOAL_CLASSIFIER_DIFF_MAX_BYTES;
+use axon_sampling_types::ConversationItem;
 use std::borrow::Cow;
 use std::io;
 use std::io::Read;
@@ -42,7 +43,6 @@ use std::path::Path;
 use std::sync::OnceLock;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::process::Command;
-use axon_sampling_types::ConversationItem;
 
 /// Max wall-clock for git commands during evidence capture.
 const DIFF_COMMAND_TIMEOUT: Duration = Duration::from_secs(5 * 60);

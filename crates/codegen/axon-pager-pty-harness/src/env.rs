@@ -37,13 +37,7 @@ fn ensure_local_pager_binary(binary: &std::path::Path) -> Result<()> {
     let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".to_owned());
     let mut cmd = Command::new(&cargo);
     cmd.current_dir(workspace_root()?)
-        .args([
-            "build",
-            "-p",
-            "axon-pager-bin",
-            "--bin",
-            "axon-pager",
-        ])
+        .args(["build", "-p", "axon-pager-bin", "--bin", "axon-pager"])
         .stdin(Stdio::null())
         .envs(axon_tty_utils::pager_env());
     axon_tty_utils::detach_std_command(&mut cmd);

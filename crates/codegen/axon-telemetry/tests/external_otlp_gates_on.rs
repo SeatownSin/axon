@@ -17,8 +17,8 @@
 
 mod otlp_collector;
 
-use otlp_collector as col;
 use axon_telemetry::external::{self, ExternalOtelRemotePolicy, IdentityAttrs};
+use otlp_collector as col;
 
 // Secret shapes — MUST be scrubbed everywhere, even inside gated content.
 const SECRET_KEY: &str = "sk-LEAKaaaaaaaaaaaaaaaa1234567890";

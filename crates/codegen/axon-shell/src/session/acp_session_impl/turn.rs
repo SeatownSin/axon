@@ -850,16 +850,14 @@ impl SessionActor {
                     cancellation_context: None,
                 })
                 .await;
-                axon_telemetry::session_ctx::log_event(
-                    axon_telemetry::events::TurnCompleted {
-                        outcome: axon_telemetry::events::Outcome::Completed,
-                        duration_ms: turn_duration_ms,
-                        tool_call_count: turn_tool_count,
-                        model_id: turn_model_id,
-                        cancellation_category: None,
-                        error_category: None,
-                    },
-                );
+                axon_telemetry::session_ctx::log_event(axon_telemetry::events::TurnCompleted {
+                    outcome: axon_telemetry::events::Outcome::Completed,
+                    duration_ms: turn_duration_ms,
+                    tool_call_count: turn_tool_count,
+                    model_id: turn_model_id,
+                    cancellation_category: None,
+                    error_category: None,
+                });
             }
             Ok(TurnOutcome::Cancelled { category, context }) => {
                 self.emit_turn_ended(
@@ -881,16 +879,14 @@ impl SessionActor {
                     cancellation_context: context.clone(),
                 })
                 .await;
-                axon_telemetry::session_ctx::log_event(
-                    axon_telemetry::events::TurnCompleted {
-                        outcome: axon_telemetry::events::Outcome::Cancelled,
-                        duration_ms: turn_duration_ms,
-                        tool_call_count: turn_tool_count,
-                        model_id: turn_model_id,
-                        cancellation_category: category.map(|c| format!("{c:?}")),
-                        error_category: None,
-                    },
-                );
+                axon_telemetry::session_ctx::log_event(axon_telemetry::events::TurnCompleted {
+                    outcome: axon_telemetry::events::Outcome::Cancelled,
+                    duration_ms: turn_duration_ms,
+                    tool_call_count: turn_tool_count,
+                    model_id: turn_model_id,
+                    cancellation_category: category.map(|c| format!("{c:?}")),
+                    error_category: None,
+                });
             }
             Ok(TurnOutcome::MaxTurnsReached { limit }) => {
                 tracing::info!(limit, "turn ended: max_turns reached");
@@ -914,16 +910,14 @@ impl SessionActor {
                     )),
                 })
                 .await;
-                axon_telemetry::session_ctx::log_event(
-                    axon_telemetry::events::TurnCompleted {
-                        outcome: axon_telemetry::events::Outcome::Cancelled,
-                        duration_ms: turn_duration_ms,
-                        tool_call_count: turn_tool_count,
-                        model_id: turn_model_id,
-                        cancellation_category: Some("max_turns_reached".to_string()),
-                        error_category: None,
-                    },
-                );
+                axon_telemetry::session_ctx::log_event(axon_telemetry::events::TurnCompleted {
+                    outcome: axon_telemetry::events::Outcome::Cancelled,
+                    duration_ms: turn_duration_ms,
+                    tool_call_count: turn_tool_count,
+                    model_id: turn_model_id,
+                    cancellation_category: Some("max_turns_reached".to_string()),
+                    error_category: None,
+                });
             }
             Err(err) => {
                 self.emit_turn_ended(crate::session::events::TurnOutcomeLabel::Error, None, None);
@@ -939,24 +933,20 @@ impl SessionActor {
                 })
                 .await;
                 let error_category = Self::classify_turn_error(err);
-                axon_telemetry::session_ctx::log_session_event(
-                    axon_telemetry::events::ApiError {
-                        error_category: error_category.clone(),
-                        model_id: turn_model_id.clone(),
-                        status_code: None,
-                        duration_ms: Some(turn_duration_ms),
-                    },
-                );
-                axon_telemetry::session_ctx::log_event(
-                    axon_telemetry::events::TurnCompleted {
-                        outcome: axon_telemetry::events::Outcome::Error,
-                        duration_ms: turn_duration_ms,
-                        tool_call_count: turn_tool_count,
-                        model_id: turn_model_id,
-                        cancellation_category: None,
-                        error_category: Some(error_category),
-                    },
-                );
+                axon_telemetry::session_ctx::log_session_event(axon_telemetry::events::ApiError {
+                    error_category: error_category.clone(),
+                    model_id: turn_model_id.clone(),
+                    status_code: None,
+                    duration_ms: Some(turn_duration_ms),
+                });
+                axon_telemetry::session_ctx::log_event(axon_telemetry::events::TurnCompleted {
+                    outcome: axon_telemetry::events::Outcome::Error,
+                    duration_ms: turn_duration_ms,
+                    tool_call_count: turn_tool_count,
+                    model_id: turn_model_id,
+                    cancellation_category: None,
+                    error_category: Some(error_category),
+                });
                 self.dispatch_hook(
                     axon_hooks::event::HookEventName::StopFailure,
                     axon_hooks::event::HookPayload::StopFailure {
@@ -1564,17 +1554,15 @@ impl SessionActor {
             target : axon_telemetry::memory_log::TARGET, configured_min_score,
             "MEMORY_INJECT_SEARCH: results={result_count}"
         );
-        axon_telemetry::session_ctx::log_event(
-            axon_telemetry::memory_telemetry::MemoryInjection {
-                session_id: self.session_info.id.to_string(),
-                was_greeting_fallback: was_greeting,
-                result_count,
-                total_snippet_chars,
-                top_score,
-                configured_min_score,
-                injection_duration_ms: inject_start.elapsed().as_millis() as u64,
-            },
-        );
+        axon_telemetry::session_ctx::log_event(axon_telemetry::memory_telemetry::MemoryInjection {
+            session_id: self.session_info.id.to_string(),
+            was_greeting_fallback: was_greeting,
+            result_count,
+            total_snippet_chars,
+            top_score,
+            configured_min_score,
+            injection_duration_ms: inject_start.elapsed().as_millis() as u64,
+        });
         inject_results.and_then(|results| {
             crate::session::helpers::memory_context::format_memory_reminder(&results)
         })
@@ -2080,8 +2068,7 @@ impl SessionActor {
             let fallback_text = response.fallback_text();
             let stop_reason = response.stop_reason;
             let response_is_empty = response.is_empty();
-            let turn_refused =
-                stop_reason == Some(axon_sampling_types::StopReason::ContentFilter);
+            let turn_refused = stop_reason == Some(axon_sampling_types::StopReason::ContentFilter);
             let refusal_explanation = response.stop_message.clone();
             let final_answer_text = json_schema.is_some().then(|| response.assistant_text());
             for item in response.items {

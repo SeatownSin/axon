@@ -194,15 +194,13 @@ impl AgentView {
         enabled: Option<bool>,
     ) {
         if let Some(ref state) = self.extensions_modal {
-            axon_telemetry::session_ctx::log_event(
-                axon_telemetry::events::ExtensionsModalAction {
-                    tab: state.active_tab.telemetry_tab(),
-                    action: action.into(),
-                    input_method,
-                    target,
-                    enabled,
-                },
-            );
+            axon_telemetry::session_ctx::log_event(axon_telemetry::events::ExtensionsModalAction {
+                tab: state.active_tab.telemetry_tab(),
+                action: action.into(),
+                input_method,
+                target,
+                enabled,
+            });
         }
     }
 

@@ -7,11 +7,6 @@
 //! message / running tool) so output is visible as it generates; finished blocks
 //! scroll up into native scrollback via [`super::commit`]. When idle the tail is
 //! empty and only status + prompt (+ optional panels) show.
-use ratatui::buffer::Buffer;
-use ratatui::layout::Rect;
-use ratatui::style::{Color, Style};
-use ratatui::text::{Line, Span};
-use ratatui::widgets::{Clear, Widget};
 use axon_pager::app::PagerTerminal;
 use axon_pager::app::app_view::{ActiveView, AppView};
 use axon_pager::minimal_api;
@@ -21,6 +16,11 @@ use axon_pager::scrollback::wrappers::EntryRenderer;
 use axon_pager::theme::Theme;
 use axon_pager::views::prompt_widget::PromptStyle;
 use axon_pager::views::turn_status;
+use ratatui::buffer::Buffer;
+use ratatui::layout::Rect;
+use ratatui::style::{Color, Style};
+use ratatui::text::{Line, Span};
+use ratatui::widgets::{Clear, Widget};
 /// Left inset (columns) for every auxiliary live-region row: the status row,
 /// the info bar, the exit hint, and the todo panel — and the prompt's
 /// `chrome_pad_left`.
@@ -63,9 +63,7 @@ fn paintable_btw_area(frame_area: Rect, area: Rect) -> Option<Rect> {
 ///
 /// Shared with [`super::overlay::sync_viewport`] so viewport sizing measures the
 /// prompt's height exactly as the live region will draw it.
-pub(super) fn prompt_style(
-    appearance: &axon_pager::appearance::AppearanceConfig,
-) -> PromptStyle {
+pub(super) fn prompt_style(appearance: &axon_pager::appearance::AppearanceConfig) -> PromptStyle {
     PromptStyle {
         focused: true,
         show_prefix: appearance.prompt.show_prefix,
@@ -236,10 +234,7 @@ pub fn draw_live(app: &mut AppView, terminal: &mut PagerTerminal) {
             .max(1);
         let rest = avail.saturating_sub(prompt_h);
         let raw_btw = if minimal_api::minimal_btw_surface_available(agent) {
-            axon_pager::views::btw_overlay::btw_panel_height(
-                agent.btw_state.as_ref(),
-                area.width,
-            )
+            axon_pager::views::btw_overlay::btw_panel_height(agent.btw_state.as_ref(), area.width)
         } else {
             0
         };
@@ -956,10 +951,10 @@ mod tests {
     }
     #[test]
     fn pending_hint_formats_press_again() {
-        use crossterm::event::{KeyCode, KeyModifiers};
         use axon_pager::app::actions::Action;
         use axon_pager::app::app_view::PendingAction;
         use axon_pager::input::key::KeyShortcut;
+        use crossterm::event::{KeyCode, KeyModifiers};
         assert!(minimal_pending_hint(&None).is_none());
         let shortcut = KeyShortcut::new(KeyCode::Char('q'), KeyModifiers::CONTROL);
         let pending = Some(PendingAction::new(Action::Quit, shortcut, "quit"));

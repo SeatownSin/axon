@@ -5,13 +5,13 @@
 //! (conversation-only) and resubmits; unchanged/empty Enter or Esc exits.
 //! Structure mirrors `queue_edit.rs`.
 
+use axon_ratatui_textarea::{TextArea, TextAreaState};
 use crossterm::event::{KeyCode, KeyEvent, MouseButton, MouseEvent, MouseEventKind};
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::style::Style;
 use ratatui::widgets::StatefulWidgetRef;
 use unicode_width::UnicodeWidthStr;
-use axon_ratatui_textarea::{TextArea, TextAreaState};
 
 use crate::key;
 use crate::scrollback::block::RenderBlock;

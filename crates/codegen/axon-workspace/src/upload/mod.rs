@@ -1,15 +1,15 @@
 pub(crate) mod environment;
 use crate::telemetry::dc_log;
-use environment::WorkspaceIdentity;
-use prometheus::{IntCounterVec, IntGauge, register_int_counter_vec, register_int_gauge};
-use std::sync::Arc;
-use std::sync::LazyLock;
+use axon_auth::{AuthCredentialProvider, CredentialSnapshot};
 use axon_computer_hub_sdk::auth::{AuthCredential, AuthProvider};
 use axon_file_utils::gcs::StorageConfig;
 use axon_file_utils::queue::{EnqueueOutcome, TraceExportSource, UploadQueue};
 use axon_file_utils::storage_client::Auth401AttributionCallback;
 use axon_file_utils::{TraceExportConfig, UploadMethod};
-use axon_auth::{AuthCredentialProvider, CredentialSnapshot};
+use environment::WorkspaceIdentity;
+use prometheus::{IntCounterVec, IntGauge, register_int_counter_vec, register_int_gauge};
+use std::sync::Arc;
+use std::sync::LazyLock;
 /// `…_pending_bytes` is the series the mandatory queue-memory alert fires on.
 static UPLOAD_QUEUE_PENDING_BYTES: LazyLock<IntGauge> = LazyLock::new(|| {
     register_int_gauge!(

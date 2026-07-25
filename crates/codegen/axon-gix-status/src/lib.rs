@@ -171,8 +171,8 @@ fn status_finds_suffix(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
     use axon_test_utils::git::run_git;
+    use std::path::PathBuf;
 
     #[test]
     fn compute_from_table() {

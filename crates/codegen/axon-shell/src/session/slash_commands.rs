@@ -1080,9 +1080,7 @@ fn parse_slash_prefix(prompt_blocks: &[acp::ContentBlock]) -> Option<(&str, &str
 /// default: the model derives the cadence from the request and asks when none
 /// is given.
 fn build_loop_prompt_blocks(args: &str) -> Vec<acp::ContentBlock> {
-    use axon_tools::implementations::axon_build::{
-        loop_schedule_instruction, loop_usage_message,
-    };
+    use axon_tools::implementations::axon_build::{loop_schedule_instruction, loop_usage_message};
 
     let text = if args.trim().is_empty() {
         loop_usage_message().to_string()

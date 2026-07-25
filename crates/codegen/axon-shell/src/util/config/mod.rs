@@ -24,11 +24,11 @@ pub use permissions::*;
 pub use persist::*;
 // `remote` extracted to the `axon-config-types` crate (dependency inversion);
 // re-exported so `crate::util::config::{RemoteSettings, GoalRoleModel}` keep working.
-pub use resolve::*;
-pub use settings_writes::*;
-pub use tips::*;
-pub use worktree::*;
 pub use axon_config_types::{
     CampaignOverride, ContextualHintsRemote, DisplayRefreshSettings, DoomLoopRecoverySettings,
     GoalRoleModel, RemoteSettings,
 };
+pub use resolve::*;
+pub use settings_writes::*;
+pub use tips::*;
+pub use worktree::*;

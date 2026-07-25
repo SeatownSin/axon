@@ -12,8 +12,8 @@
 //! The wire shape is intentionally small and current-state only — no event
 //! fold or materialized snapshot is required (the snapshot is deferred).
 
-use serde::{Deserialize, Serialize};
 use axon_sampling_types::ReasoningEffort;
+use serde::{Deserialize, Serialize};
 
 use crate::session::persistence::Summary;
 

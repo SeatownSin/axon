@@ -1,13 +1,13 @@
 //! `is_workspace_unavailable` recognizer coverage, pinned against the real
 //! wire decode path (`error_from_envelope` / `tool_error_from_wire`).
 
-use serde_json::json;
 use axon_computer_hub_core::{error_from_envelope, is_workspace_unavailable, tool_error_from_wire};
 use axon_tool_protocol::{
     JsonRpcError, ToolErrorWire, WORKSPACE_UNAVAILABLE_SUBCODE, WorkspaceGonePhase,
     WorkspaceGoneReason, WorkspaceUnavailableDetails, workspace_unavailable_wire,
 };
 use axon_tool_runtime::{ToolError, ToolErrorKind};
+use serde_json::json;
 
 const REASONS: [WorkspaceGoneReason; 5] = [
     WorkspaceGoneReason::IdleTimeout,

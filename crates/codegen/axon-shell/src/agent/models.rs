@@ -13,8 +13,8 @@ use crate::agent::config::{self, ModelEntry, resolve_credentials, sampling_confi
 use crate::auth::{AuthManager, AxonAuth, AxonComConfig};
 use crate::remote::{FetchModelsResult, fetch_models_blocking};
 use crate::sampling::SamplerConfig as SamplingConfig;
-use globset::{Glob, GlobSet, GlobSetBuilder};
 use axon_sampling_types::{ReasoningEffort, ReasoningEffortOption};
+use globset::{Glob, GlobSet, GlobSetBuilder};
 
 // ── Auth method for model fetching ──────────────────────────────────────────
 
@@ -2296,8 +2296,8 @@ mod tests {
 
     #[test]
     fn reasoning_effort_override_skips_models_that_do_not_offer_level() {
-        use indexmap::IndexMap;
         use axon_sampling_types::ReasoningEffortOption;
+        use indexmap::IndexMap;
 
         let cfg = config::Config {
             reasoning_effort_override: Some(ReasoningEffort::None),
@@ -3113,8 +3113,8 @@ mod tests {
 
     // ── ModelFetchAuth::resolve priority tests ──────────────────────
 
-    use serial_test::serial;
     use axon_test_support::EnvGuard;
+    use serial_test::serial;
 
     #[test]
     #[serial]

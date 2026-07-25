@@ -196,7 +196,10 @@ mod tests {
             r#"{"access_token":"t","expires_in":900,"issuer":"https://auth.blocked.invalid"}"#,
         ))
         .unwrap();
-        assert_eq!(auth.oidc_issuer.as_deref(), Some("https://auth.blocked.invalid"));
+        assert_eq!(
+            auth.oidc_issuer.as_deref(),
+            Some("https://auth.blocked.invalid")
+        );
         assert!(auth.is_axon_auth());
 
         // Non-blocked.invalid issuer is stored but stays third-party.

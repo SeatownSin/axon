@@ -392,13 +392,11 @@ impl AgentView {
                     self.prompt.prompt_suggestion_ghost().unwrap_or_default(),
                 );
                 self.prompt.prompt_suggestion.dismiss();
-                axon_telemetry::session_ctx::log_event(
-                    axon_telemetry::events::PromptSuggestion {
-                        action: axon_telemetry::events::PromptSuggestionAction::Dismissed,
-                        chars,
-                        words,
-                    },
-                );
+                axon_telemetry::session_ctx::log_event(axon_telemetry::events::PromptSuggestion {
+                    action: axon_telemetry::events::PromptSuggestionAction::Dismissed,
+                    chars,
+                    words,
+                });
                 return InputOutcome::Changed;
             }
         }

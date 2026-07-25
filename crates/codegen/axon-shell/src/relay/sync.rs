@@ -27,8 +27,8 @@ const DROP_BATCH_SIZE: usize = 64;
 /// Build the share URL for a session.
 /// Format: https://blocked.invalid/build/{sessionId}
 pub fn build_share_url(session_id: &str) -> String {
-    let base_url =
-        std::env::var("AXON_CODE_WEB_URL").unwrap_or_else(|_| "https://blocked.invalid".to_string());
+    let base_url = std::env::var("AXON_CODE_WEB_URL")
+        .unwrap_or_else(|_| "https://blocked.invalid".to_string());
     format!("{}/build/{}", base_url, session_id)
 }
 

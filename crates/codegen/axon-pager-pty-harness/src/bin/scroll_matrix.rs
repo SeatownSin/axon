@@ -12,11 +12,11 @@ use std::process::ExitCode;
 use std::sync::Arc;
 
 use anyhow::{Context, Result, bail};
-use clap::{Parser as ClapParser, ValueEnum};
 use axon_pager_pty_harness::pager_binary;
 use axon_pager_pty_harness::scroll_matrix::{
     CELLS, CellReport, MatrixCell, Tier, exit_code, run_cell, summary_table, write_report_json,
 };
+use clap::{Parser as ClapParser, ValueEnum};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
 enum TierArg {

@@ -1,8 +1,8 @@
 //! End-to-end smoke test exercising the full active_sessions lifecycle.
 
+use axon_shell::active_sessions::*;
 use chrono::Utc;
 use tempfile::TempDir;
-use axon_shell::active_sessions::*;
 
 fn session(id: &str, pid: u32) -> ActiveSession {
     ActiveSession {

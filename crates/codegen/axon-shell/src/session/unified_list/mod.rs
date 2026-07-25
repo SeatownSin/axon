@@ -687,15 +687,13 @@ mod tests {
     fn conversations_lane_active_truth_table() {
         use crate::agent::chat_modes::AXON_CHAT_MODE_ENV;
         let _chat_off = axon_test_support::EnvGuard::unset(AXON_CHAT_MODE_ENV);
-        let _desktop_off =
-            axon_test_support::EnvGuard::unset("AXON_SESSION_LIST_CONVERSATIONS");
+        let _desktop_off = axon_test_support::EnvGuard::unset("AXON_SESSION_LIST_CONVERSATIONS");
         assert!(
             !conversations_lane_active(),
             "no env ⇒ lane off (Build-mode default)"
         );
         {
-            let _desktop =
-                axon_test_support::EnvGuard::set("AXON_SESSION_LIST_CONVERSATIONS", "1");
+            let _desktop = axon_test_support::EnvGuard::set("AXON_SESSION_LIST_CONVERSATIONS", "1");
             assert_eq!(conversations_lane_active(), false);
         }
         {

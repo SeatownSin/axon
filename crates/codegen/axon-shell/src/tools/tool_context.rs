@@ -9,13 +9,13 @@
 //! Note: Could be renamed to `SessionConfig` or flattened onto `SessionActor` in a future PR.
 use crate::terminal::AsyncTerminalRunner;
 use agent_client_protocol as acp;
-use std::collections::HashMap;
-use std::sync::Arc;
 use axon_acp_lib::AcpAgentGatewaySender as GatewaySender;
+use axon_hunk_tracker::HunkTrackerHandle;
 use axon_paths::AbsPathBuf;
 use axon_workspace::file_system::{AsyncFileSystem, AsyncFsWrapper};
 use axon_workspace::session::file_state::FileStateHandle;
-use axon_hunk_tracker::HunkTrackerHandle;
+use std::collections::HashMap;
+use std::sync::Arc;
 /// RAII marker: the turn is blocked inside an interruptible wait. Increments
 /// [`ToolContext::blocking_wait_depth`] for its lifetime; `Drop` decrements
 /// (a cancelled turn can't leak the count).
@@ -79,8 +79,7 @@ pub struct ToolContext {
         Option<axon_tools::implementations::axon_build::task::types::MonitorEventBuffer>,
     pub task_completion_reservations:
         Option<axon_tools::reminders::task_completion::TaskCompletionReservations>,
-    pub task_wake_suppressed:
-        Option<axon_tools::reminders::task_completion::TaskWakeSuppressed>,
+    pub task_wake_suppressed: Option<axon_tools::reminders::task_completion::TaskWakeSuppressed>,
     /// Channel for requesting trace uploads for synthetic auto-wake turns.
     pub(crate) synthetic_trace_tx:
         Option<tokio::sync::mpsc::UnboundedSender<crate::upload::turn::SyntheticTurnTraceRequest>>,
@@ -147,8 +146,8 @@ impl ToolContext {
             task_wake_suppressed: None,
             synthetic_trace_tx: None,
             synthetic_trace_tx_shared: None,
-            task_output_tool_name:
-                axon_tools::reminders::task_completion::DEFAULT_TASK_OUTPUT_TOOL.to_string(),
+            task_output_tool_name: axon_tools::reminders::task_completion::DEFAULT_TASK_OUTPUT_TOOL
+                .to_string(),
             auto_wake_enabled: true,
             goal_loop_active_gate: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             blocking_wait_depth: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
@@ -184,8 +183,8 @@ impl ToolContext {
             task_wake_suppressed: None,
             synthetic_trace_tx: None,
             synthetic_trace_tx_shared: None,
-            task_output_tool_name:
-                axon_tools::reminders::task_completion::DEFAULT_TASK_OUTPUT_TOOL.to_string(),
+            task_output_tool_name: axon_tools::reminders::task_completion::DEFAULT_TASK_OUTPUT_TOOL
+                .to_string(),
             auto_wake_enabled: true,
             goal_loop_active_gate: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             blocking_wait_depth: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
@@ -209,11 +208,11 @@ impl ToolContext {
 #[cfg(test)]
 mod tests {
     use crate::{terminal::AsyncTerminalRunner, tools::ToolContext};
-    use std::collections::HashMap;
-    use std::sync::Arc;
+    use axon_hunk_tracker::HunkTrackerHandle;
     use axon_paths::AbsPathBuf;
     use axon_workspace::file_system::{AsyncFileSystem, AsyncFsWrapper};
-    use axon_hunk_tracker::HunkTrackerHandle;
+    use std::collections::HashMap;
+    use std::sync::Arc;
     impl ToolContext {
         pub fn new_local_context(
             cwd: AbsPathBuf,

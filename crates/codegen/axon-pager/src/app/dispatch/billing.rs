@@ -6,9 +6,9 @@ use crate::app::agent::AgentId;
 use crate::app::agent_view::AgentView;
 use crate::app::app_view::AppView;
 use crate::scrollback::block::RenderBlock;
-use std::time::Duration;
 use axon_telemetry::events::{SuperAxonUpsell, SuperAxonUpsellClicked};
 use axon_telemetry::session_ctx::log_event;
+use std::time::Duration;
 
 /// How long the pager auto-checks subscription status before stopping.
 /// After this, the user can still manually check via the [Refresh] button.
@@ -172,9 +172,7 @@ pub(super) fn open_credit_limit_upsell(
 
     // ── Default: Q&A question modal with two options ────────────────
     use crate::views::question_view::{LocalQuestionKind, QuestionViewState};
-    use axon_tools::implementations::axon_build::ask_user_question::{
-        Question, QuestionOption,
-    };
+    use axon_tools::implementations::axon_build::ask_user_question::{Question, QuestionOption};
 
     if agent.question_view.is_some() {
         return;
@@ -260,9 +258,7 @@ fn open_superaxon_upsell(
     auth_method: Option<String>,
 ) -> bool {
     use crate::views::question_view::{LocalQuestionKind, QuestionViewState};
-    use axon_tools::implementations::axon_build::ask_user_question::{
-        Question, QuestionOption,
-    };
+    use axon_tools::implementations::axon_build::ask_user_question::{Question, QuestionOption};
 
     // Never displace an already-open question modal. Callers that consume
     // input on open must check this `false` and keep the input instead.

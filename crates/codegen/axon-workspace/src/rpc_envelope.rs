@@ -58,9 +58,7 @@ pub fn error_code(err: &WorkspaceError) -> &'static str {
 /// `HubError` message which contains the original error code as a
 /// prefix (e.g. `"capability_widening: ..."`).
 pub fn rpc_error_to_workspace(err: RpcError) -> WorkspaceError {
-    if let Some(kind) =
-        axon_workspace_types::rpc::deploy::DeployError::from_wire_code(&err.code)
-    {
+    if let Some(kind) = axon_workspace_types::rpc::deploy::DeployError::from_wire_code(&err.code) {
         return WorkspaceError::DeployError {
             kind,
             message: err.message,

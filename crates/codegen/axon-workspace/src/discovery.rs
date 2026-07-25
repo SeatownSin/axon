@@ -114,12 +114,8 @@ pub fn discover_plugins(
     trust_store: &PluginTrustStore,
     project_trusted: bool,
 ) -> Vec<Value> {
-    let discovered = axon_agent::plugins::discover_plugins(
-        Some(root_cwd),
-        config,
-        trust_store,
-        project_trusted,
-    );
+    let discovered =
+        axon_agent::plugins::discover_plugins(Some(root_cwd), config, trust_store, project_trusted);
 
     discovered
         .into_iter()

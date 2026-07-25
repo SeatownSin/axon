@@ -9,11 +9,11 @@
 use std::fs;
 use std::time::Duration;
 
+use axon_fsnotify::{FsConfig, FsEvent, FsEventKind, FsEventSource};
 use serial_test::serial;
 use tempfile::TempDir;
 use tokio::sync::broadcast;
 use tokio::time::timeout;
-use axon_fsnotify::{FsConfig, FsEvent, FsEventKind, FsEventSource};
 
 fn fake_git_repo() -> TempDir {
     let temp = TempDir::new().unwrap();

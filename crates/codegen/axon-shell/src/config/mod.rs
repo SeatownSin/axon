@@ -1,12 +1,12 @@
 pub mod reloader;
 pub mod watcher;
 use crate::bundle;
-use serde::Deserialize;
 pub use axon_config_types::{
     DEFAULT_RECENCY_DECAY, MemoryDreamConfig, MemoryEmbeddingConfig, MemoryFlushConfig,
     MemoryGcConfig, MemoryIndexConfig, MemoryInitialInjectionConfig, MemorySearchConfig,
     MemorySessionConfig, MemoryWatcherConfig, MmrConfig, PruningConfig, TemporalDecayConfig,
 };
+use serde::Deserialize;
 /// Full configuration for the memory system.
 ///
 /// Parsed from the `[memory]` section of `~/.axon/config.toml` or
@@ -1293,11 +1293,10 @@ pub fn apply_sandbox(
         .and_then(|v| v.get("sandbox")?.get("auto_allow_bash")?.as_bool());
     let resolved = config.resolve_profile(cli_profile, profile_req);
     axon_sandbox::set_auto_allow_bash(config.resolve_auto_allow_bash(auto_allow_req).value);
-    let sandbox_profile: axon_sandbox::ProfileName =
-        resolved.value.parse().unwrap_or_else(|e| {
-            eprintln!("warning: {e}, defaulting to no sandbox");
-            axon_sandbox::ProfileName::Off
-        });
+    let sandbox_profile: axon_sandbox::ProfileName = resolved.value.parse().unwrap_or_else(|e| {
+        eprintln!("warning: {e}, defaulting to no sandbox");
+        axon_sandbox::ProfileName::Off
+    });
     axon_sandbox::set_configured_profile(&resolved.value);
     let workspace = cwd
         .and_then(|p| dunce::canonicalize(p).ok())

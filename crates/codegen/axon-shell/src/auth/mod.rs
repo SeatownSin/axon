@@ -18,8 +18,8 @@ mod storage;
 pub(crate) mod token_type;
 pub(crate) use config::LEGACY_AUTH_SCOPE;
 pub use config::{
-    ForceLoginTeam, AxonComConfig, OAuth2ProviderConfig, OidcAuthConfig, PreferredAuthMethod,
-    AXON_OAUTH2_ISSUER, is_axon_oauth2_issuer, axon_oauth2_issuer,
+    AXON_OAUTH2_ISSUER, AxonComConfig, ForceLoginTeam, OAuth2ProviderConfig, OidcAuthConfig,
+    PreferredAuthMethod, axon_oauth2_issuer, is_axon_oauth2_issuer,
 };
 pub(crate) use external_auth::{parse_output, refresh_with_command};
 pub(crate) use flow::{

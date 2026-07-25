@@ -166,10 +166,7 @@ pub fn is_dismissible(a: &axon_announcements::RemoteAnnouncement) -> bool {
 /// dismissible items: an explicit `dismissible: false` stays selectable even
 /// with its hide key stored, so flipping the flag server-side resurrects a
 /// previously-hidden banner (the remote config stays source of truth).
-fn is_hidden(
-    a: &axon_announcements::RemoteAnnouncement,
-    hidden_ids: &BTreeSet<String>,
-) -> bool {
+fn is_hidden(a: &axon_announcements::RemoteAnnouncement, hidden_ids: &BTreeSet<String>) -> bool {
     is_dismissible(a) && hidden_ids.contains(&axon_announcements::announcement_hide_key(a))
 }
 
@@ -297,11 +294,7 @@ pub fn first_session_announcement_at<'a>(
 pub(crate) fn promo_cta<'a>(
     announcements: &'a [axon_announcements::RemoteAnnouncement],
     hidden_ids: &BTreeSet<String>,
-) -> Option<(
-    &'a axon_announcements::RemoteAnnouncement,
-    &'a str,
-    &'a str,
-)> {
+) -> Option<(&'a axon_announcements::RemoteAnnouncement, &'a str, &'a str)> {
     let owner = first_session_announcement(announcements, hidden_ids).filter(|a| is_promo(a))?;
     let (label, url) = usable_cta(owner)?;
     Some((owner, label, url))
@@ -343,9 +336,7 @@ pub fn session_announcement_hide_keys_at(
 /// promo) exists, deliberately IGNORING the hidden set (unlike the banner
 /// selection above) so `/announcements show` stays reachable while
 /// everything is hidden.
-pub fn has_session_announcements(
-    announcements: &[axon_announcements::RemoteAnnouncement],
-) -> bool {
+pub fn has_session_announcements(announcements: &[axon_announcements::RemoteAnnouncement]) -> bool {
     let now = chrono::Utc::now();
     visible_announcements(announcements)
         .into_iter()
@@ -1214,7 +1205,11 @@ mod tests {
     /// stays the button only (the caption is not clickable).
     #[test]
     fn render_promo_row_non_dismissible_shows_configured_caption() {
-        let mut ann = promo("p", &"M".repeat(60), Some(("Go", "https://blocked.invalid")));
+        let mut ann = promo(
+            "p",
+            &"M".repeat(60),
+            Some(("Go", "https://blocked.invalid")),
+        );
         ann.dismissible = Some(false);
         ann.cta.as_mut().unwrap().caption = Some("or use Ctrl+O".into());
         let anns = [ann];
@@ -1251,7 +1246,11 @@ mod tests {
 
         // No caption configured: the pinned row stays a bare button even with
         // `caption_allowed` (nothing hardcoded fills in).
-        let mut bare = promo("p", &"M".repeat(60), Some(("Go", "https://blocked.invalid")));
+        let mut bare = promo(
+            "p",
+            &"M".repeat(60),
+            Some(("Go", "https://blocked.invalid")),
+        );
         bare.dismissible = Some(false);
         let mut buf = Buffer::empty(area);
         let hits = render_banner(area, &mut buf, &[bare], &no_hidden(), false, false, true);
@@ -1267,7 +1266,11 @@ mod tests {
     /// partial CTA never produces an openable target (or a painted button).
     #[test]
     fn promo_cta_target_requires_usable_pair() {
-        let full = vec![promo("p", "msg", Some(("Go", " https://blocked.invalid/promo ")))];
+        let full = vec![promo(
+            "p",
+            "msg",
+            Some(("Go", " https://blocked.invalid/promo ")),
+        )];
         let (a, url) = promo_cta_target(&full, &no_hidden()).expect("usable target");
         assert_eq!(a.id.as_deref(), Some("p"));
         assert_eq!(url, "https://blocked.invalid/promo");
@@ -1340,7 +1343,11 @@ mod tests {
     /// promo from a dismissible one.
     #[test]
     fn promo_cta_returns_label_and_pinned_flag() {
-        let mut pinned = promo("p", "msg", Some(("Upgrade Account", "https://blocked.invalid/promo")));
+        let mut pinned = promo(
+            "p",
+            "msg",
+            Some(("Upgrade Account", "https://blocked.invalid/promo")),
+        );
         pinned.dismissible = Some(false);
         let pinned = [pinned];
         let (owner, label, url) = promo_cta(&pinned, &no_hidden()).expect("usable cta");
@@ -1475,7 +1482,10 @@ mod tests {
             assert!(usable_cta(&a).is_none(), "scheme must be rejected: {bad}");
             assert!(promo_cta_target(&[a], &no_hidden()).is_none());
         }
-        for good in ["https://blocked.invalid/promo", "http://blocked.invalid/promo"] {
+        for good in [
+            "https://blocked.invalid/promo",
+            "http://blocked.invalid/promo",
+        ] {
             let a = promo("p", "msg", Some(("Go", good)));
             assert!(usable_cta(&a).is_some(), "scheme must be allowed: {good}");
         }
@@ -1608,7 +1618,11 @@ mod tests {
     /// [hide]) instead of painting a clipped fragment; nothing panics.
     #[test]
     fn render_promo_row_narrow_width_drops_hide_cta_text() {
-        let anns = [promo("p", "msg body", Some(("Go", "https://blocked.invalid")))];
+        let anns = [promo(
+            "p",
+            "msg body",
+            Some(("Go", "https://blocked.invalid")),
+        )];
         let area = Rect::new(0, 0, 20, 1);
         let mut buf = Buffer::empty(area);
         let hits = render_banner(area, &mut buf, &anns, &no_hidden(), false, false, true);

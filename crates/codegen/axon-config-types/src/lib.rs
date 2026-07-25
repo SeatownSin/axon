@@ -14,9 +14,9 @@ pub use mcp::*;
 mod permission;
 pub use permission::*;
 mod pool;
+use axon_announcements::RemoteAnnouncement;
 pub use pool::*;
 use serde::{Deserialize, Serialize};
-use axon_announcements::RemoteAnnouncement;
 /// A remote `campaigns[]` entry: an `id` gate plus a full-power
 /// flattened config patch (the JSON sibling of a `[[campaigns]]` TOML override).
 #[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq, Eq)]

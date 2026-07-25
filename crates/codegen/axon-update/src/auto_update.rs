@@ -14,8 +14,8 @@ use crate::version::{
     UpdateConfig, fetch_latest_version, get_installed_axon_version, get_latest_version,
     is_version_cache_fresh, try_fetch_stable_pointer, write_version_cache,
 };
-use axon_shell::util::config;
 use axon_shell::util::axon_home::{axon_application, axon_home};
+use axon_shell::util::config;
 
 #[derive(Clone, Copy, Debug)]
 pub enum UpdateRunMode {

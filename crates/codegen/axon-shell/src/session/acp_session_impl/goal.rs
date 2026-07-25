@@ -117,9 +117,7 @@ impl SessionActor {
         purpose: DrainPurpose,
         extra: Vec<axon_tools::implementations::axon_build::update_goal::UpdateGoalEnvelope>,
     ) {
-        use axon_tools::implementations::axon_build::update_goal::{
-            RejectReason, UpdateGoalAck,
-        };
+        use axon_tools::implementations::axon_build::update_goal::{RejectReason, UpdateGoalAck};
         // The `update_goal` tool and its `GoalUpdateHandle` are always
         // registered (see `spawn_session_actor`), so a model can call
         // `update_goal` in a session that never entered goal mode — e.g. any

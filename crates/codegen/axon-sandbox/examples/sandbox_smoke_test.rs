@@ -14,8 +14,8 @@
 //! cargo run -p axon-sandbox --example sandbox_smoke_test -- read-only
 //! ```
 
-use std::path::Path;
 use axon_sandbox::{ProfileName, SandboxManager};
+use std::path::Path;
 
 fn main() {
     // Parse profile from args (default: workspace).

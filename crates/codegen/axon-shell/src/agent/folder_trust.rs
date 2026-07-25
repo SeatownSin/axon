@@ -28,8 +28,8 @@ use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 
 use agent_client_protocol as acp;
-use parking_lot::Mutex;
 use axon_workspace::trust::{TrustStore, is_unsafe_trust_root, workspace_key};
+use parking_lot::Mutex;
 
 // Decision-side (scan/decide/prompt/store) relocated to `axon-workspace`
 // (client crate). `grant_folder_trust` is the ONLY moved item referenced from
@@ -489,8 +489,7 @@ pub fn filter_untrusted_project_lsp(
             axon_tools::types::config_source::ConfigSource,
         ),
     >,
-) -> std::collections::BTreeMap<String, axon_tools::implementations::lsp::config::LspServerConfig>
-{
+) -> std::collections::BTreeMap<String, axon_tools::implementations::lsp::config::LspServerConfig> {
     axon_tools::implementations::lsp::config::filter_project_lsp_when_untrusted(
         sourced,
         project_scope_allowed(cwd),
@@ -1136,9 +1135,9 @@ mod tests {
 
     #[test]
     fn filter_untrusted_project_lsp_drops_only_project() {
-        use std::collections::BTreeMap;
         use axon_tools::implementations::lsp::config::LspServerConfig;
         use axon_tools::types::config_source::ConfigSource;
+        use std::collections::BTreeMap;
 
         fn sourced() -> BTreeMap<String, (LspServerConfig, ConfigSource)> {
             let mut m = BTreeMap::new();

@@ -2,8 +2,8 @@
 //! errors, response parsing, envelope picking, fetched-envelope verification, and
 //! the apply outcome the sync orchestration consumes.
 
-use serde::Deserialize;
 use axon_config::signed_policy::now_unix;
+use serde::Deserialize;
 
 /// Which credential a config fetch used — tailors error messages and the
 /// post-fetch confirmation (team vs deployment).

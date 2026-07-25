@@ -3,12 +3,12 @@
 //! via `#[path = "messages_tests.rs"] mod tests;` in messages.rs.
 
 use super::*;
-use futures_util::stream;
-use std::pin::pin;
 use axon_sampling_types::messages::{
     ContentBlock, MessageDeltaBody, MessageDeltaUsage, MessagesResponse, MessagesUsage,
     StreamDelta, StreamError,
 };
+use futures_util::stream;
+use std::pin::pin;
 
 fn rid() -> RequestId {
     RequestId::from("msg-test")
