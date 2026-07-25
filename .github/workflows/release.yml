@@ -42,7 +42,7 @@ jobs:
           - { os_label: windows, arch_label: x86_64,  runner: windows-2022,     ext: ".exe" }
           - { os_label: windows, arch_label: aarch64, runner: windows-11-arm,   ext: ".exe" }
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Resolve version
         id: meta
