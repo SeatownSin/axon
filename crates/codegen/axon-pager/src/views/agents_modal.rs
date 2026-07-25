@@ -292,7 +292,7 @@ impl AgentsModalState {
         active_agent: Option<String>,
     ) -> Self {
         let agents = build_agent_list(cwd, toggle);
-        let personas = merge_persona_lists(bundle, cwd);
+        let personas = merge_persona_lists(bundle, cwd, &axon_config::axon_home());
         let default_agent = resolve_default_agent_name(cwd, model_agent_type);
         Self {
             window: ModalWindowState::with_tabs(AgentsTab::ALL.len()),
@@ -328,7 +328,7 @@ impl AgentsModalState {
     }
     /// Rebuild persona list from bundle cache + local disk.
     pub fn refresh_personas(&mut self) {
-        self.personas = merge_persona_lists(&self.bundle, &self.cwd);
+        self.personas = merge_persona_lists(&self.bundle, &self.cwd, &axon_config::axon_home());
         self.persona_expanded.clear();
         if self.persona_selected >= self.personas.len() {
             self.persona_selected = self.personas.len().saturating_sub(1);
@@ -470,11 +470,23 @@ fn personas_from_bundle(bundle: &BundleState) -> Vec<PersonaDetail> {
 /// Union bundled personas with local `~/.axon/personas` and `{cwd}/.axon/personas`.
 ///
 /// Bundled names take precedence; local-only names are appended with scope tags.
-pub fn merge_persona_lists(bundle: &BundleState, cwd: &Path) -> Vec<PersonaDetail> {
+/// Merge bundle-reported personas with the ones on disk under `cwd/.axon` and
+/// `axon_home`.
+///
+/// `axon_home` is a parameter rather than a call to [`axon_config::axon_home`]
+/// so this stays a function of its inputs: it scans `<axon_home>/personas` and
+/// `<axon_home>/bundled/personas`, and reading the developer's real home made
+/// the tests below pass or fail depending on which personas that machine had
+/// installed — the wrong way round for a regression test, since they were green
+/// on a clean CI runner and red for anyone with personas.
+pub fn merge_persona_lists(
+    bundle: &BundleState,
+    cwd: &Path,
+    axon_home: &Path,
+) -> Vec<PersonaDetail> {
     let mut list = personas_from_bundle(bundle);
     let mut names: std::collections::HashSet<String> =
         list.iter().map(|p| p.name.clone()).collect();
-    let axon_home = axon_config::axon_home();
     let bundled_dir = axon_home.join("bundled").join("personas");
     for persona in &mut list {
         if persona.source_path.is_none() {
@@ -2569,7 +2581,8 @@ mod tests {
             personas: vec!["ignored".to_string()],
             ..Default::default()
         };
-        let list = merge_persona_lists(&bundle, Path::new("/tmp"));
+        let home = tempfile::tempdir().expect("tempdir");
+        let list = merge_persona_lists(&bundle, Path::new("/tmp"), home.path());
         assert_eq!(list.len(), 2);
         assert_eq!(list[0].name, "researcher");
         assert_eq!(list[0].description.as_deref(), Some("thorough researcher"));
@@ -2587,7 +2600,8 @@ mod tests {
             persona_details: vec![],
             ..Default::default()
         };
-        let list = merge_persona_lists(&bundle, Path::new("/tmp"));
+        let home = tempfile::tempdir().expect("tempdir");
+        let list = merge_persona_lists(&bundle, Path::new("/tmp"), home.path());
         assert_eq!(list.len(), 2);
         assert_eq!(list[0].name, "alpha");
         assert!(list[0].description.is_none());
@@ -2598,7 +2612,8 @@ mod tests {
     #[test]
     fn build_persona_list_empty_bundle() {
         let bundle = BundleState::default();
-        let list = merge_persona_lists(&bundle, Path::new("/tmp"));
+        let home = tempfile::tempdir().expect("tempdir");
+        let list = merge_persona_lists(&bundle, Path::new("/tmp"), home.path());
         assert!(list.is_empty());
     }
     #[test]
@@ -2622,7 +2637,8 @@ mod tests {
             }],
             ..Default::default()
         };
-        let list = merge_persona_lists(&bundle, dir.path());
+        let home = tempfile::tempdir().expect("tempdir");
+        let list = merge_persona_lists(&bundle, dir.path(), home.path());
         assert_eq!(list.len(), 2);
         assert_eq!(list[0].name, "bundled-one");
         assert_eq!(list[1].name, "local-only");
@@ -2730,7 +2746,8 @@ mod tests {
             ],
             ..Default::default()
         };
-        let personas = merge_persona_lists(&bundle, Path::new("/tmp"));
+        let home = tempfile::tempdir().expect("tempdir");
+        let personas = merge_persona_lists(&bundle, Path::new("/tmp"), home.path());
         let make_state = |query: &str| -> AgentsModalState {
             let mut state = AgentsModalState {
                 window: ModalWindowState::with_tabs(2),
