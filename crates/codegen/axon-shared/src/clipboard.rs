@@ -1170,6 +1170,8 @@ mod platform {
 #[cfg(not(target_os = "macos"))]
 mod platform {
     use super::ImageData;
+    // Only the Linux CLI-tool fallback shells out.
+    #[cfg(target_os = "linux")]
     use std::process::{Command, Stdio};
 
     /// No subprocess-free pasteboard probe exists off-macOS.
@@ -1930,6 +1932,7 @@ mod platform {
 
     // -- Public API ----------------------------------------------------------
 
+    #[cfg_attr(not(target_os = "linux"), allow(unused_assignments))]
     pub fn get_text() -> anyhow::Result<Option<String>> {
         let mut arboard_error = None;
         match arboard_get_text() {
@@ -2043,6 +2046,7 @@ mod platform {
         outcome
     }
 
+    #[cfg_attr(not(target_os = "linux"), allow(unused_assignments))]
     pub fn get_image() -> anyhow::Result<Option<ImageData>> {
         let mut arboard_error = None;
         match arboard_get_image() {

@@ -1,4 +1,8 @@
 // Per-test-case module for the `pty_e2e` integration test crate.
+// Every test here drives a real PTY and is `#[cfg(unix)]`; gate the whole
+// module so its helpers are not dead code on Windows (CI builds with
+// `-D warnings`).
+#![cfg(unix)]
 #[allow(unused_imports)]
 use super::common::*;
 
@@ -36,7 +40,6 @@ fn spawn_with_hints(content: &ContentController) -> PtyHarness {
 /// and persists it to config.toml.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[ignore = "PTY e2e; run the owning pty_e2e_* Cargo test with --ignored (see Cargo.toml)"]
-#[cfg(unix)]
 async fn word_select_tip_shows_and_ctrl_y_accepts() {
     let content = ContentController::start().await.expect("start content");
     // Default is flash (fold/nav). Pin it so a sibling test's seed can't leak.
@@ -150,7 +153,6 @@ async fn word_select_tip_shows_and_ctrl_y_accepts() {
 /// Already on `word_select` → double-click selects a word; tip must not fire.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[ignore = "PTY e2e; run the owning pty_e2e_* Cargo test with --ignored (see Cargo.toml)"]
-#[cfg(unix)]
 async fn word_select_tip_skipped_when_mode_is_word_select() {
     let content = ContentController::start().await.expect("start content");
     seed_ui_config(&content, "keep_text_selection = \"word_select\"");
@@ -204,7 +206,6 @@ async fn word_select_tip_skipped_when_mode_is_word_select() {
 /// Per-tip gate off (`[ui.contextual_hints].word_select = false`) → no tip.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[ignore = "PTY e2e; run the owning pty_e2e_* Cargo test with --ignored (see Cargo.toml)"]
-#[cfg(unix)]
 async fn word_select_tip_skipped_when_contextual_hint_disabled() {
     let content = ContentController::start().await.expect("start content");
     // flash mode + tip explicitly disabled. AXON_CONTEXTUAL_HINTS is NOT set —

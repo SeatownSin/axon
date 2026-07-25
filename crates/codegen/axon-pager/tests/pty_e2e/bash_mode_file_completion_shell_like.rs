@@ -1,4 +1,8 @@
 // Per-test-case module for the `pty_e2e` integration test crate.
+// Every test here drives a real PTY and is `#[cfg(unix)]`; gate the whole
+// module so its helpers are not dead code on Windows (CI builds with
+// `-D warnings`).
+#![cfg(unix)]
 #[allow(unused_imports)]
 use super::common::*;
 
@@ -65,7 +69,6 @@ async fn settle() {
 ///   valid command.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[ignore]
-#[cfg(unix)]
 async fn bash_mode_file_completion_shell_like() {
     let project = tempfile::tempdir().expect("create project dir");
     seed_cwd(project.path());

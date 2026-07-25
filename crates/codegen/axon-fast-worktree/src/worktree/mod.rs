@@ -37,6 +37,8 @@ pub(crate) fn execute_plan(plan: WorktreePlan) -> Result<CreateWorktreeResult> {
 
 #[cfg(test)]
 mod tests {
+    // Only the symlink tests below reach for items from the parent module.
+    #[cfg(unix)]
     use super::*;
     use crate::{IgnoredFilesMode, WorkingTreeMode, WorktreeBuilder};
     use axon_test_utils::git::{git_commit_all, init_git_repo};
