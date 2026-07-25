@@ -19,7 +19,7 @@ fn plugin_cta_catalog_loaded_sanitizes_components_at_ingestion() {
         sources: vec![axon_hooks_plugins_types::MarketplaceScanResult {
             source_name: axon_plugin_marketplace::OFFICIAL_SOURCE_NAME.into(),
             source_kind: "git".into(),
-            source_url_or_path: axon_plugin_marketplace::OFFICIAL_SOURCE_GIT_URL.into(),
+            source_url_or_path: OFFICIAL_URL.into(),
             plugins: vec![entry],
             error: None,
         }],
@@ -63,7 +63,7 @@ fn plugin_cta_catalog_keeps_official_not_installed_only() {
             axon_hooks_plugins_types::MarketplaceScanResult {
                 source_name: axon_plugin_marketplace::OFFICIAL_SOURCE_NAME.into(),
                 source_kind: "git".into(),
-                source_url_or_path: axon_plugin_marketplace::OFFICIAL_SOURCE_GIT_URL.into(),
+                source_url_or_path: OFFICIAL_URL.into(),
                 plugins: vec![
                     cta_entry("keep-me", "not_installed"),
                     cta_entry("already-installed", "installed"),
@@ -81,7 +81,7 @@ fn plugin_cta_catalog_keeps_official_not_installed_only() {
             axon_hooks_plugins_types::MarketplaceScanResult {
                 source_name: "Custom Mirror".into(),
                 source_kind: "git".into(),
-                source_url_or_path: "git@github.com:xai-org/plugin-marketplace.git".into(),
+                source_url_or_path: "git@github.com:example-org/plugin-marketplace.git".into(),
                 plugins: vec![cta_entry("url-official", "not_installed")],
                 error: None,
             },
@@ -149,7 +149,7 @@ fn plugin_cta_catalog_reload_empty_candidates_preserves_installed_checkmark() {
         sources: vec![axon_hooks_plugins_types::MarketplaceScanResult {
             source_name: axon_plugin_marketplace::OFFICIAL_SOURCE_NAME.into(),
             source_kind: "git".into(),
-            source_url_or_path: axon_plugin_marketplace::OFFICIAL_SOURCE_GIT_URL.into(),
+            source_url_or_path: OFFICIAL_URL.into(),
             plugins: vec![cta_entry("figma", "installed")],
             error: None,
         }],
@@ -205,7 +205,7 @@ fn plugin_cta_catalog_load_recomputes_match_for_typed_draft() {
         sources: vec![axon_hooks_plugins_types::MarketplaceScanResult {
             source_name: axon_plugin_marketplace::OFFICIAL_SOURCE_NAME.into(),
             source_kind: "git".into(),
-            source_url_or_path: axon_plugin_marketplace::OFFICIAL_SOURCE_GIT_URL.into(),
+            source_url_or_path: OFFICIAL_URL.into(),
             plugins: vec![entry],
             error: None,
         }],
@@ -1297,7 +1297,10 @@ fn cta_mcps_loaded_ignored_for_stale_phase_or_plugin() {
 
 #[allow(clippy::module_inception)]
 mod cta_e2e {
-    use super::{cta_entry, cta_mcp_server, cta_outcome, cta_outcome_reload, test_app_with_agent};
+    use super::{
+        OFFICIAL_URL, cta_entry, cta_mcp_server, cta_outcome, cta_outcome_reload,
+        test_app_with_agent,
+    };
     use crate::app::actions::{Action, Effect, TaskResult};
     use crate::app::agent::AgentId;
     use crate::app::agent_view::CtaPhase;
@@ -1347,6 +1350,7 @@ mod cta_e2e {
         {
             let cta = &mut app.agents.get_mut(&id).unwrap().plugin_cta;
             cta.official_source_present = true;
+            cta.official_source_url = Some(OFFICIAL_URL.to_string());
             cta.candidates = vec![figma_candidate()];
             cta.debounce_generation = 1;
         }
@@ -1417,10 +1421,7 @@ mod cta_e2e {
                     ..
                 },
             ] => {
-                assert_eq!(
-                    source_url_or_path,
-                    axon_plugin_marketplace::OFFICIAL_SOURCE_GIT_URL
-                );
+                assert_eq!(source_url_or_path, OFFICIAL_URL);
                 assert_eq!(plugin_relative_path, "plugins/figma");
             }
             other => panic!("expected InstallPluginFromCta, got {other:?}"),

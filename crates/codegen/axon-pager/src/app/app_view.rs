@@ -692,6 +692,12 @@ pub struct AppView {
     /// Whether the plugin marketplace CTA is enabled. Env `AXON_PLUGIN_CTA`
     /// overrides `RemoteSettings.plugin_cta` (remote settings); defaults to `false`.
     pub plugin_cta_enabled: bool,
+    /// Marketplace source treated as official -- the CTA's install target --
+    /// from `[marketplace] official_source` / `AXON_MARKETPLACE_OFFICIAL_SOURCE`.
+    /// `None` by default: this build ships with no official source, so the CTA
+    /// has nowhere to install from and stays inert. Resolved once at startup so
+    /// the UI thread never reads config.toml.
+    pub plugin_cta_official_source: Option<String>,
     /// Whether the `/usage` slash command is available. Hidden for team
     /// (`team_name.is_some()`) and API-key auth.
     pub usage_visible: bool,
@@ -1387,6 +1393,7 @@ impl AppView {
             show_resolved_model: true,
             sharing_enabled: false,
             plugin_cta_enabled: false,
+            plugin_cta_official_source: None,
             usage_visible: true,
             tier_restricted_commands: Vec::new(),
             leader_mode: false,
@@ -5380,6 +5387,7 @@ pub(crate) mod tests {
             show_resolved_model: true,
             sharing_enabled: false,
             plugin_cta_enabled: false,
+            plugin_cta_official_source: None,
             usage_visible: true,
             tier_restricted_commands: Vec::new(),
             leader_mode: true,

@@ -712,6 +712,15 @@ pub fn marketplace_require_sha() -> bool {
         .unwrap_or_else(|_| axon_plugin_marketplace::env_require_sha())
 }
 
+/// The marketplace source this build treats as official, or `None` -- which is
+/// the default, because there is no built-in one. Disk-only config + env, same
+/// shape as [`marketplace_require_sha`].
+pub fn marketplace_official_source() -> Option<String> {
+    axon_config::load_effective_config_disk_only()
+        .map(|c| axon_plugin_marketplace::load_official_source(&c))
+        .unwrap_or_else(|_| axon_plugin_marketplace::env_official_source())
+}
+
 /// Marketplace sources from config.toml + settings JSON, unfiltered.
 pub fn load_marketplace_sources() -> Vec<MarketplaceSource> {
     let config = crate::config::load_effective_config()
@@ -814,6 +823,7 @@ fn plan_install(
     sources: &[MarketplaceSource],
     name: &str,
     qualifier: Option<&str>,
+    official: Option<&str>,
     mut scan: impl FnMut(&MarketplaceSource) -> Result<Vec<MarketplaceEntry>, String>,
 ) -> Result<InstallPlan, MarketplaceInstallError> {
     match qualifier {
@@ -859,7 +869,7 @@ fn plan_install(
                     entry,
                 })
                 .collect();
-            let selection = match install_resolve::select_bare_name(name, &scanned) {
+            let selection = match install_resolve::select_bare_name(name, &scanned, official) {
                 Ok(selection) => selection,
                 Err(install_resolve::BareNameError::NotFound) => {
                     drop(scanned);
@@ -896,7 +906,7 @@ fn plan_install(
             };
             let chosen_source_index = owned[selection.chosen].0;
             let chosen_is_official = match &sources[chosen_source_index].kind {
-                SourceKind::Git { url, .. } => is_official_source_url(url),
+                SourceKind::Git { url, .. } => is_official_source_url(official, url),
                 SourceKind::Local { .. } => false,
             };
             let other_copies_note = (selection.other_count > 0).then(|| {
@@ -952,10 +962,16 @@ fn install_marketplace_plugin_with(
     qualifier: Option<&str>,
     post_install: impl Fn(&str) -> (Vec<String>, Vec<String>),
 ) -> Result<MarketplaceInstallOutcome, MarketplaceInstallError> {
-    let plan = plan_install(sources, name, qualifier, |source| {
-        resolve_source_root_for_install(source, cache_root)
-            .map(|root| scan_marketplace(&root.path).entries)
-    })?;
+    let plan = plan_install(
+        sources,
+        name,
+        qualifier,
+        marketplace_official_source().as_deref(),
+        |source| {
+            resolve_source_root_for_install(source, cache_root)
+                .map(|root| scan_marketplace(&root.path).entries)
+        },
+    )?;
 
     let source = &sources[plan.source_index];
     let root = resolve_source_root_for_install(source, cache_root).map_err(|detail| {
@@ -992,10 +1008,16 @@ fn resolve_marketplace_source_name_with(
     name: &str,
     qualifier: Option<&str>,
 ) -> Result<String, MarketplaceInstallError> {
-    let plan = plan_install(sources, name, qualifier, |source| {
-        resolve_source_root_for_install(source, cache_root)
-            .map(|root| scan_marketplace(&root.path).entries)
-    })?;
+    let plan = plan_install(
+        sources,
+        name,
+        qualifier,
+        marketplace_official_source().as_deref(),
+        |source| {
+            resolve_source_root_for_install(source, cache_root)
+                .map(|root| scan_marketplace(&root.path).entries)
+        },
+    )?;
     Ok(sources[plan.source_index].name.clone())
 }
 
@@ -1585,9 +1607,9 @@ mod tests {
         assert_eq!(
             registered_source_label(&git_source(
                 "Axon Official",
-                "https://github.com/xai-org/plugin-marketplace.git"
+                "https://github.com/example-org/plugin-marketplace.git"
             )),
-            "Axon Official (xai-org/plugin-marketplace)"
+            "Axon Official (example-org/plugin-marketplace)"
         );
         assert_eq!(
             registered_source_label(&local_source("Local Dev", "/tmp/p")),
@@ -1609,11 +1631,11 @@ mod tests {
             candidate_label(
                 &git_source(
                     "Axon Official",
-                    "https://github.com/xai-org/plugin-marketplace.git"
+                    "https://github.com/example-org/plugin-marketplace.git"
                 ),
                 "sentry"
             ),
-            "Axon Official (pin: sentry@xai-org/plugin-marketplace)"
+            "Axon Official (pin: sentry@example-org/plugin-marketplace)"
         );
         assert_eq!(
             candidate_label(&local_source("Local Dev", "/tmp/p"), "sentry"),
@@ -1626,14 +1648,14 @@ mod tests {
         let err = MarketplaceInstallError::UnknownQualifier {
             qualifier: "acme/repo".into(),
             registered: vec![
-                "Axon Official (xai-org/plugin-marketplace)".into(),
+                "Axon Official (example-org/plugin-marketplace)".into(),
                 "Local Dev (local/local-dev)".into(),
             ],
         };
         let msg = err.to_string();
         assert!(msg.contains("Unknown marketplace \"acme/repo\""), "{msg}");
         assert!(
-            msg.contains("  - Axon Official (xai-org/plugin-marketplace)"),
+            msg.contains("  - Axon Official (example-org/plugin-marketplace)"),
             "{msg}"
         );
         assert!(msg.contains("  - Local Dev (local/local-dev)"), "{msg}");
@@ -1642,7 +1664,7 @@ mod tests {
     #[test]
     fn ambiguous_qualifier_error_lists_source_names() {
         let err = MarketplaceInstallError::AmbiguousQualifier {
-            qualifier: "xai-org/plugin-marketplace".into(),
+            qualifier: "example-org/plugin-marketplace".into(),
             sources: vec!["Mirror A".into(), "Mirror B".into()],
         };
         let msg = err.to_string();
@@ -1684,7 +1706,7 @@ mod tests {
     fn name_ambiguous_error_lists_candidates_and_pin_hint() {
         let err = MarketplaceInstallError::NameAmbiguous {
             name: "sentry".into(),
-            candidates: vec!["Axon Official (pin: sentry@xai-org/plugin-marketplace)".into()],
+            candidates: vec!["Axon Official (pin: sentry@example-org/plugin-marketplace)".into()],
         };
         let msg = err.to_string();
         assert!(
@@ -1692,7 +1714,7 @@ mod tests {
             "{msg}"
         );
         assert!(
-            msg.contains("  - Axon Official (pin: sentry@xai-org/plugin-marketplace)"),
+            msg.contains("  - Axon Official (pin: sentry@example-org/plugin-marketplace)"),
             "{msg}"
         );
         assert!(
@@ -1790,7 +1812,7 @@ mod tests {
         }
     }
 
-    const OFFICIAL_URL: &str = "https://github.com/xai-org/plugin-marketplace.git";
+    const OFFICIAL_URL: &str = "https://github.com/example-org/plugin-marketplace.git";
 
     #[test]
     fn plan_install_qualifier_unknown_lists_registered_labels() {
@@ -1798,8 +1820,14 @@ mod tests {
             git_source("Axon Official", OFFICIAL_URL),
             local_source("Local Dev", "/tmp/p"),
         ];
-        let err = plan_install(&sources, "sentry", Some("acme/repo"), |_| Ok(Vec::new()))
-            .expect_err("acme/repo is not a registered source");
+        let err = plan_install(
+            &sources,
+            "sentry",
+            Some("acme/repo"),
+            Some(OFFICIAL_URL),
+            |_| Ok(Vec::new()),
+        )
+        .expect_err("acme/repo is not a registered source");
         match err {
             MarketplaceInstallError::UnknownQualifier {
                 qualifier,
@@ -1809,7 +1837,7 @@ mod tests {
                 assert_eq!(
                     registered,
                     vec![
-                        "Axon Official (xai-org/plugin-marketplace)".to_string(),
+                        "Axon Official (example-org/plugin-marketplace)".to_string(),
                         "Local Dev (local/local-dev)".to_string(),
                     ]
                 );
@@ -1822,18 +1850,22 @@ mod tests {
     fn plan_install_qualifier_ambiguous_lists_source_names() {
         let sources = [
             git_source("Mirror A", OFFICIAL_URL),
-            git_source("Mirror B", "git@github.com:xai-org/plugin-marketplace.git"),
+            git_source(
+                "Mirror B",
+                "git@github.com:example-org/plugin-marketplace.git",
+            ),
         ];
         let err = plan_install(
             &sources,
             "sentry",
-            Some("xai-org/plugin-marketplace"),
+            Some("example-org/plugin-marketplace"),
+            Some(OFFICIAL_URL),
             |_| Ok(Vec::new()),
         )
         .expect_err("two sources share the owner/repo");
         match err {
             MarketplaceInstallError::AmbiguousQualifier { qualifier, sources } => {
-                assert_eq!(qualifier, "xai-org/plugin-marketplace");
+                assert_eq!(qualifier, "example-org/plugin-marketplace");
                 assert_eq!(
                     sources,
                     vec!["Mirror A".to_string(), "Mirror B".to_string()]
@@ -1849,7 +1881,8 @@ mod tests {
         let err = plan_install(
             &sources,
             "sentry",
-            Some("xai-org/plugin-marketplace"),
+            Some("example-org/plugin-marketplace"),
+            Some(OFFICIAL_URL),
             |_| Ok(vec![mp_entry("other")]),
         )
         .expect_err("source has no plugin named sentry");
@@ -1871,7 +1904,8 @@ mod tests {
         let err = plan_install(
             &sources,
             "sentry",
-            Some("xai-org/plugin-marketplace"),
+            Some("example-org/plugin-marketplace"),
+            Some(OFFICIAL_URL),
             |_| Err("network down".to_string()),
         )
         .expect_err("sync failed");
@@ -1896,7 +1930,8 @@ mod tests {
         let plan = plan_install(
             &sources,
             "SeNtRy",
-            Some("xai-org/plugin-marketplace"),
+            Some("example-org/plugin-marketplace"),
+            Some(OFFICIAL_URL),
             |_| Ok(vec![mp_entry("sentry")]),
         )
         .expect("resolves the official source");
@@ -1913,8 +1948,10 @@ mod tests {
             git_source("Third A", "https://github.com/acme/a.git"),
             git_source("Third B", "https://github.com/acme/b.git"),
         ];
-        let err = plan_install(&sources, "sentry", None, |_| Ok(vec![mp_entry("sentry")]))
-            .expect_err("two non-official sources provide sentry");
+        let err = plan_install(&sources, "sentry", None, Some(OFFICIAL_URL), |_| {
+            Ok(vec![mp_entry("sentry")])
+        })
+        .expect_err("two non-official sources provide sentry");
         match err {
             MarketplaceInstallError::NameAmbiguous { name, candidates } => {
                 assert_eq!(name, "sentry");
@@ -1936,8 +1973,10 @@ mod tests {
             git_source("Third Party", "https://github.com/acme/x.git"),
             git_source("Axon Official", OFFICIAL_URL),
         ];
-        let plan = plan_install(&sources, "sentry", None, |_| Ok(vec![mp_entry("sentry")]))
-            .expect("official source wins the tie");
+        let plan = plan_install(&sources, "sentry", None, Some(OFFICIAL_URL), |_| {
+            Ok(vec![mp_entry("sentry")])
+        })
+        .expect("official source wins the tie");
         assert_eq!(plan.source_index, 1);
         assert_eq!(plan.entry.name, "sentry");
         let note = plan
@@ -1950,8 +1989,10 @@ mod tests {
     #[test]
     fn plan_install_bare_name_partial_scan_when_only_source_skipped() {
         let sources = [git_source("Flaky Remote", "https://github.com/acme/x.git")];
-        let err = plan_install(&sources, "sentry", None, |_| Err("boom".to_string()))
-            .expect_err("only source failed to sync");
+        let err = plan_install(&sources, "sentry", None, Some(OFFICIAL_URL), |_| {
+            Err("boom".to_string())
+        })
+        .expect_err("only source failed to sync");
         match err {
             MarketplaceInstallError::PartialScan {
                 name,
@@ -1970,7 +2011,7 @@ mod tests {
             git_source("Flaky Remote", "https://github.com/acme/a.git"),
             git_source("Good Remote", "https://github.com/acme/b.git"),
         ];
-        let err = plan_install(&sources, "sentry", None, |source| {
+        let err = plan_install(&sources, "sentry", None, Some(OFFICIAL_URL), |source| {
             if source.name == "Flaky Remote" {
                 Err("sync failed".to_string())
             } else {
@@ -1996,7 +2037,7 @@ mod tests {
             git_source("Axon Official", OFFICIAL_URL),
             git_source("Flaky Remote", "https://github.com/acme/a.git"),
         ];
-        let plan = plan_install(&sources, "sentry", None, |source| {
+        let plan = plan_install(&sources, "sentry", None, Some(OFFICIAL_URL), |source| {
             if source.name == "Axon Official" {
                 Ok(vec![mp_entry("sentry")])
             } else {
@@ -2015,7 +2056,7 @@ mod tests {
             local_source("Local Dev", "/tmp/p"),
             git_source("Flaky Remote", "https://github.com/acme/a.git"),
         ];
-        let err = plan_install(&sources, "sentry", None, |source| {
+        let err = plan_install(&sources, "sentry", None, Some(OFFICIAL_URL), |source| {
             if matches!(&source.kind, SourceKind::Local { .. }) {
                 Ok(vec![mp_entry("sentry")])
             } else {
@@ -2042,7 +2083,7 @@ mod tests {
             git_source("Third B", "https://github.com/acme/b.git"),
             git_source("Flaky Remote", "https://github.com/acme/c.git"),
         ];
-        let err = plan_install(&sources, "sentry", None, |source| {
+        let err = plan_install(&sources, "sentry", None, Some(OFFICIAL_URL), |source| {
             if source.name == "Flaky Remote" {
                 Err("sync failed".to_string())
             } else {
@@ -2195,14 +2236,14 @@ mod tests {
         let sources = vec![
             git_source(
                 "Axon Official",
-                "https://github.com/xai-org/plugin-marketplace.git",
+                "https://github.com/example-org/plugin-marketplace.git",
             ),
             git_source(
                 "Internal",
                 "https://github.com/example/plugin-marketplace-internal.git",
             ),
         ];
-        let name = resolve_qualified_source_name_with(&sources, "xai-org/plugin-marketplace")
+        let name = resolve_qualified_source_name_with(&sources, "example-org/plugin-marketplace")
             .expect("qualifier should match the official source");
         assert_eq!(name, "Axon Official");
     }
@@ -2222,7 +2263,7 @@ mod tests {
     fn resolve_qualified_source_name_with_unknown_qualifier_errors() {
         let sources = vec![git_source(
             "Axon Official",
-            "https://github.com/xai-org/plugin-marketplace.git",
+            "https://github.com/example-org/plugin-marketplace.git",
         )];
         let err = resolve_qualified_source_name_with(&sources, "bogus/repo")
             .expect_err("unknown qualifier should error");

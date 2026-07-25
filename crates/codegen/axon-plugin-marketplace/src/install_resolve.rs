@@ -158,10 +158,14 @@ pub enum BareNameError {
 /// Choose which scanned entry to install for a bare `<name>` (case-insensitive).
 ///
 /// One match wins outright. With several matches, a single official-source copy
-/// wins (reporting the others); otherwise the result is ambiguous.
+/// wins (reporting the others); otherwise the result is ambiguous. `official`
+/// is the configured official source URL ([`crate::load_official_source`]);
+/// `None` means no copy can win on officialness, so several matches are always
+/// ambiguous and the user has to qualify the name.
 pub fn select_bare_name(
     name: &str,
     scanned: &[ScannedEntry<'_>],
+    official: Option<&str>,
 ) -> Result<BareNameSelection, BareNameError> {
     let matched: Vec<usize> = scanned
         .iter()
@@ -177,15 +181,15 @@ pub fn select_bare_name(
             other_count: 0,
         }),
         _ => {
-            let official: Vec<usize> = matched
+            let official_matches: Vec<usize> = matched
                 .iter()
                 .copied()
                 .filter(|&index| match &scanned[index].source.kind {
-                    SourceKind::Git { url, .. } => is_official_source_url(url),
+                    SourceKind::Git { url, .. } => is_official_source_url(official, url),
                     SourceKind::Local { .. } => false,
                 })
                 .collect();
-            match official.as_slice() {
+            match official_matches.as_slice() {
                 [index] => Ok(BareNameSelection {
                     chosen: *index,
                     other_count: matched.len() - 1,
@@ -200,6 +204,11 @@ pub fn select_bare_name(
 mod tests {
     use super::*;
     use std::path::PathBuf;
+
+    /// Stands in for a user-configured `[marketplace] official_source`. This
+    /// build has no built-in one, so every officialness test has to say which
+    /// source it is talking about.
+    const OFFICIAL: &str = "https://github.com/example-org/plugin-marketplace.git";
 
     fn git_source(name: &str, url: &str) -> MarketplaceSource {
         MarketplaceSource {
@@ -267,10 +276,10 @@ mod tests {
     #[test]
     fn parse_name_with_owner_repo_qualifier() {
         assert_eq!(
-            parse_marketplace_ref("sentry@xai-org/plugin-marketplace"),
+            parse_marketplace_ref("sentry@example-org/plugin-marketplace"),
             Some(MarketplaceRef {
                 name: "sentry".into(),
-                qualifier: Some("xai-org/plugin-marketplace".into()),
+                qualifier: Some("example-org/plugin-marketplace".into()),
             })
         );
     }
@@ -323,7 +332,7 @@ mod tests {
     fn parse_rejects_fragment() {
         assert_eq!(parse_marketplace_ref("sentry#sub"), None);
         assert_eq!(
-            parse_marketplace_ref("sentry@xai-org/marketplace#sub"),
+            parse_marketplace_ref("sentry@example-org/marketplace#sub"),
             None
         );
     }
@@ -350,9 +359,9 @@ mod tests {
         assert_eq!(
             addressable_qualifier(&git_source(
                 "x",
-                "https://github.com/xai-org/plugin-marketplace.git"
+                "https://github.com/example-org/plugin-marketplace.git"
             )),
-            "xai-org/plugin-marketplace"
+            "example-org/plugin-marketplace"
         );
         assert_eq!(
             addressable_qualifier(&local_source("Local Dev", "/tmp/p")),
@@ -374,14 +383,14 @@ mod tests {
     #[test]
     fn resolve_qualifier_matches_git_owner_repo_across_url_forms() {
         for url in [
-            "https://github.com/xai-org/plugin-marketplace.git",
-            "git@github.com:xai-org/plugin-marketplace.git",
-            "ssh://git@github.com/xai-org/plugin-marketplace",
-            "https://GitHub.com/XAI-org/Plugin-Marketplace",
+            "https://github.com/example-org/plugin-marketplace.git",
+            "git@github.com:example-org/plugin-marketplace.git",
+            "ssh://git@github.com/example-org/plugin-marketplace",
+            "https://GitHub.com/EXAMPLE-org/Plugin-Marketplace",
         ] {
             let sources = [git_source("src", url)];
             assert_eq!(
-                resolve_qualified_source("xai-org/plugin-marketplace", &sources),
+                resolve_qualified_source("example-org/plugin-marketplace", &sources),
                 Ok(0),
                 "url: {url}"
             );
@@ -392,10 +401,10 @@ mod tests {
     fn resolve_qualifier_normalizes_dot_git_in_qualifier() {
         let sources = [git_source(
             "src",
-            "https://github.com/xai-org/plugin-marketplace",
+            "https://github.com/example-org/plugin-marketplace",
         )];
         assert_eq!(
-            resolve_qualified_source("xai-org/plugin-marketplace.git", &sources),
+            resolve_qualified_source("example-org/plugin-marketplace.git", &sources),
             Ok(0)
         );
     }
@@ -405,7 +414,7 @@ mod tests {
         let sources = [
             git_source(
                 "Axon Official",
-                "https://github.com/xai-org/plugin-marketplace.git",
+                "https://github.com/example-org/plugin-marketplace.git",
             ),
             local_source("Local Dev", "/tmp/plugins"),
         ];
@@ -417,7 +426,7 @@ mod tests {
         let sources = [
             git_source(
                 "Axon Official",
-                "https://github.com/xai-org/plugin-marketplace.git",
+                "https://github.com/example-org/plugin-marketplace.git",
             ),
             git_source("Self Hosted", "https://git.example.com/org/repo.git"),
         ];
@@ -448,7 +457,7 @@ mod tests {
         let sources = [
             git_source(
                 "Axon Official",
-                "https://github.com/xai-org/plugin-marketplace.git",
+                "https://github.com/example-org/plugin-marketplace.git",
             ),
             local_source("Local Dev", "/tmp/plugins"),
         ];
@@ -467,12 +476,15 @@ mod tests {
         let sources = [
             git_source(
                 "Mirror A",
-                "https://github.com/xai-org/plugin-marketplace.git",
+                "https://github.com/example-org/plugin-marketplace.git",
             ),
-            git_source("Mirror B", "git@github.com:xai-org/plugin-marketplace.git"),
+            git_source(
+                "Mirror B",
+                "git@github.com:example-org/plugin-marketplace.git",
+            ),
         ];
         assert_eq!(
-            resolve_qualified_source("xai-org/plugin-marketplace", &sources),
+            resolve_qualified_source("example-org/plugin-marketplace", &sources),
             Err(QualifierResolveError::Ambiguous(vec![0, 1]))
         );
     }
@@ -520,15 +532,15 @@ mod tests {
         let sources = [
             git_source(
                 "Axon Official",
-                "https://github.com/xai-org/plugin-marketplace.git",
+                "https://github.com/example-org/plugin-marketplace.git",
             ),
             git_source(
-                "xai-org/plugin-marketplace",
+                "example-org/plugin-marketplace",
                 "git@github.example.com:mirror/axon.git",
             ),
         ];
         assert_eq!(
-            resolve_qualified_source("xai-org/plugin-marketplace", &sources),
+            resolve_qualified_source("example-org/plugin-marketplace", &sources),
             Err(QualifierResolveError::Ambiguous(vec![0, 1]))
         );
     }
@@ -536,11 +548,11 @@ mod tests {
     #[test]
     fn resolve_qualifier_name_and_owner_repo_same_source_resolves() {
         let sources = [git_source(
-            "xai-org/plugin-marketplace",
-            "https://github.com/xai-org/plugin-marketplace.git",
+            "example-org/plugin-marketplace",
+            "https://github.com/example-org/plugin-marketplace.git",
         )];
         assert_eq!(
-            resolve_qualified_source("xai-org/plugin-marketplace", &sources),
+            resolve_qualified_source("example-org/plugin-marketplace", &sources),
             Ok(0)
         );
     }
@@ -565,7 +577,7 @@ mod tests {
         )];
         let scanned = scanned_entries(&pairs);
         assert_eq!(
-            select_bare_name("sentry", &scanned),
+            select_bare_name("sentry", &scanned, Some(OFFICIAL)),
             Ok(BareNameSelection {
                 chosen: 0,
                 other_count: 0,
@@ -581,7 +593,7 @@ mod tests {
         )];
         let scanned = scanned_entries(&pairs);
         assert_eq!(
-            select_bare_name("sentry", &scanned),
+            select_bare_name("sentry", &scanned, Some(OFFICIAL)),
             Ok(BareNameSelection {
                 chosen: 0,
                 other_count: 0,
@@ -599,14 +611,14 @@ mod tests {
             (
                 git_source(
                     "Axon Official",
-                    "https://github.com/xai-org/plugin-marketplace.git",
+                    "https://github.com/example-org/plugin-marketplace.git",
                 ),
                 entry("sentry"),
             ),
         ];
         let scanned = scanned_entries(&pairs);
         assert_eq!(
-            select_bare_name("sentry", &scanned),
+            select_bare_name("sentry", &scanned, Some(OFFICIAL)),
             Ok(BareNameSelection {
                 chosen: 1,
                 other_count: 1,
@@ -628,7 +640,7 @@ mod tests {
         ];
         let scanned = scanned_entries(&pairs);
         assert_eq!(
-            select_bare_name("sentry", &scanned),
+            select_bare_name("sentry", &scanned, Some(OFFICIAL)),
             Err(BareNameError::Ambiguous {
                 matched: vec![0, 1]
             })
@@ -641,21 +653,41 @@ mod tests {
             (
                 git_source(
                     "Official Mirror A",
-                    "https://github.com/xai-org/plugin-marketplace.git",
+                    "https://github.com/example-org/plugin-marketplace.git",
                 ),
                 entry("sentry"),
             ),
             (
                 git_source(
                     "Official Mirror B",
-                    "git@github.com:xai-org/plugin-marketplace.git",
+                    "git@github.com:example-org/plugin-marketplace.git",
                 ),
                 entry("sentry"),
             ),
         ];
         let scanned = scanned_entries(&pairs);
         assert_eq!(
-            select_bare_name("sentry", &scanned),
+            select_bare_name("sentry", &scanned, Some(OFFICIAL)),
+            Err(BareNameError::Ambiguous {
+                matched: vec![0, 1]
+            })
+        );
+    }
+
+    /// With no official source configured -- the shipped default -- officialness
+    /// cannot break a tie, so the user has to qualify the name themselves.
+    #[test]
+    fn bare_name_ambiguous_when_no_official_source_configured() {
+        let pairs = [
+            (
+                git_source("Third Party", "https://github.com/acme/marketplace.git"),
+                entry("sentry"),
+            ),
+            (git_source("Axon Official", OFFICIAL), entry("sentry")),
+        ];
+        let scanned = scanned_entries(&pairs);
+        assert_eq!(
+            select_bare_name("sentry", &scanned, None),
             Err(BareNameError::Ambiguous {
                 matched: vec![0, 1]
             })
@@ -670,7 +702,7 @@ mod tests {
         )];
         let scanned = scanned_entries(&pairs);
         assert_eq!(
-            select_bare_name("sentry", &scanned),
+            select_bare_name("sentry", &scanned, Some(OFFICIAL)),
             Err(BareNameError::NotFound)
         );
     }

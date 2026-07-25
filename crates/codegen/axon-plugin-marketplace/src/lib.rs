@@ -16,23 +16,46 @@ pub mod scanner;
 pub mod types;
 
 pub use config::{
-    env_require_sha, load_extra_sources_from_settings, load_extra_sources_from_settings_in,
-    load_require_sha, load_sources,
+    env_official_source, env_require_sha, load_extra_sources_from_settings,
+    load_extra_sources_from_settings_in, load_official_source, load_require_sha, load_sources,
 };
 pub use error::MarketplaceError;
 pub use scanner::scan_marketplace;
 pub use types::*;
 
-/// Display name of the official Axon marketplace source.
+/// Display name given to the configured official marketplace source.
 pub const OFFICIAL_SOURCE_NAME: &str = "Axon Official";
 
-/// Git URL of the official Axon marketplace source. Auto-registered on first run.
-pub const OFFICIAL_SOURCE_GIT_URL: &str = "https://github.com/xai-org/plugin-marketplace.git";
+/// Whether `url` is the marketplace source configured as official, normalizing
+/// case, a `www.` prefix, a trailing `/` or `.git`, and HTTPS/SSH forms before
+/// comparing. `official` is the configured URL from
+/// [`load_official_source`] — `None` (the default) means *nothing* is official,
+/// so no source gets install privileges by default.
+///
+/// Comparison is by canonical URL only. Matching on the display name as well
+/// would let any source call itself "Axon Official" and inherit the CTA's
+/// install path.
+pub fn is_official_source_url(official: Option<&str>, url: &str) -> bool {
+    let Some(official) = official else {
+        return false;
+    };
+    match canonical_github_owner_repo(official) {
+        // Both GitHub URLs: compare canonical owner/repo so HTTPS/SSH/`.git`
+        // spellings of the same repo agree.
+        Some(official_repo) => canonical_github_owner_repo(url).as_deref() == Some(&official_repo),
+        // Non-GitHub remote (self-hosted git, file path): exact match after the
+        // same trailing-slash/`.git`/case normalisation.
+        None => normalize_non_github(official) == normalize_non_github(url),
+    }
+}
 
-/// Whether `url` is the official Axon marketplace source, normalizing case, a
-/// `www.` prefix, a trailing `/` or `.git`, and HTTPS/SSH forms before comparing.
-pub fn is_official_source_url(url: &str) -> bool {
-    canonical_github_owner_repo(url).as_deref() == Some("xai-org/plugin-marketplace")
+/// Case/suffix normalisation for remotes [`canonical_github_owner_repo`] does
+/// not understand, so a self-hosted marketplace can still be named official.
+fn normalize_non_github(url: &str) -> String {
+    let s = url.trim();
+    let s = s.strip_suffix('/').unwrap_or(s);
+    let s = s.strip_suffix(".git").unwrap_or(s);
+    s.to_ascii_lowercase()
 }
 
 /// Normalized lowercase `owner/repo` from a GitHub URL (HTTPS/http/ssh/scp,
@@ -63,60 +86,95 @@ pub(crate) fn canonical_github_owner_repo(url: &str) -> Option<String> {
 mod tests {
     use super::*;
 
+    /// Stands in for whatever the user configures. Not a real repository --
+    /// this build ships with no official source at all.
+    const CONFIGURED: &str = "https://github.com/example-org/plugin-marketplace.git";
+
+    fn official(url: &str) -> bool {
+        is_official_source_url(Some(CONFIGURED), url)
+    }
+
+    /// The default: nothing configured, so nothing is official and no source
+    /// inherits the CTA's install path.
+    #[test]
+    fn nothing_is_official_when_unconfigured() {
+        assert!(!is_official_source_url(None, CONFIGURED));
+        assert!(!is_official_source_url(
+            None,
+            "https://github.com/example-org/plugin-marketplace"
+        ));
+        assert!(!is_official_source_url(None, ""));
+    }
+
     #[test]
     fn is_official_matches_canonical_https() {
-        assert!(is_official_source_url(OFFICIAL_SOURCE_GIT_URL));
-        assert!(is_official_source_url(
-            "https://github.com/xai-org/plugin-marketplace"
+        assert!(official(CONFIGURED));
+        assert!(official(
+            "https://github.com/example-org/plugin-marketplace"
         ));
     }
 
     #[test]
     fn is_official_matches_ssh_form() {
-        assert!(is_official_source_url(
-            "git@github.com:xai-org/plugin-marketplace.git"
+        assert!(official(
+            "git@github.com:example-org/plugin-marketplace.git"
         ));
-        assert!(is_official_source_url(
-            "git@github.com:xai-org/plugin-marketplace"
+        assert!(official("git@github.com:example-org/plugin-marketplace"));
+        assert!(official(
+            "ssh://git@github.com/example-org/plugin-marketplace.git"
         ));
-        assert!(is_official_source_url(
-            "ssh://git@github.com/xai-org/plugin-marketplace.git"
-        ));
-        assert!(is_official_source_url(
-            "ssh://git@github.com/xai-org/plugin-marketplace"
+        assert!(official(
+            "ssh://git@github.com/example-org/plugin-marketplace"
         ));
     }
 
     #[test]
     fn is_official_rejects_unrelated_urls() {
-        assert!(!is_official_source_url(
+        assert!(!official(
             "https://github.com/anthropics/claude-plugins-official.git"
         ));
-        assert!(!is_official_source_url(
-            "https://github.com/xai-org/some-other-repo.git"
+        assert!(!official(
+            "https://github.com/example-org/some-other-repo.git"
         ));
-        assert!(!is_official_source_url(""));
+        assert!(!official("https://github.com/other-org/plugin-marketplace"));
+        assert!(!official(""));
     }
 
     #[test]
     fn is_official_matches_noncanonical_forms() {
-        assert!(is_official_source_url(
-            "https://GitHub.com/XAI-org/Plugin-Marketplace"
+        assert!(official(
+            "https://GitHub.com/EXAMPLE-org/Plugin-Marketplace"
         ));
-        assert!(is_official_source_url(
-            "https://github.com/xai-org/plugin-marketplace/"
+        assert!(official(
+            "https://github.com/example-org/plugin-marketplace/"
         ));
-        assert!(is_official_source_url(
-            "https://github.com/xai-org/plugin-marketplace.git/"
+        assert!(official(
+            "https://github.com/example-org/plugin-marketplace.git/"
         ));
-        assert!(is_official_source_url(
-            "http://github.com/xai-org/plugin-marketplace"
+        assert!(official("http://github.com/example-org/plugin-marketplace"));
+        assert!(official(
+            "https://www.github.com/example-org/plugin-marketplace.git"
         ));
-        assert!(is_official_source_url(
-            "https://www.github.com/xai-org/plugin-marketplace.git"
+        assert!(official(
+            "git@github.com:EXAMPLE-org/plugin-marketplace.git"
         ));
+    }
+
+    /// A self-hosted marketplace can be named official too -- neither side is
+    /// a GitHub URL, so the comparison falls back to normalised equality.
+    #[test]
+    fn is_official_matches_non_github_remote() {
+        let self_hosted = "https://git.example.test/plugins/marketplace.git";
         assert!(is_official_source_url(
-            "git@github.com:XAI-org/plugin-marketplace.git"
+            Some(self_hosted),
+            "https://git.example.test/plugins/marketplace"
         ));
+        assert!(is_official_source_url(Some(self_hosted), self_hosted));
+        assert!(!is_official_source_url(
+            Some(self_hosted),
+            "https://git.example.test/plugins/other"
+        ));
+        // A GitHub URL never matches a non-GitHub official source.
+        assert!(!is_official_source_url(Some(self_hosted), CONFIGURED));
     }
 }

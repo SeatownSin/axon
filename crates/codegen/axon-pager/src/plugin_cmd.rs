@@ -1073,7 +1073,7 @@ mod tests {
     fn trust_prompt_marketplace_has_no_error_framing() {
         let msg = trust_prompt(
             "\"sentry\" from marketplace \"Axon Official\"",
-            "sentry@xai-org/plugin-marketplace",
+            "sentry@example-org/plugin-marketplace",
         );
         assert!(
             msg.starts_with(
@@ -1083,7 +1083,7 @@ mod tests {
         );
         assert!(msg.contains("hooks, MCP servers, and skills"));
         assert!(msg.contains(
-            "To proceed, re-run with --trust:\n  axon plugin install sentry@xai-org/plugin-marketplace --trust"
+            "To proceed, re-run with --trust:\n  axon plugin install sentry@example-org/plugin-marketplace --trust"
         ));
         assert!(!msg.contains("Error"));
         assert!(!msg.contains("Failed"));

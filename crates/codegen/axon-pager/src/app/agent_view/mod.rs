@@ -628,6 +628,11 @@ pub struct PluginCtaState {
     pub candidates: Vec<axon_hooks_plugins_types::MarketplacePluginEntry>,
     /// Whether the official marketplace source was present in the last catalog scan.
     pub official_source_present: bool,
+    /// Git URL of the source those candidates came from, snapshotted with them
+    /// so an install cannot target a source other than the one scanned. `None`
+    /// when no official source is configured, which is the default and leaves
+    /// nothing to install.
+    pub official_source_url: Option<String>,
     /// Current CTA phase (recomputed when the prompt debounce expires).
     pub phase: CtaPhase,
     /// Generation counter for prompt-change debouncing (mirrors suggestions).

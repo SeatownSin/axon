@@ -582,6 +582,13 @@ impl AgentView {
         let Some(session_id) = self.session.session_id.clone() else {
             return;
         };
+        // Install from the source the candidates were scanned from. Absent a
+        // configured official source there is nothing to install from, and the
+        // CTA should not have produced candidates to click in the first place.
+        let Some(source_url_or_path) = self.plugin_cta.official_source_url.clone() else {
+            tracing::warn!("plugin CTA install requested with no official marketplace source");
+            return;
+        };
         // Whether to probe for MCP servers after install. URL-sourced plugins
         // are not cloned at scan time, so their `has_mcp` is always false; treat
         // a remote URL as "may ship MCP" and probe anyway, otherwise the post-
@@ -604,7 +611,7 @@ impl AgentView {
             .push(super::actions::Effect::InstallPluginFromCta {
                 agent_id: self.session.id,
                 session_id,
-                source_url_or_path: axon_plugin_marketplace::OFFICIAL_SOURCE_GIT_URL.to_string(),
+                source_url_or_path,
                 plugin_relative_path,
             });
     }
@@ -613,6 +620,19 @@ impl AgentView {
 #[cfg(test)]
 mod plugin_cta_notify_tests {
     use super::test_fixtures::make_agent;
+
+    /// Stands in for a user-configured `[marketplace] official_source`; this
+    /// build has no built-in one.
+    const OFFICIAL_URL: &str = "https://github.com/example-org/plugin-marketplace.git";
+
+    /// A CTA-ready agent. Installing needs the source the candidates were
+    /// scanned from, which the catalog-load path normally snapshots; these tests
+    /// seed CTA state directly, so they set it here.
+    fn cta_agent() -> super::AgentView {
+        let mut agent = make_agent();
+        agent.plugin_cta.official_source_url = Some(OFFICIAL_URL.to_string());
+        agent
+    }
 
     fn cta_entry(name: &str) -> axon_hooks_plugins_types::MarketplacePluginEntry {
         axon_hooks_plugins_types::MarketplacePluginEntry {
@@ -642,7 +662,7 @@ mod plugin_cta_notify_tests {
 
     #[test]
     fn notify_skips_debounce_when_no_candidates() {
-        let mut agent = make_agent();
+        let mut agent = cta_agent();
         agent.plugin_cta.official_source_present = true;
         agent.plugin_cta.candidates.clear();
         assert!(agent.notify_plugin_cta_text_changed().is_none());
@@ -651,7 +671,7 @@ mod plugin_cta_notify_tests {
 
     #[test]
     fn notify_skips_debounce_when_source_absent() {
-        let mut agent = make_agent();
+        let mut agent = cta_agent();
         agent.plugin_cta.official_source_present = false;
         agent.plugin_cta.candidates = vec![cta_entry("figma")];
         assert!(agent.notify_plugin_cta_text_changed().is_none());
@@ -659,7 +679,7 @@ mod plugin_cta_notify_tests {
 
     #[test]
     fn notify_emits_debounce_when_candidates_present() {
-        let mut agent = make_agent();
+        let mut agent = cta_agent();
         agent.plugin_cta.official_source_present = true;
         agent.plugin_cta.candidates = vec![cta_entry("figma")];
         let eff = agent.notify_plugin_cta_text_changed();
@@ -674,7 +694,7 @@ mod plugin_cta_notify_tests {
     fn connect_matched_enters_installing_and_emits_effect() {
         use crate::app::actions::Effect;
         use crate::app::agent_view::CtaPhase;
-        let mut agent = make_agent();
+        let mut agent = cta_agent();
         agent.session.session_id = Some("sess-1".to_string().into());
         agent.plugin_cta.phase = CtaPhase::Matched {
             plugin_relative_path: "plugins/figma".into(),
@@ -699,10 +719,7 @@ mod plugin_cta_notify_tests {
                 plugin_relative_path,
                 ..
             } => {
-                assert_eq!(
-                    source_url_or_path,
-                    axon_plugin_marketplace::OFFICIAL_SOURCE_GIT_URL
-                );
+                assert_eq!(source_url_or_path, OFFICIAL_URL);
                 assert_eq!(plugin_relative_path.as_str(), "plugins/figma");
             }
             other => panic!("expected InstallPluginFromCta, got {other:?}"),
@@ -712,7 +729,7 @@ mod plugin_cta_notify_tests {
     #[test]
     fn connect_retries_from_error() {
         use crate::app::agent_view::CtaPhase;
-        let mut agent = make_agent();
+        let mut agent = cta_agent();
         agent.session.session_id = Some("sess-1".to_string().into());
         agent.plugin_cta.phase = CtaPhase::Error {
             plugin_relative_path: "plugins/figma".into(),
@@ -731,7 +748,7 @@ mod plugin_cta_notify_tests {
     #[test]
     fn connect_without_session_is_noop() {
         use crate::app::agent_view::CtaPhase;
-        let mut agent = make_agent();
+        let mut agent = cta_agent();
         agent.plugin_cta.phase = CtaPhase::Matched {
             plugin_relative_path: "plugins/figma".into(),
             name: "figma".into(),
@@ -744,7 +761,7 @@ mod plugin_cta_notify_tests {
     #[test]
     fn connect_captures_expects_mcp_and_resets_attempt() {
         use crate::app::agent_view::CtaPhase;
-        let mut agent = make_agent();
+        let mut agent = cta_agent();
         agent.session.session_id = Some("sess-1".to_string().into());
         let mut entry = cta_entry("figma");
         entry.has_mcp = true;
@@ -762,7 +779,7 @@ mod plugin_cta_notify_tests {
     #[test]
     fn connect_expects_mcp_false_for_skills_only_plugin() {
         use crate::app::agent_view::CtaPhase;
-        let mut agent = make_agent();
+        let mut agent = cta_agent();
         agent.session.session_id = Some("sess-1".to_string().into());
         // cta_entry defaults has_mcp = false (skills-only).
         agent.plugin_cta.candidates = vec![cta_entry("figma")];
@@ -777,7 +794,7 @@ mod plugin_cta_notify_tests {
     #[test]
     fn connect_expects_mcp_true_for_url_sourced_plugin() {
         use crate::app::agent_view::CtaPhase;
-        let mut agent = make_agent();
+        let mut agent = cta_agent();
         agent.session.session_id = Some("sess-1".to_string().into());
         // URL-sourced plugins report has_mcp = false at scan time (not cloned
         // yet); a remote URL must still trigger the post-install MCP probe.
@@ -805,7 +822,7 @@ mod plugin_cta_notify_tests {
     #[test]
     fn draw_installing_shows_label_spinner_and_no_buttons() {
         use crate::app::agent_view::CtaPhase;
-        let mut agent = make_agent();
+        let mut agent = cta_agent();
         agent.plugin_cta.phase = CtaPhase::Installing {
             plugin_relative_path: "plugins/figma".into(),
             name: "figma".into(),
@@ -836,7 +853,7 @@ mod plugin_cta_notify_tests {
                 name: "figma".into(),
             },
         ] {
-            let mut agent = make_agent();
+            let mut agent = cta_agent();
             agent.plugin_cta.phase = phase;
             let area = ratatui::layout::Rect::new(0, 0, 60, 1);
             let mut buf = ratatui::buffer::Buffer::empty(area);
@@ -856,7 +873,7 @@ mod plugin_cta_notify_tests {
     #[test]
     fn draw_installed_shows_checkmark_and_no_buttons() {
         use crate::app::agent_view::CtaPhase;
-        let mut agent = make_agent();
+        let mut agent = cta_agent();
         agent.plugin_cta.phase = CtaPhase::Installed {
             name: "figma".into(),
         };
@@ -874,7 +891,7 @@ mod plugin_cta_notify_tests {
     #[test]
     fn draw_matched_shows_install_copy_and_colored_name() {
         use crate::app::agent_view::CtaPhase;
-        let mut agent = make_agent();
+        let mut agent = cta_agent();
         agent.plugin_cta.phase = CtaPhase::Matched {
             plugin_relative_path: "plugins/figma".into(),
             name: "figma".into(),
@@ -906,7 +923,7 @@ mod plugin_cta_notify_tests {
     #[test]
     fn draw_matched_hovered_connect_highlights() {
         use crate::app::agent_view::CtaPhase;
-        let mut agent = make_agent();
+        let mut agent = cta_agent();
         agent.plugin_cta.phase = CtaPhase::Matched {
             plugin_relative_path: "plugins/figma".into(),
             name: "figma".into(),
@@ -928,7 +945,7 @@ mod plugin_cta_notify_tests {
     #[test]
     fn draw_error_shows_retry_and_dismiss_rects() {
         use crate::app::agent_view::CtaPhase;
-        let mut agent = make_agent();
+        let mut agent = cta_agent();
         agent.plugin_cta.phase = CtaPhase::Error {
             plugin_relative_path: "plugins/figma".into(),
             name: "figma".into(),
@@ -949,7 +966,7 @@ mod plugin_cta_notify_tests {
     #[test]
     fn draw_matched_shows_keyboard_hint() {
         use crate::app::agent_view::CtaPhase;
-        let mut agent = make_agent();
+        let mut agent = cta_agent();
         agent.plugin_cta.phase = CtaPhase::Matched {
             plugin_relative_path: "plugins/figma".into(),
             name: "figma".into(),
@@ -967,7 +984,7 @@ mod plugin_cta_notify_tests {
     #[test]
     fn draw_matched_drops_hint_when_narrow_but_keeps_buttons() {
         use crate::app::agent_view::CtaPhase;
-        let mut agent = make_agent();
+        let mut agent = cta_agent();
         agent.plugin_cta.phase = CtaPhase::Matched {
             plugin_relative_path: "plugins/figma".into(),
             name: "figma".into(),
@@ -987,7 +1004,7 @@ mod plugin_cta_notify_tests {
     #[test]
     fn draw_matched_hint_yields_to_message_at_intermediate_width() {
         use crate::app::agent_view::CtaPhase;
-        let mut agent = make_agent();
+        let mut agent = cta_agent();
         agent.plugin_cta.phase = CtaPhase::Matched {
             plugin_relative_path: "plugins/figma".into(),
             name: "figma".into(),
@@ -1007,7 +1024,7 @@ mod plugin_cta_notify_tests {
         use crate::app::agent_view::CtaPhase;
         use crate::app::app_view::InputOutcome;
         use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
-        let mut agent = make_agent();
+        let mut agent = cta_agent();
         agent.session.session_id = Some("sess-1".to_string().into());
         agent.plugin_cta.candidates = vec![cta_entry("figma")];
         agent.plugin_cta.phase = CtaPhase::Matched {
@@ -1034,7 +1051,7 @@ mod plugin_cta_notify_tests {
     fn ctrl_slash_ignored_when_cta_hidden() {
         use crate::app::agent_view::CtaPhase;
         use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
-        let mut agent = make_agent();
+        let mut agent = cta_agent();
         assert_eq!(agent.plugin_cta.phase, CtaPhase::Hidden);
         let registry = crate::actions::ActionRegistry::defaults();
         let ev = Event::Key(KeyEvent::new(KeyCode::Char('/'), KeyModifiers::CONTROL));

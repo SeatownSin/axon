@@ -2,9 +2,14 @@
 //!
 //! Expected format:
 //! ```toml
+//! [marketplace]
+//! # Optional. Names the source that gets "official" status (the plugin CTA's
+//! # install target). Unset by default -- this build ships with none.
+//! official_source = "https://github.com/example-org/plugin-marketplace.git"
+//!
 //! [[marketplace.sources]]
 //! name = "Axon Official"
-//! git = "https://github.com/xai-org/axon-plugin-marketplace.git"
+//! git = "https://github.com/example-org/plugin-marketplace.git"
 //!
 //! [[marketplace.sources]]
 //! name = "Local Dev"
@@ -46,6 +51,40 @@ pub fn load_require_sha(config: &toml::Value) -> bool {
 
 pub fn env_require_sha() -> bool {
     axon_config::env_bool("AXON_MARKETPLACE_REQUIRE_SHA").unwrap_or(false)
+}
+
+/// Git URL of the marketplace source this build treats as "official", or
+/// `None` when unconfigured.
+///
+/// `[marketplace] official_source = "<git url>"` in config.toml, or
+/// `AXON_MARKETPLACE_OFFICIAL_SOURCE` (which wins).
+///
+/// **There is deliberately no built-in default.** This build ships pointing at
+/// nobody's marketplace: with nothing configured, no source is official, the
+/// plugin CTA stays inert, and no marketplace repository is ever fetched
+/// unless the user names one. The previous hardcoded constant made an upstream
+/// vendor's repository the implicit install source.
+pub fn load_official_source(config: &toml::Value) -> Option<String> {
+    env_official_source().or_else(|| config_official_source(config))
+}
+
+/// The config.toml half of [`load_official_source`], split out so it can be
+/// tested without touching process environment.
+pub(crate) fn config_official_source(config: &toml::Value) -> Option<String> {
+    config
+        .get("marketplace")
+        .and_then(|m| m.get("official_source"))
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_owned)
+}
+
+pub fn env_official_source() -> Option<String> {
+    std::env::var("AXON_MARKETPLACE_OFFICIAL_SOURCE")
+        .ok()
+        .map(|s| s.trim().to_owned())
+        .filter(|s| !s.is_empty())
 }
 
 /// Reads `[marketplace].sources` array. Returns empty vec if not configured.
@@ -267,6 +306,52 @@ pub fn load_extra_sources_from_settings_in(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// No `[marketplace] official_source` → no official source. This is the
+    /// shipped default: nothing is fetched unless the user names it.
+    #[test]
+    fn official_source_absent_by_default() {
+        let empty: toml::Value = toml::from_str("").unwrap();
+        assert_eq!(config_official_source(&empty), None);
+
+        let sources_only: toml::Value = toml::from_str(
+            r#"
+            [[marketplace.sources]]
+            name = "Local Dev"
+            path = "/home/user/plugins"
+            "#,
+        )
+        .unwrap();
+        assert_eq!(config_official_source(&sources_only), None);
+    }
+
+    #[test]
+    fn official_source_read_from_config() {
+        let config: toml::Value = toml::from_str(
+            r#"
+            [marketplace]
+            official_source = "https://github.com/example-org/plugin-marketplace.git"
+            "#,
+        )
+        .unwrap();
+        assert_eq!(
+            config_official_source(&config).as_deref(),
+            Some("https://github.com/example-org/plugin-marketplace.git")
+        );
+    }
+
+    /// Whitespace-only or empty is "unset", not a source named "".
+    #[test]
+    fn official_source_blank_is_unset() {
+        let blank: toml::Value = toml::from_str(
+            r#"
+            [marketplace]
+            official_source = "   "
+            "#,
+        )
+        .unwrap();
+        assert_eq!(config_official_source(&blank), None);
+    }
 
     #[test]
     fn parse_local_source() {

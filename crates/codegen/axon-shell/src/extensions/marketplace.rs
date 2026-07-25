@@ -843,8 +843,9 @@ async fn handle_add_source(url: &str) -> axon_hooks_plugins_types::ActionOutcome
         };
     }
 
+    let official = crate::plugin::marketplace_official_source();
     let is_official = matches!(&input, MarketplaceAddInput::GitUrl(u)
-        if axon_plugin_marketplace::is_official_source_url(u));
+        if axon_plugin_marketplace::is_official_source_url(official.as_deref(), u));
     let name = if is_official {
         axon_plugin_marketplace::OFFICIAL_SOURCE_NAME.to_string()
     } else {
@@ -1009,7 +1010,10 @@ fn remove_source_locked(source_url_or_path: &str) -> axon_hooks_plugins_types::A
     // Remove the source and (if official) set the flag in ONE atomic write so a
     // crash can't drop the flag and re-add the source next startup.
     let config_path = axon_home.join("config.toml");
-    let is_official = axon_plugin_marketplace::is_official_source_url(source_url_or_path);
+    let is_official = axon_plugin_marketplace::is_official_source_url(
+        crate::plugin::marketplace_official_source().as_deref(),
+        source_url_or_path,
+    );
     let mut removed_from_config = false;
     let content = match crate::util::config::read_to_string_or_empty(&config_path) {
         Ok(c) => c,
@@ -1351,6 +1355,16 @@ pub fn ensure_official_marketplace_source(axon_home: &std::path::Path) {
         }
     };
 
+    // Nothing to register unless the user named an official source. This build
+    // ships without one, so by default first run adds no marketplace and clones
+    // nothing -- the previous behaviour registered a hardcoded upstream repo.
+    let Some(official_url) = axon_plugin_marketplace::load_official_source(&parsed) else {
+        tracing::debug!(
+            "skipping official marketplace auto-register: no [marketplace] official_source configured"
+        );
+        return;
+    };
+
     // "Already present" = official URL in config.toml sources OR a JSON store
     // (settings.json / known_marketplaces.json) under axon_home. Scoped to
     // axon_home only (not ~/.claude) to keep tests hermetic; a user with the URL
@@ -1362,7 +1376,7 @@ pub fn ensure_official_marketplace_source(axon_home: &std::path::Path) {
     );
     let already_present = toml_sources.iter().chain(json_sources.iter()).any(|s| {
         matches!(&s.kind, axon_plugin_marketplace::SourceKind::Git { url, .. }
-            if axon_plugin_marketplace::is_official_source_url(url))
+            if axon_plugin_marketplace::is_official_source_url(Some(&official_url), url))
     });
 
     let write_result = if already_present {
@@ -1372,9 +1386,7 @@ pub fn ensure_official_marketplace_source(axon_home: &std::path::Path) {
         add_marketplace_source(
             &config_path,
             axon_plugin_marketplace::OFFICIAL_SOURCE_NAME,
-            &crate::plugin::MarketplaceAddInput::GitUrl(
-                axon_plugin_marketplace::OFFICIAL_SOURCE_GIT_URL.to_string(),
-            ),
+            &crate::plugin::MarketplaceAddInput::GitUrl(official_url.clone()),
             true,
         )
     };
@@ -1382,8 +1394,8 @@ pub fn ensure_official_marketplace_source(axon_home: &std::path::Path) {
     match write_result {
         Ok(()) if !already_present => {
             tracing::info!(
-                url = axon_plugin_marketplace::OFFICIAL_SOURCE_GIT_URL,
-                "auto-registered official Axon marketplace source"
+                url = %official_url,
+                "auto-registered configured official marketplace source"
             );
         }
         Ok(()) => {}
@@ -1396,6 +1408,45 @@ pub fn ensure_official_marketplace_source(axon_home: &std::path::Path) {
 #[cfg(test)]
 mod official_source_tests {
     use super::*;
+
+    /// Stands in for a user-configured `[marketplace] official_source`. There is
+    /// no built-in official source, so each test names its own.
+    const OFFICIAL_URL: &str = "https://github.com/example-org/plugin-marketplace.git";
+
+    /// Configure `OFFICIAL_URL` as the official source, then run registration.
+    /// Auto-register is a no-op without it, so every test that expects a source
+    /// to be written goes through here. Merges into an existing `[marketplace]`
+    /// table rather than adding a second one, which TOML rejects.
+    fn ensure_with_official(home: &std::path::Path) {
+        let config_path = home.join("config.toml");
+        let existing = std::fs::read_to_string(&config_path).unwrap_or_default();
+        let merged = if existing.contains("official_source") {
+            existing
+        } else if let Some(pos) = existing.find(
+            "[marketplace]
+",
+        ) {
+            let at = pos
+                + "[marketplace]
+"
+                .len();
+            format!(
+                "{}official_source = \"{OFFICIAL_URL}\"
+{}",
+                &existing[..at],
+                &existing[at..]
+            )
+        } else {
+            format!(
+                "[marketplace]
+official_source = \"{OFFICIAL_URL}\"
+
+{existing}"
+            )
+        };
+        std::fs::write(&config_path, merged).unwrap();
+        ensure_official_marketplace_source(home);
+    }
 
     fn read_sources(
         config_path: &std::path::Path,
@@ -1480,13 +1531,34 @@ mod official_source_tests {
             "flag must be preserved after removing the last source: {new_content}"
         );
 
-        ensure_official_marketplace_source(home);
+        ensure_with_official(home);
         let sources = read_sources(&config_path);
         assert!(
             !sources.iter().any(|s| matches!(&s.kind,
                 axon_plugin_marketplace::SourceKind::Git { url, .. }
-                    if axon_plugin_marketplace::is_official_source_url(url))),
+                    if axon_plugin_marketplace::is_official_source_url(Some(OFFICIAL_URL), url))),
             "official source must not be re-added after removal"
+        );
+    }
+
+    /// The shipped default: no `[marketplace] official_source`, so first run
+    /// registers nothing and no marketplace repository is ever fetched. This is
+    /// the behaviour that replaced auto-registering a hardcoded upstream repo.
+    #[test]
+    fn no_configured_official_source_registers_nothing() {
+        let tmp = tempfile::tempdir().unwrap();
+        let home = tmp.path();
+
+        ensure_official_marketplace_source(home);
+
+        let config_path = home.join("config.toml");
+        assert!(
+            read_sources(&config_path).is_empty(),
+            "nothing may be registered without a configured official source"
+        );
+        assert!(
+            !read_flag(&config_path),
+            "the auto-installed flag must stay unset so a later opt-in still registers"
         );
     }
 
@@ -1495,7 +1567,7 @@ mod official_source_tests {
         let tmp = tempfile::tempdir().unwrap();
         let home = tmp.path();
 
-        ensure_official_marketplace_source(home);
+        ensure_with_official(home);
 
         let config_path = home.join("config.toml");
         assert!(config_path.exists(), "config.toml should be created");
@@ -1509,7 +1581,7 @@ mod official_source_tests {
         assert!(matches!(
             &sources[0].kind,
             axon_plugin_marketplace::SourceKind::Git { url, .. }
-                if url == axon_plugin_marketplace::OFFICIAL_SOURCE_GIT_URL
+                if url == OFFICIAL_URL
         ));
         assert!(read_flag(&config_path));
     }
@@ -1519,10 +1591,10 @@ mod official_source_tests {
         let tmp = tempfile::tempdir().unwrap();
         let home = tmp.path();
 
-        ensure_official_marketplace_source(home);
+        ensure_with_official(home);
         let after_first = std::fs::read_to_string(home.join("config.toml")).unwrap();
 
-        ensure_official_marketplace_source(home);
+        ensure_with_official(home);
         let after_second = std::fs::read_to_string(home.join("config.toml")).unwrap();
 
         assert_eq!(
@@ -1537,7 +1609,7 @@ mod official_source_tests {
         let home = tmp.path();
         let config_path = home.join("config.toml");
 
-        ensure_official_marketplace_source(home);
+        ensure_with_official(home);
         assert_eq!(read_sources(&config_path).len(), 1);
 
         // Simulate removal: drop the source block, keep the flag.
@@ -1547,7 +1619,7 @@ mod official_source_tests {
         )
         .unwrap();
 
-        ensure_official_marketplace_source(home);
+        ensure_with_official(home);
 
         assert!(
             read_sources(&config_path).is_empty(),
@@ -1568,12 +1640,12 @@ mod official_source_tests {
             format!(
                 "[[marketplace.sources]]\nname = \"{}\"\ngit = \"{}\"\n",
                 axon_plugin_marketplace::OFFICIAL_SOURCE_NAME,
-                axon_plugin_marketplace::OFFICIAL_SOURCE_GIT_URL,
+                OFFICIAL_URL,
             ),
         )
         .unwrap();
 
-        ensure_official_marketplace_source(home);
+        ensure_with_official(home);
 
         let sources = read_sources(&config_path);
         assert_eq!(sources.len(), 1, "must not duplicate existing source");
@@ -1590,12 +1662,12 @@ mod official_source_tests {
             plugins_dir.join("known_marketplaces.json"),
             format!(
                 r#"{{"axon-official":{{"source":{{"source":"git","url":"{}"}}}}}}"#,
-                axon_plugin_marketplace::OFFICIAL_SOURCE_GIT_URL,
+                OFFICIAL_URL,
             ),
         )
         .unwrap();
 
-        ensure_official_marketplace_source(home);
+        ensure_with_official(home);
 
         let config_path = home.join("config.toml");
         assert!(
@@ -1616,12 +1688,12 @@ mod official_source_tests {
             home.join("settings.json"),
             format!(
                 r#"{{"extraKnownMarketplaces":{{"axon-official":{{"source":{{"source":"git","url":"{}"}}}}}}}}"#,
-                axon_plugin_marketplace::OFFICIAL_SOURCE_GIT_URL,
+                OFFICIAL_URL,
             ),
         )
         .unwrap();
 
-        ensure_official_marketplace_source(home);
+        ensure_with_official(home);
 
         let config_path = home.join("config.toml");
         assert!(
@@ -1643,12 +1715,12 @@ mod official_source_tests {
             format!(
                 "[[marketplace.sources]]\nname = \"{}\"\ngit = \"{}\"\nbranch = \"some-branch\"\n",
                 axon_plugin_marketplace::OFFICIAL_SOURCE_NAME,
-                axon_plugin_marketplace::OFFICIAL_SOURCE_GIT_URL,
+                OFFICIAL_URL,
             ),
         )
         .unwrap();
 
-        ensure_official_marketplace_source(home);
+        ensure_with_official(home);
 
         let sources = read_sources(&config_path);
         assert_eq!(sources.len(), 1, "must not duplicate existing source");
@@ -1672,7 +1744,7 @@ mod official_source_tests {
         )
         .unwrap();
 
-        ensure_official_marketplace_source(home);
+        ensure_with_official(home);
 
         let after = std::fs::read_to_string(&config_path).unwrap();
         assert!(

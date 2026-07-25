@@ -71,6 +71,10 @@ use indexmap::IndexMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
+/// Stands in for a user-configured `[marketplace] official_source`. There is no
+/// built-in official source, so CTA tests name the one they are exercising.
+pub(super) const OFFICIAL_URL: &str = "https://github.com/example-org/plugin-marketplace.git";
+
 fn test_app() -> AppView {
     let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
     AppView {
@@ -235,6 +239,7 @@ fn test_app() -> AppView {
         show_resolved_model: true,
         sharing_enabled: false,
         plugin_cta_enabled: false,
+        plugin_cta_official_source: Some(OFFICIAL_URL.to_string()),
         usage_visible: true,
         tier_restricted_commands: Vec::new(),
         leader_mode: true,

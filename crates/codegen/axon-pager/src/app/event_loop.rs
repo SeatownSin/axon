@@ -845,6 +845,9 @@ pub(crate) async fn run(
     app.plugin_cta_enabled = axon_config::env_bool("AXON_PLUGIN_CTA")
         .or_else(|| remote_settings.as_ref().and_then(|s| s.plugin_cta))
         .unwrap_or(false);
+    // Resolved here, not per-catalog-load, so the UI thread never reads
+    // config.toml. `None` (the default) leaves the CTA with no install source.
+    app.plugin_cta_official_source = axon_shell::plugin::marketplace_official_source();
     // Voice is applied after auth_meta so API-key detection is accurate.
     app.session_picker_grouped = std::env::var("AXON_SESSION_PICKER_GROUPED")
         .ok()

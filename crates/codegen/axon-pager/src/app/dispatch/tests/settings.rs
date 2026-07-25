@@ -178,7 +178,7 @@ fn plugin_cta_catalog_reload_empty_candidates_resets_matched_phase() {
         sources: vec![axon_hooks_plugins_types::MarketplaceScanResult {
             source_name: axon_plugin_marketplace::OFFICIAL_SOURCE_NAME.into(),
             source_kind: "git".into(),
-            source_url_or_path: axon_plugin_marketplace::OFFICIAL_SOURCE_GIT_URL.into(),
+            source_url_or_path: OFFICIAL_URL.into(),
             plugins: vec![cta_entry("figma", "installed")],
             error: None,
         }],

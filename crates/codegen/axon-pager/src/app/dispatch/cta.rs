@@ -43,15 +43,21 @@ pub(super) fn cta_settle_installed(
     effects
 }
 
+/// Candidates come only from the configured official source. `official` is
+/// [`crate::app::app_view::AppView::plugin_cta_official_source`]; when it is
+/// `None` -- the default -- nothing qualifies and the CTA stays inert.
+///
+/// Officialness is decided by URL, not by `source_name`: matching the display
+/// name too would let any source call itself "Axon Official" and inherit the
+/// CTA's one-click install path.
 pub(super) fn plugin_cta_candidates(
     response: axon_hooks_plugins_types::MarketplaceListResponse,
+    official: Option<&str>,
 ) -> (Vec<axon_hooks_plugins_types::MarketplacePluginEntry>, bool) {
     let mut candidates = Vec::new();
     let mut official_source_present = false;
     for source in response.sources {
-        let is_official = source.source_name == axon_plugin_marketplace::OFFICIAL_SOURCE_NAME
-            || axon_plugin_marketplace::is_official_source_url(&source.source_url_or_path);
-        if !is_official {
+        if !axon_plugin_marketplace::is_official_source_url(official, &source.source_url_or_path) {
             continue;
         }
         official_source_present = true;
@@ -430,10 +436,15 @@ pub(super) fn handle_plugin_cta_catalog_loaded(
         Ok(mut response) => {
             response.sanitize();
             let enabled = app.plugin_cta_enabled;
+            let official = app.plugin_cta_official_source.clone();
             if let Some(agent) = app.agents.get_mut(&agent_id) {
-                let (candidates, official_source_present) = plugin_cta_candidates(response);
+                let (candidates, official_source_present) =
+                    plugin_cta_candidates(response, official.as_deref());
                 agent.plugin_cta.candidates = candidates;
                 agent.plugin_cta.official_source_present = official_source_present;
+                // Snapshot the install target alongside the candidates it came
+                // from, so a later install cannot use a different source.
+                agent.plugin_cta.official_source_url = official;
                 // Cache the dismissed set once here so the matched-debounce
                 // recompute never reads config.toml from the UI thread.
                 // Only needed when enabled (the matcher short-circuits to
