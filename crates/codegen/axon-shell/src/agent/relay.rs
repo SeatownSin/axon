@@ -3,6 +3,11 @@
 //! This module provides a shared `RelayConnection` that handles the WebSocket
 //! connection to the blocked.invalid relay server with automatic reconnection.
 //! It is used by both `run_headless` and `run_leader` modes to avoid code duplication.
+// The `tokio::select!` arms below are macro bodies, which rustfmt leaves
+// untouched -- statements end up sharing a line with the preceding `}`, which
+// reads to clippy like an `else` went missing. False positive, and not fixable
+// by formatting while the code lives inside the macro.
+#![allow(clippy::possible_missing_else)]
 use super::proxy;
 use crate::auth::{AxonAuth, AxonComConfig};
 use crate::{teprintln, tprintln};

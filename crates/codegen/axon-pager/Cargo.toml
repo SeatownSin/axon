@@ -287,3 +287,6 @@ release-dist = []
 # `AgentSession::set_yolo_mode_for_test`) to sibling crates' test builds — used
 # by `axon-pager-minimal`'s unit tests. Never enabled in production builds.
 test-support = ["axon-pager-render/test-support"]
+
+[lints]
+workspace = true

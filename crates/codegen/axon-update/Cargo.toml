@@ -29,3 +29,6 @@ time = { workspace = true, features = ["serde"] }
 tokio = { workspace = true, features = ["fs", "macros", "rt-multi-thread", "test-util"] }
 wiremock = { workspace = true }
 dunce = { workspace = true }
+
+[lints]
+workspace = true

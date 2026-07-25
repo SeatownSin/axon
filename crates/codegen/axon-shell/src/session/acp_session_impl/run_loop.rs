@@ -1,6 +1,11 @@
 //! The session actor's main loop (`run_session`): command dispatch, idle
 //! arms, and the free helpers only the loop consumes.
 #![allow(clippy::items_after_test_module)]
+// The `tokio::select!` arms below are macro bodies, which rustfmt leaves
+// untouched -- statements end up sharing a line with the preceding `}`, which
+// reads to clippy like an `else` went missing. False positive, and not fixable
+// by formatting while the code lives inside the macro.
+#![allow(clippy::possible_missing_else)]
 use super::*;
 /// The `YoloToggled` event to emit after `set_yolo_mode(requested)`, given the
 /// previous state and the post-call ACTUAL state (read back via

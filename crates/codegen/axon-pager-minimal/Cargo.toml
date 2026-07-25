@@ -47,3 +47,6 @@ axon-token-estimation = { workspace = true }
 axon-pager = { path = "../axon-pager", features = ["test-support"] }
 
 [features]
+
+[lints]
+workspace = true

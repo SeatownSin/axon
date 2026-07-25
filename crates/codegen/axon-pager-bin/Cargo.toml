@@ -94,3 +94,6 @@ default-bazel = [
 jemalloc = ["dep:tikv-jemallocator", "dep:tikv-jemalloc-sys", "dep:tikv-jemalloc-ctl"]
 sandbox-enforce = ["axon-pager/sandbox-enforce"]
 release-dist = ["axon-pager/release-dist"]
+
+[lints]
+workspace = true
