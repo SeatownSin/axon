@@ -32,43 +32,17 @@ pub fn default_axon_home() -> PathBuf {
 }
 
 /// Per-user config directory: `$AXON_HOME` or `~/.axon`. Created if needed.
-///
-/// Honors the legacy `$AXON_HOME` env var and migrates a legacy `~/.axon`
-/// directory to `~/.axon` on first run, so installs from before the Axon
-/// rename keep their config, models, and sessions.
 pub fn axon_home() -> PathBuf {
     AXON_HOME
         .get_or_init(|| {
-            let home = if let Ok(v) = std::env::var("AXON_HOME") {
-                PathBuf::from(v)
-            } else if let Ok(v) = std::env::var("AXON_HOME") {
-                PathBuf::from(v) // back-compat with the pre-rename env var
-            } else {
-                let dir = default_axon_home();
-                migrate_legacy_home(&dir);
-                dir
+            let home = match std::env::var("AXON_HOME") {
+                Ok(v) => PathBuf::from(v),
+                Err(_) => default_axon_home(),
             };
             let _ = std::fs::create_dir_all(&home);
             home
         })
         .clone()
-}
-
-/// One-time migration for the Axon rename: if the new default home (`~/.axon`)
-/// does not exist yet but a legacy `~/.axon` does, move it across so existing
-/// configs/sessions carry over. Best-effort — a failure (cross-device, perms)
-/// simply leaves the legacy tree in place and starts fresh under `~/.axon`.
-fn migrate_legacy_home(new_home: &std::path::Path) {
-    if new_home.exists() {
-        return;
-    }
-    let Some(parent) = new_home.parent() else {
-        return;
-    };
-    let legacy = parent.join(".axon");
-    if legacy.is_dir() {
-        let _ = std::fs::rename(&legacy, new_home);
-    }
 }
 
 /// The user-global axon home, but only when one genuinely resolves: `Some` when
@@ -78,9 +52,7 @@ fn migrate_legacy_home(new_home: &std::path::Path) {
 /// mistake a project's `.axon` tree for the user-global one when no home resolves.
 pub fn user_axon_home() -> Option<PathBuf> {
     #[allow(deprecated)]
-    let resolvable = std::env::var_os("AXON_HOME").is_some()
-        || std::env::var_os("AXON_HOME").is_some()
-        || std::env::home_dir().is_some();
+    let resolvable = std::env::var_os("AXON_HOME").is_some() || std::env::home_dir().is_some();
     resolvable.then(axon_home)
 }
 
