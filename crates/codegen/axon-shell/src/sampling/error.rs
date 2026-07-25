@@ -590,11 +590,9 @@ mod tests {
     /// Cleans up even if the closure panics.
     fn with_api_key_env<F: FnOnce()>(key: Option<&str>, f: F) {
         let prev = std::env::var("AXON_API_KEY").ok();
-        let prev_legacy = std::env::var("AXON_CODE_AXON_API_KEY").ok();
         // SAFETY: serial_test ensures no concurrent env mutation.
         unsafe {
             std::env::remove_var("AXON_API_KEY");
-            std::env::remove_var("AXON_CODE_AXON_API_KEY");
             if let Some(k) = key {
                 std::env::set_var("AXON_API_KEY", k);
             }
@@ -603,12 +601,8 @@ mod tests {
         // Restore original state.
         unsafe {
             std::env::remove_var("AXON_API_KEY");
-            std::env::remove_var("AXON_CODE_AXON_API_KEY");
             if let Some(v) = prev {
                 std::env::set_var("AXON_API_KEY", v);
-            }
-            if let Some(v) = prev_legacy {
-                std::env::set_var("AXON_CODE_AXON_API_KEY", v);
             }
         }
         if let Err(e) = result {

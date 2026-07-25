@@ -3162,7 +3162,6 @@ mod tests {
     #[serial]
     fn resolve_falls_back_to_session_when_nothing_set() {
         let _unset = EnvGuard::unset("AXON_API_KEY");
-        let _unset_legacy = EnvGuard::unset("AXON_CODE_AXON_API_KEY");
         let endpoints = config::EndpointsConfig::default();
         assert_eq!(
             ModelFetchAuth::resolve(&endpoints, false),
@@ -3175,7 +3174,6 @@ mod tests {
     #[serial]
     fn resolve_deployment_key_when_no_session_or_api_key() {
         let _unset = EnvGuard::unset("AXON_API_KEY");
-        let _unset_legacy = EnvGuard::unset("AXON_CODE_AXON_API_KEY");
         let endpoints = config::EndpointsConfig {
             deployment_key: Some("deploy-key".to_owned()),
             ..config::EndpointsConfig::default()
@@ -3242,7 +3240,6 @@ mod tests {
     #[serial]
     fn prefetch_env_resolves_when_remote_fetch_enabled() {
         let _unset = EnvGuard::unset("AXON_API_KEY");
-        let _unset_legacy = EnvGuard::unset("AXON_CODE_AXON_API_KEY");
         let endpoints = config::EndpointsConfig {
             deployment_key: Some("deploy-key".to_owned()),
             ..config::EndpointsConfig::default()

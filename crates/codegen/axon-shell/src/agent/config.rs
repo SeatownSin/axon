@@ -5707,7 +5707,7 @@ reasoning_effort = "low"
     #[test]
     #[serial]
     fn resolve_credentials_empty_env_key_falls_through_to_global_key() {
-        use crate::agent::auth_method::{AXON_API_KEY_ENV_VAR, LEGACY_AXON_API_KEY_ENV_VAR};
+        use crate::agent::auth_method::AXON_API_KEY_ENV_VAR;
         use axon_chat_state::AuthType;
         use axon_test_support::EnvGuard;
         let sentinel = "axon-global-sentinel-key";
@@ -5716,7 +5716,6 @@ reasoning_effort = "low"
         let _primary = EnvGuard::set(primary, "");
         let _alias = EnvGuard::set(alias, "");
         let _global = EnvGuard::set(AXON_API_KEY_ENV_VAR, sentinel);
-        let _legacy = EnvGuard::unset(LEGACY_AXON_API_KEY_ENV_VAR);
         let mut model = test_model_entry("m", "https://inference.example/v1", None, None, None);
         model.env_key = Some(EnvKeys::new([primary, alias]));
         assert!(!model.has_own_credentials());

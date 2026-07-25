@@ -25,19 +25,12 @@ pub(crate) fn new_shared_auth_method_id(initial: Option<acp::AuthMethodId>) -> S
 /// Kept as a constant so test code and the production check stay in sync.
 pub const AXON_API_KEY_ENV_VAR: &str = "AXON_API_KEY";
 
-/// Legacy env var name. Checked as a fallback when `AXON_API_KEY` is not set,
-/// so existing deployments that use the old name keep working.
-pub const LEGACY_AXON_API_KEY_ENV_VAR: &str = "AXON_CODE_AXON_API_KEY";
-
 /// Read the API key from the environment.
-///
-/// Checks `AXON_API_KEY` first, then falls back to the legacy
-/// `AXON_CODE_AXON_API_KEY` for backward compatibility.
 pub fn read_axon_api_key_env() -> Result<String, std::env::VarError> {
-    std::env::var(AXON_API_KEY_ENV_VAR).or_else(|_| std::env::var(LEGACY_AXON_API_KEY_ENV_VAR))
+    std::env::var(AXON_API_KEY_ENV_VAR)
 }
 
-/// Returns `true` if either `AXON_API_KEY` or `AXON_CODE_AXON_API_KEY` is set.
+/// Returns `true` if `AXON_API_KEY` is set.
 pub fn has_axon_api_key_env() -> bool {
     read_axon_api_key_env().is_ok()
 }
@@ -896,32 +889,6 @@ mod tests {
              must lead so the pager requires interactive login",
         );
         assert!(built.default_auth_method_id.is_none());
-    }
-
-    /// Legacy `AXON_CODE_AXON_API_KEY` env var is accepted as a fallback
-    /// when `AXON_API_KEY` is not set, ensuring existing deployments keep working.
-    #[test]
-    #[serial]
-    fn legacy_env_var_fallback_advertises_axon_api_key() {
-        let _unset_new = EnvGuard::unset(AXON_API_KEY_ENV_VAR);
-        let _set_legacy = EnvGuard::set(LEGACY_AXON_API_KEY_ENV_VAR, "axon-legacy-key");
-        assert!(has_axon_api_key_env());
-        assert_eq!(read_axon_api_key_env().unwrap(), "axon-legacy-key");
-
-        let cfg = Config::default();
-        let models = resolve_model_list(&cfg, None);
-        let has_external_api_key = should_advertise_axon_api_key(false, models.values());
-        assert!(has_external_api_key);
-    }
-
-    /// When both `AXON_API_KEY` and `AXON_CODE_AXON_API_KEY` are set,
-    /// the new name takes precedence.
-    #[test]
-    #[serial]
-    fn new_env_var_takes_precedence_over_legacy() {
-        let _new = EnvGuard::set(AXON_API_KEY_ENV_VAR, "new-key");
-        let _legacy = EnvGuard::set(LEGACY_AXON_API_KEY_ENV_VAR, "old-key");
-        assert_eq!(read_axon_api_key_env().unwrap(), "new-key");
     }
 
     // -- axon login --legacy regression coverage ------------------------

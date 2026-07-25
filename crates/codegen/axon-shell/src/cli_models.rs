@@ -92,7 +92,7 @@ pub async fn list_models(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::agent::auth_method::{AXON_API_KEY_ENV_VAR, LEGACY_AXON_API_KEY_ENV_VAR};
+    use crate::agent::auth_method::AXON_API_KEY_ENV_VAR;
     use crate::agent::config::Config;
     use crate::auth::{AuthMode, AxonAuth};
     use axon_test_support::EnvGuard;
@@ -102,12 +102,11 @@ mod tests {
     ///
     /// Uses `AXON_AUTH_PATH` (not `AXON_HOME`) so a OnceLock-cached real home
     /// with `auth.json` cannot leak into these tests.
-    fn isolate_auth_sources() -> (tempfile::TempDir, [EnvGuard; 7]) {
+    fn isolate_auth_sources() -> (tempfile::TempDir, [EnvGuard; 6]) {
         let dir = tempfile::tempdir().unwrap();
         let auth_path = dir.path().join("no-auth.json");
         let guards = [
             EnvGuard::unset(AXON_API_KEY_ENV_VAR),
-            EnvGuard::unset(LEGACY_AXON_API_KEY_ENV_VAR),
             EnvGuard::unset("AXON_AUTH"),
             EnvGuard::set("AXON_AUTH_PATH", auth_path.to_str().unwrap()),
             EnvGuard::unset("AXON_DEPLOYMENT_KEY"),
@@ -140,14 +139,6 @@ mod tests {
     fn resolve_api_key_env() {
         let (_dir, _g) = isolate_auth_sources();
         let _key = EnvGuard::set(AXON_API_KEY_ENV_VAR, "axon-test-key");
-        assert_eq!(AuthStatus::resolve(&Config::default()), AuthStatus::ApiKey);
-    }
-
-    #[test]
-    #[serial]
-    fn resolve_legacy_api_key_env() {
-        let (_dir, _g) = isolate_auth_sources();
-        let _key = EnvGuard::set(LEGACY_AXON_API_KEY_ENV_VAR, "legacy-key");
         assert_eq!(AuthStatus::resolve(&Config::default()), AuthStatus::ApiKey);
     }
 

@@ -951,7 +951,7 @@ pub struct LogoutResult {
     pub was_logged_in: bool,
     /// Email of the session that was cleared (if available).
     pub email: Option<String>,
-    /// `true` if `AXON_API_KEY` / `AXON_CODE_AXON_API_KEY` env var is set.
+    /// `true` if the `AXON_API_KEY` env var is set.
     pub api_key_still_set: bool,
 }
 

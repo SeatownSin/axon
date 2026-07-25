@@ -2325,12 +2325,11 @@ async fn cached_token_fallthrough_respects_kill_switch() {
 #[serial_test::serial]
 async fn cached_token_fallthrough_falls_to_axon_com_without_credentials() {
     use crate::agent::auth_method::{
-        AXON_COM_METHOD_ID, LEGACY_AXON_API_KEY_ENV_VAR, AXON_API_KEY_ENV_VAR,
+        AXON_COM_METHOD_ID, AXON_API_KEY_ENV_VAR,
     };
     use axon_test_support::EnvGuard;
     let _lockdown = EnvGuard::unset("AXON_DISABLE_API_KEY_AUTH");
     let _new = EnvGuard::unset(AXON_API_KEY_ENV_VAR);
-    let _legacy = EnvGuard::unset(LEGACY_AXON_API_KEY_ENV_VAR);
     let agent = build_minimal_agent_for_tests();
     assert_eq!(
         agent
