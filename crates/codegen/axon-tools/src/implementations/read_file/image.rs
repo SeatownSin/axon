@@ -22,15 +22,22 @@ pub enum CompressImageError {
     DecodeFailed(String),
 }
 
-/// Max base64 size for an image embedded in the conversation.
-pub const MAX_IMAGE_PAYLOAD_BYTES: usize = 768 * 1024;
+/// Max base64 size for an image embedded in the conversation. Base64 of the
+/// 1.5 MB raw budget the user-attachment normalizer uses
+/// (`axon_shell::session::image_normalize::MAX_IMAGE_BYTES`), so a `read_file`
+/// image is not compressed harder than the same file pasted as an attachment —
+/// and is not re-encoded a second time on the send path.
+pub const MAX_IMAGE_PAYLOAD_BYTES: usize = 2_000_000;
 
 /// Raw-byte budget derived from [`MAX_IMAGE_PAYLOAD_BYTES`].
 pub(crate) const MAX_IMAGE_RAW_BYTES: usize = MAX_IMAGE_PAYLOAD_BYTES * 3 / 4;
 
-/// Total pixel budget (w*h) for images sent to the model; preserves the old
-/// 1024x1024 square budget as an aspect-agnostic area.
-pub(crate) const MAX_IMAGE_PIXELS: u64 = 1_048_576;
+/// Total pixel budget (w*h) for images sent to the model. Mirrors the
+/// attachment normalizer's `MAX_ENCODE_PIXELS`, which is where the wire budget
+/// is actually decided; the old 1 Mpx (1024x1024) value downsampled every
+/// 1080p+ screenshot before the model saw it, losing UI text the vision pass
+/// needs.
+pub(crate) const MAX_IMAGE_PIXELS: u64 = 2_408_448;
 
 /// Max pixel dimension (width or height) for images sent to the model.
 /// Model-agnostic side clamp; the area cap above is the operative budget.
@@ -39,8 +46,10 @@ pub(crate) const MAX_IMAGE_DIMENSION: u32 = 2000;
 /// Floor dimension — re-encode gives up when `max_side` falls to or below this.
 const MIN_IMAGE_DIMENSION: u32 = 128;
 
-/// JPEG quality ladder for the read-file image compression path.
-const READFILE_QUALITY_STEPS: &[u8] = &[85, 70, 50, 40];
+/// JPEG quality ladder for the read-file image compression path. Same
+/// granularity as the attachment normalizer's ladder: coarse steps overshoot,
+/// dropping an image that needed q84 all the way to q70.
+const READFILE_QUALITY_STEPS: &[u8] = &[88, 80, 72, 64, 56, 48, 40];
 
 /// Absolute upper bound on decoded pixel count before we refuse to decode.
 /// Matches the model API's `MAX_IMAGE_PIXELS` ceiling (and the shell's
@@ -368,8 +377,22 @@ mod tests {
         assert_eq!(mime, "image/png");
     }
 
+    /// A 1080p screenshot must reach the model at native resolution: 2.07 Mpx
+    /// is inside the area budget and both sides are under the side clamp. The
+    /// old 1 Mpx budget downscaled it to ~1365x768, softening UI text before
+    /// the vision pass ever saw it.
+    #[test]
+    fn compress_1080p_screenshot_passes_through_at_native_resolution() {
+        let png = make_small_png(1920, 1080);
+        let (result, mime) =
+            compress_image_for_conversation(png.clone(), "image/png".into()).unwrap();
+        assert_eq!(result, png, "1080p screenshot must not be re-encoded");
+        assert_eq!(mime, "image/png");
+    }
+
     /// A large screenshot read from disk lands within the pixel-area budget
-    /// (~1403x747 for a 3438x1830 source), aspect preserved.
+    /// (2000x1064 for a 3438x1830 source — the side clamp binds before the
+    /// area budget at this aspect), aspect preserved.
     #[test]
     fn compress_screenshot_respects_area_budget() {
         let png = make_small_png(3438, 1830);
