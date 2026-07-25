@@ -1,0 +1,11 @@
+# Revisions to skip when running `git blame`.
+#
+# Enable locally with:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+# (GitHub honours this file automatically.)
+#
+# Only mechanical, behaviour-preserving rewrites belong here.
+
+# Format the workspace with rustfmt -- `cargo fmt --all`, 445 files, no
+# behavioural change.
+386584ed0fbef77f42a04604827ccb8d411bcc81
