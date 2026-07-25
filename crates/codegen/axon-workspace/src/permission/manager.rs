@@ -4103,9 +4103,28 @@ mod tests {
                 });
                 // Let B's request() increment the in-flight counter and enqueue
                 // before releasing A, so A's emit observes both in flight.
-                for _ in 0..50 {
+                // Poll the counter itself rather than yielding a fixed number
+                // of times: 50 yields was enough on an idle machine but not
+                // under a loaded `--workspace` run, where A could reach its
+                // emit with B not yet registered and see queue_depth 1.
+                // Bounded so a regression fails cleanly instead of hanging.
+                let in_flight = match &mgr {
+                    PermissionHandle::Actor { in_flight, .. } => in_flight.clone(),
+                    PermissionHandle::AllowAll => {
+                        unreachable!("spawn_permission_manager_with_pin yields an Actor handle")
+                    }
+                };
+                for _ in 0..1000 {
+                    if in_flight.load(Ordering::Relaxed) >= 2 {
+                        break;
+                    }
                     tokio::task::yield_now().await;
                 }
+                assert_eq!(
+                    in_flight.load(Ordering::Relaxed),
+                    2,
+                    "both requests must be in flight before A is released"
+                );
                 gate.notify_one();
 
                 let da = tokio::time::timeout(std::time::Duration::from_secs(5), a)

@@ -1175,13 +1175,17 @@ mod tests {
 
     #[test]
     fn scan_content_x_offset_applied() {
-        let line = make_line("https://blocked.invalid");
+        // Derived from the literal, not hard-coded: the previous `10 + 12` was
+        // the length of the URL this test used to carry, and survived the
+        // substitution that made the URL longer.
+        const URL: &str = "https://blocked.invalid";
+        let line = make_line(URL);
         let mut overlay = LinkOverlay::new();
         scan_unjoined(std::iter::once((0, &line)), 10, &[], &mut overlay);
 
         assert_eq!(overlay.links().len(), 1);
         assert_eq!(overlay.links()[0].col_start, 10);
-        assert_eq!(overlay.links()[0].col_end, 10 + 12);
+        assert_eq!(overlay.links()[0].col_end, 10 + URL.len() as u16);
     }
 
     // ── File path detection ──

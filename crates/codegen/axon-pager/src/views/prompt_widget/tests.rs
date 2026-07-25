@@ -1693,15 +1693,17 @@
             agent_client_protocol::ModelInfo::new(model_id, "Axon 4.5".to_string()),
         );
 
-        // Type "/model gr" and position cursor at end (in args).
-        pw.textarea.insert_str("/model gr");
+        // Type "/model ax" and position cursor at end (in args). The prefix has
+        // to match the model name above -- it was "gr" for the model this
+        // fixture used to name, and matched nothing once the name changed.
+        pw.textarea.insert_str("/model ax");
         pw.refresh_slash(&models);
 
         let snap = pw.slash_snapshot();
         assert!(snap.open, "arg suggestions should be open");
         assert!(snap.args_range.is_some());
 
-        // Accept arg completion → should replace "gr" with "Axon 4.5".
+        // Accept arg completion → should replace "ax" with "Axon 4.5".
         pw.accept_slash_completion(&models);
         let text = pw.textarea.text().to_string();
         assert!(

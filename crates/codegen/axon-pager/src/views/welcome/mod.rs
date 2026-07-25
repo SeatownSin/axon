@@ -2935,21 +2935,23 @@ mod tests {
 
         // 2 headers + 3 rows = 5 entries
         assert_eq!(result.len(), 5);
-        // Groups are sorted alphabetically: fw-1 before axon.
-        // Header positions: 0 (fw-1), 2 (axon)
+        // Groups are sorted alphabetically: "axon" (2 rows) before "fw-1" (1),
+        // so headers land at 0 and 3. (This used to read "fw-1 before grok";
+        // renaming the fixture group to "axon" moved it to the front of the
+        // sort without the positions below being updated to match.)
         assert_eq!(non_sel.len(), 5);
         assert!(non_sel[0], "first entry should be header (non-selectable)");
         assert!(!non_sel[1], "second entry should be selectable row");
-        assert!(non_sel[2], "third entry should be header (non-selectable)");
-        assert!(!non_sel[3], "fourth entry should be selectable row");
+        assert!(!non_sel[2], "third entry should be selectable row");
+        assert!(non_sel[3], "fourth entry should be header (non-selectable)");
         assert!(!non_sel[4], "fifth entry should be selectable row");
 
         // Verify headers
         assert!(
-            matches!(&result[0], crate::views::picker::PickerEntry::Header { label } if label == &"fw-1")
+            matches!(&result[0], crate::views::picker::PickerEntry::Header { label } if label == &"axon")
         );
         assert!(
-            matches!(&result[2], crate::views::picker::PickerEntry::Header { label } if label == &"axon")
+            matches!(&result[3], crate::views::picker::PickerEntry::Header { label } if label == &"fw-1")
         );
     }
 
@@ -3747,14 +3749,17 @@ mod tests {
             .expect("raw URL mode must render the URL");
         let second = lines.next().expect("URL must wrap to a second row");
         // First row flush against both edges (full width), remainder on the
-        // next row starting at column 0.
+        // next row starting at column 0. The second row carries at most 40
+        // more columns: asserting against `url[40..]` wholesale only held
+        // while the URL fit in two rows, and silently became unsatisfiable
+        // when the host substitution pushed it past 80 characters.
         assert_eq!(
             first,
             &url[..40],
             "long URL row must span the full terminal width:\n{text}"
         );
         assert!(
-            second.starts_with(&url[40..]),
+            second.starts_with(&url[40..url.len().min(80)]),
             "wrapped remainder must start at column 0:\n{text}"
         );
     }
