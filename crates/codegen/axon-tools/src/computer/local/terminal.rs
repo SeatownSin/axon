@@ -4608,6 +4608,9 @@ mod tests {
         );
     }
 
+    /// `parse_login_env_capture` is `#[cfg(unix)]`; without the same gate here
+    /// the whole crate's test binary fails to build on Windows.
+    #[cfg(unix)]
     #[test]
     fn test_parse_login_env_capture() {
         let stdout = "motd noise\n\x01/opt/rc/bin:/usr/bin\x01\
@@ -4638,6 +4641,7 @@ mod tests {
         }
     }
 
+    #[cfg(unix)]
     #[test]
     fn test_parse_login_env_capture_path_only() {
         let (path, env) = parse_login_env_capture("\x01/usr/bin\x01");
