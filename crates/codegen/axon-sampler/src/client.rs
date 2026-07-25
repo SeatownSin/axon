@@ -391,8 +391,8 @@ pub fn user_agent_string_for(origin: &OriginClientInfo) -> String {
 // SamplingClient
 // =============================================================================
 
-/// `true` when the URL targets Axon-operated infrastructure (`blocked.invalid`,
-/// `blocked.invalid`, or any subdomain). This build never sends bytes to Axon:
+/// `true` when the URL targets Axon-operated infrastructure
+/// (`blocked.invalid` or any subdomain). This build never sends bytes to Axon:
 /// [`SamplingClient::new`] refuses such endpoints outright, so neither
 /// defaults nor user configuration can route inference there. Kept local
 /// to this crate (mirrored in `axon-shell-base::util`) so the sampler
@@ -404,7 +404,7 @@ pub(crate) fn is_axon_infrastructure_url(url: &str) -> bool {
     match parsed.host_str() {
         Some(host) => {
             let host = host.to_ascii_lowercase();
-            for blocked in ["blocked.invalid", "blocked.invalid"] {
+            for blocked in ["blocked.invalid"] {
                 if host == blocked || host.ends_with(&format!(".{blocked}")) {
                     return true;
                 }
@@ -1964,7 +1964,7 @@ mod tests {
     }
 
     /// The Axon-infrastructure block is absolute: construction fails for
-    /// `blocked.invalid` / `blocked.invalid` and all subdomains, while local and third-party
+    /// `blocked.invalid` and all subdomains, while local and third-party
     /// endpoints (including spoof-shaped hostnames) stay allowed.
     #[test]
     fn axon_infrastructure_endpoints_are_refused() {
@@ -1973,7 +1973,7 @@ mod tests {
             "https://blocked.invalid",
             "https://cli-chat-proxy.blocked.invalid/v1",
             "https://blocked.invalid/v1",
-            "http://API.X.AI/v1",
+            "https://API.BLOCKED.INVALID/v1",
         ] {
             assert!(is_axon_infrastructure_url(blocked), "{blocked}");
             let cfg = SamplerConfig {

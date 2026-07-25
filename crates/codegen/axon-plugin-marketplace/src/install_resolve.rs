@@ -377,7 +377,7 @@ mod tests {
             "https://github.com/xai-org/plugin-marketplace.git",
             "git@github.com:xai-org/plugin-marketplace.git",
             "ssh://git@github.com/xai-org/plugin-marketplace",
-            "https://GitHub.com/AXON-org/Plugin-Marketplace",
+            "https://GitHub.com/XAI-org/Plugin-Marketplace",
         ] {
             let sources = [git_source("src", url)];
             assert_eq!(

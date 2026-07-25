@@ -101,7 +101,7 @@ mod tests {
     #[test]
     fn is_official_matches_noncanonical_forms() {
         assert!(is_official_source_url(
-            "https://GitHub.com/AXON-org/Plugin-Marketplace"
+            "https://GitHub.com/XAI-org/Plugin-Marketplace"
         ));
         assert!(is_official_source_url(
             "https://github.com/xai-org/plugin-marketplace/"
@@ -116,7 +116,7 @@ mod tests {
             "https://www.github.com/xai-org/plugin-marketplace.git"
         ));
         assert!(is_official_source_url(
-            "git@github.com:AXON-org/plugin-marketplace.git"
+            "git@github.com:XAI-org/plugin-marketplace.git"
         ));
     }
 }
