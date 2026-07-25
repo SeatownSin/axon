@@ -310,6 +310,10 @@ pub fn ensure_query_param(url: &str, key: &str, value: &str) -> String {
 mod tests {
     use super::*;
 
+    /// `build_open_path_command` is `#[cfg(not(target_os = "windows"))]` —
+    /// Windows reveals paths through `reveal_in_explorer` instead — so the
+    /// test needs the same gate to keep the crate's test binary building.
+    #[cfg(not(target_os = "windows"))]
     #[test]
     fn open_path_command_passes_path_as_a_single_arg() {
         // Path with spaces must be one argument, never shell-interpolated.

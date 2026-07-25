@@ -14,9 +14,21 @@
 //! cargo run -p axon-sandbox --example sandbox_smoke_test -- read-only
 //! ```
 
+// The whole smoke test is Seatbelt/Landlock-specific: `SandboxManager::
+// support_info` and the `EACCES`/`EPERM` probes below only exist under
+// `all(feature = "enforce", unix)`. Without this gate the example fails to
+// compile on Windows, breaking `cargo check --all-targets` for the workspace.
+#[cfg(not(all(feature = "enforce", unix)))]
+fn main() {
+    eprintln!("sandbox_smoke_test requires the `enforce` feature on a unix host");
+}
+
+#[cfg(all(feature = "enforce", unix))]
 use axon_sandbox::{ProfileName, SandboxManager};
+#[cfg(all(feature = "enforce", unix))]
 use std::path::Path;
 
+#[cfg(all(feature = "enforce", unix))]
 fn main() {
     // Parse profile from args (default: workspace).
     let profile_name = std::env::args()
@@ -124,6 +136,7 @@ fn main() {
     println!("\n✅ Smoke test complete");
 }
 
+#[cfg(all(feature = "enforce", unix))]
 fn test_read(label: &str, path: &Path) {
     if path.is_file() {
         match std::fs::read(path) {
@@ -153,6 +166,7 @@ fn test_read(label: &str, path: &Path) {
     }
 }
 
+#[cfg(all(feature = "enforce", unix))]
 fn test_write(label: &str, path: &Path) {
     match std::fs::write(path, b"sandbox-test") {
         Ok(()) => {
