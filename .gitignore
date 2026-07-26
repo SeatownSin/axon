@@ -7,3 +7,8 @@
 .axon/handoffs/
 .axon/plans/
 .axon/audits/
+
+# graphify knowledge-graph output: derived from the source tree, regenerated on
+# demand, and ~1.5 MB per run (graph.json + graph.html + a semantic cache).
+# Written to the cwd and beside the analysed path, so ignore it at any depth.
+graphify-out/
