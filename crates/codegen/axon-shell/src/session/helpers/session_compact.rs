@@ -1620,6 +1620,7 @@ mod reasoning_compaction_regression_tests {
             compaction_at_tokens: None,
             doom_loop_recovery: None,
             header_injector: None,
+            chat_template_kwargs: None,
         }
     }
     #[tokio::test]

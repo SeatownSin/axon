@@ -265,6 +265,7 @@ impl SessionActor {
                 context_window: std::num::NonZeroU64::new(256_000).unwrap(),
                 reasoning_effort: None,
                 stream_tool_calls: None,
+                chat_template_kwargs: None,
             });
         let creds = self.chat_state_handle.get_credentials().await;
         let model_facts = self.model_auth_facts(cfg.model.as_str());
@@ -347,6 +348,7 @@ impl SessionActor {
             compaction_at_tokens: self.compaction_at_tokens.get(),
             doom_loop_recovery: self.doom_loop_recovery,
             header_injector: Some(std::sync::Arc::new(TraceContextInjector)),
+            chat_template_kwargs: cfg.chat_template_kwargs.clone(),
         }
     }
     /// Install auto-mode permission classifier with a live LLM side-query

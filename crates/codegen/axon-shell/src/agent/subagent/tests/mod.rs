@@ -3281,6 +3281,7 @@ fn test_model_entry(model_id: &str) -> crate::agent::config::ModelEntry {
             show_model_fingerprint: false,
             stream_tool_calls: None,
             laziness_detector: crate::agent::config::LazinessDetectorPerModelConfig::default(),
+            chat_template_kwargs: None,
         },
         api_key: None,
         env_key: None,
@@ -3485,6 +3486,7 @@ fn test_sampling_config(model_slug: &str) -> axon_sampling_types::SamplingConfig
         context_window: NonZeroU64::new(256_000).expect("non-zero context window"),
         reasoning_effort: None,
         stream_tool_calls: None,
+        chat_template_kwargs: None,
     }
 }
 fn spawn_test_parent_chat_state(model_slug: &str) -> axon_chat_state::ChatStateHandle {

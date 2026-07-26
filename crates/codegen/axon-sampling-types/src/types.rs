@@ -87,6 +87,17 @@ pub struct ChatCompletionRequest {
     pub response_format: Option<crate::rs::ResponseFormat>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_effort: Option<ReasoningEffort>,
+    /// Extra kwargs handed to the server's chat template, sent verbatim as the
+    /// OpenAI-compatible `chat_template_kwargs` object.
+    ///
+    /// Local reasoning backends gate reasoning extraction on this. vLLM's
+    /// `poolside_v1` / `deepseek_v3` parsers install a real reasoning parser
+    /// only when it carries `thinking: true` (Qwen3 spells it
+    /// `enable_thinking`); without it they fall back to an identity parser
+    /// that leaves the chain-of-thought — and a stray `</think>` — in
+    /// `content`, where it is stored and re-fed as history forever.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub chat_template_kwargs: Option<serde_json::Value>,
 
     /// custom headers
     #[serde(skip)]
@@ -127,6 +138,7 @@ impl ChatCompletionRequest {
             search_parameters: None,
             response_format: None,
             reasoning_effort: None,
+            chat_template_kwargs: None,
             x_axon_conv_id: None,
             x_axon_req_id: None,
             x_axon_session_id: None,
@@ -153,6 +165,7 @@ impl ChatCompletionRequest {
             search_parameters: None,
             response_format: None,
             reasoning_effort: None,
+            chat_template_kwargs: None,
             x_axon_conv_id: None,
             x_axon_req_id: None,
             x_axon_session_id: None,
@@ -1052,6 +1065,15 @@ pub struct SamplingConfig {
     /// API request body so the upstream emits per-chunk argument deltas.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stream_tool_calls: Option<bool>,
+    /// Extra kwargs for the server's chat template (see
+    /// [`ChatCompletionRequest::chat_template_kwargs`]).
+    ///
+    /// Carried here because the session rebuilds the full sampler config from
+    /// this struct on every turn. Dropping it at this hop silently disables
+    /// reasoning separation for the main agent loop while leaving it working
+    /// for auxiliary clients, which is exactly how it first went unnoticed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub chat_template_kwargs: Option<serde_json::Value>,
 }
 
 // ============ Responses API wrapper ============
@@ -1517,5 +1539,36 @@ mod tests {
         let inner: &dyn TraceContext = &*cloned_trace;
         let downcast = inner.as_any().downcast_ref::<TestTrace>().unwrap();
         assert_eq!(downcast.0, "trace-data");
+    }
+
+    /// `SamplingConfig` is what the session persists in chat state and rebuilds
+    /// the full sampler config from on every turn, so the kwargs must survive a
+    /// serde round-trip. They were originally dropped at exactly this hop,
+    /// which left reasoning separation working for auxiliary clients (session
+    /// titles) and silently broken for the main agent loop.
+    #[test]
+    fn sampling_config_round_trips_chat_template_kwargs() {
+        let config = SamplingConfig {
+            base_url: "http://127.0.0.1:8000/v1".to_string(),
+            model: "laguna".to_string(),
+            max_completion_tokens: None,
+            temperature: None,
+            top_p: None,
+            api_backend: ApiBackend::ChatCompletions,
+            extra_headers: indexmap::IndexMap::new(),
+            context_window: NonZeroU64::new(262_144).unwrap(),
+            reasoning_effort: None,
+            stream_tool_calls: None,
+            chat_template_kwargs: Some(serde_json::json!({ "thinking": true })),
+        };
+
+        let restored: SamplingConfig =
+            serde_json::from_str(&serde_json::to_string(&config).unwrap()).unwrap();
+
+        assert_eq!(
+            restored.chat_template_kwargs,
+            Some(serde_json::json!({ "thinking": true })),
+            "kwargs must survive the chat-state round-trip",
+        );
     }
 }

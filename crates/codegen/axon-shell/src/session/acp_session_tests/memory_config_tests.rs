@@ -107,6 +107,7 @@ async fn create_test_actor_with_memory(
                 .expect("test context_window must be non-zero"),
             reasoning_effort: None,
             stream_tool_calls: None,
+            chat_template_kwargs: None,
         },
         Box::new(axon_chat_state::NullChatPersistence),
         chat_event_tx,

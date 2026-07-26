@@ -72,6 +72,18 @@ pub struct SamplerConfig {
     // Reasoning effort
     pub reasoning_effort: Option<ReasoningEffort>,
 
+    /// Extra kwargs for the server's chat template, forwarded verbatim as
+    /// `chat_template_kwargs` on every request. Set per model in config.toml.
+    ///
+    /// Local reasoning backends gate reasoning extraction on this: vLLM's
+    /// `poolside_v1` / `deepseek_v3` parsers only install a real reasoning
+    /// parser when it carries `thinking: true` (Qwen3 spells it
+    /// `enable_thinking`). Without it they fall back to an identity parser,
+    /// so the chain-of-thought stays in `content` and is re-fed as history
+    /// on every subsequent turn.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub chat_template_kwargs: Option<serde_json::Value>,
+
     // Client identity
     pub origin_client: Option<OriginClientInfo>,
     pub client_identifier: Option<String>,
@@ -146,6 +158,7 @@ impl Default for SamplerConfig {
             stream_tool_calls: false,
             idle_timeout_secs: None,
             reasoning_effort: None,
+            chat_template_kwargs: None,
             origin_client: None,
             client_identifier: None,
             deployment_id: None,

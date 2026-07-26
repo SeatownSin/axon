@@ -316,6 +316,7 @@ struct ClientDefaults {
     auth_scheme: AuthScheme,
     stream_tool_calls: bool,
     doom_loop_recovery: Option<axon_sampling_types::DoomLoopRecoveryPolicy>,
+    chat_template_kwargs: Option<serde_json::Value>,
 }
 
 // =============================================================================
@@ -563,6 +564,7 @@ impl SamplingClient {
             auth_scheme: config.auth_scheme,
             stream_tool_calls: config.stream_tool_calls,
             doom_loop_recovery: config.doom_loop_recovery,
+            chat_template_kwargs: config.chat_template_kwargs,
         };
 
         Ok(Self {
@@ -756,6 +758,10 @@ impl SamplingClient {
 
         if request.top_p.is_none() {
             request.top_p = self.defaults.top_p;
+        }
+
+        if request.chat_template_kwargs.is_none() {
+            request.chat_template_kwargs = self.defaults.chat_template_kwargs.clone();
         }
 
         Ok(request)
@@ -1948,6 +1954,7 @@ mod tests {
             stream_tool_calls: false,
             idle_timeout_secs: None,
             reasoning_effort: None,
+            chat_template_kwargs: None,
             origin_client: None,
             client_identifier: None,
             deployment_id: None,
@@ -1961,6 +1968,63 @@ mod tests {
             doom_loop_recovery: None,
             header_injector: None,
         }
+    }
+
+    /// `chat_template_kwargs` reaches the wire from the per-model config.
+    ///
+    /// Local reasoning backends gate reasoning extraction on this: vLLM's
+    /// `poolside_v1` parser installs an identity parser without it, which
+    /// leaves the chain-of-thought and a stray `</think>` in `content`, where
+    /// they are stored and re-fed as history on every later turn.
+    #[test]
+    fn chat_template_kwargs_is_applied_from_config() {
+        let mut config = minimal_config();
+        config.chat_template_kwargs = Some(serde_json::json!({ "thinking": true }));
+        let client = SamplingClient::new(config).expect("client");
+
+        let request =
+            ChatCompletionRequest::new("test-model", vec![ChatRequestMessage::user("hi")]);
+        let applied = client.apply_defaults(request).expect("defaults");
+
+        assert_eq!(
+            applied.chat_template_kwargs,
+            Some(serde_json::json!({ "thinking": true })),
+        );
+    }
+
+    /// A value already on the request wins; the config value is only a default.
+    #[test]
+    fn chat_template_kwargs_request_value_wins() {
+        let mut config = minimal_config();
+        config.chat_template_kwargs = Some(serde_json::json!({ "thinking": true }));
+        let client = SamplingClient::new(config).expect("client");
+
+        let mut request =
+            ChatCompletionRequest::new("test-model", vec![ChatRequestMessage::user("hi")]);
+        request.chat_template_kwargs = Some(serde_json::json!({ "thinking": false }));
+        let applied = client.apply_defaults(request).expect("defaults");
+
+        assert_eq!(
+            applied.chat_template_kwargs,
+            Some(serde_json::json!({ "thinking": false })),
+        );
+    }
+
+    /// Absent by default, so providers that reject unknown body fields are
+    /// unaffected until a model opts in.
+    #[test]
+    fn chat_template_kwargs_is_omitted_when_unset() {
+        let client = SamplingClient::new(minimal_config()).expect("client");
+        let request =
+            ChatCompletionRequest::new("test-model", vec![ChatRequestMessage::user("hi")]);
+        let applied = client.apply_defaults(request).expect("defaults");
+
+        assert_eq!(applied.chat_template_kwargs, None);
+        let wire = serde_json::to_value(&applied).expect("serialize");
+        assert!(
+            wire.get("chat_template_kwargs").is_none(),
+            "unset kwargs must not appear on the wire: {wire}",
+        );
     }
 
     /// The Axon-infrastructure block is absolute: construction fails for
@@ -2023,6 +2087,7 @@ mod tests {
             search_parameters: None,
             response_format: None,
             reasoning_effort: None,
+            chat_template_kwargs: None,
             x_axon_conv_id: None,
             x_axon_req_id: None,
             x_axon_session_id: None,

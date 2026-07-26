@@ -962,6 +962,7 @@ async fn read_parent_sampling_config(
                     .model_compaction_at_tokens(ctx.model_id.0.as_ref()),
                 doom_loop_recovery: ctx.sampling_config.doom_loop_recovery,
                 header_injector: ctx.sampling_config.header_injector.clone(),
+                chat_template_kwargs: cfg.chat_template_kwargs.clone(),
             };
             let model_id = ctx.model_id.clone();
             let global_model_id = ctx.models_manager.current_model_id();

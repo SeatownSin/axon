@@ -3624,6 +3624,9 @@ pub struct ConfigModelOverride {
     pub compaction_at_tokens: Option<CompactionAtTokens>,
     pub show_model_fingerprint: Option<bool>,
     pub stream_tool_calls: Option<bool>,
+    /// `chat_template_kwargs = { thinking = true }` in a `[model.<id>]` table.
+    /// Forwarded verbatim on every request to this model.
+    pub chat_template_kwargs: Option<serde_json::Value>,
 }
 impl ConfigModelOverride {
     pub(crate) fn apply(
@@ -3715,6 +3718,12 @@ impl ConfigModelOverride {
         if self.stream_tool_calls.is_some() {
             entry.info.stream_tool_calls = self.stream_tool_calls;
         }
+        if self.chat_template_kwargs.is_some() {
+            entry
+                .info
+                .chat_template_kwargs
+                .clone_from(&self.chat_template_kwargs);
+        }
         if self.api_key.is_some() {
             entry.api_key.clone_from(&self.api_key);
         }
@@ -3775,6 +3784,12 @@ pub struct ModelInfo {
     /// Per-chunk idle timeout for inference streaming (see `ModelEntryConfig`).
     pub inference_idle_timeout_secs: Option<u64>,
     pub max_retries: Option<u32>,
+    /// Extra kwargs for the server's chat template, forwarded verbatim as
+    /// `chat_template_kwargs` on every request to this model. See
+    /// [`SamplerConfig::chat_template_kwargs`] for why local reasoning
+    /// backends need it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub chat_template_kwargs: Option<serde_json::Value>,
     /// Never show in picker (any auth). See also `supported_in_api`.
     pub hidden: bool,
     /// May the user select this model for normal chat? Derived from
@@ -3841,6 +3856,7 @@ impl ModelInfo {
             show_model_fingerprint: false,
             stream_tool_calls: None,
             laziness_detector: LazinessDetectorPerModelConfig::default(),
+            chat_template_kwargs: None,
         }
     }
     /// Extract shared model metadata from a flat config entry.
@@ -3879,6 +3895,7 @@ impl ModelInfo {
             show_model_fingerprint: entry.show_model_fingerprint,
             stream_tool_calls: entry.stream_tool_calls,
             laziness_detector: entry.laziness_detector.clone(),
+            chat_template_kwargs: None,
         }
     }
     /// Derive the legacy effort gate/default from `reasoning_efforts` so the
@@ -4585,6 +4602,7 @@ pub fn resolve_aux_model_sampling_config(
                 show_model_fingerprint: false,
                 stream_tool_calls: None,
                 laziness_detector: LazinessDetectorPerModelConfig::default(),
+                chat_template_kwargs: None,
             },
             api_key: Some(bearer),
             env_key: None,
@@ -4699,6 +4717,7 @@ pub fn sampling_config_for_model(
         context_window: info.context_window.get(),
         client_version,
         reasoning_effort: info.reasoning_effort,
+        chat_template_kwargs: info.chat_template_kwargs.clone(),
         force_http1: false,
         max_retries: info.max_retries,
         stream_tool_calls: info.stream_tool_calls.unwrap_or(false),
@@ -4810,6 +4829,7 @@ fn resolve_hidden_default_web_search_sampling_config(
             show_model_fingerprint: false,
             stream_tool_calls: None,
             laziness_detector: LazinessDetectorPerModelConfig::default(),
+            chat_template_kwargs: None,
         },
         api_key: None,
         env_key: None,
@@ -5464,6 +5484,7 @@ reasoning_effort = "low"
                 show_model_fingerprint: false,
                 stream_tool_calls: None,
                 laziness_detector: LazinessDetectorPerModelConfig::default(),
+                chat_template_kwargs: None,
             },
             api_key: api_key.map(|s| s.to_string()),
             env_key: env_key.map(EnvKeys::single),
@@ -10644,6 +10665,7 @@ default = "axon-4.5"
                 laziness_detector: LazinessDetectorPerModelConfig::default(),
                 auto_compact_threshold_percent: None,
                 system_prompt_label: None,
+                chat_template_kwargs: None,
             },
             api_key: None,
             env_key: None,

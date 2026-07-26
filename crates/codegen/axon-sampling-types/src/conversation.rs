@@ -2122,6 +2122,9 @@ impl From<ConversationRequest> for ChatCompletionRequest {
             search_parameters: None,
             response_format,
             reasoning_effort: req.reasoning_effort,
+            // Not carried on the Responses-API request; the sampler fills it
+            // in from the per-model default before the request goes out.
+            chat_template_kwargs: None,
             x_axon_conv_id: req.x_axon_conv_id,
             x_axon_req_id: req.x_axon_req_id,
             x_axon_session_id: req.x_axon_session_id,

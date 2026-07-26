@@ -106,6 +106,7 @@ async fn test_e2e_idle_resume_refreshes_model_metadata() {
                     context_window: std::num::NonZeroU64::new(200_000).unwrap(),
                     reasoning_effort: None,
                     stream_tool_calls: None,
+                    chat_template_kwargs: None,
                 },
                 Box::new(axon_chat_state::NullChatPersistence),
                 chat_event_tx,
