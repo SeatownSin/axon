@@ -104,7 +104,7 @@ irm https://raw.githubusercontent.com/SeatownSin/axon/main/crates/codegen/axon-p
 ```
 
 Both scripts download from this repo's GitHub Releases and touch no xAI
-infrastructure. Pass a version to pin one (`... | bash -s 0.3.1`); set
+infrastructure. Pass a version to pin one (`... | bash -s 0.3.2`); set
 `AXON_BIN_DIR` to install elsewhere. Or just grab the asset for your platform
 and put it on your `PATH` — it is a single static binary named
 `axon-<version>-<os>-<arch>`.

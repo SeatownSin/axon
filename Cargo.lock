@@ -1695,7 +1695,7 @@ dependencies = [
 
 [[package]]
 name = "axon-pager"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "agent-client-protocol",
  "ansi-to-tui",
@@ -1784,7 +1784,7 @@ dependencies = [
 
 [[package]]
 name = "axon-pager-bin"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "anyhow",
  "axon-acp-lib",
@@ -2103,7 +2103,7 @@ dependencies = [
 
 [[package]]
 name = "axon-shell"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "agent-client-protocol",
  "anyhow",
@@ -2611,7 +2611,7 @@ dependencies = [
 
 [[package]]
 name = "axon-version"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "semver",
 ]
