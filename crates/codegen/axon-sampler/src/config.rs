@@ -77,10 +77,15 @@ pub struct SamplerConfig {
     ///
     /// Local reasoning backends gate reasoning extraction on this: vLLM's
     /// `poolside_v1` / `deepseek_v3` parsers only install a real reasoning
-    /// parser when it carries `thinking: true` (Qwen3 spells it
-    /// `enable_thinking`). Without it they fall back to an identity parser,
-    /// so the chain-of-thought stays in `content` and is re-fed as history
-    /// on every subsequent turn.
+    /// parser when it carries `enable_thinking: true` (or the `thinking`
+    /// alias). Without it they fall back to an identity parser, so the
+    /// chain-of-thought stays in `content` and is re-fed as history on every
+    /// subsequent turn.
+    ///
+    /// Prefer `enable_thinking`: vLLM derives that same key from
+    /// `reasoning_effort` unless the caller already set it, so the `thinking`
+    /// spelling lets a per-agent `effort: none` contradict this setting and
+    /// produce empty answers.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub chat_template_kwargs: Option<serde_json::Value>,
 

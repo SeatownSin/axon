@@ -3624,8 +3624,23 @@ pub struct ConfigModelOverride {
     pub compaction_at_tokens: Option<CompactionAtTokens>,
     pub show_model_fingerprint: Option<bool>,
     pub stream_tool_calls: Option<bool>,
-    /// `chat_template_kwargs = { thinking = true }` in a `[model.<id>]` table.
-    /// Forwarded verbatim on every request to this model.
+    /// `chat_template_kwargs = { enable_thinking = true }` in a `[model.<id>]`
+    /// table. Forwarded verbatim on every request to this model.
+    ///
+    /// Prefer the `enable_thinking` spelling over `thinking`. vLLM injects its
+    /// own value derived from `reasoning_effort`, but only when the caller did
+    /// not already supply that exact key:
+    ///
+    /// ```text
+    /// if reasoning_effort is not None and "enable_thinking" not in user_kwargs:
+    ///     extra_kwargs["enable_thinking"] = reasoning_effort != "none"
+    /// ```
+    ///
+    /// So with `thinking`, an agent declaring `effort: none` makes the server
+    /// add `enable_thinking=false` alongside it; the template gets a
+    /// contradiction and the model emits reasoning and then stops, returning an
+    /// empty answer (reproduced 4/4 against Laguna). `enable_thinking` makes
+    /// this setting authoritative regardless of per-agent effort.
     pub chat_template_kwargs: Option<serde_json::Value>,
 }
 impl ConfigModelOverride {
