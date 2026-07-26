@@ -620,7 +620,9 @@ mod win {
             }
 
             let signal = exception_to_signal(exception_code);
-            let si_code = exception_code as i32;
+            // `ExceptionCode` is already an NTSTATUS (i32), matching the
+            // libc `si_code` the Unix arm passes to the same writer.
+            let si_code = exception_code;
 
             // ExceptionInformation[1] holds the faulting address for ACCESS_VIOLATION.
             let si_addr = if exception_code == EXCEPTION_ACCESS_VIOLATION

@@ -70,8 +70,17 @@ jobs:
       - run: cargo check --workspace --all-targets
 
   clippy:
-    name: clippy
-    runs-on: ubuntu-latest
+    name: clippy ${{ matrix.label }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { label: linux, runner: ubuntu-latest }
+          # Same reasoning as `check`: `#[cfg(not(unix))]` code is invisible to
+          # a linux-only clippy, so Windows-only paths went unlinted entirely.
+          # That is most of the Windows-support code this fork exists for.
+          - { label: windows, runner: windows-2022 }
     steps:
       - uses: actions/checkout@v5
 
