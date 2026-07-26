@@ -84,8 +84,9 @@ pub struct SamplerConfig {
     ///
     /// Prefer `enable_thinking`: vLLM derives that same key from
     /// `reasoning_effort` unless the caller already set it, so the `thinking`
-    /// spelling lets a per-agent `effort: none` contradict this setting and
-    /// produce empty answers.
+    /// spelling lets a `reasoning_effort = "none"` (settable on a model, role
+    /// or persona in config.toml) contradict this setting and produce empty
+    /// answers. Agent frontmatter cannot express `none`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub chat_template_kwargs: Option<serde_json::Value>,
 

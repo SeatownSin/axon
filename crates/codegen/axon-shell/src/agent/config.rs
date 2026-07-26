@@ -3636,11 +3636,16 @@ pub struct ConfigModelOverride {
     ///     extra_kwargs["enable_thinking"] = reasoning_effort != "none"
     /// ```
     ///
-    /// So with `thinking`, an agent declaring `effort: none` makes the server
-    /// add `enable_thinking=false` alongside it; the template gets a
-    /// contradiction and the model emits reasoning and then stops, returning an
-    /// empty answer (reproduced 4/4 against Laguna). `enable_thinking` makes
-    /// this setting authoritative regardless of per-agent effort.
+    /// So with `thinking`, a `reasoning_effort = "none"` makes the server add
+    /// `enable_thinking=false` alongside it; the template gets a contradiction
+    /// and the model emits reasoning and then stops, returning an empty answer
+    /// (reproduced 4/4 against Laguna). `enable_thinking` makes this setting
+    /// authoritative instead.
+    ///
+    /// Narrow in practice: only `reasoning_effort` set explicitly on a model,
+    /// role or persona in config.toml can be `"none"`. Agent frontmatter
+    /// cannot — `axon_agent::config::Effort` has no such variant (low, medium,
+    /// high, xhigh, max).
     pub chat_template_kwargs: Option<serde_json::Value>,
 }
 impl ConfigModelOverride {
