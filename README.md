@@ -160,7 +160,18 @@ default = "local"                       # make it the default for new sessions
 
 For a non-loopback server that also needs no auth, set `no_auth = true`. For a
 keyed provider (OpenAI, Anthropic, …), set `api_key`/`env_key` and `base_url` as
-usual. Full details:
+usual.
+
+If the server hosts a **reasoning** model, it may need to be told to separate
+the chain-of-thought from the answer — vLLM's reasoning parsers stay inert
+otherwise, leaving the reasoning inside `content` where it is stored and re-sent
+as history on every later turn:
+
+```toml
+chat_template_kwargs = { enable_thinking = true }
+```
+
+Full details:
 [`docs/user-guide/11-custom-models.md`](crates/codegen/axon-pager/docs/user-guide/11-custom-models.md).
 
 ## Updates

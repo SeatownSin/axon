@@ -114,6 +114,25 @@ server.
 
 The `context_window` value tells Axon when to trigger auto-compaction. When you override a known model, Axon inherits that model's context window. When you define a new model and omit `context_window`, Axon defaults to 200,000 tokens, so set it explicitly to match your provider.
 
+### Chat Template Kwargs
+
+Some local reasoning backends only separate the model's chain-of-thought from its answer when the request asks them to. vLLM's `poolside_v1` and `deepseek_v3` reasoning parsers install a real parser **only** when the request carries `enable_thinking` (or the `thinking` alias) in `chat_template_kwargs`; without it they fall back to an identity parser that leaves the whole chain-of-thought -- and a stray `</think>` -- in the assistant's `content`.
+
+That matters more than the stray tag. Reasoning left in `content` is written to the transcript and re-sent as conversation history on every later turn, while reasoning returned in its own field is dropped by the chat template. On one local 120B model, the same conversation rendered at 1,437 tokens with the chain-of-thought inline versus 153 tokens with it separated -- identical to deleting it outright.
+
+```toml
+[model.my-local-reasoner]
+model = "my-model"
+base_url = "http://127.0.0.1:8000/v1"
+no_auth = true
+context_window = 262144
+chat_template_kwargs = { enable_thinking = true }
+```
+
+The table is forwarded verbatim as the OpenAI-compatible `chat_template_kwargs` request field, and is omitted entirely when unset, so providers that reject unknown body fields are unaffected until a model opts in. Different backends spell the key differently -- Qwen3 uses `enable_thinking`, poolside and deepseek accept either that or `thinking` -- which is why this is a free-form table rather than a fixed flag.
+
+Prefer `enable_thinking` to the `thinking` alias. vLLM derives that same key from `reasoning_effort` when the caller has not already set it, so with the alias a `reasoning_effort = "none"` configured on a model, role or persona contradicts this setting: the model emits its reasoning and then stops, returning an empty answer.
+
 ### Global Default Headers
 
 To apply the same headers to *every* model in the catalog -- built-in, prefetched from `/v1/models`, or custom -- set them once under the global `[models]` section instead of repeating them per model:
