@@ -17,6 +17,7 @@ use axon_sampling_types::{
 
 use crate::events::{SamplingChannel, SamplingErrorInfo, SamplingEvent};
 use crate::metrics::InferenceLatencyStats;
+use crate::tail_repetition::{CHANNEL_RESPONSE, CHANNEL_THINKING, TailRepetitionWatch};
 use crate::types::RequestId;
 
 /// Returns whether a Messages API event reflects real model progress
@@ -87,6 +88,16 @@ pub fn stream_messages<'a>(
         }
 
         // Per-block accumulators keyed by content block index.
+        // Client-side degeneration watch. Like Chat Completions, this backend
+        // has no server-side doom-loop contract, so detection is local and
+        // report-only -- `run_one_attempt` passes no policy here, so a
+        // detection can never fail the attempt. Observed per content block:
+        // stuck generation repeats within one block rather than emitting the
+        // block boundaries that would reset the accumulator.
+        let mut text_watch = TailRepetitionWatch::default();
+        let mut reasoning_watch = TailRepetitionWatch::default();
+        let mut doom_loop_signals = Vec::new();
+
         let mut blocks: BTreeMap<u32, BlockState> = BTreeMap::new();
 
         // Final-message-level accumulators
@@ -250,6 +261,11 @@ pub fn stream_messages<'a>(
                             StreamDelta::ThinkingDelta { thinking } => {
                                 if !thinking.is_empty() {
                                     state.thinking_acc.push_str(&thinking);
+                                    if let Some(signal) =
+                                        reasoning_watch.observe(&state.thinking_acc, CHANNEL_THINKING)
+                                    {
+                                        doom_loop_signals.push(signal);
+                                    }
                                     if !first_token_emitted {
                                         first_token_emitted = true;
                                         yield SamplingEvent::FirstToken {
@@ -271,6 +287,11 @@ pub fn stream_messages<'a>(
                             StreamDelta::TextDelta { text } => {
                                 if !text.is_empty() {
                                     state.text_acc.push_str(&text);
+                                    if let Some(signal) =
+                                        text_watch.observe(&state.text_acc, CHANNEL_RESPONSE)
+                                    {
+                                        doom_loop_signals.push(signal);
+                                    }
                                     if !first_token_emitted {
                                         first_token_emitted = true;
                                         yield SamplingEvent::FirstToken {
@@ -506,6 +527,16 @@ pub fn stream_messages<'a>(
         let metrics =
             InferenceLatencyStats::from_timestamps(stream_start, &chunk_timestamps, stream_end);
 
+        // Raw labels only -- never the repeated text itself, which would put
+        // response content into the logs.
+        if !doom_loop_signals.is_empty() {
+            tracing::warn!(
+                request_id = %request_id,
+                triggers = ?doom_loop_signals.iter().map(|s| s.raw.as_str()).collect::<Vec<_>>(),
+                "client detected a repeating tail in this response"
+            );
+        }
+
         let response = ConversationResponse {
             items,
             stop_reason,
@@ -513,7 +544,7 @@ pub fn stream_messages<'a>(
             // Anthropic Messages API carries no cost on the wire.
             cost_usd_ticks: None,
             message_chunks_emitted: message_chunk_count,
-            doom_loop_signals: Vec::new(),
+            doom_loop_signals,
             stop_message: final_stop_message,
         };
 

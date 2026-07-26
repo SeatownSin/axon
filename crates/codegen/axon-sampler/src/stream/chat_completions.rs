@@ -16,6 +16,7 @@ use axon_sampling_types::{
 
 use crate::events::{SamplingChannel, SamplingErrorInfo, SamplingEvent};
 use crate::metrics::InferenceLatencyStats;
+use crate::tail_repetition::{CHANNEL_RESPONSE, CHANNEL_THINKING, TailRepetitionWatch};
 use crate::types::RequestId;
 
 /// Transform a raw Chat Completions chunk stream into a stream of
@@ -56,6 +57,15 @@ pub fn stream_chat_completions<'a>(
                 metadata,
             };
         }
+
+        // Client-side degeneration watch. This backend gets no server-side
+        // doom-loop check (that contract exists only on `/v1/responses`), so
+        // detection is local. Report-only: the signals ride along on the
+        // response and are logged, but `run_one_attempt` passes no policy for
+        // this backend, so they can never fail the attempt.
+        let mut text_watch = TailRepetitionWatch::default();
+        let mut reasoning_watch = TailRepetitionWatch::default();
+        let mut doom_loop_signals = Vec::new();
 
         // Per-response accumulators
         let mut first_chunk_seen = false;
@@ -166,6 +176,9 @@ pub fn stream_chat_completions<'a>(
                     chunk_index += 1;
                     message_chunk_count += 1;
                     content_acc.push_str(&text);
+                    if let Some(signal) = text_watch.observe(&content_acc, CHANNEL_RESPONSE) {
+                        doom_loop_signals.push(signal);
+                    }
                     yield SamplingEvent::ChannelToken {
                         request_id: request_id.clone(),
                         channel: SamplingChannel::Text,
@@ -186,6 +199,9 @@ pub fn stream_chat_completions<'a>(
                     chunk_has_content = true;
                     chunk_index += 1;
                     reasoning_acc.push_str(&thought);
+                    if let Some(signal) = reasoning_watch.observe(&reasoning_acc, CHANNEL_THINKING) {
+                        doom_loop_signals.push(signal);
+                    }
                     yield SamplingEvent::ChannelToken {
                         request_id: request_id.clone(),
                         channel: SamplingChannel::Reasoning,
@@ -284,13 +300,23 @@ pub fn stream_chat_completions<'a>(
         let metrics =
             InferenceLatencyStats::from_timestamps(stream_start, &chunk_timestamps, stream_end);
 
+        // Raw labels only -- never the repeated text itself, which would put
+        // response content into the logs.
+        if !doom_loop_signals.is_empty() {
+            tracing::warn!(
+                request_id = %request_id,
+                triggers = ?doom_loop_signals.iter().map(|s| s.raw.as_str()).collect::<Vec<_>>(),
+                "client detected a repeating tail in this response"
+            );
+        }
+
         let response = ConversationResponse {
             items,
             stop_reason: finish_reason,
             usage,
             cost_usd_ticks,
             message_chunks_emitted: message_chunk_count,
-            doom_loop_signals: Vec::new(),
+            doom_loop_signals,
             stop_message: None,
         };
 
@@ -377,6 +403,76 @@ mod tests {
         match &events[1] {
             SamplingEvent::Completed { response, .. } => {
                 assert!(response.is_empty());
+            }
+            other => panic!("expected Completed, got {other:?}"),
+        }
+    }
+
+    /// A degenerate stream is reported on the response but does NOT change the
+    /// outcome: the attempt still completes, carrying whatever text arrived.
+    /// `run_one_attempt` passes no doom policy for this backend, so these
+    /// signals cannot reach the abort path.
+    #[tokio::test]
+    async fn repeating_tail_is_reported_without_failing_the_attempt() {
+        let mut chunks: Vec<Result<ChatCompletionChunk, SamplingError>> =
+            (0..400).map(|_| Ok(text_chunk("</think>"))).collect();
+        chunks.push(Ok(final_chunk(FinishReason::Stop)));
+        let raw = stream::iter(chunks).boxed();
+        let events = collect(stream_chat_completions(
+            raw,
+            None,
+            rid(),
+            Duration::from_secs(60),
+        ))
+        .await;
+
+        match events.last().expect("at least one event") {
+            SamplingEvent::Completed { response, .. } => {
+                assert_eq!(
+                    response.doom_loop_signals.len(),
+                    1,
+                    "exactly one signal, reported once"
+                );
+                let signal = &response.doom_loop_signals[0];
+                assert!(matches!(
+                    signal.kind,
+                    axon_sampling_types::doom_loop::DoomLoopSignalKind::TailRepetition(_)
+                ));
+                assert_eq!(signal.channel, "response");
+                assert_eq!(
+                    response.stop_reason,
+                    Some(StopReason::Stop),
+                    "reporting must not alter the stop reason"
+                );
+                assert!(!response.is_empty(), "the text still reaches the caller");
+            }
+            other => panic!("expected Completed, got {other:?}"),
+        }
+    }
+
+    /// Healthy output must leave the response completely untouched.
+    #[tokio::test]
+    async fn healthy_stream_reports_no_signals() {
+        let mut chunks: Vec<Result<ChatCompletionChunk, SamplingError>> = (0..400)
+            .map(|i| Ok(text_chunk(&format!("sentence number {i}. "))))
+            .collect();
+        chunks.push(Ok(final_chunk(FinishReason::Stop)));
+        let raw = stream::iter(chunks).boxed();
+        let events = collect(stream_chat_completions(
+            raw,
+            None,
+            rid(),
+            Duration::from_secs(60),
+        ))
+        .await;
+
+        match events.last().expect("at least one event") {
+            SamplingEvent::Completed { response, .. } => {
+                assert!(
+                    response.doom_loop_signals.is_empty(),
+                    "healthy prose must not be flagged: {:?}",
+                    response.doom_loop_signals
+                );
             }
             other => panic!("expected Completed, got {other:?}"),
         }
