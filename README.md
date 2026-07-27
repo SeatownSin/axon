@@ -54,6 +54,13 @@ servers, and adds first-class support for local models. The changes:
   [Configuring a local model](#configuring-a-local-model).
 - **Grok models hidden.** The xAI-hosted default models are hidden from the
   picker (they're unusable here); your local/BYOK models are all that show.
+- **Degeneration is detected locally.** Upstream's loop detection is a *server*
+  feature reported only on xAI's streaming Responses endpoint — unreachable in
+  this fork, and unimplemented by any local server. Axon now spots a repeating
+  tail itself on the Chat Completions and Messages paths and reports it on the
+  response and in the log. It only reports: it never fails or retries a request,
+  because a false positive would discard a good response and a true one can mask
+  its own cause.
 - **Rebranded as Axon.** The welcome screen (a new mark), model picker,
   notifications, and theme names carry the Axon identity — no `grok`/`xAI`
   branding is shown in the UI. The bundled themes are **Axon Night** (a cerebral
@@ -74,9 +81,10 @@ servers, and adds first-class support for local models. The changes:
 - **Updates from this repo.** `axon update` pulls GitHub Releases from
   `SeatownSin/axon`, not the x.ai CDN.
 
-The inference request path itself is unchanged and provider-neutral (OpenAI
-Chat Completions / Responses, or Anthropic Messages) — only *where* it is
-allowed to connect changed.
+The inference request path stays provider-neutral (OpenAI Chat Completions /
+Responses, or Anthropic Messages); what changed is *where* it may connect, plus
+one optional per-model addition — `chat_template_kwargs`, sent only when a model
+opts in, so providers that reject unknown body fields are unaffected.
 
 > **The plugin marketplace ships pointing at nobody.** Upstream hardcoded
 > `github.com/xai-org/plugin-marketplace` as the "official" source, registered
@@ -195,7 +203,13 @@ PROTOC=/path/to/protoc cargo test -p axon-shell --lib
 ```
 
 Working from a Windows checkout over `/mnt`? Point `CARGO_TARGET_DIR` at a
-Linux-native path — building onto the 9p mount is dramatically slower.
+Linux-native path — building onto the 9p mount is dramatically slower. That
+target directory grows without bound; clear it occasionally.
+
+On Windows, `cargo test` additionally needs **NASM** on `PATH`: a dev-dependency
+pulls in `aws-lc-sys`, whose build script assembles with it and otherwise fails
+with *"NASM command not found"*. Ordinary builds are unaffected — this bites
+only test runs, and only once the cached artifact is invalidated.
 
 A `.gitattributes` pins LF line endings so a Windows checkout doesn't break the
 pinned-copy template tests.
@@ -227,9 +241,12 @@ cargo clippy -p <crate>    # lint config: clippy.toml at the repo root
 cargo fmt --all            # rustfmt.toml at the repo root
 ```
 
-CI runs `fmt`, `clippy`, and `cargo check --workspace --all-targets` on Linux
-**and Windows**, with warnings promoted to errors. To see what it will see
-before you push:
+CI runs `cargo fmt --check` once on Linux, and both `clippy` and
+`cargo check --workspace --all-targets` on Linux **and Windows**, with warnings
+promoted to errors. Windows is in the matrix deliberately: `#[cfg(windows)]` and
+`#[cfg(not(unix))]` code is invisible to a Linux-only run, and that is most of
+this fork's Windows support. To see what CI will see before you push — on both
+platforms, not just one:
 
 ```sh
 RUSTFLAGS="-D warnings" cargo check --workspace --all-targets
