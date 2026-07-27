@@ -15,6 +15,7 @@ fs2 = { workspace = true }
 educe = { workspace = true, features = ["Debug"] }
 async-openai = { workspace = true }
 axon-tty-utils = { workspace = true }
+axon-codebase-graph = { path = "../axon-codebase-graph" }
 axon-config = { path = "../axon-config" }
 axon-tools-api = { path = "../axon-tools-api" }
 axon-workspace-types = { path = "../axon-workspace-types" }

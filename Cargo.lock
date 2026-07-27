@@ -2459,6 +2459,7 @@ dependencies = [
  "async-openai",
  "async-stream",
  "async-trait",
+ "axon-codebase-graph",
  "axon-computer-hub-core",
  "axon-computer-hub-sdk",
  "axon-config",

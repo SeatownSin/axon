@@ -1,4 +1,5 @@
 pub mod client;
+pub mod code_graph_backend;
 pub mod config;
 pub mod dispatch;
 pub mod format;
@@ -9,6 +10,7 @@ mod types;
 #[cfg(test)]
 mod tests;
 
+pub use code_graph_backend::CodeGraphBackend;
 pub use dispatch::LspBackendAdapter;
 pub use manager::{DiagnosticsSummary, LspManager, drain_lsp_diagnostics};
 pub use restart::restart_monitor;
