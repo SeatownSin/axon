@@ -685,11 +685,17 @@ impl ChatChunkDelta {
     /// *both* keys with a `duplicate field` error — turning a silently
     /// dropped thought into a hard stream failure.
     ///
-    /// `reasoning_content` wins if a backend somehow sends both.
+    /// `reasoning_content` wins if a backend somehow sends both — unless it is
+    /// empty, in which case an empty winner would mask a populated `reasoning`
+    /// and silently drop the thought, which is the defect this pair exists to
+    /// fix. Returning `None` for an all-empty delta matches how the caller
+    /// already treats empty reasoning text.
     pub fn take_reasoning(&mut self) -> Option<String> {
+        let vllm = self.reasoning.take().filter(|t| !t.is_empty());
         self.reasoning_content
             .take()
-            .or_else(|| self.reasoning.take())
+            .filter(|t| !t.is_empty())
+            .or(vllm)
     }
 }
 
@@ -1282,6 +1288,38 @@ mod tests {
         }))
         .unwrap();
         assert_eq!(both.take_reasoning().as_deref(), Some("from deepseek"));
+    }
+
+    #[test]
+    fn chunk_delta_empty_reasoning_content_does_not_mask_vllm_spelling() {
+        // A gateway that always emits `reasoning_content`, empty until the
+        // model actually thinks, would otherwise win the preference with ""
+        // and drop the populated `reasoning` alongside it — the caller skips
+        // empty thoughts, so the whole delta would vanish silently.
+        let mut masked: ChatChunkDelta = serde_json::from_value(json!({
+            "reasoning": "Okay, so I need",
+            "reasoning_content": "",
+        }))
+        .unwrap();
+        assert_eq!(masked.take_reasoning().as_deref(), Some("Okay, so I need"));
+
+        // Both empty stays None rather than surfacing an empty thought.
+        let mut empty: ChatChunkDelta = serde_json::from_value(json!({
+            "reasoning": "",
+            "reasoning_content": "",
+        }))
+        .unwrap();
+        assert_eq!(empty.take_reasoning(), None);
+
+        // Either field is drained even when it loses, so a second call on the
+        // same delta cannot re-emit a thought already yielded.
+        let mut once: ChatChunkDelta = serde_json::from_value(json!({
+            "reasoning": "from vllm",
+            "reasoning_content": "from deepseek",
+        }))
+        .unwrap();
+        assert_eq!(once.take_reasoning().as_deref(), Some("from deepseek"));
+        assert_eq!(once.take_reasoning(), None);
     }
 
     #[test]
