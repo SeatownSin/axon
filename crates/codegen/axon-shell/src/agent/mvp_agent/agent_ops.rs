@@ -3321,9 +3321,18 @@ impl MvpAgent {
                 // for references it is exact when it resolves and silently
                 // empty when it does not, so it never reports an empty result
                 // as a fact -- see `lsp::code_graph_backend`.
+                //
+                // `get_or_create_codebase_index` deliberately, rather than a
+                // private index: it returns the same per-cwd actor the ACP
+                // `axon/code/*` methods use and that the filesystem watchers
+                // already send `FileEvent`s to, so the tool reads a live index
+                // instead of a second stale copy of the same 10.7 MB.
                 use axon_tools::implementations::lsp::{CodeGraphBackend, LspBackend};
+                let (index, _newly_spawned) =
+                    self.get_or_create_codebase_index(tool_ctx.cwd.as_path().to_path_buf());
                 let backend = std::sync::Arc::new(CodeGraphBackend::new(
                     tool_ctx.cwd.as_path().to_path_buf(),
+                    index,
                 ));
                 backend.ensure_started_background();
                 tool_ctx.lsp = Some(backend as std::sync::Arc<dyn LspBackend>);
