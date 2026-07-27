@@ -394,6 +394,16 @@ pub fn wire_otel_deployment_key(key: String) {
 /// The credential provider starts in bootstrap mode (disk-read-only).
 /// Call [`wire_otel_auth_manager`] after agent init to upgrade to the
 /// live `AuthManager` with active refresh.
+///
+/// **The returned value is discarded by every caller, and that is expected.**
+/// `otel_layer::build_otel_layer` returns `Identity` -- the first-party span
+/// exporter was removed -- so it drops both of its arguments. This function is
+/// nonetheless called for its **side effect**: setting the `OTEL_PROVIDER`
+/// global, which [`wire_otel_auth_manager`], [`wire_otel_deployment_key`] and
+/// [`sync_external_otel_identity`] all read. Deleting the call as dead code
+/// silently breaks identity attribution on the external (user-configured) OTLP
+/// stream. If this is ever cleaned up properly, move the `OTEL_PROVIDER` setup
+/// to its own function first, then delete the config construction.
 pub fn build_default_otel_layer_config() -> axon_telemetry::otel_layer::OtelLayerConfig {
     let endpoints = crate::agent::config::EndpointsConfig::default();
     let axon_com_config = crate::auth::AxonComConfig::default();

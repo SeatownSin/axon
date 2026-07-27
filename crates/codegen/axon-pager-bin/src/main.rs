@@ -124,6 +124,16 @@ fn init_tracing_simple(app_entrypoint: &'static str) {
         .with(axon_telemetry::sampling_log::layer())
         .with(axon_telemetry::instrumentation::layer())
         .with(axon_telemetry::hooks_log::layer())
+        // `build_otel_layer` returns `Identity` -- the first-party span exporter
+        // is gone, so this layer is inert and both arguments are discarded.
+        //
+        // DO NOT delete the `build_default_otel_layer_config()` call as dead
+        // code. Its *return value* is dead, but it is called for its **side
+        // effect**: it populates the `OTEL_PROVIDER` global, which is live and
+        // consumed by `wire_otel_auth_manager`, `wire_otel_deployment_key` and
+        // `sync_external_otel_identity` (all in `agent/mvp_agent/agent_ops.rs`).
+        // Removing it silently breaks identity attribution on the external
+        // (user-configured) OTLP stream.
         .with(axon_telemetry::otel_layer::build_otel_layer(
             axon_telemetry::otel_layer::OtelClientInfo {
                 client_name: "axon-pager",

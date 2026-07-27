@@ -19,7 +19,7 @@ use crate::agent::mvp_agent::{CodeNavEligibility, MvpAgent};
 use agent_client_protocol as acp;
 use serde::{Deserialize, Serialize};
 
-/// Record a structured telemetry event at the end of a code-nav handler call.
+/// Log timing for a completed code-nav handler call.
 ///
 /// This is called once per request with the method name, triggering session,
 /// cwd, whether the index was newly spawned or reused, and total elapsed time.
@@ -27,7 +27,20 @@ use serde::{Deserialize, Serialize};
 ///  - identify first-use latency (newly spawned + high elapsed_ms)
 ///  - identify reuse latency (reused + low elapsed_ms)
 ///  - attribute slowness to index startup vs query processing
-fn log_code_nav_telemetry(
+///
+/// **Local only.** This is a `tracing` event and nothing more; it reaches the
+/// TUI log pane and, if a debug target is configured, a local file. It was
+/// previously named `log_code_nav_telemetry`, which in this fork reads as an
+/// egress path and cost a full audit to clear -- hence the rename. The internal
+/// span exporter is structurally dead (`otel_layer::build_otel_layer` returns
+/// `Identity`), and the external OTLP stream in `axon-telemetry::external`
+/// installs no tracing layer or bridge, taking records only from explicit typed
+/// `emit_record` calls, so an ordinary tracing event cannot reach a wire.
+///
+/// Note `cwd` is an absolute filesystem path. That is fine while this stays
+/// local, but anything that later forwards code-nav events to the external
+/// stream must gate or omit it -- see `axon-telemetry::external::schema`.
+fn log_code_nav_timing(
     method: &str,
     session_id: Option<&acp::SessionId>,
     cwd: &Path,
@@ -200,7 +213,7 @@ pub async fn handle(
                 )
                 .await
                 .map_err(|e| acp::Error::internal_error().data(format!("code nav error: {e}")))?;
-            log_code_nav_telemetry(
+            log_code_nav_timing(
                 "goto-definition",
                 req.session_id.as_ref(),
                 &cwd,
@@ -229,7 +242,7 @@ pub async fn handle(
                 )
                 .await
                 .map_err(|e| acp::Error::internal_error().data(format!("code nav error: {e}")))?;
-            log_code_nav_telemetry(
+            log_code_nav_timing(
                 "goto-references",
                 req.session_id.as_ref(),
                 &cwd,
@@ -259,7 +272,7 @@ pub async fn handle(
                 )
                 .await
                 .map_err(|e| acp::Error::internal_error().data(format!("code nav error: {e}")))?;
-            log_code_nav_telemetry(
+            log_code_nav_timing(
                 "find-definitions",
                 req.session_id.as_ref(),
                 &cwd,
@@ -289,7 +302,7 @@ pub async fn handle(
                 )
                 .await
                 .map_err(|e| acp::Error::internal_error().data(format!("code nav error: {e}")))?;
-            log_code_nav_telemetry(
+            log_code_nav_timing(
                 "find-references",
                 req.session_id.as_ref(),
                 &cwd,
