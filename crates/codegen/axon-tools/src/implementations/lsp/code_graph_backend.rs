@@ -41,14 +41,41 @@
 //! question as a textual search and those hits are returned instead, labelled
 //! as unresolved. The tool may be imprecise, but it must not assert a negative
 //! it has not established.
+//!
+//! # Staying fresh
+//!
+//! Two independent paths keep the index current, which matters because a stale
+//! index answers a *plausible* wrong location rather than nothing:
+//!
+//! 1. **Filesystem events.** This backend does not own an index; it holds the
+//!    shared per-cwd [`IndexManagerHandle`] from `CodebaseIndexManager`.
+//!    `session/fs_watch.rs` and `axon-workspace/src/fs_notify.rs` already
+//!    translate watcher events into `FileEvent`s and send them to that same
+//!    handle, so edits from any source reindex without this module
+//!    participating. Sharing also halves the memory: one 10.7 MB index serves
+//!    both this tool and the ACP editor client.
+//! 2. **The agent's own search-replace edits.** A watcher only runs for
+//!    sessions that need one, so [`LspBackend::notify_file_changed`] sends a
+//!    `FileEvent::modified` as well. This covers the case that matters most --
+//!    an agent usually asks about code it just changed -- without depending on
+//!    a watcher being configured.
+//!
+//! Note the second path is **narrower than it sounds**:
+//! `reminders::lsp_diagnostics` only calls `notify_file_changed` for
+//! `SearchReplaceOutput::EditsApplied`, so a whole-file write or a newly
+//! created file does not reindex through it. Those depend on path 1, and
+//! without a watcher they stay stale until the next rebuild.
+//!
+//! Both paths are send-and-forget. The actor reindexes on its own thread, so a
+//! query issued immediately after a write may still see the previous revision.
+//! Every one of these gaps degrades the same way -- the index misses, and the
+//! textual scan answers from disk -- which is why the fallback is not optional
+//! garnish but the thing that makes staleness safe.
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use axon_codebase_graph::{
-    IndexBuilder, Location, Navigator, ScopeGraphIndex, get_cache_path, load_index, save_index,
-};
-use tokio::sync::OnceCell;
+use axon_codebase_graph::{FileEvent, IndexManagerHandle, SymbolLocation};
 
 use super::manager::DiagnosticsSummary;
 use super::types::{FileDiagnosticEntry, LspBackend, LspOperation, LspToolInput, LspToolResult};
@@ -63,76 +90,33 @@ const FALLBACK_HIT_LIMIT: usize = 40;
 /// tree-sitter work; this is a sequential substring scan on a fallback path.
 const FALLBACK_FILE_LIMIT: usize = 5_000;
 
+/// Wraps the **shared** [`IndexManagerHandle`] rather than owning an index.
+///
+/// The handle comes from `CodebaseIndexManager`, the same per-cwd actor the ACP
+/// editor client uses, so this backend and `axon/code/*` read one index instead
+/// of two copies of the same 10.7 MB. That sharing is also what keeps results
+/// fresh: `session/fs_watch.rs` and `axon-workspace/src/fs_notify.rs` already
+/// translate filesystem events into `FileEvent`s and `send_event` them to
+/// whichever handle that manager holds. Building a private index here would
+/// have been simpler and would have gone stale on the first edit.
 pub struct CodeGraphBackend {
     root: PathBuf,
-    navigator: Arc<OnceCell<Option<Arc<Navigator>>>>,
+    index: Arc<IndexManagerHandle>,
 }
 
 impl std::fmt::Debug for CodeGraphBackend {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("CodeGraphBackend")
             .field("root", &self.root)
-            .field("indexed", &self.navigator.initialized())
+            .field("files_indexed", &self.index.get_file_count())
             .finish()
     }
 }
 
 impl CodeGraphBackend {
-    pub fn new(root: PathBuf) -> Self {
-        Self {
-            root,
-            navigator: Arc::new(OnceCell::new()),
-        }
+    pub fn new(root: PathBuf, index: Arc<IndexManagerHandle>) -> Self {
+        Self { root, index }
     }
-
-    /// Build or load the index, once. Returns `None` if indexing failed, in
-    /// which case every operation degrades to the textual fallback rather than
-    /// to an error -- a slow correct answer beats a fast unavailable one.
-    async fn navigator(&self) -> Option<Arc<Navigator>> {
-        let root = self.root.clone();
-        self.navigator
-            .get_or_init(|| async move {
-                // Indexing is CPU-bound rayon work and must not run on a
-                // runtime worker.
-                tokio::task::spawn_blocking(move || build_navigator(&root))
-                    .await
-                    .unwrap_or_else(|e| {
-                        tracing::warn!(error = %e, "code-graph index task panicked");
-                        None
-                    })
-            })
-            .await
-            .clone()
-    }
-}
-
-fn build_navigator(root: &Path) -> Option<Arc<Navigator>> {
-    let cache_path = get_cache_path(root);
-    let index: ScopeGraphIndex = match load_index(&cache_path) {
-        Ok(index) => index,
-        Err(_) => {
-            let started = std::time::Instant::now();
-            let index = match IndexBuilder::new().build(root) {
-                Ok(index) => index,
-                Err(e) => {
-                    tracing::warn!(error = %e, root = %root.display(), "code-graph index build failed");
-                    return None;
-                }
-            };
-            if let Err(e) = save_index(&cache_path, &index) {
-                // A cache we could not write costs a rebuild next session, not
-                // correctness.
-                tracing::debug!(error = %e, "code-graph index cache write failed");
-            }
-            tracing::info!(
-                root = %root.display(),
-                elapsed_ms = started.elapsed().as_millis(),
-                "code-graph index built"
-            );
-            index
-        }
-    };
-    Some(Arc::new(Navigator::new(index)))
 }
 
 /// Word-boundary literal scan, used when the index resolves nothing.
@@ -140,7 +124,7 @@ fn build_navigator(root: &Path) -> Option<Arc<Navigator>> {
 /// Deliberately dumb: it matches the symbol as a whole word and reports every
 /// hit. That is grep's failure mode -- visible noise -- which is the one this
 /// module is willing to accept.
-fn literal_scan(root: &Path, symbol: &str) -> Vec<Location> {
+fn literal_scan(root: &Path, symbol: &str) -> Vec<SymbolLocation> {
     let mut hits = Vec::new();
     let mut files_read = 0usize;
 
@@ -166,7 +150,7 @@ fn literal_scan(root: &Path, symbol: &str) -> Vec<Location> {
                 continue;
             }
             let rel = path.strip_prefix(root).unwrap_or(path);
-            hits.push(Location::new(
+            hits.push(SymbolLocation::new(
                 rel.to_string_lossy().replace('\\', "/"),
                 idx + 1,
             ));
@@ -205,7 +189,7 @@ fn is_ident_byte(b: u8) -> bool {
     b.is_ascii_alphanumeric() || b == b'_'
 }
 
-fn render(symbol: &str, label: &str, locations: &[Location]) -> String {
+fn render(symbol: &str, label: &str, locations: &[SymbolLocation]) -> String {
     use std::fmt::Write as _;
     let mut out = String::new();
     let _ = writeln!(out, "{label} of `{symbol}` ({}):", locations.len());
@@ -216,7 +200,7 @@ fn render(symbol: &str, label: &str, locations: &[Location]) -> String {
 }
 
 /// The message that replaces a bare zero.
-fn render_unresolved(symbol: &str, hits: &[Location]) -> String {
+fn render_unresolved(symbol: &str, hits: &[SymbolLocation]) -> String {
     use std::fmt::Write as _;
     let mut out = String::new();
     let _ = writeln!(
@@ -255,6 +239,23 @@ fn render_unresolved(symbol: &str, hits: &[Location]) -> String {
     out
 }
 
+/// Run the textual scan and wrap it, off the runtime worker.
+///
+/// Every path that would otherwise return an empty result funnels through here,
+/// so there is exactly one place that can produce "the index found nothing" and
+/// it is incapable of saying so bare.
+async fn fallback_result(root: &Path, symbol: String) -> LspToolResult {
+    let root = root.to_path_buf();
+    let scan_symbol = symbol.clone();
+    let hits = tokio::task::spawn_blocking(move || literal_scan(&root, &scan_symbol))
+        .await
+        .unwrap_or_default();
+    LspToolResult {
+        text: render_unresolved(&symbol, &hits),
+        is_error: false,
+    }
+}
+
 fn unsupported(op: &LspOperation) -> LspToolResult {
     LspToolResult {
         text: format!(
@@ -279,32 +280,27 @@ fn missing_target() -> LspToolResult {
 #[async_trait::async_trait]
 impl LspBackend for CodeGraphBackend {
     fn ensure_started_background(&self) {
-        // Warm the index off the hot path so the first navigation call does not
-        // pay the ~1s build.
-        let root = self.root.clone();
-        let cell = Arc::clone(&self.navigator);
-        tokio::spawn(async move {
-            cell.get_or_init(|| async move {
-                tokio::task::spawn_blocking(move || build_navigator(&root))
-                    .await
-                    .unwrap_or(None)
-            })
-            .await;
-        });
+        // The actor is spawned by `CodebaseIndexManager::get_or_create` before
+        // this backend is built, and it loads or builds its index on its own
+        // thread. Asking for the file count is enough to confirm it is alive
+        // without blocking a caller on the first build.
+        if let Some(files) = self.index.get_file_count() {
+            tracing::debug!(files, "code-graph index already warm");
+        }
     }
 
     async fn ensure_ready(&self) -> Result<(), String> {
-        // Never fails: with no index the backend still answers textually.
-        let _ = self.navigator().await;
+        // Never fails. An index that is missing, cold or mid-rebuild still
+        // yields an answer here, because every query falls through to the
+        // textual scan -- a slow correct answer beats a fast unavailable one.
         Ok(())
     }
 
     fn is_ready(&self) -> bool {
-        self.navigator.initialized()
+        self.index.get_file_count().is_some()
     }
 
     async fn dispatch(&self, input: &LspToolInput) -> LspToolResult {
-        let nav = self.navigator().await;
         let root = self.root.clone();
 
         match input.operation {
@@ -313,76 +309,73 @@ impl LspBackend for CodeGraphBackend {
             | LspOperation::DocumentSymbol => unsupported(&input.operation),
 
             LspOperation::GoToDefinition | LspOperation::WorkspaceSymbol => {
-                let result = match (&nav, resolve_target(input)) {
-                    (Some(nav), Some(Target::Position { file, row, col })) => {
-                        match nav.goto_definition(&file, row, col) {
-                            Ok(r) => Some(r),
-                            Err(e) => {
+                let found = match resolve_target(input) {
+                    None => return missing_target(),
+                    Some(Target::Position { file, row, col }) => {
+                        match self.index.goto_definition(file, row, col).await {
+                            Ok(Ok(r)) => Some((r.symbol, r.locations)),
+                            Ok(Err(e)) => {
                                 tracing::debug!(error = ?e, "code-graph goto_definition failed");
+                                None
+                            }
+                            Err(e) => {
+                                tracing::warn!(error = %e, "code-graph index actor is gone");
                                 None
                             }
                         }
                     }
-                    (Some(nav), Some(Target::Name(name))) => {
-                        Some(nav.goto_definition_by_name(&name, None))
-                    }
-                    (_, None) => return missing_target(),
-                    (None, _) => None,
-                };
-                match result {
-                    Some(r) if !r.locations.is_empty() => LspToolResult {
-                        text: render(&r.symbol, "Definitions", &r.locations),
-                        is_error: false,
-                    },
-                    _ => {
-                        let symbol = target_symbol(input);
-                        let hits =
-                            tokio::task::spawn_blocking(move || literal_scan(&root, &symbol))
-                                .await
-                                .unwrap_or_default();
-                        LspToolResult {
-                            text: render_unresolved(&target_symbol(input), &hits),
-                            is_error: false,
+                    Some(Target::Name(name)) => {
+                        match self.index.find_definitions(name.clone(), None).await {
+                            Ok(locs) => Some((name, locs)),
+                            Err(e) => {
+                                tracing::warn!(error = %e, "code-graph index actor is gone");
+                                None
+                            }
                         }
                     }
+                };
+                match found {
+                    Some((symbol, locs)) if !locs.is_empty() => LspToolResult {
+                        text: render(&symbol, "Definitions", &locs),
+                        is_error: false,
+                    },
+                    _ => fallback_result(&root, target_symbol(input)).await,
                 }
             }
 
             LspOperation::FindReferences => {
-                let result = match (&nav, resolve_target(input)) {
-                    (Some(nav), Some(Target::Position { file, row, col })) => {
-                        match nav.goto_references(&file, row, col, false) {
-                            Ok(r) => Some(r),
-                            Err(e) => {
+                let found = match resolve_target(input) {
+                    None => return missing_target(),
+                    Some(Target::Position { file, row, col }) => {
+                        match self.index.goto_references(file, row, col, false).await {
+                            Ok(Ok(r)) => Some((r.symbol, r.locations)),
+                            Ok(Err(e)) => {
                                 tracing::debug!(error = ?e, "code-graph goto_references failed");
+                                None
+                            }
+                            Err(e) => {
+                                tracing::warn!(error = %e, "code-graph index actor is gone");
                                 None
                             }
                         }
                     }
-                    (Some(nav), Some(Target::Name(name))) => {
-                        Some(nav.goto_references_by_name(&name, None, false))
+                    Some(Target::Name(name)) => {
+                        match self.index.find_references(name.clone(), None).await {
+                            Ok(locs) => Some((name, locs)),
+                            Err(e) => {
+                                tracing::warn!(error = %e, "code-graph index actor is gone");
+                                None
+                            }
+                        }
                     }
-                    (_, None) => return missing_target(),
-                    (None, _) => None,
                 };
-                match result {
-                    Some(r) if !r.locations.is_empty() => LspToolResult {
-                        text: render(&r.symbol, "References", &r.locations),
+                match found {
+                    Some((symbol, locs)) if !locs.is_empty() => LspToolResult {
+                        text: render(&symbol, "References", &locs),
                         is_error: false,
                     },
                     // The case this module exists for: never a bare zero.
-                    _ => {
-                        let symbol = target_symbol(input);
-                        let scan_symbol = symbol.clone();
-                        let hits =
-                            tokio::task::spawn_blocking(move || literal_scan(&root, &scan_symbol))
-                                .await
-                                .unwrap_or_default();
-                        LspToolResult {
-                            text: render_unresolved(&symbol, &hits),
-                            is_error: false,
-                        }
-                    }
+                    _ => fallback_result(&root, target_symbol(input)).await,
                 }
             }
         }
@@ -392,12 +385,27 @@ impl LspBackend for CodeGraphBackend {
         None // a symbol index produces no diagnostics
     }
 
-    async fn notify_file_changed(&self, _path: &Path, _content: &str) {
-        // The index supports incremental reindexing from file events, but
-        // wiring that here would duplicate the watcher axon-workspace already
-        // runs. Until this backend subscribes to it, results are as fresh as
-        // the last build; stale entries surface as an index miss, which the
-        // textual fallback then answers correctly.
+    /// Reindex a file the agent just edited.
+    ///
+    /// The filesystem watchers cover edits from any source, but only when a
+    /// watcher is running for the session. This hook covers the agent's own
+    /// edits regardless.
+    ///
+    /// Caveat worth knowing before relying on it: `reminders::lsp_diagnostics`
+    /// calls this **only** for `SearchReplaceOutput::EditsApplied`, so a
+    /// whole-file write or a newly created file arrives here never. Those need
+    /// the watcher.
+    ///
+    /// Send-only: the actor reindexes on its own thread and a query issued
+    /// immediately after may still see the previous revision. Stale entries
+    /// surface as a miss, which the textual scan then answers from disk.
+    async fn notify_file_changed(&self, path: &Path, _content: &str) {
+        if let Err(e) = self
+            .index
+            .send_event(FileEvent::modified(path.to_path_buf()))
+        {
+            tracing::debug!(error = %e, path = %path.display(), "code-graph reindex event dropped");
+        }
     }
 
     async fn read_diagnostics(&self, _paths: &[PathBuf]) -> Vec<FileDiagnosticEntry> {
@@ -472,7 +480,7 @@ mod tests {
         assert!(msg.contains("does NOT mean"), "got: {msg}");
         assert!(msg.contains("no information"), "got: {msg}");
 
-        let hits = vec![Location::new("src/a.rs", 190)];
+        let hits = vec![SymbolLocation::new("src/a.rs", 190)];
         let msg = render_unresolved("take_reasoning", &hits);
         assert!(msg.contains("src/a.rs:190"), "got: {msg}");
         assert!(
