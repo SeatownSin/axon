@@ -3310,8 +3310,23 @@ impl MvpAgent {
                 tracing::warn!(
                     cwd = % tool_ctx.cwd, user_lsp_path = % user_path.display(),
                     project_lsp_path = % project_path.display(),
-                    "LSP tools enabled, but no language servers are configured"
+                    "LSP tools enabled, but no language servers are configured; \
+                     falling back to the built-in tree-sitter symbol index"
                 );
+                // Without this the `lsp` tool answers "LSP tool is unavailable"
+                // and the agent greps for every navigation question, even
+                // though `axon-codebase-graph` already indexes this tree for
+                // the ACP editor client in about a second, with no external
+                // process and no configuration. It answers definitions exactly;
+                // for references it is exact when it resolves and silently
+                // empty when it does not, so it never reports an empty result
+                // as a fact -- see `lsp::code_graph_backend`.
+                use axon_tools::implementations::lsp::{CodeGraphBackend, LspBackend};
+                let backend = std::sync::Arc::new(CodeGraphBackend::new(
+                    tool_ctx.cwd.as_path().to_path_buf(),
+                ));
+                backend.ensure_started_background();
+                tool_ctx.lsp = Some(backend as std::sync::Arc<dyn LspBackend>);
             } else {
                 use axon_tools::implementations::lsp::{
                     LspBackend, LspBackendAdapter, LspManager,
