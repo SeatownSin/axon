@@ -2,11 +2,11 @@
 **/*.rs.bk
 .DS_Store
 
-# Local agent working notes (oh-my-axon): handoffs/plans/audits are personal
-# session state, not project content.
-.axon/handoffs/
-.axon/plans/
-.axon/audits/
+# Local agent working notes (oh-my-axon): handoffs, plans, audits, ideas and
+# the machine-specific maintenance scripts are all personal session state, not
+# project content. Nothing under .axon/ has ever been tracked, so ignore the
+# whole directory rather than chasing each new subdirectory.
+.axon/
 
 # graphify knowledge-graph output: derived from the source tree, regenerated on
 # demand, and ~1.5 MB per run (graph.json + graph.html + a semantic cache).
