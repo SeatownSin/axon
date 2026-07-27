@@ -160,9 +160,9 @@ pub fn stream_chat_completions<'a>(
                     chunk_has_content = true;
                 }
 
-                let delta = choice.delta;
+                let mut delta = choice.delta;
 
-                if let Some(text) = delta.content
+                if let Some(text) = delta.content.take()
                     && !text.is_empty()
                 {
                     if !first_token_emitted {
@@ -187,7 +187,7 @@ pub fn stream_chat_completions<'a>(
                     };
                 }
 
-                if let Some(thought) = delta.reasoning_content
+                if let Some(thought) = delta.take_reasoning()
                     && !thought.is_empty()
                 {
                     if !first_token_emitted {
@@ -367,6 +367,7 @@ mod tests {
             role: Some(Role::Assistant),
             content: Some(text.to_string()),
             reasoning_content: None,
+            reasoning: None,
             tool_calls: vec![],
             tool_call_id: None,
         }])
@@ -523,12 +524,65 @@ mod tests {
         }
     }
 
+    /// Regression: vLLM spells the streaming field `reasoning`, not
+    /// `reasoning_content`, so every thought from a vLLM-served local model
+    /// was silently discarded — no thinking display, no reasoning sibling on
+    /// the stored item, and no bytes reaching the tail-repetition watch on the
+    /// thinking channel. The delta is deserialized rather than constructed
+    /// because the defect lived entirely in the wire mapping.
+    #[tokio::test]
+    async fn vllm_spelled_reasoning_delta_reaches_the_reasoning_channel() {
+        let delta: ChatChunkDelta =
+            serde_json::from_str(r#"{"reasoning":"Okay, so I need 17 * 23."}"#).unwrap();
+        let mut reasoning_chunk = make_chunk(vec![delta]);
+        reasoning_chunk.choices[0].finish_reason = None;
+
+        let chunks: Vec<Result<ChatCompletionChunk, SamplingError>> = vec![
+            Ok(reasoning_chunk),
+            Ok(text_chunk("391")),
+            Ok(final_chunk(FinishReason::Stop)),
+        ];
+        let events = collect(stream_chat_completions(
+            stream::iter(chunks).boxed(),
+            None,
+            rid(),
+            Duration::from_secs(60),
+        ))
+        .await;
+
+        let reasoning_text: Vec<&String> = events
+            .iter()
+            .filter_map(|e| match e {
+                SamplingEvent::ChannelToken {
+                    channel: SamplingChannel::Reasoning,
+                    text,
+                    ..
+                } => Some(text),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(reasoning_text, vec!["Okay, so I need 17 * 23."]);
+
+        match events.last().unwrap() {
+            SamplingEvent::Completed { response, .. } => {
+                let r = response
+                    .reasoning_items()
+                    .next()
+                    .expect("reasoning sibling preserved for the vLLM spelling");
+                let rs::SummaryPart::SummaryText(t) = &r.summary[0];
+                assert_eq!(t.text, "Okay, so I need 17 * 23.");
+            }
+            other => panic!("expected Completed, got {other:?}"),
+        }
+    }
+
     #[tokio::test]
     async fn reasoning_chunk_emits_reasoning_channel_and_first_token_once() {
         let mut reasoning_chunk = make_chunk(vec![ChatChunkDelta {
             role: Some(Role::Assistant),
             content: None,
             reasoning_content: Some("thinking...".into()),
+            reasoning: None,
             tool_calls: vec![],
             tool_call_id: None,
         }]);
@@ -593,6 +647,7 @@ mod tests {
             role: None,
             content: None,
             reasoning_content: None,
+            reasoning: None,
             tool_calls: vec![ChunkToolCallDelta {
                 index: 0,
                 id: Some("call_abc".into()),
@@ -609,6 +664,7 @@ mod tests {
             role: None,
             content: None,
             reasoning_content: None,
+            reasoning: None,
             tool_calls: vec![ChunkToolCallDelta {
                 index: 0,
                 id: None,

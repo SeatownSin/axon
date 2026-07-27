@@ -3789,6 +3789,7 @@ mod tests {
             role: Role::Assistant,
             content: Some("Hello, world!".to_string()),
             reasoning_content: None,
+            reasoning: None,
             tool_calls: vec![],
             tool_call_id: None,
             citations: None,
@@ -3803,6 +3804,7 @@ mod tests {
             role: Role::Assistant,
             content: Some("The answer is 42.".to_string()),
             reasoning_content: Some("Let me think step by step...".to_string()),
+            reasoning: None,
             tool_calls: vec![],
             tool_call_id: None,
             citations: None,
@@ -3823,6 +3825,7 @@ mod tests {
             role: Role::Assistant,
             content: None,
             reasoning_content: None,
+            reasoning: None,
             tool_calls: vec![ToolCallResponse {
                 id: "call_123".to_string(),
                 kind: "function".to_string(),

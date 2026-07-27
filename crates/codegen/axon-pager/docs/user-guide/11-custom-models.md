@@ -133,6 +133,8 @@ The table is forwarded verbatim as the OpenAI-compatible `chat_template_kwargs` 
 
 Prefer `enable_thinking` to the `thinking` alias. vLLM derives that same key from `reasoning_effort` when the caller has not already set it, so with the alias a `reasoning_effort = "none"` configured on a model, role or persona contradicts this setting: the model emits its reasoning and then stops, returning an empty answer.
 
+Once a backend does separate the two, it returns the reasoning in its own field -- but servers disagree on what to call it. vLLM sends `reasoning`, while DeepSeek-derived servers (SGLang, llama.cpp, LM Studio) send `reasoning_content`. Axon reads both spellings, so no configuration is needed either way.
+
 ### Global Default Headers
 
 To apply the same headers to *every* model in the catalog -- built-in, prefetched from `/v1/models`, or custom -- set them once under the global `[models]` section instead of repeating them per model:

@@ -507,6 +507,12 @@ pub struct ChatResponseMessage {
     pub content: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_content: Option<String>,
+    /// vLLM's spelling of the field above. Both are accepted for the same
+    /// reason as on [`ChatChunkDelta`]; both are dropped by the
+    /// `From<ChatResponseMessage> for ConversationItem` conversion, which
+    /// cannot emit the sibling reasoning item they belong in.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reasoning: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tool_calls: Vec<ToolCallResponse>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -650,7 +656,13 @@ pub struct ChatChunkDelta {
     pub role: Option<Role>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub content: Option<String>,
+    /// Reasoning text under the DeepSeek-style spelling, emitted by SGLang,
+    /// llama.cpp and LM Studio. Read via [`ChatChunkDelta::take_reasoning`].
     pub reasoning_content: Option<String>,
+    /// Reasoning text under vLLM's spelling. A separate field rather than a
+    /// serde alias — see [`ChatChunkDelta::take_reasoning`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reasoning: Option<String>,
     /// Tool call deltas. Handles `null` in JSON as empty vec.
     #[serde(
         default,
@@ -660,6 +672,25 @@ pub struct ChatChunkDelta {
     pub tool_calls: Vec<ToolCallDelta>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_call_id: Option<String>,
+}
+
+impl ChatChunkDelta {
+    /// Take the reasoning text from whichever field the backend populated.
+    ///
+    /// OpenAI-compatible servers disagree on the name. vLLM emits
+    /// `reasoning`; DeepSeek-derived servers (SGLang, llama.cpp, LM Studio)
+    /// emit `reasoning_content`. Both spellings deserialize into their own
+    /// field rather than being merged with `#[serde(alias)]`, because serde
+    /// maps an alias onto the same field and would reject a payload carrying
+    /// *both* keys with a `duplicate field` error — turning a silently
+    /// dropped thought into a hard stream failure.
+    ///
+    /// `reasoning_content` wins if a backend somehow sends both.
+    pub fn take_reasoning(&mut self) -> Option<String> {
+        self.reasoning_content
+            .take()
+            .or_else(|| self.reasoning.take())
+    }
 }
 
 /// Parameters to control realtime data.
@@ -1219,6 +1250,62 @@ impl From<crate::messages::MessagesRequest> for MessagesRequestWrapper {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn chunk_delta_accepts_both_reasoning_spellings() {
+        // vLLM's spelling. This is what the GB10 (Laguna, vLLM 0.25) emits,
+        // and reading only `reasoning_content` silently dropped every thought.
+        let mut vllm: ChatChunkDelta =
+            serde_json::from_value(json!({"reasoning": "Okay, so I need"})).unwrap();
+        assert_eq!(vllm.take_reasoning().as_deref(), Some("Okay, so I need"));
+
+        // DeepSeek-style spelling (SGLang, llama.cpp, LM Studio).
+        let mut deepseek: ChatChunkDelta =
+            serde_json::from_value(json!({"reasoning_content": "step by step"})).unwrap();
+        assert_eq!(deepseek.take_reasoning().as_deref(), Some("step by step"));
+
+        // Neither key present: the common case for a plain content delta.
+        let mut plain: ChatChunkDelta =
+            serde_json::from_value(json!({"content": "hello"})).unwrap();
+        assert_eq!(plain.take_reasoning(), None);
+        assert_eq!(plain.content.as_deref(), Some("hello"));
+    }
+
+    #[test]
+    fn chunk_delta_tolerates_both_reasoning_keys_at_once() {
+        // The reason these are two fields and not `#[serde(alias)]`: an alias
+        // maps both keys onto one field, so a backend sending both would fail
+        // deserialization and abort the whole stream. Parsing must succeed.
+        let mut both: ChatChunkDelta = serde_json::from_value(json!({
+            "reasoning": "from vllm",
+            "reasoning_content": "from deepseek",
+        }))
+        .unwrap();
+        assert_eq!(both.take_reasoning().as_deref(), Some("from deepseek"));
+    }
+
+    #[test]
+    fn chunk_delta_does_not_emit_absent_reasoning_on_serialize() {
+        let json = serde_json::to_value(ChatChunkDelta::default()).unwrap();
+        assert!(json.get("reasoning").is_none(), "got {json}");
+    }
+
+    #[test]
+    fn response_message_accepts_both_reasoning_spellings() {
+        let vllm: ChatResponseMessage =
+            serde_json::from_value(json!({"role": "assistant", "reasoning": "hmm"})).unwrap();
+        assert_eq!(vllm.reasoning.as_deref(), Some("hmm"));
+        assert_eq!(vllm.reasoning_content, None);
+
+        let both: ChatResponseMessage = serde_json::from_value(json!({
+            "role": "assistant",
+            "reasoning": "a",
+            "reasoning_content": "b",
+        }))
+        .unwrap();
+        assert_eq!(both.reasoning.as_deref(), Some("a"));
+        assert_eq!(both.reasoning_content.as_deref(), Some("b"));
+    }
 
     #[test]
     fn reasoning_effort_serde_lowercase_round_trip() {
