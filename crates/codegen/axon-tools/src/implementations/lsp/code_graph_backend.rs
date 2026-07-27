@@ -189,6 +189,24 @@ fn is_ident_byte(b: u8) -> bool {
     b.is_ascii_alphanumeric() || b == b'_'
 }
 
+/// Appended to every non-empty *reference* result.
+///
+/// References inside a macro invocation are not indexed at all -- tree-sitter
+/// parses a macro body as an opaque token tree, so the query that captures
+/// `x.foo()` finds nothing inside `assert_eq!(x.foo(), y)`. In this repository
+/// that hides 25,278 call sites in assert-family macros alone, plus the bodies
+/// of 177 `select!` and 13 `stream!` blocks -- including the whole of
+/// `stream_chat_completions`.
+///
+/// So a non-empty result is a *lower bound*, never a census. Warning only on
+/// the empty case (which is what this module did first) is the same mistake in
+/// a smaller costume: it treats "5 references" as complete when the true answer
+/// might be 5 plus every test that exercises the symbol.
+const MACRO_CAVEAT: &str = "\nNote: references inside macro invocations are not indexed \
+(tree-sitter does not parse macro bodies), so anything used only inside `assert_eq!`, \
+`select!`, `stream!` or similar is missing from this list. Treat the count as a lower \
+bound; search textually before concluding a symbol is unused in tests.";
+
 fn render(symbol: &str, label: &str, locations: &[SymbolLocation]) -> String {
     use std::fmt::Write as _;
     let mut out = String::new();
@@ -247,12 +265,26 @@ fn render_unresolved(symbol: &str, hits: &[SymbolLocation]) -> String {
 async fn fallback_result(root: &Path, symbol: String) -> LspToolResult {
     let root = root.to_path_buf();
     let scan_symbol = symbol.clone();
-    let hits = tokio::task::spawn_blocking(move || literal_scan(&root, &scan_symbol))
-        .await
-        .unwrap_or_default();
-    LspToolResult {
-        text: render_unresolved(&symbol, &hits),
-        is_error: false,
+    match tokio::task::spawn_blocking(move || literal_scan(&root, &scan_symbol)).await {
+        Ok(hits) => LspToolResult {
+            text: render_unresolved(&symbol, &hits),
+            is_error: false,
+        },
+        // Treating a failed scan as an empty scan would be the exact sin this
+        // module exists to prevent: `render_unresolved` calls an empty result
+        // "stronger evidence" of absence, which would then be a claim derived
+        // from a crash rather than from reading the tree.
+        Err(e) => {
+            tracing::warn!(error = %e, symbol = %symbol, "textual fallback scan failed");
+            LspToolResult {
+                text: format!(
+                    "The symbol index resolved nothing for `{symbol}`, and the textual \
+                     fallback search failed to run. This is not evidence that `{symbol}` \
+                     is unused -- no search completed. Retry, or search manually."
+                ),
+                is_error: true,
+            }
+        }
     }
 }
 
@@ -371,7 +403,10 @@ impl LspBackend for CodeGraphBackend {
                 };
                 match found {
                     Some((symbol, locs)) if !locs.is_empty() => LspToolResult {
-                        text: render(&symbol, "References", &locs),
+                        // A hit list is a lower bound, not a census -- see
+                        // MACRO_CAVEAT. Definitions get no such caveat because
+                        // a definition is not hidden by being used in a macro.
+                        text: render(&symbol, "References", &locs) + MACRO_CAVEAT,
                         is_error: false,
                     },
                     // The case this module exists for: never a bare zero.
@@ -471,6 +506,26 @@ mod tests {
     fn contains_word_handles_repeats_without_looping() {
         assert!(contains_word("a.b(); x_b_y; b", "b"));
         assert!(!contains_word("abc abc abc", "b"));
+    }
+
+    /// A *non-empty* reference list is also incomplete, because macro bodies
+    /// are unindexed. Warning only on the empty case would treat "5 references"
+    /// as a census when every test using the symbol may be missing.
+    #[test]
+    fn non_empty_reference_list_is_labelled_a_lower_bound() {
+        let locs = vec![
+            SymbolLocation::new("src/a.rs", 12),
+            SymbolLocation::new("src/b.rs", 40),
+        ];
+        let msg = render("take_reasoning", "References", &locs) + MACRO_CAVEAT;
+        assert!(msg.contains("src/a.rs:12"), "got: {msg}");
+        assert!(msg.contains("lower bound"), "got: {msg}");
+        assert!(msg.contains("macro invocations"), "got: {msg}");
+
+        // Definitions are exact and must NOT carry the caveat -- a definition
+        // is not hidden by being referenced inside a macro.
+        let defs = render("take_reasoning", "Definitions", &locs);
+        assert!(!defs.contains("lower bound"), "got: {defs}");
     }
 
     /// An empty reference result must never read as "nothing uses this".
