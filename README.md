@@ -61,6 +61,19 @@ servers, and adds first-class support for local models. The changes:
   response and in the log. It only reports: it never fails or retries a request,
   because a false positive would discard a good response and a true one can mask
   its own cause.
+- **Code navigation without a language server.** The `lsp` tool (opt-in, via
+  `[features] lsp_tools`) previously required a configured language server;
+  without one it reported itself unavailable and the agent fell back to grep for
+  every "where is this defined" question. It is now backed by the tree-sitter
+  symbol index Axon already builds for editor clients — no external process, no
+  `lsp.json`, and the whole tree indexes in about a second. **Definitions
+  resolve exactly. References are a lower bound**, and the tool says so:
+  tree-sitter does not parse macro bodies, so a symbol used only inside
+  `assert_eq!`, `select!` or similar is invisible to the index. When the index
+  resolves nothing, the tool runs a textual search and labels the result rather
+  than reporting "no references" — a confident *"this is dead code"* about live
+  code is worse than a noisy answer. `hover`, `goToImplementation` and
+  `documentSymbol` still need a real language server, and say that too.
 - **Rebranded as Axon.** The welcome screen (a new mark), model picker,
   notifications, and theme names carry the Axon identity — no `grok`/`xAI`
   branding is shown in the UI. The bundled themes are **Axon Night** (a cerebral

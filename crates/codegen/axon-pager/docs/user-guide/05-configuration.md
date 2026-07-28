@@ -65,7 +65,8 @@ screen_mode = "fullscreen"             # default render mode: "fullscreen" | "mi
                                        # (unset → fullscreen); set via /settings → Default screen mode
 
 [features]
-lsp_tools = false                      # expose the lsp tool
+lsp_tools = false                      # expose the lsp tool (default: false, opt-in). Works with
+                                       # no language server configured -- see LSP Servers below
 codebase_indexing = true               # code graph indexing
 two_pass_compaction = false            # prefire two-pass compaction (default: false, opt-in)
 remote_fetch = true                    # allow optional online model-catalog fetches (default: true;
@@ -829,3 +830,21 @@ When the same server name is defined by more than one source, it is resolved in 
 3. **Plugins** -- file-based `.lsp.json`, then inline `lspServers`, in plugin load order
 
 Project and user entries replace lower-priority ones with the same name. Plugin entries only add servers whose names are not already defined by a local file, so a local `lsp.json` always wins over a plugin. Plugin LSP servers load only after the plugin is trusted (see [Plugins](09-plugins.md)).
+
+### With no language server configured
+
+Passive diagnostics need a real language server, but the `lsp` tool no longer does. When no server is configured for a workspace, the tool falls back to the tree-sitter symbol index Axon already maintains for editor clients — the same index behind the `axon/code/*` ACP methods. It needs no external process and no `lsp.json`.
+
+What that fallback answers:
+
+| Operation | Without a language server |
+|-----------|---------------------------|
+| `goToDefinition`, `workspaceSymbol` | Resolved from the index; exact |
+| `findReferences` | Resolved when possible, reported as a **lower bound** (see below) |
+| `hover`, `goToImplementation`, `documentSymbol` | Unavailable — these need a real language server, and the tool says so rather than guessing |
+
+**References are incomplete by construction.** tree-sitter parses a macro invocation's body as an opaque token tree, so a symbol used only inside `assert_eq!`, `tokio::select!`, `async_stream::stream!` or any other macro is invisible to the index. A reference list is therefore a floor, not a census, and is labelled that way. Struct-field reads are not indexed either.
+
+Because of that, the tool never reports "no references" as a finding: when the index resolves nothing it runs a whole-word textual search, groups the hits by file, and states its totals — explicitly marked as textual matches rather than resolved references. An index miss means *no information*, not evidence that a symbol is unused, and treating it as the latter is how live code gets deleted.
+
+Configure a language server when you want complete references, type information, or diagnostics. The fallback is there so that navigation degrades instead of disappearing.
