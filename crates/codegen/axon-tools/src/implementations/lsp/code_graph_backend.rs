@@ -80,15 +80,20 @@ use axon_codebase_graph::{FileEvent, IndexManagerHandle, SymbolLocation};
 use super::manager::DiagnosticsSummary;
 use super::types::{FileDiagnosticEntry, LspBackend, LspOperation, LspToolInput, LspToolResult};
 
-/// Cap on hits returned by the textual fallback. A symbol with hundreds of
-/// textual matches is a question grep should answer directly, not something to
-/// paste wholesale into a model's context.
-const FALLBACK_HIT_LIMIT: usize = 40;
-
 /// Cap on files the textual fallback will read before giving up. The index
 /// build itself touches ~2,300 files in under a second, but that is parallel
 /// tree-sitter work; this is a sequential substring scan on a fallback path.
 const FALLBACK_FILE_LIMIT: usize = 5_000;
+
+/// How many files the fallback lists. Results are grouped by file rather than
+/// listed line by line, which is what makes this bound generous enough to be
+/// irrelevant in practice: `reasoning_content` has 99 matching lines across 12
+/// files, and the widest symbol sampled in this repository touched 18.
+const FALLBACK_REPORT_FILES: usize = 60;
+
+/// How many line numbers to show per file before eliding the rest. The count is
+/// always reported in full, so eliding never hides the scale of a match.
+const FALLBACK_LINES_PER_FILE: usize = 12;
 
 /// Wraps the **shared** [`IndexManagerHandle`] rather than owning an index.
 ///
@@ -119,13 +124,38 @@ impl CodeGraphBackend {
     }
 }
 
+/// What the textual fallback found, grouped by file.
+///
+/// Grouping is the point, not a formatting nicety. An earlier version listed
+/// raw matching lines and truncated at 40 of them; measured against
+/// `reasoning_content` -- 99 lines across 12 files -- that cap dropped four of
+/// the five files that actually touch the field, while still presenting 40
+/// concrete-looking results. Truncation was in directory-walk order, so what
+/// survived was an arbitrary prefix rather than the most relevant hits. Files
+/// are the unit a "where is this used" question is really asking about, and
+/// they are two orders of magnitude fewer.
+#[derive(Debug, Default)]
+struct ScanResult {
+    /// `(relative path, matching line numbers)`, walk order, capped at
+    /// [`FALLBACK_REPORT_FILES`] entries.
+    files: Vec<(String, Vec<usize>)>,
+    /// Every match found, including those in files beyond the report cap.
+    total_hits: usize,
+    /// Every file containing a match, including those beyond the report cap.
+    total_files: usize,
+    /// The walk stopped on [`FALLBACK_FILE_LIMIT`], so counts are lower bounds.
+    walk_truncated: bool,
+}
+
 /// Word-boundary literal scan, used when the index resolves nothing.
 ///
-/// Deliberately dumb: it matches the symbol as a whole word and reports every
+/// Deliberately dumb: it matches the symbol as a whole word and counts every
 /// hit. That is grep's failure mode -- visible noise -- which is the one this
-/// module is willing to accept.
-fn literal_scan(root: &Path, symbol: &str) -> Vec<SymbolLocation> {
-    let mut hits = Vec::new();
+/// module is willing to accept, having measured that a model filters it
+/// correctly. What a model cannot recover from is a silently truncated answer,
+/// so totals here are always complete even when the listing is not.
+fn literal_scan(root: &Path, symbol: &str) -> ScanResult {
+    let mut result = ScanResult::default();
     let mut files_read = 0usize;
 
     let walker = ignore::WalkBuilder::new(root)
@@ -134,7 +164,8 @@ fn literal_scan(root: &Path, symbol: &str) -> Vec<SymbolLocation> {
         .build();
 
     for entry in walker.flatten() {
-        if hits.len() >= FALLBACK_HIT_LIMIT || files_read >= FALLBACK_FILE_LIMIT {
+        if files_read >= FALLBACK_FILE_LIMIT {
+            result.walk_truncated = true;
             break;
         }
         if !entry.file_type().is_some_and(|t| t.is_file()) {
@@ -145,21 +176,29 @@ fn literal_scan(root: &Path, symbol: &str) -> Vec<SymbolLocation> {
             continue; // binary or unreadable; not an error worth surfacing
         };
         files_read += 1;
+
+        let mut lines_here: Vec<usize> = Vec::new();
         for (idx, line) in text.lines().enumerate() {
-            if !contains_word(line, symbol) {
-                continue;
-            }
-            let rel = path.strip_prefix(root).unwrap_or(path);
-            hits.push(SymbolLocation::new(
-                rel.to_string_lossy().replace('\\', "/"),
-                idx + 1,
-            ));
-            if hits.len() >= FALLBACK_HIT_LIMIT {
-                break;
+            if contains_word(line, symbol) {
+                lines_here.push(idx + 1);
             }
         }
+        if lines_here.is_empty() {
+            continue;
+        }
+
+        // Counted before the report cap, so the totals stay honest however
+        // many files are listed.
+        result.total_hits += lines_here.len();
+        result.total_files += 1;
+        if result.files.len() < FALLBACK_REPORT_FILES {
+            let rel = path.strip_prefix(root).unwrap_or(path);
+            result
+                .files
+                .push((rel.to_string_lossy().replace('\\', "/"), lines_here));
+        }
     }
-    hits
+    result
 }
 
 /// Whole-word containment, so `reasoning` does not match `reasoning_content`.
@@ -218,7 +257,7 @@ fn render(symbol: &str, label: &str, locations: &[SymbolLocation]) -> String {
 }
 
 /// The message that replaces a bare zero.
-fn render_unresolved(symbol: &str, hits: &[SymbolLocation]) -> String {
+fn render_unresolved(symbol: &str, scan: &ScanResult) -> String {
     use std::fmt::Write as _;
     let mut out = String::new();
     let _ = writeln!(
@@ -228,26 +267,54 @@ fn render_unresolved(symbol: &str, hits: &[SymbolLocation]) -> String {
          fields, so treat an index miss as no information rather than as evidence \
          that `{symbol}` is unused."
     );
-    if hits.is_empty() {
+    if scan.total_hits == 0 {
         let _ = writeln!(
             out,
-            "A whole-word textual search also found no occurrences, which is \
-             stronger evidence, but still confirm before treating `{symbol}` as dead."
+            "A whole-word textual search also found no occurrences{}, which is \
+             stronger evidence, but still confirm before treating `{symbol}` as dead.",
+            if scan.walk_truncated {
+                " in the files searched (the search itself was cut short, so this is not exhaustive)"
+            } else {
+                ""
+            }
         );
         return out;
     }
+
     let _ = writeln!(
         out,
-        "\nFalling back to a whole-word textual search, which found {} occurrence(s){}:",
-        hits.len(),
-        if hits.len() >= FALLBACK_HIT_LIMIT {
-            " (truncated)"
-        } else {
-            ""
-        }
+        "\nFalling back to a whole-word textual search: {} occurrence(s) across {} file(s).",
+        scan.total_hits, scan.total_files
     );
-    for loc in hits {
-        let _ = writeln!(out, "  {}:{}", loc.path, loc.line);
+    for (path, lines) in &scan.files {
+        let shown = lines.len().min(FALLBACK_LINES_PER_FILE);
+        let rendered: Vec<String> = lines[..shown].iter().map(usize::to_string).collect();
+        let _ = writeln!(
+            out,
+            "  {path} ({}): {}{}",
+            lines.len(),
+            rendered.join(", "),
+            if lines.len() > shown {
+                format!(", +{} more", lines.len() - shown)
+            } else {
+                String::new()
+            }
+        );
+    }
+    // Any elision is stated with its true size, because a listing that looks
+    // complete is the failure mode that motivated grouping by file at all.
+    if scan.total_files > scan.files.len() {
+        let _ = writeln!(
+            out,
+            "  ... and {} further file(s) not listed.",
+            scan.total_files - scan.files.len()
+        );
+    }
+    if scan.walk_truncated {
+        let _ = writeln!(
+            out,
+            "  (The search stopped early, so these counts are lower bounds.)"
+        );
     }
     let _ = writeln!(
         out,
@@ -266,8 +333,8 @@ async fn fallback_result(root: &Path, symbol: String) -> LspToolResult {
     let root = root.to_path_buf();
     let scan_symbol = symbol.clone();
     match tokio::task::spawn_blocking(move || literal_scan(&root, &scan_symbol)).await {
-        Ok(hits) => LspToolResult {
-            text: render_unresolved(&symbol, &hits),
+        Ok(scan) => LspToolResult {
+            text: render_unresolved(&symbol, &scan),
             is_error: false,
         },
         // Treating a failed scan as an empty scan would be the exact sin this
@@ -531,17 +598,87 @@ mod tests {
     /// An empty reference result must never read as "nothing uses this".
     #[test]
     fn unresolved_message_refuses_to_assert_a_negative() {
-        let msg = render_unresolved("take_reasoning", &[]);
+        let msg = render_unresolved("take_reasoning", &ScanResult::default());
         assert!(msg.contains("does NOT mean"), "got: {msg}");
         assert!(msg.contains("no information"), "got: {msg}");
 
-        let hits = vec![SymbolLocation::new("src/a.rs", 190)];
-        let msg = render_unresolved("take_reasoning", &hits);
-        assert!(msg.contains("src/a.rs:190"), "got: {msg}");
+        let scan = ScanResult {
+            files: vec![("src/a.rs".into(), vec![190])],
+            total_hits: 1,
+            total_files: 1,
+            walk_truncated: false,
+        };
+        let msg = render_unresolved("take_reasoning", &scan);
+        assert!(msg.contains("src/a.rs"), "got: {msg}");
+        assert!(msg.contains("190"), "got: {msg}");
         assert!(
             msg.contains("textual matches, not resolved references"),
             "got: {msg}"
         );
+    }
+
+    /// The measured defect this grouping replaced: 99 matching lines across 12
+    /// files used to be truncated to the first 40 *lines*, which dropped four
+    /// of the five files that actually touched the field while still looking
+    /// like 40 concrete results. Every file must survive, and the true totals
+    /// must be stated.
+    #[test]
+    fn every_file_survives_and_totals_are_never_understated() {
+        // Shape taken from the real `reasoning_content` measurement.
+        let files: Vec<(String, Vec<usize>)> = (0..12)
+            .map(|i| (format!("src/f{i}.rs"), (1..=8).collect::<Vec<usize>>()))
+            .collect();
+        let scan = ScanResult {
+            total_hits: files.iter().map(|(_, l)| l.len()).sum(),
+            total_files: files.len(),
+            files,
+            walk_truncated: false,
+        };
+        let msg = render_unresolved("reasoning_content", &scan);
+        for i in 0..12 {
+            assert!(
+                msg.contains(&format!("src/f{i}.rs")),
+                "lost file {i}: {msg}"
+            );
+        }
+        assert!(
+            msg.contains("96 occurrence(s) across 12 file(s)"),
+            "got: {msg}"
+        );
+        assert!(!msg.contains("further file(s) not listed"), "got: {msg}");
+    }
+
+    /// Elision is allowed; silent elision is not.
+    #[test]
+    fn elision_states_its_own_size() {
+        // More lines in one file than are shown.
+        let scan = ScanResult {
+            files: vec![("src/a.rs".into(), (1..=30).collect())],
+            total_hits: 30,
+            total_files: 1,
+            walk_truncated: false,
+        };
+        let msg = render_unresolved("x", &scan);
+        assert!(msg.contains("src/a.rs (30)"), "got: {msg}");
+        assert!(
+            msg.contains(&format!(", +{} more", 30 - FALLBACK_LINES_PER_FILE)),
+            "got: {msg}"
+        );
+
+        // More files than are listed: the count of the remainder is stated.
+        let scan = ScanResult {
+            files: vec![("src/a.rs".into(), vec![1])],
+            total_hits: 70,
+            total_files: 70,
+            walk_truncated: true,
+        };
+        let msg = render_unresolved("x", &scan);
+        assert!(
+            msg.contains("70 occurrence(s) across 70 file(s)"),
+            "got: {msg}"
+        );
+        assert!(msg.contains("69 further file(s) not listed"), "got: {msg}");
+        assert!(msg.contains("lower bounds"), "got: {msg}");
     }
 
     #[test]
