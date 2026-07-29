@@ -20,7 +20,10 @@ pub struct HookRegistry {
 impl HookRegistry {
     /// Returns the hooks registered for the given event type.
     pub fn hooks_for(&self, event: HookEventName) -> &[HookSpec] {
-        self.hooks.get(&event).map(|v| v.as_slice()).unwrap_or(&[])
+        self.hooks
+            .get(&event.canonical())
+            .map(|v| v.as_slice())
+            .unwrap_or(&[])
     }
 
     /// Returns true if the registry contains no hooks at all.
@@ -36,7 +39,10 @@ impl HookRegistry {
     /// Append additional hook specs into this registry.
     pub fn append_specs(&mut self, specs: Vec<HookSpec>) {
         for spec in specs {
-            self.hooks.entry(spec.event).or_default().push(spec);
+            self.hooks
+                .entry(spec.event.canonical())
+                .or_default()
+                .push(spec);
         }
     }
 
@@ -60,7 +66,9 @@ impl HookRegistry {
         HookEventName::Notification,
         HookEventName::SubagentStart,
         HookEventName::SubagentStop,
-        HookEventName::SubagentEnd,
+        // SubagentEnd is an alias spelling, not a distinct event: it
+        // canonicalises into SubagentStop and shares its bucket. Listing it
+        // here would make all_hooks() return that bucket twice.
         HookEventName::PreCompact,
         HookEventName::PostCompact,
         HookEventName::SessionEnd,
@@ -73,6 +81,31 @@ impl HookRegistry {
             all.extend(self.hooks_for(*event));
         }
         all
+    }
+
+    /// Fold alias-spelled map keys onto their canonical event.
+    ///
+    /// Registration goes through [`Self::append_specs`], which canonicalises,
+    /// but a registry can also arrive by deserializing straight into the map
+    /// (see `wire_to_hook_registry` in axon-workspace). A bucket keyed
+    /// `SubagentEnd` would then be unreachable, because lookup canonicalises
+    /// and would search `SubagentStop` instead -- the same silent hook loss
+    /// this collapsing exists to prevent. Call this after any deserialization.
+    pub fn canonicalize_keys(&mut self) {
+        let aliased: Vec<HookEventName> = self
+            .hooks
+            .keys()
+            .copied()
+            .filter(|e| *e != e.canonical())
+            .collect();
+        for event in aliased {
+            if let Some(specs) = self.hooks.remove(&event) {
+                self.hooks
+                    .entry(event.canonical())
+                    .or_default()
+                    .extend(specs);
+            }
+        }
     }
 
     /// Recompile the `matcher` field on every [`HookSpec`] from its
@@ -189,13 +222,13 @@ pub fn load_hooks_from_sources(
         std::collections::HashSet::new();
     for spec in all_specs {
         let key = (
-            spec.event,
+            spec.event.canonical(),
             spec.command_raw.clone().unwrap_or_default(),
             spec.url_raw.clone().unwrap_or_default(),
             spec.configured_matcher.clone().unwrap_or_default(),
         );
         if seen_content.insert(key) {
-            hooks.entry(spec.event).or_default().push(spec);
+            hooks.entry(spec.event.canonical()).or_default().push(spec);
         } else {
             tracing::debug!(
                 hook_name = %spec.name,
@@ -217,8 +250,8 @@ pub fn load_hooks_from_sources(
         notification = registry.hooks_for(HookEventName::Notification).len(),
         user_prompt_submit = registry.hooks_for(HookEventName::UserPromptSubmit).len(),
         subagent_start = registry.hooks_for(HookEventName::SubagentStart).len(),
-        subagent_stop = registry.hooks_for(HookEventName::SubagentStop).len()
-            + registry.hooks_for(HookEventName::SubagentEnd).len(),
+        // SubagentEnd collapses into SubagentStop, so one lookup covers both.
+        subagent_stop = registry.hooks_for(HookEventName::SubagentStop).len(),
         "hooks: discovery complete"
     );
 
@@ -893,6 +926,50 @@ mod tests {
             load_hooks_from_sources(&[HookSource::SettingsFile(&claude_settings)], &[]);
         assert!(errors.is_empty(), "errors: {errors:?}");
         assert_eq!(registry.len(), 1);
+    }
+
+    /// `SubagentEnd` is documented as an alias for `SubagentStop`. Before the
+    /// registry collapsed them, a hook registered under one spelling was
+    /// invisible to a dispatch under the other -- silently, which is how a
+    /// subagent hook registered under the DOCUMENTED name ran zero times.
+    #[test]
+    fn subagent_end_and_stop_share_one_bucket() {
+        for (registered, looked_up) in [
+            (HookEventName::SubagentEnd, HookEventName::SubagentStop),
+            (HookEventName::SubagentStop, HookEventName::SubagentEnd),
+        ] {
+            let mut reg = HookRegistry::default();
+            let mut spec = recompile_test_spec("alias", None);
+            spec.event = registered;
+            reg.append_specs(vec![spec]);
+            assert_eq!(
+                reg.hooks_for(looked_up).len(),
+                1,
+                "a hook registered as {registered:?} must be found via {looked_up:?}"
+            );
+            assert_eq!(reg.len(), 1, "it must not be stored twice");
+        }
+    }
+
+    /// A registry that arrives by deserialization can carry an alias-spelled
+    /// key, which lookup would then miss entirely. This is the wire hop in
+    /// `wire_to_hook_registry`, not a hypothetical.
+    #[test]
+    fn deserialized_alias_key_is_folded() {
+        let mut reg = HookRegistry::default();
+        let mut spec = recompile_test_spec("wire", None);
+        spec.event = HookEventName::SubagentEnd;
+        // Insert past append_specs to mimic serde filling the map directly.
+        reg.hooks.insert(HookEventName::SubagentEnd, vec![spec]);
+        assert_eq!(
+            reg.hooks_for(HookEventName::SubagentStop).len(),
+            0,
+            "precondition: an un-normalised alias key is invisible"
+        );
+        reg.canonicalize_keys();
+        assert_eq!(reg.hooks_for(HookEventName::SubagentStop).len(), 1);
+        assert_eq!(reg.hooks_for(HookEventName::SubagentEnd).len(), 1);
+        assert_eq!(reg.len(), 1, "folding must not duplicate");
     }
 
     /// Wire/serde-shaped spec: compiled matcher cleared, pattern still set.

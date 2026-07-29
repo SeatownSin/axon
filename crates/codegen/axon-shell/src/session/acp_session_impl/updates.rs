@@ -509,6 +509,9 @@ impl SessionActor {
             AxonSessionUpdate::SubagentFinished {
                 subagent_id,
                 status,
+                error,
+                tool_calls,
+                turns,
                 duration_ms,
                 tokens_used,
                 ..
@@ -527,6 +530,10 @@ impl SessionActor {
                         description: spawn_info.map(|i| i.description),
                         exit_code,
                         duration_ms: Some(*duration_ms),
+                        tokens_used: Some(*tokens_used),
+                        tool_calls: Some(*tool_calls),
+                        turns: Some(*turns),
+                        error: error.clone(),
                     },
                 );
                 let hook_registry_snapshot = self.hook_registry.borrow().clone();

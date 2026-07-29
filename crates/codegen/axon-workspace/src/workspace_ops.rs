@@ -877,6 +877,9 @@ fn wire_to_hook_registry(
     let mut registry: axon_hooks::discovery::HookRegistry =
         serde_json::from_value(value).map_err(|e| WorkspaceError::HubError(e.to_string()))?;
     registry.recompile_matchers();
+    // Deserialization writes the map directly, so an alias-spelled key would
+    // survive the hop and then be invisible to lookup.
+    registry.canonicalize_keys();
     Ok(registry)
 }
 #[async_trait]
