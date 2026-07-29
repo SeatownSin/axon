@@ -306,6 +306,19 @@ pub enum HookPayload {
         exit_code: Option<i32>,
         #[serde(rename = "durationMs", skip_serializing_if = "Option::is_none")]
         duration_ms: Option<u64>,
+        /// What the subagent actually cost. The session update carries these
+        /// already; before they were forwarded here a hook could time a
+        /// subagent but never say what it spent, so "which model is worth the
+        /// seat" was unanswerable from outside the process.
+        #[serde(rename = "tokensUsed", skip_serializing_if = "Option::is_none")]
+        tokens_used: Option<u64>,
+        #[serde(rename = "toolCalls", skip_serializing_if = "Option::is_none")]
+        tool_calls: Option<u32>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        turns: Option<u32>,
+        /// Why it failed. `exit_code` says only that it did.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        error: Option<String>,
     },
 
     // ── Compaction events ───────────────────────────────────────

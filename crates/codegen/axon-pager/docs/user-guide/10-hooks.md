@@ -96,7 +96,7 @@ Because hooks are unified under folder-trust, a `--trust` / `/hooks-trust` grant
 | `PostCompact` | Conversation compaction completes. | No |
 | `SessionEnd` | The session ends. | No |
 
-`SubagentEnd` is accepted as an alias for `SubagentStop`. Only `PreToolUse` can block a tool call; every other event is passive.
+`SubagentEnd` is accepted as an alias for `SubagentStop`: either spelling may be used to register a hook, and both receive the event. Only `PreToolUse` can block a tool call; every other event is passive.
 
 ### Cursor Hook Compatibility
 
@@ -184,6 +184,30 @@ The event is sent as JSON on **stdin** (for example, a `PreToolUse` event; the p
   "timestamp": "2026-04-14T12:00:00Z"
 }
 ```
+
+A `SubagentStop` event carries what the subagent did and what it cost:
+
+```json
+{
+  "hookEventName": "subagent_stop",
+  "sessionId": "abc-123",
+  "subagentId": "019fad63-79da-7d60-9109-c67cd2bf3937",
+  "subagentType": "explore",
+  "description": "Map the auth module",
+  "exitCode": 0,
+  "durationMs": 1019,
+  "tokensUsed": 8421,
+  "toolCalls": 6,
+  "turns": 3,
+  "timestamp": "2026-04-14T12:00:00Z"
+}
+```
+
+`exitCode` is `0` completed, `1` failed, `-1` cancelled; `error` carries the
+reason when one failed. `tokensUsed`, `toolCalls` and `turns` let a passive
+hook record what a seat actually costs — duration alone cannot distinguish a
+slow model from one that took ten times as many turns to get there. Every
+field after `subagentType` is omitted when unknown, so read them as optional.
 
 ### Output (Blocking Hooks)
 
