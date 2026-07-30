@@ -189,7 +189,7 @@ A `SubagentStop` event carries what the subagent did and what it cost:
 
 ```json
 {
-  "hookEventName": "subagent_stop",
+  "hookEventName": "subagent_end",
   "sessionId": "abc-123",
   "subagentId": "019fad63-79da-7d60-9109-c67cd2bf3937",
   "subagentType": "explore",
@@ -199,15 +199,46 @@ A `SubagentStop` event carries what the subagent did and what it cost:
   "tokensUsed": 8421,
   "toolCalls": 6,
   "turns": 3,
+  "usageByModel": [
+    {
+      "model": "my-local-70b",
+      "inputTokens": 8102,
+      "outputTokens": 319,
+      "modelCalls": 3,
+      "apiDurationMs": 812
+    }
+  ],
   "timestamp": "2026-04-14T12:00:00Z"
 }
 ```
 
+Register under `SubagentStop`. Note that `hookEventName` on the wire reads
+`subagent_end`: the two names are aliases and the alias is resolved when the
+registry is looked up, not when the event is dispatched. A hook that filters on
+its own `hookEventName` must therefore accept both spellings.
+
 `exitCode` is `0` completed, `1` failed, `-1` cancelled; `error` carries the
-reason when one failed. `tokensUsed`, `toolCalls` and `turns` let a passive
-hook record what a seat actually costs — duration alone cannot distinguish a
-slow model from one that took ten times as many turns to get there. Every
-field after `subagentType` is omitted when unknown, so read them as optional.
+reason when one failed. Every field after `subagentType` is omitted when
+unknown, so read them all as optional.
+
+**`tokensUsed` is the subagent's final context size, not the number of tokens it
+generated.** A subagent that replies with one word still reports several
+thousand, because that is its system prompt plus its tool schemas. It answers
+"how close did this run come to filling the model's window" — useful, since
+compaction fires at 85% of it — and it is the wrong number to divide by
+`durationMs`, which yields a throughput-shaped figure that measures nothing.
+
+For that, use `usageByModel`, which is the child's own billing ledger:
+`outputTokens` really is generated tokens and `apiDurationMs` is time spent in
+the API rather than wall clock, so a rate computed from the two is a real one.
+Its `model` key is also authoritative — it is what the child actually called,
+which is the only way to attribute a past run after the configuration has
+changed. The array is omitted when the child made no model call. A
+`"usageIncomplete": true` field appears when the bill is known to under-count
+(a lost ledger on a reconciled or re-emitted completion, a drain timeout, or a
+nested subagent that was itself incomplete); treat the totals as a floor when
+you see it, and note that empty usage plus no flag means genuinely zero spend,
+such as a spawn that failed before any model ran.
 
 ### Output (Blocking Hooks)
 

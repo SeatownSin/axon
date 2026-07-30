@@ -514,6 +514,8 @@ impl SessionActor {
                 turns,
                 duration_ms,
                 tokens_used,
+                usage_by_model,
+                usage_incomplete,
                 ..
             } => {
                 let spawn_info = self.subagent_spawn_info.lock().remove(subagent_id);
@@ -533,6 +535,8 @@ impl SessionActor {
                         tokens_used: Some(*tokens_used),
                         tool_calls: Some(*tool_calls),
                         turns: Some(*turns),
+                        usage_by_model: usage_by_model.clone(),
+                        usage_incomplete: *usage_incomplete,
                         error: error.clone(),
                     },
                 );

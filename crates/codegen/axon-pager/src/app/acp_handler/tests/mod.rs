@@ -1197,6 +1197,8 @@ pub(super) fn test_subagent_finished(child_sid: &str) -> AxonSessionUpdate {
         turns: 1,
         duration_ms: 500,
         tokens_used: 0,
+        usage_by_model: Vec::new(),
+        usage_incomplete: false,
         output: None,
         will_wake: false,
     }

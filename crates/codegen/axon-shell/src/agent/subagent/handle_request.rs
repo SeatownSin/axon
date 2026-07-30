@@ -1784,6 +1784,23 @@ pub(crate) async fn handle_subagent_request(
         Ok(u) => (Some(u.by_model.into_iter().collect::<Vec<_>>()), u.incomplete),
         Err(()) => (None, true),
     };
+    // Projected for the wire before the fold below consumes the ledger. The
+    // fold is what bills the parent; this is what tells an outside reader which
+    // model actually ran and what it generated. Cost fields are dropped on
+    // purpose -- see `SubagentModelUsage`.
+    let usage_by_model_wire: Vec<axon_hooks::event::SubagentModelUsage> =
+        subagent_usage_by_model
+            .as_deref()
+            .unwrap_or_default()
+            .iter()
+            .map(|(model, totals)| axon_hooks::event::SubagentModelUsage {
+                model: model.clone(),
+                input_tokens: totals.input_tokens,
+                output_tokens: totals.output_tokens,
+                model_calls: totals.model_calls,
+                api_duration_ms: totals.api_duration_ms,
+            })
+            .collect();
     let fold_acked = match subagent_usage_by_model {
         None => false,
         Some(ref by_model) if by_model.is_empty() && !subagent_usage_incomplete => true,
@@ -1985,6 +2002,8 @@ pub(crate) async fn handle_subagent_request(
             turns: result.turns,
             duration_ms: result.duration_ms,
             tokens_used: telemetry_tokens,
+            usage_by_model: usage_by_model_wire,
+            usage_incomplete: subagent_usage_incomplete,
             output: if result.success { Some(result.output.to_string()) } else { None },
             will_wake,
         },

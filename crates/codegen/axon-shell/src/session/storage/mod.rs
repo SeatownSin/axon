@@ -3063,6 +3063,8 @@ mod tests {
                 turns: 0,
                 duration_ms: 0,
                 tokens_used: 0,
+                usage_by_model: Vec::new(),
+                usage_incomplete: false,
                 output: None,
                 will_wake: false,
             },

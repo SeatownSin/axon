@@ -645,6 +645,17 @@ pub enum SessionUpdate {
         /// Total tokens consumed by the subagent's context window.
         #[serde(default)]
         tokens_used: u64,
+        /// What ran, and what it generated, per model, from the child's own
+        /// ledger. `tokens_used` above is a context size, so it cannot answer
+        /// "what did this seat produce"; `output_tokens` here can, and the
+        /// model key is what the child actually called rather than what a
+        /// config file says it should have.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        usage_by_model: Vec<axon_hooks::event::SubagentModelUsage>,
+        /// The child's bill under-counts. Kept beside the totals it qualifies so
+        /// a reader cannot pick up the numbers and miss the caveat.
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        usage_incomplete: bool,
         /// Final output text from the subagent (if completed).
         #[serde(default, skip_serializing_if = "Option::is_none")]
         output: Option<String>,
@@ -1445,6 +1456,8 @@ mod tests {
             turns: 1,
             duration_ms: 200,
             tokens_used: 50_000,
+            usage_by_model: Vec::new(),
+            usage_incomplete: false,
             output: None,
             will_wake: false,
         })
@@ -1487,6 +1500,92 @@ mod tests {
     }
 
     #[test]
+    fn subagent_finished_usage_by_model_roundtrips_and_is_omitted_when_empty() {
+        let with_usage = SessionUpdate::SubagentFinished {
+            subagent_id: "sa-1".into(),
+            child_session_id: "cs-1".into(),
+            status: "completed".into(),
+            error: None,
+            tool_calls: 2,
+            turns: 3,
+            duration_ms: 9_000,
+            tokens_used: 25_000,
+            usage_by_model: vec![axon_hooks::event::SubagentModelUsage {
+                model: "laguna".into(),
+                input_tokens: 20_000,
+                output_tokens: 512,
+                model_calls: 3,
+                api_duration_ms: 4_200,
+            }],
+            usage_incomplete: false,
+            output: None,
+            will_wake: false,
+        };
+        let json = serde_json::to_value(&with_usage).unwrap();
+        assert_eq!(json["usage_by_model"][0]["model"], "laguna");
+        // The generated count is the point: a rate from outputTokens over
+        // apiDurationMs is real, unlike one from the context-size figure.
+        assert_eq!(json["usage_by_model"][0]["outputTokens"], 512);
+        assert_eq!(json["usage_by_model"][0]["apiDurationMs"], 4_200);
+        // False is the common case, so it stays off the wire entirely.
+        assert!(
+            json.get("usage_incomplete").is_none(),
+            "a complete bill must not carry the caveat field: {json}"
+        );
+        let back: SessionUpdate = serde_json::from_value(json).unwrap();
+        assert_eq!(back, with_usage);
+
+        // An older producer sends neither field; both must read as "no usage
+        // recorded, no caveat", never as a partial bill.
+        let json = r#"{
+            "sessionUpdate": "subagent_finished",
+            "subagent_id": "sa-old",
+            "child_session_id": "cs-old",
+            "status": "completed",
+            "tool_calls": 0,
+            "turns": 1,
+            "duration_ms": 10
+        }"#;
+        match serde_json::from_str::<SessionUpdate>(json).unwrap() {
+            SessionUpdate::SubagentFinished {
+                usage_by_model,
+                usage_incomplete,
+                ..
+            } => {
+                assert!(usage_by_model.is_empty());
+                assert!(!usage_incomplete);
+            }
+            other => panic!("expected SubagentFinished, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn subagent_finished_incomplete_usage_is_serialized_when_true() {
+        // A re-emitted or reconciled finish ran a model but lost the ledger.
+        // Reporting empty usage without this flag would say it cost nothing.
+        let update = SessionUpdate::SubagentFinished {
+            subagent_id: "sa-2".into(),
+            child_session_id: "cs-2".into(),
+            status: "cancelled".into(),
+            error: None,
+            tool_calls: 0,
+            turns: 0,
+            duration_ms: 1,
+            tokens_used: 0,
+            usage_by_model: Vec::new(),
+            usage_incomplete: true,
+            output: None,
+            will_wake: false,
+        };
+        let json = serde_json::to_value(&update).unwrap();
+        assert_eq!(json["usage_incomplete"], true);
+        assert!(
+            json.get("usage_by_model").is_none(),
+            "an empty ledger stays off the wire; the caveat carries the meaning"
+        );
+    }
+
+    #[test]
     fn subagent_finished_with_tokens_used_roundtrips() {
         let update = SessionUpdate::SubagentFinished {
             subagent_id: "sa-rt".into(),
@@ -1497,6 +1596,8 @@ mod tests {
             turns: 2,
             duration_ms: 10_000,
             tokens_used: 75_000,
+            usage_by_model: Vec::new(),
+            usage_incomplete: false,
             output: Some("done".into()),
             will_wake: false,
         };
