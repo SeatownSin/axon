@@ -23,10 +23,22 @@ only** — it never leaves your machine:
   billed amounts from any provider).
 - **Session history** lives under `~/.axon/sessions/` and can be inspected with
   your own tools.
+- **Per-subagent usage** can be recorded by a `SubagentStop` hook, which
+  receives `usageByModel`: the model each subagent actually called, its input
+  and output tokens, its call count, and the time spent in the API. Since a hook
+  is your own script, the numbers go wherever you send them — a local file, by
+  default nowhere else. See [Hooks](10-hooks.md).
 
-If you need fleet-wide observability, run everything through your own
-OpenAI-compatible proxy (`AXON_CLI_CHAT_PROXY_BASE_URL`) and collect metrics at
-that proxy — Axon itself emits no telemetry.
+  Two limits worth knowing before you build on it. This is the **only** hook
+  payload carrying usage, so main-agent turns are not covered — `Stop` reports a
+  reason and nothing more. And the sibling `tokensUsed` field is the subagent's
+  final **context size**, not what it generated, so a rate derived from it is
+  meaningless; use `outputTokens` over `apiDurationMs` instead.
+
+If you need fleet-wide observability across every turn rather than per subagent,
+run everything through your own OpenAI-compatible proxy
+(`AXON_CLI_CHAT_PROXY_BASE_URL`) and collect metrics at that proxy — Axon itself
+emits no telemetry.
 
 ---
 
