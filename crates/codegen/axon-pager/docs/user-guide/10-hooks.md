@@ -96,7 +96,9 @@ Because hooks are unified under folder-trust, a `--trust` / `/hooks-trust` grant
 | `PostCompact` | Conversation compaction completes. | No |
 | `SessionEnd` | The session ends. | No |
 
-`SubagentEnd` is accepted as an alias for `SubagentStop`: either spelling may be used to register a hook, and both receive the event. Only `PreToolUse` can block a tool call; every other event is passive.
+`SubagentEnd` is accepted as an alias for `SubagentStop`. Either spelling registers a hook that fires, and a command registered under **both** spellings runs once per subagent rather than twice. Prefer `SubagentStop`, which is the canonical name. On builds before 0.3.5 the alias was documented but not implemented: a hook registered under `SubagentStop` was filed under a name nothing dispatched and ran zero times, without reporting an error.
+
+Only `PreToolUse` can block a tool call; every other event is passive.
 
 ### Cursor Hook Compatibility
 
@@ -185,7 +187,7 @@ The event is sent as JSON on **stdin** (for example, a `PreToolUse` event; the p
 }
 ```
 
-A `SubagentStop` event carries what the subagent did and what it cost:
+A `SubagentStop` event carries what the subagent did, and what it spent:
 
 ```json
 {
@@ -202,7 +204,7 @@ A `SubagentStop` event carries what the subagent did and what it cost:
   "usageByModel": [
     {
       "model": "my-local-70b",
-      "inputTokens": 8102,
+      "inputTokens": 18450,
       "outputTokens": 319,
       "modelCalls": 3,
       "apiDurationMs": 812
@@ -231,6 +233,10 @@ compaction fires at 85% of it — and it is the wrong number to divide by
 For that, use `usageByModel`, which is the child's own billing ledger:
 `outputTokens` really is generated tokens and `apiDurationMs` is time spent in
 the API rather than wall clock, so a rate computed from the two is a real one.
+Its counts accumulate across every call the child made, which is why
+`inputTokens` above exceeds `tokensUsed`: one is a running total, the other a
+snapshot of the context at the end. They coincide only when the child made a
+single call.
 Its `model` key is also authoritative — it is what the child actually called,
 which is the only way to attribute a past run after the configuration has
 changed. The array is omitted when the child made no model call. A
