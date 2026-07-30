@@ -2128,6 +2128,11 @@ fn send_pre_spawn_failure(
                 turns: 0,
                 duration_ms: 0,
                 tokens_used: 0,
+                // Spawn failed, so no model was ever called. That is a genuine
+                // zero rather than a bill we could not read, and flagging it
+                // incomplete would cry wolf on every rejected spawn.
+                usage_by_model: Vec::new(),
+                usage_incomplete: false,
                 output: None,
                 will_wake: false,
             },
@@ -2174,6 +2179,10 @@ fn fail_subagent(
             turns: 0,
             duration_ms,
             tokens_used: 0,
+            // Killed while still pending: the child sat idle and called no
+            // model, so this really is zero spend, not a missing ledger.
+            usage_by_model: Vec::new(),
+            usage_incomplete: false,
             output: None,
             will_wake: false,
         },
@@ -2233,6 +2242,10 @@ async fn cancel_pending_subagent_at_promote(
             turns: 0,
             duration_ms,
             tokens_used: 0,
+            // Killed while still pending: the child sat idle and called no
+            // model, so this really is zero spend, not a missing ledger.
+            usage_by_model: Vec::new(),
+            usage_incomplete: false,
             output: None,
             will_wake: false,
         },
@@ -2765,6 +2778,10 @@ fn cancelled_orphan_finish(
         turns: 0,
         duration_ms,
         tokens_used: 0,
+        // This subagent ran; its ledger is what was lost. Reporting no usage
+        // AND no caveat would present a reconciled orphan as having been free.
+        usage_by_model: Vec::new(),
+        usage_incomplete: true,
         output: None,
         will_wake: false,
     }
@@ -2892,6 +2909,11 @@ pub(crate) fn reconcile_orphaned_subagents(
                         turns: m.turns.unwrap_or(0),
                         duration_ms: m.duration_ms.unwrap_or(0),
                         tokens_used: 0,
+                        // Re-emitted from surviving terminal meta, which never
+                        // held the per-model ledger. It ran, so say the bill is
+                        // short rather than imply it spent nothing.
+                        usage_by_model: Vec::new(),
+                        usage_incomplete: true,
                         output: None,
                         will_wake: false,
                     },

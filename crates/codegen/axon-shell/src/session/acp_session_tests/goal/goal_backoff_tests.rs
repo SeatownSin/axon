@@ -3217,6 +3217,8 @@ fn finish_notif(subagent_id: &str, tokens_used: u64) -> AxonSessionNotification 
             turns: 1,
             duration_ms: 100,
             tokens_used,
+            usage_by_model: Vec::new(),
+            usage_incomplete: false,
             output: None,
             will_wake: false,
         },

@@ -171,6 +171,32 @@ pub struct HookEventEnvelope {
     pub payload: HookPayload,
 }
 
+/// One model's share of a subagent's bill, as the child's own ledger recorded
+/// it. Carried by `SubagentStop`, and by the `SubagentFinished` session update
+/// it is built from.
+///
+/// Deliberately not the whole `UsageTotals`: cost is a vendor concept and is
+/// always absent in this fork, so putting it on the wire would only invite a
+/// reader to divide by zero and believe the answer.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, serde::Deserialize)]
+pub struct SubagentModelUsage {
+    /// The model the child actually called.
+    pub model: String,
+    #[serde(rename = "inputTokens", default)]
+    pub input_tokens: u64,
+    /// Tokens the model generated. Unlike the context-size figure reported as
+    /// `tokensUsed`, a rate computed from this one means something.
+    #[serde(rename = "outputTokens", default)]
+    pub output_tokens: u64,
+    #[serde(rename = "modelCalls", default)]
+    pub model_calls: u64,
+    /// Time inside the API across those calls, which is the honest denominator
+    /// for a generation rate. Wall-clock `duration_ms` includes tool execution
+    /// and the child's own thinking between calls.
+    #[serde(rename = "apiDurationMs", default)]
+    pub api_duration_ms: u64,
+}
+
 /// Event-specific payload variants, flattened into the envelope JSON via
 /// `#[serde(untagged)]`. Grouped to match `HookEventName`.
 #[derive(Debug, Clone, Serialize)]
@@ -316,6 +342,34 @@ pub enum HookPayload {
         tool_calls: Option<u32>,
         #[serde(skip_serializing_if = "Option::is_none")]
         turns: Option<u32>,
+        /// What ran, and what it generated, per model. `tokens_used` above is
+        /// the child's final CONTEXT size, so dividing it by `duration_ms`
+        /// yields a throughput-shaped number that measures nothing. These are
+        /// the child's own billing totals: `output_tokens` really is generated
+        /// tokens, and `api_duration_ms` is time spent in the API rather than
+        /// wall clock, so a rate computed from the two is a real one.
+        ///
+        /// The model key is authoritative — it is what the child actually
+        /// called, not what a config file says it should have called, which is
+        /// the only way an outside reader can attribute a run after the config
+        /// has moved on. Empty when the child made no model call, or when its
+        /// ledger could not be read.
+        #[serde(
+            rename = "usageByModel",
+            default,
+            skip_serializing_if = "Vec::is_empty"
+        )]
+        usage_by_model: Vec<SubagentModelUsage>,
+        /// The child's bill under-counts (drain timeout, nested subagent
+        /// incomplete, or an apply miss). Present only when true, because a
+        /// reader that ignores it should not silently treat a partial total as
+        /// a complete one.
+        #[serde(
+            rename = "usageIncomplete",
+            default,
+            skip_serializing_if = "std::ops::Not::not"
+        )]
+        usage_incomplete: bool,
         /// Why it failed. `exit_code` says only that it did.
         #[serde(skip_serializing_if = "Option::is_none")]
         error: Option<String>,
@@ -355,6 +409,79 @@ pub fn truncate_payload(value: serde_json::Value) -> (serde_json::Value, bool) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The camelCase names a hook script actually reads, and the promise that
+    /// an empty ledger adds nothing to the payload.
+    #[test]
+    fn subagent_stop_usage_by_model_reaches_the_wire() {
+        let payload = HookPayload::SubagentStop {
+            subagent_id: "sa-1".into(),
+            subagent_type: "executor".into(),
+            description: None,
+            exit_code: Some(0),
+            duration_ms: Some(41_000),
+            tokens_used: Some(31_200),
+            tool_calls: Some(6),
+            turns: Some(9),
+            usage_by_model: vec![SubagentModelUsage {
+                model: "laguna".into(),
+                input_tokens: 30_000,
+                output_tokens: 1_200,
+                model_calls: 9,
+                api_duration_ms: 18_000,
+            }],
+            usage_incomplete: false,
+            error: None,
+        };
+        let json = serde_json::to_value(&payload).unwrap();
+        let entry = &json["usageByModel"][0];
+        assert_eq!(entry["model"], "laguna");
+        assert_eq!(entry["inputTokens"], 30_000);
+        // The whole reason this field exists: `tokensUsed` is a context size,
+        // so only `outputTokens` can answer what the seat produced, and only
+        // `apiDurationMs` is an honest denominator for a rate.
+        assert_eq!(entry["outputTokens"], 1_200);
+        assert_eq!(entry["apiDurationMs"], 18_000);
+        assert_eq!(entry["modelCalls"], 9);
+        assert!(
+            json.get("usageIncomplete").is_none(),
+            "a complete bill must not carry the caveat: {json}"
+        );
+        // Cost is a vendor concept and always absent here. On the wire it would
+        // only invite a reader to divide by zero and trust the result.
+        assert!(entry.get("costUsdTicks").is_none());
+        assert!(entry.get("cost_usd_ticks").is_none());
+    }
+
+    #[test]
+    fn subagent_stop_omits_usage_when_nothing_ran_but_keeps_the_caveat() {
+        let mut payload = HookPayload::SubagentStop {
+            subagent_id: "sa-2".into(),
+            subagent_type: "scout".into(),
+            description: None,
+            exit_code: Some(-1),
+            duration_ms: Some(2),
+            tokens_used: Some(0),
+            tool_calls: Some(0),
+            turns: Some(0),
+            usage_by_model: Vec::new(),
+            usage_incomplete: false,
+            error: None,
+        };
+        let json = serde_json::to_value(&payload).unwrap();
+        assert!(json.get("usageByModel").is_none());
+        assert!(json.get("usageIncomplete").is_none());
+
+        // A run whose ledger was lost must say so, or empty usage reads as free.
+        if let HookPayload::SubagentStop {
+            usage_incomplete, ..
+        } = &mut payload
+        {
+            *usage_incomplete = true;
+        }
+        let json = serde_json::to_value(&payload).unwrap();
+        assert_eq!(json["usageIncomplete"], true);
+    }
 
     #[test]
     fn event_name_deser_all_variants() {

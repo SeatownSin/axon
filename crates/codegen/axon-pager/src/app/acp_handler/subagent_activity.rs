@@ -90,6 +90,11 @@ pub(crate) fn finalize_killed_subagent(
             // started_at is stamped at resume, not the real spawn), so emit 0.
             duration_ms: 0,
             tokens_used: 0,
+            // Same story for the bill: this subagent ran before the resume
+            // window and its ledger did not survive. Empty usage without the
+            // caveat would present a real run as having cost nothing.
+            usage_by_model: Vec::new(),
+            usage_incomplete: true,
             output: None,
             will_wake: false,
         },

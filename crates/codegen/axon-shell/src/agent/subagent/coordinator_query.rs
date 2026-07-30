@@ -298,6 +298,10 @@ impl SubagentCoordinator {
             turns: c.result.turns,
             duration_ms,
             tokens_used: 0,
+            // Rebuilt from the completed-entry snapshot, which does not carry
+            // the per-model ledger. The run happened, so the bill is short.
+            usage_by_model: Vec::new(),
+            usage_incomplete: true,
             output: None,
             will_wake: false,
         })
