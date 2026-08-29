@@ -78,6 +78,7 @@ pub mod languages;
 pub mod manager;
 pub mod navigation;
 pub mod scope_graph;
+mod symbol_extraction;
 pub mod types;
 
 // Re-exports for convenient access
@@ -94,7 +95,7 @@ pub use manager::{
 pub use navigation::{Location, NavigationError, NavigationResult, Navigator};
 pub use scope_graph::{
     LocalDef, LocalImport, LocalScope, NodeKind, QueryVersion, Reference, ScopeGraph,
-    ScopeGraphIndex, ScopeGraphResult, Symbol, SymbolId, build_scope_graph, extract_symbols_fast,
+    ScopeGraphIndex, ScopeGraphResult, Symbol, SymbolId, build_scope_graph,
 };
 pub use types::{FileMeta, IndexStats, Position, Range, SymbolAlias, SymbolOccurrence};
 

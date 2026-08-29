@@ -11,32 +11,21 @@ use ahash::AHashSet;
 use petgraph::Graph;
 use petgraph::{Direction, visit::EdgeRef};
 use serde::{Deserialize, Serialize};
-use tree_sitter::{QueryCursor, StreamingIterator};
 
 use crate::interner::{StringId, StringInterner};
 use crate::languages::{LanguageRegistry, TSLanguageConfig};
+use crate::symbol_extraction::{extract_query_captures, symbol_kind_of};
 use crate::types::{FileMeta, Range};
 
 use super::edges::EdgeKind;
-use super::nodes::{LocalDef, LocalImport, LocalScope, NodeKind, Reference, Symbol, SymbolId};
+use super::nodes::{LocalDef, LocalImport, LocalScope, NodeKind, Reference, Symbol};
 
 /// A type alias for node indices in the graph.
 pub type NodeIndex = petgraph::graph::NodeIndex<u32>;
 
-/// A symbol with its name and range.
-pub type SymbolWithRange = (Arc<str>, Range);
-
 /// A reference with its resolved definition (if any).
 /// Format: (ref_name, ref_range, Option<(def_name, def_range)>)
 pub type ReferenceWithDefinition = (String, Range, Option<(String, Range)>);
-
-/// Result of symbol extraction: (definitions, references, aliases).
-/// Aliases use Arc<str> to avoid extra allocation when merging into index.
-pub type ExtractedSymbols = (
-    Vec<SymbolWithRange>,
-    Vec<SymbolWithRange>,
-    Vec<(Arc<str>, Arc<str>)>,
-);
 
 /// Version tracking for tree-sitter queries used to build an index.
 ///
@@ -412,7 +401,7 @@ impl ScopeGraph {
     /// Create a minimal ScopeGraph from pre-extracted symbols.
     ///
     /// This is used for fast indexing where we already have definitions and references
-    /// extracted via `extract_symbols_fast`.
+    /// as (name, range) tuples.
     pub fn from_symbols(
         definitions: Vec<(String, Range)>,
         references: Vec<(String, Range)>,
@@ -493,143 +482,39 @@ pub fn scope_graph_from_definitions_query(
         language.primary_language_id().to_string(),
     );
 
-    let mut cursor = QueryCursor::new();
-
-    // Collect all captures first
-    let mut def_captures: Vec<(Range, Option<SymbolId>)> = Vec::new();
-    let mut ref_captures: Vec<(Range, Option<SymbolId>)> = Vec::new();
-    let mut alias_pairs: Vec<(String, String)> = Vec::new();
-
-    // We need to process matches to find alias pairs (where we have both @alias.original and @alias.name)
-    let mut matches = cursor.matches(query, root_node, src);
-
-    while let Some(match_) = matches.next() {
-        let mut alias_original: Option<String> = None;
-        let mut alias_name: Option<String> = None;
-
-        for capture in match_.captures {
-            let range = Range::for_tree_node(&capture.node);
-            let capture_name = &query.capture_names()[capture.index as usize];
-            let text = String::from_utf8_lossy(&src[capture.node.byte_range()]).to_string();
-
-            let parts: Vec<_> = capture_name.split('.').collect();
-
-            match parts.as_slice() {
-                ["name", "definition", sym] => {
-                    let symbol_id = language.symbol_id_of(sym);
-                    def_captures.push((range, symbol_id));
-                }
-                ["name", "reference", sym] => {
-                    let symbol_id = language.symbol_id_of(sym);
-                    ref_captures.push((range, symbol_id));
-                }
-                ["alias", "original"] => {
-                    alias_original = Some(text);
-                }
-                ["alias", "name"] => {
-                    alias_name = Some(text);
-                }
-                _ => {}
-            }
-        }
-
-        // If we found an alias pair in this match, record it
-        if let (Some(original), Some(alias)) = (alias_original, alias_name) {
-            alias_pairs.push((alias, original));
-        }
-    }
+    let captures = extract_query_captures(query, root_node, src);
 
     // Insert definitions - they go into the global scope for simplicity
-    for (range, symbol_id) in def_captures {
-        let local_scope = scope_graph.find_tightest_local_scope(&range);
-        let local_def = LocalDef::new(range, symbol_id, local_scope);
+    for capture in captures.defs {
+        let symbol_id = symbol_kind_of(query, capture.capture_index)
+            .and_then(|symbol| language.symbol_id_of(symbol));
+        let local_scope = scope_graph.find_tightest_local_scope(&capture.range);
+        let local_def = LocalDef::new(capture.range, symbol_id, local_scope);
         scope_graph.insert_global_def(local_def);
     }
 
     // Insert references unconditionally for cross-file tracking
-    for (range, symbol_id) in ref_captures {
-        let reference = Reference::new(range, symbol_id);
+    for capture in captures.refs {
+        let symbol_id = symbol_kind_of(query, capture.capture_index)
+            .and_then(|symbol| language.symbol_id_of(symbol));
+        let reference = Reference::new(capture.range, symbol_id);
         scope_graph.insert_ref_unconditional(reference);
     }
 
+    // Record matched alias pairs as (alias_name, original_name), converting
+    // the captured source ranges with lossy UTF-8.
+    let alias_pairs = captures
+        .aliases
+        .into_iter()
+        .map(|pair| {
+            (
+                String::from_utf8_lossy(&src[pair.name]).into_owned(),
+                String::from_utf8_lossy(&src[pair.original]).into_owned(),
+            )
+        })
+        .collect();
+
     (scope_graph, alias_pairs)
-}
-
-/// Lightweight symbol extraction for fast indexing.
-///
-/// Unlike scope_graph_from_definitions_query, this doesn't build a full ScopeGraph.
-/// It directly extracts (name, range) tuples for definitions and references.
-/// This is ~2-3x faster for indexing purposes where we don't need the full graph.
-///
-/// Returns: (definitions, references, aliases)
-pub fn extract_symbols_fast(
-    query: &tree_sitter::Query,
-    root_node: tree_sitter::Node<'_>,
-    src: &[u8],
-    _lang_config: &TSLanguageConfig,
-) -> ExtractedSymbols {
-    // Pre-compute capture indices for fast lookup (avoid string comparisons in hot loop)
-    let capture_names = query.capture_names();
-    let mut is_def = vec![false; capture_names.len()];
-    let mut is_ref = vec![false; capture_names.len()];
-    let mut alias_original_idx: Option<usize> = None;
-    let mut alias_name_idx: Option<usize> = None;
-
-    for (i, name) in capture_names.iter().enumerate() {
-        if name.starts_with("name.definition.") {
-            is_def[i] = true;
-        } else if name.starts_with("name.reference.") {
-            is_ref[i] = true;
-        } else if *name == "alias.original" {
-            alias_original_idx = Some(i);
-        } else if *name == "alias.name" {
-            alias_name_idx = Some(i);
-        }
-    }
-
-    // Pre-allocate with reasonable capacity
-    let mut definitions: Vec<(Arc<str>, Range)> = Vec::with_capacity(64);
-    let mut references: Vec<(Arc<str>, Range)> = Vec::with_capacity(256);
-    let mut alias_pairs: Vec<(Arc<str>, Arc<str>)> = Vec::with_capacity(8);
-
-    let mut cursor = tree_sitter::QueryCursor::new();
-    let mut matches = cursor.matches(query, root_node, src);
-
-    while let Some(match_) = matches.next() {
-        let mut alias_original: Option<&[u8]> = None;
-        let mut alias_name: Option<&[u8]> = None;
-
-        for capture in match_.captures {
-            let idx = capture.index as usize;
-            let node = capture.node;
-            let byte_range = node.byte_range();
-
-            if is_def.get(idx).copied().unwrap_or(false) {
-                // Convert Cow<str> directly to Arc<str> - avoids intermediate String allocation
-                let text: Arc<str> = String::from_utf8_lossy(&src[byte_range]).into();
-                let range = Range::for_tree_node(&node);
-                definitions.push((text, range));
-            } else if is_ref.get(idx).copied().unwrap_or(false) {
-                let text: Arc<str> = String::from_utf8_lossy(&src[byte_range]).into();
-                let range = Range::for_tree_node(&node);
-                references.push((text, range));
-            } else if Some(idx) == alias_original_idx {
-                alias_original = Some(&src[byte_range]);
-            } else if Some(idx) == alias_name_idx {
-                alias_name = Some(&src[byte_range]);
-            }
-        }
-
-        // If we found an alias pair in this match, record it
-        if let (Some(original), Some(alias)) = (alias_original, alias_name) {
-            // Convert Cow<str> directly to Arc<str> - avoids intermediate String allocation
-            let orig_arc: Arc<str> = String::from_utf8_lossy(original).into();
-            let alias_arc: Arc<str> = String::from_utf8_lossy(alias).into();
-            alias_pairs.push((alias_arc, orig_arc));
-        }
-    }
-
-    (definitions, references, alias_pairs)
 }
 
 /// Magic bytes for the new binary format: "SGIX" (ScopeGraphIndex)

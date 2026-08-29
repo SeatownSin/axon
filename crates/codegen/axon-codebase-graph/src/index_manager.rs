@@ -49,6 +49,7 @@ use once_cell::sync::Lazy;
 use crate::languages::LanguageRegistry;
 use crate::manager::IndexBuilder;
 use crate::scope_graph::ScopeGraphIndex;
+use crate::symbol_extraction::extract_query_captures;
 use crate::types::{FileMeta, IndexStats};
 
 /// Global registry of active IndexManager handles per workspace.
@@ -1436,11 +1437,10 @@ fn background_index_refresh(
 
 /// Extract symbols from a parsed tree and intern them directly into the index.
 ///
-/// This is the zero-alloc alternative to `extract_symbols_inline` for the
-/// incremental reindex path. Instead of creating `Arc<str>` for each symbol
-/// and collecting into Vecs, it interns symbol names directly from
-/// `&src[byte_range]` into the index's `StringInterner` and adds
-/// definition/reference entries inline.
+/// This is the zero-alloc variant of the incremental reindex path: instead
+/// of creating `Arc<str>` for each symbol and collecting into Vecs, it
+/// interns symbol names directly from `&src[byte_range]` into the index's
+/// `StringInterner` and adds definition/reference entries inline.
 ///
 /// Invalid UTF-8 byte ranges are skipped (indicates binary content in that
 /// region of the file — no lossy replacement needed).
@@ -1451,62 +1451,32 @@ fn intern_symbols_directly(
     path_id: crate::interner::StringId,
     index: &mut ScopeGraphIndex,
 ) {
-    use tree_sitter::StreamingIterator;
+    let captures = extract_query_captures(query, root_node, src);
 
-    let capture_names = query.capture_names();
-    let mut is_def = vec![false; capture_names.len()];
-    let mut is_ref = vec![false; capture_names.len()];
-    let mut alias_original_idx: Option<usize> = None;
-    let mut alias_name_idx: Option<usize> = None;
-
-    for (i, name) in capture_names.iter().enumerate() {
-        if name.starts_with("name.definition.") {
-            is_def[i] = true;
-        } else if name.starts_with("name.reference.") {
-            is_ref[i] = true;
-        } else if *name == "alias.original" {
-            alias_original_idx = Some(i);
-        } else if *name == "alias.name" {
-            alias_name_idx = Some(i);
-        }
+    for capture in captures.defs {
+        // Skip non-UTF-8 ranges (binary artifact) instead of lossy replacement
+        let Ok(text) = std::str::from_utf8(&src[capture.byte_range]) else {
+            continue;
+        };
+        index.add_definition_with_path_id(text, path_id, capture.range.start_line() + 1);
     }
 
-    let mut cursor = tree_sitter::QueryCursor::new();
-    let mut matches = cursor.matches(query, root_node, src);
+    for capture in captures.refs {
+        // Skip non-UTF-8 ranges (binary artifact) instead of lossy replacement
+        let Ok(text) = std::str::from_utf8(&src[capture.byte_range]) else {
+            continue;
+        };
+        index.add_reference_with_path_id(text, path_id, capture.range.start_line() + 1);
+    }
 
-    while let Some(m) = matches.next() {
-        let mut alias_original: Option<&[u8]> = None;
-        let mut alias_name: Option<&[u8]> = None;
-
-        for capture in m.captures {
-            let idx = capture.index as usize;
-            let node = capture.node;
-            let byte_range = node.byte_range();
-            let line = node.start_position().row + 1;
-
-            let bytes = &src[byte_range];
-            // Skip non-UTF-8 ranges (binary artifact) instead of lossy replacement
-            let Ok(text) = std::str::from_utf8(bytes) else {
-                continue;
-            };
-
-            if is_def.get(idx).copied().unwrap_or(false) {
-                index.add_definition_with_path_id(text, path_id, line);
-            } else if is_ref.get(idx).copied().unwrap_or(false) {
-                index.add_reference_with_path_id(text, path_id, line);
-            } else if Some(idx) == alias_original_idx {
-                alias_original = Some(bytes);
-            } else if Some(idx) == alias_name_idx {
-                alias_name = Some(bytes);
-            }
-        }
-
-        if let (Some(original), Some(alias)) = (alias_original, alias_name)
-            && let (Ok(orig_str), Ok(alias_str)) =
-                (std::str::from_utf8(original), std::str::from_utf8(alias))
-        {
-            index.add_alias(alias_str, orig_str);
-        }
+    for pair in captures.aliases {
+        let Ok(orig_str) = std::str::from_utf8(&src[pair.original]) else {
+            continue;
+        };
+        let Ok(alias_str) = std::str::from_utf8(&src[pair.name]) else {
+            continue;
+        };
+        index.add_alias(alias_str, orig_str);
     }
 }
 

@@ -10,7 +10,7 @@ pub mod nodes;
 pub use edges::EdgeKind;
 pub use graph::{
     NodeIndex, QueryVersion, ScopeGraph, ScopeGraphIndex, ScopeStack, Snippet,
-    extract_symbols_fast, scope_graph_from_definitions_query,
+    scope_graph_from_definitions_query,
 };
 pub use nodes::{LocalDef, LocalImport, LocalScope, NodeKind, Reference, Symbol, SymbolId};
 
