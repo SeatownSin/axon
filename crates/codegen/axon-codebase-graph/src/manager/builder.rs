@@ -11,6 +11,7 @@ use rayon::prelude::*;
 
 use crate::languages::LanguageRegistry;
 use crate::scope_graph::ScopeGraphIndex;
+use crate::symbol_extraction::{QueryCaptures, extract_query_captures};
 use crate::types::{FileMeta, SymbolAlias, SymbolOccurrence};
 use axon_paths::to_relative_path;
 
@@ -405,7 +406,7 @@ fn process_file_fast(
     let root_node = tree.root_node();
 
     // Extract symbols using thread-local cached query
-    let (definitions, references, aliases) = QUERY_CACHE.with(|cache| {
+    let captures = QUERY_CACHE.with(|cache| {
         let mut cache = cache.borrow_mut();
         let query = cache.entry(lang_id.clone()).or_insert_with(|| {
             lang_config.compile_query().unwrap_or_else(|_| {
@@ -413,8 +414,11 @@ fn process_file_fast(
                 tree_sitter::Query::new(&ts_lang, "").expect("empty query should always work")
             })
         });
-        extract_symbols_fast_inline(query, root_node, &content)
+        extract_query_captures(query, root_node, &content)
     });
+
+    // Adapt the canonical captures into lightweight occurrence vectors
+    let (definitions, references, aliases) = to_symbol_occurrences(captures, &content);
 
     // Reuse metadata from the size check above (no re-stat needed)
 
@@ -430,77 +434,37 @@ fn process_file_fast(
     })
 }
 
-/// Lightweight symbol extraction - returns proper typed vectors.
-/// Inlined for maximum performance (avoids function call overhead in hot loop).
-#[inline]
-fn extract_symbols_fast_inline(
-    query: &tree_sitter::Query,
-    root_node: tree_sitter::Node<'_>,
+/// Adapt canonical query captures into the builder's lightweight symbol
+/// vectors: 1-indexed line numbers and lossy UTF-8-converted names.
+fn to_symbol_occurrences(
+    captures: QueryCaptures,
     src: &[u8],
 ) -> (
     Vec<SymbolOccurrence>,
     Vec<SymbolOccurrence>,
     Vec<SymbolAlias>,
 ) {
-    use tree_sitter::StreamingIterator;
-
-    // Pre-compute capture indices for fast lookup
-    let capture_names = query.capture_names();
-    let mut is_def = vec![false; capture_names.len()];
-    let mut is_ref = vec![false; capture_names.len()];
-    let mut alias_original_idx: Option<usize> = None;
-    let mut alias_name_idx: Option<usize> = None;
-
-    for (i, name) in capture_names.iter().enumerate() {
-        if name.starts_with("name.definition.") {
-            is_def[i] = true;
-        } else if name.starts_with("name.reference.") {
-            is_ref[i] = true;
-        } else if *name == "alias.original" {
-            alias_original_idx = Some(i);
-        } else if *name == "alias.name" {
-            alias_name_idx = Some(i);
-        }
-    }
-
     // Pre-allocate with reasonable capacity
     let mut definitions: Vec<SymbolOccurrence> = Vec::with_capacity(64);
+    for capture in captures.defs {
+        // Convert Cow<str> directly to Arc<str> - avoids intermediate String allocation
+        let text: Arc<str> = String::from_utf8_lossy(&src[capture.byte_range]).into();
+        // Line numbers are 1-indexed
+        definitions.push(SymbolOccurrence::new(text, capture.range.start_line() + 1));
+    }
+
     let mut references: Vec<SymbolOccurrence> = Vec::with_capacity(256);
+    for capture in captures.refs {
+        let text: Arc<str> = String::from_utf8_lossy(&src[capture.byte_range]).into();
+        references.push(SymbolOccurrence::new(text, capture.range.start_line() + 1));
+    }
+
     let mut aliases: Vec<SymbolAlias> = Vec::with_capacity(8);
-
-    let mut cursor = tree_sitter::QueryCursor::new();
-    let mut matches = cursor.matches(query, root_node, src);
-
-    while let Some(match_) = matches.next() {
-        let mut alias_original: Option<&[u8]> = None;
-        let mut alias_name: Option<&[u8]> = None;
-
-        for capture in match_.captures {
-            let idx = capture.index as usize;
-            let node = capture.node;
-            let byte_range = node.byte_range();
-
-            if is_def.get(idx).copied().unwrap_or(false) {
-                // Convert Cow<str> directly to Arc<str> - avoids intermediate String allocation
-                let text: Arc<str> = String::from_utf8_lossy(&src[byte_range]).into();
-                // Line numbers are 1-indexed
-                definitions.push(SymbolOccurrence::new(text, node.start_position().row + 1));
-            } else if is_ref.get(idx).copied().unwrap_or(false) {
-                let text: Arc<str> = String::from_utf8_lossy(&src[byte_range]).into();
-                references.push(SymbolOccurrence::new(text, node.start_position().row + 1));
-            } else if Some(idx) == alias_original_idx {
-                alias_original = Some(&src[byte_range]);
-            } else if Some(idx) == alias_name_idx {
-                alias_name = Some(&src[byte_range]);
-            }
-        }
-
-        if let (Some(original), Some(alias)) = (alias_original, alias_name) {
-            // Convert Cow<str> directly to Arc<str> - avoids intermediate String allocation
-            let orig_arc: Arc<str> = String::from_utf8_lossy(original).into();
-            let alias_arc: Arc<str> = String::from_utf8_lossy(alias).into();
-            aliases.push(SymbolAlias::new(alias_arc, orig_arc));
-        }
+    for pair in captures.aliases {
+        // Convert Cow<str> directly to Arc<str> - avoids intermediate String allocation
+        let orig_arc: Arc<str> = String::from_utf8_lossy(&src[pair.original]).into();
+        let alias_arc: Arc<str> = String::from_utf8_lossy(&src[pair.name]).into();
+        aliases.push(SymbolAlias::new(alias_arc, orig_arc));
     }
 
     (definitions, references, aliases)
