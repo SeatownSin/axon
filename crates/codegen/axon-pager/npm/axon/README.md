@@ -50,9 +50,11 @@ npm i -g @axon-official/axon@latest
 
 | Platform | Architecture |
 |---|---|
-| macOS | Apple Silicon (arm64), x86_64 |
 | Linux | x86_64, arm64 |
 | Windows | x86_64, arm64 |
+
+There is no prebuilt macOS binary: the release pipeline intentionally skips
+macOS targets, so macOS users build from source.
 
 ## Documentation
 

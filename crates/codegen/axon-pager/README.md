@@ -12,20 +12,20 @@ src/
 │   ├── app_view.rs      # Top-level state (welcome screen, agents, config)
 │   ├── agent_view/      # Per-session agent view (struct in mod.rs + per-domain impl modules)
 │   ├── dispatch/        # Action → Effect dispatcher (router + per-domain modules)
-│   ├── effects.rs       # Async side effects (ACP calls, file I/O)
+│   ├── effects/         # Async side effects (ACP calls, file I/O)
 │   └── event_loop.rs    # Main event loop (input, ticks, ACP messages)
 ├── views/               # UI components
-│   ├── prompt_widget.rs # Text editor with file search, slash, history
+│   ├── prompt_widget/   # Text editor with file search, slash, history
 │   ├── welcome/         # Welcome screen (logo, menu, prompt)
 │   ├── extensions_modal.rs   # Extensions modal (hooks, plugins, marketplace, skills, MCP servers)
 │   ├── file_search/     # @-completion dropdown and line viewer
 │   ├── slash_dropdown.rs# /command completion dropdown
-│   └── ...              # Scrollback, status bar, panes, etc.
+│   └── ...              # Status bar, panes, modals, etc.
 ├── scrollback/          # Message history rendering
 ├── slash/               # Slash command registry and built-in commands
-├── appearance/          # Theme and pager.toml config
+├── settings/            # Theme and pager.toml settings (built-in themes, registry)
 ├── acp/                 # Agent Communication Protocol client state
-└── render/              # Low-level rendering helpers (color, wrapping, etc.)
+└── ...                  # headless.rs, wrap_cmd.rs, memory_cmd.rs, tracing.rs, bin/
 ```
 
 ## Key Concepts

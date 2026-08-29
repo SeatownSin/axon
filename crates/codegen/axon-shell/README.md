@@ -33,7 +33,7 @@ axon agent stdio
   - [Interactive TUI](#interactive-tui) — shortcuts, slash commands, file references
   - [Headless Mode](#headless-mode) — scripting, CI/CD, output formats
   - [Agent Mode](#agent-mode) — stdio, ACP integration
-  - [SSH Passthrough](#ssh-passthrough-axon-ssh) — Apple Terminal clipboard support
+  - [Wrap](#wrap-axon-wrap) — run any command (ssh, docker, ...) with local clipboard support
 - **Configuration**
   - [Config File](#configuration) — general settings, LSP, enterprise deployment
   - [Custom Models](#custom-models) — BYOK, Ollama, OpenAI, custom endpoints
@@ -410,16 +410,14 @@ axon [OPTIONS]
 | Flag                       | Description                                                            |
 | -------------------------- | ---------------------------------------------------------------------- |
 | `--cwd <PATH>`             | Set working directory (default: current directory)                     |
-| `--prompt <TEXT>`          | Send an initial prompt immediately after startup                       |
 | `--rules <TEXT>`           | Append custom rules to the system prompt                               |
 | `--always-approve`         | Auto-approve all tool executions without confirmation                  |
 | `--sandbox <PROFILE>`      | OS-level filesystem/network guardrails (see [Sandbox](#sandbox))       |
-| `--light`                  | Use light theme (macOS Basic) instead of dark                          |
-| `--single-turn`            | Exit after first response (requires `--prompt`)                        |
+| `-p <PROMPT>`              | Run a single-turn prompt, print the response, and exit (see [Headless Mode](#headless-mode)) |
 | `--no-memory`              | Force-disable cross-session memory (overrides all other settings)      |
-| `--subagents`              | Enable subagent/task tool support (see [Subagents](#subagents))        |
+| `--no-subagents`           | Disable subagent/task tool support (enabled by default; see [Subagents](#subagents)) |
+| `--agent <NAME>`          | Use a named agent — or an agent definition file, if the value is the path of an existing file (see [Agent Profiles](#agent-profiles)) |
 | `--disable-web-search`     | Remove web search tool from the agent toolset                          |
-| `--agent-profile <PATH>`   | Load a custom agent definition file (see [Agent Profiles](#agent-profiles)) |
 | `--experimental-memory`    | Enable cross-session memory persistence (see [Memory](#memory))        |
 | `--allow <RULE>`           | Permission allow rule with glob patterns (repeatable). See [Permission Rules](#permission-rules-allow--deny). |
 | `--deny <RULE>`            | Permission deny rule with glob patterns (repeatable). See [Permission Rules](#permission-rules-allow--deny). |
@@ -430,14 +428,14 @@ axon [OPTIONS]
 # Start in a specific project
 axon --cwd ~/projects/my-app
 
-# Start with an initial task
-axon --prompt "Review this codebase and suggest improvements"
+# Start with an initial task (positional prompt)
+axon "Review this codebase and suggest improvements"
 
 # Add project-specific rules
 axon --rules "Always use TypeScript. Prefer functional components."
 
 # Auto-approve mode for trusted tasks
-axon --always-approve --prompt "Format all files"
+axon --always-approve "Format all files"
 ```
 
 ### Keyboard Shortcuts
@@ -465,7 +463,7 @@ Type `/` in the input to access commands:
 | ---------------------------------- | --------- | -------------------------------------------------------- |
 | `/model <name>`                    | `/m`      | Switch to a different model                              |
 | `/new`                             |           | Start a new session (clears context)                     |
-| `/load [workspace] [session]`      | `/resume` | Load a previous session                                  |
+| `/resume`                          |         | Resume a previous session (opens the session picker)     |
 | `/rewind <prompt>`                 |           | Rewind to a previous prompt (restores files)             |
 | `/compact [context]`               |           | Compact conversation history                             |
 | `/always-approve [on\|off]`        | `/yolo`   | Toggle auto-approve mode                                 |
@@ -685,7 +683,7 @@ If the session exists it picks up where you left off; if not, a new one is creat
 This differs from `--resume`, which errors when the session doesn't exist.
 
 > **Note:** `-s/--session-id` is for headless mode (`-p/--single`) only.
-> In the interactive TUI, use `/load` or `--resume`.
+> In the interactive TUI, use `/resume` or the `-r/--resume` flag.
 
 ### Output Formats
 
@@ -786,23 +784,24 @@ The agent connects OUT to your relay, and your web clients connect to the same r
 
 ---
 
-## SSH Passthrough (`axon ssh`)
+## Wrap (`axon wrap`)
 
-Use `axon ssh` instead of plain `ssh` when connecting to remote hosts in terminals that lack native support (e.g. Apple Terminal) for local OSC 52 clipboard interception.
+Use `axon wrap` to run any command (a remote shell, `docker exec`, `kubectl exec`, ...) in a local PTY that forwards its clipboard to yours. This makes copy work when the program runs somewhere that cannot reach your clipboard (containers, SSH) and your terminal does not handle OSC 52 itself (for example Apple Terminal). The wrapped command's terminal is also kept in sync with your window size.
 
 ```bash
-# Basic usage (same args as ssh)
-axon ssh user@host
+# Remote host (same args as ssh)
+axon wrap ssh user@host
 
 # With SSH flags
-axon ssh -t user@host
-axon ssh -L 8080:localhost:8080 user@host
+axon wrap ssh -t user@host
+axon wrap ssh -L 8080:localhost:8080 user@host
 
-# With remote command
-axon ssh user@host -- tmux attach
+# Containers and Kubernetes
+axon wrap docker exec -it my-container bash
+axon wrap kubectl exec -it my-pod -- bash
 ```
 
-On macOS, if the terminal doesn't natively handle OSC 52, `axon ssh` runs SSH inside a local PTY that intercepts clipboard sequences and writes them to `pbcopy`. Both plain OSC 52 and tmux DCS passthrough are handled. Terminals with native OSC 52 (iTerm2, Ghostty, Kitty, WezTerm, Alacritty) get a plain `ssh` exec with no wrapper.
+On Unix interactive sessions the command runs inside a local PTY that intercepts OSC 52 clipboard escape sequences from its output and writes them to the local system clipboard (e.g. `pbcopy` on macOS); otherwise the command is executed directly with no wrapper. On Unix, a single quoted string or a shell alias is handed to `$SHELL -i -c` so your own shell does the word-splitting and alias expansion.
 
 This runs entirely locally.
 
@@ -1589,10 +1588,11 @@ Agent profiles control the system prompt, toolset, and behavior of a session. A 
 
 Axon discovers agent definitions from `.axon/agents/` (project), `~/.axon/agents/` (user), and built-in agents. Priority (highest wins):
 
-1. `--agent-profile <PATH>` CLI flag
-2. `[agent]` section in `config.toml`
-3. `AXON_AGENT` env var
-4. Default built-in agent
+1. `--agent <NAME>` flag (any mode). The value is a **name** unless it is the path of an existing file, in which case the file is loaded as the profile — so `axon --agent ./my-agent.md` works without a separate flag.
+2. `axon agent --agent-profile <PATH>` flag (agent mode only)
+3. `[agent]` section in `config.toml`
+4. `AXON_AGENT` env var
+5. Default built-in agent
 
 ```toml
 # ~/.axon/config.toml
@@ -1602,7 +1602,10 @@ name = "my-custom-agent"             # Discovered by name
 ```
 
 ```bash
-axon --agent-profile ./my-agent.md
+axon --agent ./my-agent.md          # path: loaded as a profile file
+axon --agent my-custom-agent        # name: discovered from disk
+# agent mode has its own explicit flag
+axon agent stdio --agent-profile ./my-agent.md
 # or
 export AXON_AGENT="my-custom-agent"
 ```
@@ -2067,14 +2070,14 @@ Read my workspace MEMORY.md
 ### CLI commands
 
 ```bash
-# Open workspace MEMORY.md in $EDITOR / $VISUAL
-axon memory edit
+# Clear workspace-scoped memory (MEMORY.md, sessions/, index.sqlite) — the default
+axon memory clear
 
-# Open global MEMORY.md
-axon memory edit --global
+# Clear global MEMORY.md
+axon memory clear --global
 
-# Show memory statistics: file count, chunk count, and index size
-axon memory stats
+# Clear both workspace and global, skipping the confirmation prompt
+axon memory clear --all --yes
 ```
 
 ### Configuration reference
@@ -2240,13 +2243,13 @@ Axon includes these tools by default:
 | ---------------- | -------------------------------------------------------------- |
 | `read_file`      | Read file contents with line numbers                           |
 | `search_replace` | Make precise edits to files                                    |
-| `grep_search`    | Search with regex patterns (ripgrep)                           |
+| `grep`           | Search with regex patterns (ripgrep)                           |
 | `list_dir`       | List directory contents                                        |
 | `bash`           | Execute shell commands                                         |
 | `web_search`     | Search the web for up-to-date information                      |
 | `web_fetch`      | Fetch a specific URL and return its content as markdown        |
 | `todo_write`     | Create and manage task lists                                   |
-| `task`           | Launch subagent sessions (requires `--subagents`)              |
+| `task`           | Launch subagent sessions (enabled by default; see [Subagents](#subagents)) |
 | `kill_task`      | Terminate a running background task or subagent                |
 | `get_task_output` | Get output and status from a background task or subagent      |
 | `memory_search`  | Search cross-session memory (requires `--experimental-memory`) |
@@ -2265,7 +2268,7 @@ In agent profiles, use the `tools` and `disallowedTools` frontmatter fields:
 ---
 tools:
   - read_file
-  - grep_search
+  - grep
   - list_dir
 disallowedTools:
   - web_search
@@ -2302,7 +2305,7 @@ Sessions are stored under `~/.axon/sessions/`, organized by URL-encoded working 
   subagents/              # child session directories (when subagents are enabled)
 ```
 
-`summary.json` is the index entry — it contains the session title, model ID, creation/update timestamps, and parent session reference (for restored sessions). `updates.jsonl` is the authoritative conversation log that drives `/load` and session restore.
+`summary.json` is the index entry — it contains the session title, model ID, creation/update timestamps, and parent session reference (for restored sessions). `updates.jsonl` is the authoritative conversation log that drives `/resume` and session restore.
 
 ### TUI
 
