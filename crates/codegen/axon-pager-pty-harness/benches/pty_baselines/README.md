@@ -13,7 +13,8 @@ arch name — `linux-x86_64`, `linux-aarch64`, `macos-aarch64`.
 Run the full bench suite on a quiet machine:
 
 ```bash
-cargo run -p axon-pager --release --bin pty-bench -- \
+cargo bench -p axon-pager-pty-harness \
+  --bench pty_bench -- \
   --all \
   --write-baseline crates/codegen/axon-pager-pty-harness/benches/pty_baselines/<platform>.json
 ```
@@ -21,7 +22,7 @@ cargo run -p axon-pager --release --bin pty-bench -- \
 ## Overwriting after an intentional perf change
 
 A PR that intentionally shifts frame timing (either direction) must update
-the affected baselines. Include the `pty-bench` output from a clean run in
+the affected baselines. Include the `pty_bench` output from a clean run in
 the PR body so reviewers can sanity-check the new numbers.
 
 ## First run
