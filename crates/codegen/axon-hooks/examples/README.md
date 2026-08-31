@@ -92,7 +92,13 @@ Hook files use the Claude-compatible JSON format:
 }
 ```
 
-- **Event names:** `SessionStart`, `PreToolUse`, `PostToolUse`, `SessionEnd`
+- **Event names:** the examples here use `SessionStart`, `PreToolUse`,
+  `PostToolUse` and `SessionEnd`. That is not the full set — `Stop`,
+  `SubagentStop`, `UserPromptSubmit`, `PreCompact` and others exist, and
+  `Stop`/`SessionEnd` are the two that carry token usage. The canonical list
+  and every payload shape live in
+  [`10-hooks.md`](../../axon-pager/docs/user-guide/10-hooks.md); keeping a
+  second copy here is what let this line go stale.
 - **Matcher:** regex on tool name. Claude names like `Bash`, `Read`, `Edit` are auto-expanded to also match Axon's internal tool names (`run_terminal_cmd`, `read_file`, `search_replace`)
 - **Timeout:** in seconds (default: 5)
 - **Command:** path to script (relative to hook file directory) or inline shell command
