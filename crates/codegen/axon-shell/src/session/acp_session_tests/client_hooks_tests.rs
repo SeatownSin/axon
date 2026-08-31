@@ -35,6 +35,9 @@ async fn client_hooks_fire_without_file_registry() {
                 None,
                 axon_hooks::event::HookPayload::Stop {
                     reason: "end_turn".to_string(),
+                    usage_by_model: Vec::new(),
+                    usage_incomplete: false,
+                    is_subagent: false,
                 },
             );
 

@@ -984,10 +984,39 @@ impl SessionActor {
             }
             Err(_) => "error",
         };
+        // The prompt ledger is cleared by `increment_prompt_index`, i.e. when
+        // the NEXT prompt starts, so at this point it still holds exactly what
+        // this turn spent. Read it before dispatching, not after.
+        let (turn_usage_by_model, turn_usage_incomplete) =
+            match self.chat_state_handle.try_get_prompt_usage().await {
+                Ok(Some(ledger)) => (
+                    ledger
+                        .by_model
+                        .iter()
+                        .map(|(model, totals)| axon_hooks::event::ModelUsage {
+                            model: model.clone(),
+                            input_tokens: totals.input_tokens,
+                            output_tokens: totals.output_tokens,
+                            model_calls: totals.model_calls,
+                            api_duration_ms: totals.api_duration_ms,
+                        })
+                        .collect(),
+                    ledger.incomplete,
+                ),
+                // The actor answered "no ledger": this turn genuinely billed
+                // nothing. Not a lost bill, so no caveat.
+                Ok(None) => (Vec::new(), false),
+                // The actor did not answer. The turn ran; reporting it as free
+                // would be a claim no consumer can check.
+                Err(()) => (Vec::new(), true),
+            };
         self.dispatch_hook(
             axon_hooks::event::HookEventName::Stop,
             axon_hooks::event::HookPayload::Stop {
                 reason: stop_reason_str.to_string(),
+                usage_by_model: turn_usage_by_model,
+                usage_incomplete: turn_usage_incomplete,
+                is_subagent: self.startup_hints.is_subagent,
             },
             Some(prompt_id),
             None,

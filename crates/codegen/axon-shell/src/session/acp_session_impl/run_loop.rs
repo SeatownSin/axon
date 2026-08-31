@@ -35,6 +35,66 @@ mod yolo_toggle_report_tests {
 /// Best-effort removal of this session's per-session scratch staging on
 /// teardown. A no-op in builds without a scratch producer.
 fn cleanup_session_scratch(_session: &SessionActor) {}
+
+/// What a `SessionEnd` hook payload reports about the session's own spend.
+struct SessionEndFacts {
+    tokens_used: Option<u64>,
+    usage_by_model: Vec<axon_hooks::event::ModelUsage>,
+    usage_incomplete: bool,
+    turn_count: Option<u64>,
+    tool_call_count: Option<u64>,
+}
+
+/// Read the session's ledger and signals for the `SessionEnd` payload.
+///
+/// An unreadable ledger reports EMPTY usage with `usage_incomplete` set, never
+/// a zero bill. The session ran; presenting it as free is a claim a consumer
+/// has no way to check. This is the same distinction `SubagentStop` already
+/// draws between a spawn that failed before any model call (genuine zero, no
+/// flag) and a ledger that was lost (empty, flagged).
+///
+/// `turn_count` is the signals' turn counter rather than the ledger's
+/// `main_loop_model_calls`: the two disagree, and the signals figure is what
+/// the existing `SessionEnded` log event in this same arm has always reported.
+/// Two names for one number on one wire would be worse than either.
+async fn session_end_facts(session: &SessionActor) -> SessionEndFacts {
+    let (tokens_used, usage_by_model, usage_incomplete) =
+        match session.chat_state_handle.try_get_session_usage().await {
+            Ok(ledger) => {
+                let by_model = ledger
+                    .by_model
+                    .iter()
+                    .map(|(model, totals)| axon_hooks::event::ModelUsage {
+                        model: model.clone(),
+                        input_tokens: totals.input_tokens,
+                        output_tokens: totals.output_tokens,
+                        model_calls: totals.model_calls,
+                        api_duration_ms: totals.api_duration_ms,
+                    })
+                    .collect();
+                (
+                    Some(session.chat_state_handle.get_total_tokens().await),
+                    by_model,
+                    ledger.incomplete,
+                )
+            }
+            Err(()) => (None, Vec::new(), true),
+        };
+    let (turn_count, tool_call_count) = match session.signals_handle().snapshot().await {
+        Some(sig) => (
+            Some(sig.turn_count as u64),
+            Some(sig.tool_call_count as u64),
+        ),
+        None => (None, None),
+    };
+    SessionEndFacts {
+        tokens_used,
+        usage_by_model,
+        usage_incomplete,
+        turn_count,
+        tool_call_count,
+    }
+}
 impl SessionActor {
     /// Serialize terminal task-wake admission with interactive cancellation.
     pub(super) async fn admit_task_completion_wake(
@@ -276,10 +336,17 @@ pub(super) async fn run_session(
             completion_tx.clone()). await; session.emit_session_idle_if_idle(). await; {
             let s = session.clone(); tokio::task::spawn_local(async move { s
             .maybe_fire_laziness_check(). await; }); } } maybe_cmd = cmd_rx.recv() => {
-            let Some(cmd) = maybe_cmd else { let envelope = session
+            let Some(cmd) = maybe_cmd else {
+            let session_end_facts = session_end_facts(& session). await;
+            let envelope = session
             .fire_hook(axon_hooks::event::HookEventName::SessionEnd, None,
             axon_hooks::event::HookPayload::SessionEnd { reason : "channel_closed"
-            .to_string(), turn_count : None, tool_call_count : None, },); if let
+            .to_string(), turn_count : session_end_facts.turn_count,
+            tool_call_count : session_end_facts.tool_call_count, tokens_used :
+            session_end_facts.tokens_used, usage_by_model : session_end_facts
+            .usage_by_model, usage_incomplete : session_end_facts
+            .usage_incomplete, is_subagent : session.startup_hints.is_subagent, },);
+            if let
             Some(registry) = session.hook_registry.borrow().clone() { let ctx = session
             .hook_run_ctx(); let results =
             axon_hooks::dispatcher::dispatch_non_blocking(& registry,
@@ -287,7 +354,8 @@ pub(super) async fn run_session(
             session.send_hook_execution("session_end", None, None, & results). await; }
             let envelope = session.fire_hook(axon_hooks::event::HookEventName::Stop,
             None, axon_hooks::event::HookPayload::Stop { reason : "channel_closed"
-            .to_string(), },); if let Some(registry) = session.hook_registry.borrow()
+            .to_string(), usage_by_model : Vec::new(), usage_incomplete : false,
+            is_subagent : session.startup_hints.is_subagent, },); if let Some(registry) = session.hook_registry.borrow()
             .clone() { let ctx = session.hook_run_ctx(); let results =
             axon_hooks::dispatcher::dispatch_non_blocking(& registry,
             axon_hooks::event::HookEventName::Stop, & envelope, & ctx,). await;
@@ -835,10 +903,17 @@ pub(super) async fn run_session(
             => { let _ = session.notifications.persistence_tx
             .send(PersistenceMsg::GitHead { commit, branch },); } SessionCommand::Shutdown => { if let Some(notification) = replay_buffer
             .flush() { session.emit_buffered(notification). await; } session
-            .drop_pending_synthetic_items(). await; let envelope = session
+            .drop_pending_synthetic_items(). await;
+            let session_end_facts = session_end_facts(& session). await;
+            let envelope = session
             .fire_hook(axon_hooks::event::HookEventName::SessionEnd, None,
             axon_hooks::event::HookPayload::SessionEnd { reason : "shutdown"
-            .to_string(), turn_count : None, tool_call_count : None, },); if let
+            .to_string(), turn_count : session_end_facts.turn_count,
+            tool_call_count : session_end_facts.tool_call_count, tokens_used :
+            session_end_facts.tokens_used, usage_by_model : session_end_facts
+            .usage_by_model, usage_incomplete : session_end_facts
+            .usage_incomplete, is_subagent : session.startup_hints.is_subagent, },);
+            if let
             Some(registry) = session.hook_registry.borrow().clone() { let ctx = session
             .hook_run_ctx(); let results =
             axon_hooks::dispatcher::dispatch_non_blocking(& registry,
@@ -846,7 +921,8 @@ pub(super) async fn run_session(
             session.send_hook_execution("session_end", None, None, & results). await; }
             let envelope = session.fire_hook(axon_hooks::event::HookEventName::Stop,
             None, axon_hooks::event::HookPayload::Stop { reason : "shutdown"
-            .to_string(), },); if let Some(registry) = session.hook_registry.borrow()
+            .to_string(), usage_by_model : Vec::new(), usage_incomplete : false,
+            is_subagent : session.startup_hints.is_subagent, },); if let Some(registry) = session.hook_registry.borrow()
             .clone() { let ctx = session.hook_run_ctx(); let results =
             axon_hooks::dispatcher::dispatch_non_blocking(& registry,
             axon_hooks::event::HookEventName::Stop, & envelope, & ctx,). await;

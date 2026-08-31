@@ -752,6 +752,9 @@ mod tests {
             prompt_id: None,
             payload: HookPayload::Stop {
                 reason: "test".into(),
+                usage_by_model: Vec::new(),
+                usage_incomplete: false,
+                is_subagent: false,
             },
         }
     }
