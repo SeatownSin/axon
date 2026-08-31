@@ -43,6 +43,10 @@ struct StartupCoordinator {
 pub struct LspBackendAdapter {
     lsp_manager: Arc<tokio::sync::Mutex<LspManager>>,
     startup: Arc<StartupCoordinator>,
+    /// Set by whichever of `shutdown` or `Drop` gets there first, so the two
+    /// can never run concurrently: one awaited shutdown and one detached one
+    /// racing each other is the condition that kills the process.
+    shutdown_done: std::sync::atomic::AtomicBool,
 }
 
 impl LspBackendAdapter {
@@ -54,6 +58,7 @@ impl LspBackendAdapter {
                 notify: tokio::sync::Notify::new(),
                 pre_ready_file_changes: TokioMutex::new(HashMap::new()),
             }),
+            shutdown_done: std::sync::atomic::AtomicBool::new(false),
         }
     }
 
@@ -121,7 +126,18 @@ async fn bootstrap_lsp(
 
 impl Drop for LspBackendAdapter {
     fn drop(&mut self) {
-        tracing::debug!("LspBackendAdapter dropping, initiating LSP shutdown");
+        // Only a fallback now. `LspBackend::shutdown` is what the session
+        // teardown awaits; this covers any path that drops the adapter without
+        // having called it. Detached work started here cannot be relied on:
+        // if the process exits straight after, the runtime is torn down
+        // mid-task and `async-lsp` panics with `Sender is alive`.
+        if self
+            .shutdown_done
+            .swap(true, std::sync::atomic::Ordering::SeqCst)
+        {
+            return;
+        }
+        tracing::debug!("LspBackendAdapter dropped without an awaited shutdown; falling back");
         let mgr = self.lsp_manager.clone();
         let _ = tokio::runtime::Handle::try_current().map(|handle| {
             handle.spawn(async move {
@@ -201,6 +217,18 @@ impl super::LspBackend for LspBackendAdapter {
         };
         // Lock dropped — dispatch on cloned socket(s).
         dispatch_on_sockets(input, sockets).await
+    }
+
+    async fn shutdown(&self) {
+        // Idempotent, and the flag is set BEFORE the work so a later `Drop`
+        // cannot start a second, detached shutdown racing this one.
+        if self
+            .shutdown_done
+            .swap(true, std::sync::atomic::Ordering::SeqCst)
+        {
+            return;
+        }
+        self.lsp_manager.lock().await.shutdown().await;
     }
 
     async fn drain_diagnostics(

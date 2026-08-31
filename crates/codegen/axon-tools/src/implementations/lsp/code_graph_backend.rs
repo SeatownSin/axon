@@ -503,6 +503,14 @@ impl LspBackend for CodeGraphBackend {
         }
     }
 
+    async fn shutdown(&self) {
+        // Nothing to shut down: the index actor is owned by
+        // `CodebaseIndexManager` and shared with the ACP code methods and the
+        // filesystem watchers, so it outlives this backend by design. There is
+        // no external process here and no socket to close, which is also why
+        // this backend never had the teardown race the adapter has.
+    }
+
     async fn drain_diagnostics(&self, _timeout: std::time::Duration) -> Option<DiagnosticsSummary> {
         None // a symbol index produces no diagnostics
     }
