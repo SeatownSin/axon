@@ -160,12 +160,41 @@ async fn handle_session_close(
     let sid = acp::SessionId::new(req.session_id.clone());
     let existed = agent.sessions.borrow().contains_key(&sid);
     if existed {
+        // Grab the channel before `close_session_explicit` drops the session
+        // from the roster: it is the only handle on whether the actor has
+        // actually finished.
+        let cmd_tx = agent
+            .sessions
+            .borrow()
+            .get(&sid)
+            .map(|handle| handle.cmd_tx.clone());
         // Explicit terminal close: shut the actor down and finalize the cloud
         // replica (genuine session end). Distinct from a mere client disconnect,
         // which detaches but keeps the session resumable and never finalizes
         // (see `MvpAgent::handle_evict_sessions` / `close_session_explicit`).
         agent.request_session_shutdown(&sid);
         agent.close_session_explicit(&sid);
+        // `request_session_shutdown` only SENDS `SessionCommand::Shutdown`. The
+        // actor then flushes its replay buffer, fires `SessionEnd` and `Stop`,
+        // and saves memory on its way out. Answering "closed" before that
+        // finishes lets the caller exit the process mid-dispatch, which is
+        // indistinguishable from the hooks never firing at all -- and a
+        // headless run is exactly a caller that exits the moment it is
+        // answered. Wait for the actor to go, bounded, and say so if it does
+        // not: a close that silently did nothing is worse than a slow one.
+        if let Some(tx) = cmd_tx {
+            let deadline = tokio::time::Instant::now() + CLOSE_GRACE;
+            while !tx.is_closed() && tokio::time::Instant::now() < deadline {
+                tokio::time::sleep(CLOSE_POLL_INTERVAL).await;
+            }
+            if !tx.is_closed() {
+                tracing::warn!(
+                    session_id = %req.session_id,
+                    grace_ms = CLOSE_GRACE.as_millis(),
+                    "session/close: actor still running after grace; its SessionEnd hook may not have run"
+                );
+            }
+        }
         tracing::info!(session_id = %req.session_id, "session closed via blocked.invalid/session/close");
     } else {
         tracing::debug!(session_id = %req.session_id, "session/close: session not found (already closed)");
@@ -175,6 +204,14 @@ async fn handle_session_close(
         .to_ext_response()
         .map_err(|e| acp::Error::internal_error().data(e.to_string()))
 }
+
+/// How long `axon/session/close` waits for the session actor to exit before
+/// answering anyway. Bounded because the caller is often a CLI process about to
+/// exit: a close that hangs is a worse failure than a hook that missed.
+const CLOSE_GRACE: std::time::Duration = std::time::Duration::from_secs(5);
+/// Poll interval for that wait. Short enough that an ordinary close adds no
+/// perceptible delay.
+const CLOSE_POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(25);
 
 async fn handle_session_summaries(
     _agent: &MvpAgent,
