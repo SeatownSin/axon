@@ -46,6 +46,20 @@ servers, and adds first-class support for local models. The changes:
   analytics, OTLP trace export, Sentry, the feedback/session-signals API, the
   startup announcements/settings prefetch, the changelog CDN pull, billing/
   paywall checks, and automatic update polling are all gone or hard-disabled.
+- **What a run cost, measured locally.** Analytics are gone, so nothing reports
+  your usage anywhere — but you can now record it yourself. The `Stop` hook
+  carries what a **turn** spent and `SessionEnd` what the **session** spent, per
+  model: input and output tokens, model calls, and time inside the API. A hook
+  is your own script, so the numbers go where you send them and nowhere else.
+  `outputTokens / apiDurationMs` is a real generation rate; the sibling
+  `tokensUsed` is a context *size* and means nothing divided by a clock. Summing
+  `Stop` gives you the session, so adding `SessionEnd` on top counts it twice —
+  and because a subagent fires its own events alongside the parent's
+  `SubagentStop`, both payloads carry `isSubagent` so one run is not billed
+  three times. An unreadable ledger reports empty usage **with**
+  `usageIncomplete` rather than a zero bill: a session that ran is never
+  presented as free. See
+  [`docs/user-guide/10-hooks.md`](crates/codegen/axon-pager/docs/user-guide/10-hooks.md).
 - **Local & BYOK models, no login.** Point a `[model.*]` entry at any
   OpenAI-compatible endpoint. Loopback servers (Ollama, llama.cpp, LM Studio,
   vLLM at `localhost`/`127.0.0.1`/`[::1]`) are auto-detected as no-auth: no API
