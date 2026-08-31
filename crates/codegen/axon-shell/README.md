@@ -2078,6 +2078,15 @@ axon memory clear --global
 
 # Clear both workspace and global, skipping the confirmation prompt
 axon memory clear --all --yes
+
+# Open workspace MEMORY.md in $VISUAL / $EDITOR (created if it does not exist yet)
+axon memory edit
+
+# Open the global MEMORY.md instead
+axon memory edit --global
+
+# Show file counts by scope, total size, indexed chunk count, and index size
+axon memory stats
 ```
 
 ### Configuration reference
