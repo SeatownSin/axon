@@ -111,10 +111,13 @@ pub struct CodeGraphBackend {
 
 impl std::fmt::Debug for CodeGraphBackend {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // No file count here on purpose. `get_file_count` ends in
+        // `blocking_recv`, and Debug is formatted lazily -- a `tracing` macro
+        // in an async fn would evaluate this on a runtime thread and panic.
+        // A formatter that can take the process down is not worth one field.
         f.debug_struct("CodeGraphBackend")
             .field("root", &self.root)
-            .field("files_indexed", &self.index.get_file_count())
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 
@@ -379,13 +382,20 @@ fn missing_target() -> LspToolResult {
 #[async_trait::async_trait]
 impl LspBackend for CodeGraphBackend {
     fn ensure_started_background(&self) {
-        // The actor is spawned by `CodebaseIndexManager::get_or_create` before
-        // this backend is built, and it loads or builds its index on its own
-        // thread. Asking for the file count is enough to confirm it is alive
-        // without blocking a caller on the first build.
-        if let Some(files) = self.index.get_file_count() {
-            tracing::debug!(files, "code-graph index already warm");
-        }
+        // Deliberately empty. The actor is spawned by
+        // `CodebaseIndexManager::get_or_create` before this backend is built
+        // and loads or builds its index on its own thread, so there is nothing
+        // here left to start.
+        //
+        // This used to probe `get_file_count()` for a debug line. That call
+        // ends in `blocking_recv` (`index_manager.rs`), and EVERY caller of
+        // this method is async -- `agent_ops` at session start, and
+        // `reminders::lsp_diagnostics` after each edit -- so it panicked the
+        // whole session with "Cannot block the current thread from within a
+        // runtime" as soon as `[features] lsp_tools` was enabled without an
+        // `lsp.json` to configure real servers. That is the exact
+        // configuration the fallback exists to serve, so the no-server path
+        // could not be used at all. A liveness probe is not worth a process.
     }
 
     async fn ensure_ready(&self) -> Result<(), String> {
@@ -396,7 +406,17 @@ impl LspBackend for CodeGraphBackend {
     }
 
     fn is_ready(&self) -> bool {
-        self.index.get_file_count().is_some()
+        // Always ready, which is the honest answer for this backend rather
+        // than a convenient one: unlike a language server it has no process to
+        // start and no handshake to lose. A cold, missing or half-built index
+        // still yields a result, because every query falls through to the
+        // textual scan -- exactly what `ensure_ready` above documents.
+        //
+        // Asking the actor instead would mean `blocking_recv` on a caller that
+        // may be async, which is the panic described in
+        // `ensure_started_background`. A readiness check that can kill the
+        // process is worse than no readiness check.
+        true
     }
 
     async fn dispatch(&self, input: &LspToolInput) -> LspToolResult {
