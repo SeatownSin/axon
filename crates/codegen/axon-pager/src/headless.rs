@@ -833,6 +833,31 @@ fn headless_materialize_ctx(has_worktree: bool) -> crate::app::session_startup::
 ///
 /// Spawns the agent in-process, runs the full ACP lifecycle (init → auth →
 /// session → prompt), streams output to stdout, and returns cleanly.
+/// Ask the agent to close the session, and let it finish.
+///
+/// `axon/session/close` shuts the session actor down, which is what makes it
+/// flush, fire `SessionEnd` and `Stop`, and save memory. The handler waits for
+/// the actor to exit before answering, so awaiting this call is what keeps the
+/// process alive long enough for those hooks to run.
+///
+/// Never fatal. This runs on the way out of a run that has already produced its
+/// answer, and the caller's exit code belongs to the turn, not to bookkeeping:
+/// a close that fails is worth a log line and nothing more.
+async fn close_session_before_exit(acp_tx: &AcpAgentTx, session_id: &acp::SessionId) {
+    let payload = serde_json::json!({ "sessionId": session_id.0.to_string() });
+    let raw = match serde_json::value::to_raw_value(&payload) {
+        Ok(raw) => raw,
+        Err(e) => {
+            tracing::debug!(error = %e, "headless: could not serialize session/close params");
+            return;
+        }
+    };
+    let req = acp::ExtRequest::new("axon/session/close", raw.into());
+    if let Err(e) = acp_send(req, acp_tx).await {
+        tracing::debug!(error = %e, session_id = %session_id, "headless: session/close failed");
+    }
+}
+
 pub async fn run_single_turn(
     prompt: HeadlessPrompt,
     verbatim: bool,
@@ -1269,6 +1294,16 @@ pub async fn run_single_turn(
         );
         reap_pending_background_tasks(&pending_bg, &session_id, &acp_tx).await;
     }
+
+    // Close the session before exiting, so the actor shuts down and its
+    // `SessionEnd` hook actually fires. A headless run used to just return: the
+    // process ended with the actor still live, so `SessionEnd` never ran and
+    // the run left no record of what it cost. Only `Stop` (per turn) did.
+    //
+    // Deliberately before the result match, so it happens on EVERY exit path,
+    // including the `bail!`s below. A session that errored is still a session
+    // that ran and spent tokens.
+    close_session_before_exit(&acp_tx, &session_id).await;
 
     // Flush buffered unified log entries before exit.
     crate::unified_log::flush_blocking().await;
