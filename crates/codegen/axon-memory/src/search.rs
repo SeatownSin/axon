@@ -21,7 +21,7 @@ use std::collections::HashMap;
 
 use super::embedding::EmbeddingProvider;
 use super::index::MemoryIndex;
-use axon_config_types::MemorySearchConfig;
+use axon_config_types::{MemorySearchConfig, SearchFusion};
 
 /// A search result with merged scoring from FTS and vector search.
 #[derive(Debug, Clone)]
@@ -143,6 +143,69 @@ fn temporal_decay_multiplier(
 #[tracing::instrument(name = "memory.hybrid_search", skip_all, fields(
     max_results = config.max_results,
 ))]
+/// Reciprocal Rank Fusion over the FTS and vector result lists.
+///
+/// `RRF(d) = Σ_lists  weight_list / (k + rank_d_in_list)`, 1-based ranks,
+/// lists the chunk is absent from contributing nothing.
+///
+/// Why this exists alongside the weighted path: RRF reads only the ORDER of
+/// each list, never the scores. That removes three scale hazards the weighted
+/// path has to defend against by hand —
+///
+/// 1. BM25 is min-max normalized *within the result set*, so the worst FTS hit
+///    normalizes to exactly 0.0 no matter how good it actually is;
+/// 2. cosine similarity is on an absolute [0,1] scale, so the two signals are
+///    not commensurable and the weights have to paper over that;
+/// 3. the product `base × decay × source_weight × access_boost` is then
+///    compared against an ABSOLUTE `min_score`, so multiplying enough sub-1.0
+///    factors silently drops a whole source below the threshold. That is not
+///    hypothetical: global chunks were once capped at
+///    `text_weight × source_weight = 0.21` and invisible above 0.2.
+///
+/// The returned scores are renormalized so the best is 1.0. That keeps the
+/// [0,1] contract the display score and `min_score` gate expect, at the cost
+/// of making `min_score` relative to the best hit rather than absolute — which
+/// is the point: a relative floor cannot make an entire source unreachable.
+fn fuse_rrf(
+    fts_results: &[super::index::FtsResult],
+    vec_results: &[(String, f32)],
+    config: &MemorySearchConfig,
+) -> HashMap<String, f64> {
+    // Guard the rank constant: k <= -1 would divide by zero at rank 1, and a
+    // negative k inverts the ordering. Clamp rather than reject so a bad
+    // config degrades to the paper default instead of returning nothing.
+    let k = if config.rrf_k.is_finite() && config.rrf_k >= 0.0 {
+        config.rrf_k as f64
+    } else {
+        60.0
+    };
+    let text_weight = config.text_weight as f64;
+    let vector_weight = config.vector_weight as f64;
+
+    let mut fused: HashMap<String, f64> = HashMap::new();
+
+    // Both input lists arrive already ordered best-first, so position IS rank.
+    for (i, r) in fts_results.iter().enumerate() {
+        let rank = (i + 1) as f64;
+        *fused.entry(r.chunk_id.clone()).or_insert(0.0) += text_weight / (k + rank);
+    }
+    for (i, (chunk_id, _distance)) in vec_results.iter().enumerate() {
+        let rank = (i + 1) as f64;
+        *fused.entry(chunk_id.clone()).or_insert(0.0) += vector_weight / (k + rank);
+    }
+
+    // Renormalize to [0,1]. `max` is over a non-empty map by construction here,
+    // but fold defensively so an empty input yields an empty result rather
+    // than a division by zero.
+    let max = fused.values().copied().fold(0.0_f64, f64::max);
+    if max > 0.0 {
+        for score in fused.values_mut() {
+            *score /= max;
+        }
+    }
+    fused
+}
+
 pub async fn hybrid_search(
     index: &MemoryIndex,
     embedding_provider: Option<&dyn EmbeddingProvider>,
@@ -261,36 +324,46 @@ pub(super) fn hybrid_search_merge(
         vec_scores.insert(chunk_id.clone(), similarity);
     }
 
-    // Merge per-chunk scores: use max(fts_only, hybrid) so FTS-only chunks
-    // are never penalized by the existence of unrelated vector results.
-    let mut scores: HashMap<String, f64> = HashMap::new();
-    let text_weight = config.text_weight as f64;
-    let vector_weight = config.vector_weight as f64;
+    // Merge per-chunk scores. Everything downstream — temporal decay, source
+    // weights, the access boost, the `min_score` gate and the clamped display
+    // score — is identical for both strategies; they differ only in how the
+    // two candidate lists become one base score per chunk.
+    let scores: HashMap<String, f64> = match config.fusion {
+        SearchFusion::Rrf => fuse_rrf(&fts_results, &vec_results, config),
+        SearchFusion::Weighted => {
+            // use max(fts_only, hybrid) so FTS-only chunks are never penalized
+            // by the existence of unrelated vector results.
+            let mut scores: HashMap<String, f64> = HashMap::new();
+            let text_weight = config.text_weight as f64;
+            let vector_weight = config.vector_weight as f64;
 
-    // Collect all unique chunk IDs across both result sets.
-    let all_chunk_ids: std::collections::HashSet<&String> =
-        fts_scores.keys().chain(vec_scores.keys()).collect();
+            // Collect all unique chunk IDs across both result sets.
+            let all_chunk_ids: std::collections::HashSet<&String> =
+                fts_scores.keys().chain(vec_scores.keys()).collect();
 
-    for chunk_id in all_chunk_ids {
-        let fts = fts_scores.get(chunk_id).copied().unwrap_or(0.0);
-        let vec = vec_scores.get(chunk_id).copied().unwrap_or(0.0);
+            for chunk_id in all_chunk_ids {
+                let fts = fts_scores.get(chunk_id).copied().unwrap_or(0.0);
+                let vec = vec_scores.get(chunk_id).copied().unwrap_or(0.0);
 
-        let score = if fts > 0.0 && vec > 0.0 {
-            // Both signals available: weighted combination, but never worse
-            // than the FTS score alone (since text_weight < 1.0 would otherwise
-            // penalize a strong keyword match).
-            let hybrid = text_weight * fts + vector_weight * vec;
-            hybrid.max(fts)
-        } else if fts > 0.0 {
-            // FTS-only: full FTS score (not penalized to text_weight)
-            fts
-        } else {
-            // Vector-only: weighted vector score
-            vector_weight * vec
-        };
+                let score = if fts > 0.0 && vec > 0.0 {
+                    // Both signals available: weighted combination, but never worse
+                    // than the FTS score alone (since text_weight < 1.0 would otherwise
+                    // penalize a strong keyword match).
+                    let hybrid = text_weight * fts + vector_weight * vec;
+                    hybrid.max(fts)
+                } else if fts > 0.0 {
+                    // FTS-only: full FTS score (not penalized to text_weight)
+                    fts
+                } else {
+                    // Vector-only: weighted vector score
+                    vector_weight * vec
+                };
 
-        scores.insert(chunk_id.clone(), score);
-    }
+                scores.insert(chunk_id.clone(), score);
+            }
+            scores
+        }
+    };
 
     // Apply temporal decay and source weights, build results
     let now_secs = std::time::SystemTime::now()
@@ -1345,5 +1418,186 @@ mod tests {
                 r.score,
             );
         }
+    }
+
+    // ── Reciprocal Rank Fusion ────────────────────────────────────────────
+
+    use axon_config_types::SearchFusion;
+
+    fn fts(ids: &[(&str, f64)]) -> Vec<crate::index::FtsResult> {
+        ids.iter()
+            .map(|(id, rank)| crate::index::FtsResult {
+                chunk_id: (*id).to_string(),
+                rowid: 0,
+                rank: *rank,
+            })
+            .collect()
+    }
+
+    fn rrf_config(text_weight: f32, vector_weight: f32) -> MemorySearchConfig {
+        MemorySearchConfig {
+            fusion: SearchFusion::Rrf,
+            text_weight,
+            vector_weight,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn rrf_preserves_list_order_and_normalizes_best_to_one() {
+        // Single list, so fusion is just its order.
+        let fused = fuse_rrf(
+            &fts(&[("a", -5.0), ("b", -3.0), ("c", -1.0)]),
+            &[],
+            &rrf_config(1.0, 0.0),
+        );
+
+        assert!(
+            (fused["a"] - 1.0).abs() < 1e-12,
+            "best must normalize to 1.0"
+        );
+        assert!(fused["a"] > fused["b"] && fused["b"] > fused["c"]);
+    }
+
+    #[test]
+    fn rrf_ignores_score_scale_and_reads_only_rank() {
+        // Same ORDER, wildly different BM25 magnitudes. RRF must not care:
+        // this is the property the weighted path cannot have, because it
+        // min-max normalizes within the result set.
+        let tight = fuse_rrf(
+            &fts(&[("a", -5.0), ("b", -4.9)]),
+            &[],
+            &rrf_config(1.0, 0.0),
+        );
+        let wide = fuse_rrf(
+            &fts(&[("a", -900.0), ("b", -0.1)]),
+            &[],
+            &rrf_config(1.0, 0.0),
+        );
+
+        assert!((tight["a"] - wide["a"]).abs() < 1e-12);
+        assert!((tight["b"] - wide["b"]).abs() < 1e-12);
+    }
+
+    #[test]
+    fn rrf_rewards_agreement_between_the_two_lists() {
+        // `b` is mid-ranked in both lists; `a` is top of one and absent from
+        // the other. Appearing in both is what RRF is for.
+        let fused = fuse_rrf(
+            &fts(&[("a", -9.0), ("b", -8.0)]),
+            &[("b".to_string(), 0.1), ("c".to_string(), 0.2)],
+            &rrf_config(0.5, 0.5),
+        );
+        assert!(
+            fused["b"] > fused["a"] && fused["b"] > fused["c"],
+            "a chunk in both lists must outrank chunks in only one: {fused:?}"
+        );
+    }
+
+    #[test]
+    fn rrf_worst_fts_hit_keeps_a_nonzero_score() {
+        // The weighted path min-max normalizes, so the LAST FTS result is
+        // always exactly 0.0 however good it was. Under RRF it is merely
+        // last, which is what lets source weighting scale it without
+        // annihilating it.
+        let fused = fuse_rrf(
+            &fts(&[("a", -5.0), ("b", -4.0), ("c", -3.0)]),
+            &[],
+            &rrf_config(1.0, 0.0),
+        );
+        assert!(fused["c"] > 0.0, "last hit must not be zeroed: {fused:?}");
+    }
+
+    #[test]
+    fn rrf_k_falls_back_to_the_paper_default_when_unusable() {
+        let good = fuse_rrf(
+            &fts(&[("a", -5.0), ("b", -4.0)]),
+            &[],
+            &rrf_config(1.0, 0.0),
+        );
+        for bad_k in [-1.0_f32, f32::NAN, f32::INFINITY] {
+            let cfg = MemorySearchConfig {
+                rrf_k: bad_k,
+                ..rrf_config(1.0, 0.0)
+            };
+            let got = fuse_rrf(&fts(&[("a", -5.0), ("b", -4.0)]), &[], &cfg);
+            assert!(
+                (got["b"] - good["b"]).abs() < 1e-12,
+                "rrf_k={bad_k} must fall back to 60, got {got:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn rrf_on_empty_input_is_empty_not_a_division_by_zero() {
+        assert!(fuse_rrf(&[], &[], &rrf_config(1.0, 0.0)).is_empty());
+    }
+
+    /// The pathology RRF exists to prevent, stated as a test.
+    ///
+    /// A `global` chunk carries `source_weight = 0.7`. Under the weighted path
+    /// its base score is min-max normalized within the FTS result set, so a
+    /// chunk that is merely *not the single best match* can be scaled toward
+    /// zero and then multiplied by 0.7 — which is how global chunks once got
+    /// capped at 0.21 and became invisible above `min_score = 0.2`.
+    ///
+    /// Under RRF the base score is rank-derived and the set is renormalized so
+    /// the best is 1.0, so a highly-ranked global chunk survives its source
+    /// weight. Asserted through the real search path, not just `fuse_rrf`.
+    #[tokio::test]
+    async fn rrf_keeps_a_weighted_down_global_source_above_min_score() {
+        let tmp = TempDir::new().unwrap();
+        let mut idx = test_index(&tmp);
+
+        let global = tmp.path().join("global.md");
+        std::fs::write(
+            &global,
+            "# Project Conventions\n\nAlways use graphite for PRs. Never commit without review.",
+        )
+        .unwrap();
+        idx.reindex_file(&global, "global").unwrap();
+
+        // A second, better-matching chunk so the global one is NOT the top FTS
+        // hit — the exact situation in which min-max normalization pushes it
+        // down toward zero.
+        let other = tmp.path().join("session.md");
+        std::fs::write(
+            &other,
+            "# Graphite\n\ngraphite graphite graphite PRs PRs review review stacked diffs.",
+        )
+        .unwrap();
+        idx.reindex_file(&other, "session").unwrap();
+
+        let mut source_weights = std::collections::HashMap::new();
+        source_weights.insert("global".to_string(), 0.7);
+        source_weights.insert("session".to_string(), 1.0);
+
+        let config = MemorySearchConfig {
+            fusion: SearchFusion::Rrf,
+            min_score: 0.35,
+            source_weights,
+            ..Default::default()
+        };
+
+        let results = hybrid_search(&idx, None, "graphite PRs review", &config)
+            .await
+            .unwrap();
+
+        assert!(
+            results.iter().any(|r| r.source == "global"),
+            "a down-weighted global chunk must still clear min_score under RRF; got {:?}",
+            results
+                .iter()
+                .map(|r| (r.source.as_str(), r.score))
+                .collect::<Vec<_>>()
+        );
+    }
+
+    /// The default must stay `Weighted`: this is a prototype behind a flag,
+    /// and flipping the default would silently re-rank every existing install.
+    #[test]
+    fn fusion_defaults_to_weighted() {
+        assert_eq!(MemorySearchConfig::default().fusion, SearchFusion::Weighted);
+        assert!((MemorySearchConfig::default().rrf_k - 60.0).abs() < f32::EPSILON);
     }
 }

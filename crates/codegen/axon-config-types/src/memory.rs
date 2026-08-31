@@ -49,6 +49,32 @@ impl Default for MemoryEmbeddingConfig {
     }
 }
 
+/// How `hybrid_search` combines the FTS and vector result lists.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum SearchFusion {
+    /// Normalize each signal to [0,1] and combine by weight. The historical
+    /// behaviour, and still the default.
+    ///
+    /// Fragile in a way RRF is not: BM25 is min-max normalized *within the
+    /// result set* (so the worst hit is always exactly 0.0 however good it
+    /// is), cosine is on an absolute scale, and the two are then multiplied
+    /// by decay, source weight and an access boost before being compared
+    /// against an absolute `min_score`. Multiply enough sub-1.0 factors and a
+    /// whole source drops below the threshold — which is exactly what
+    /// happened to global chunks at `text_weight × source_weight = 0.21`.
+    #[default]
+    Weighted,
+    /// Reciprocal Rank Fusion: score each list by `1 / (k + rank)` and sum.
+    ///
+    /// Uses only the ORDER of each list, so the BM25-vs-cosine scale mismatch
+    /// cannot arise and no source can be multiplied into invisibility.
+    /// Results are renormalized so the best hit is 1.0, which keeps the [0,1]
+    /// display contract — but note this makes `min_score` a threshold
+    /// RELATIVE to the best hit rather than an absolute one.
+    Rrf,
+}
+
 /// Hybrid search scoring configuration (`[memory.search]`).
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(default)]
@@ -73,6 +99,12 @@ pub struct MemorySearchConfig {
     pub temporal_decay: TemporalDecayConfig,
     /// MMR diversity re-ranking configuration (opt-in).
     pub mmr: MmrConfig,
+    /// Which fusion strategy combines the FTS and vector lists.
+    pub fusion: SearchFusion,
+    /// RRF rank constant `k` — larger flattens the contribution of top ranks.
+    /// 60 is the value from the original RRF paper and the usual default.
+    /// Ignored unless `fusion = "rrf"`.
+    pub rrf_k: f32,
     /// Source-type weight multipliers: all default to 1.0.
     pub source_weights: std::collections::HashMap<String, f32>,
 }
@@ -92,6 +124,8 @@ impl Default for MemorySearchConfig {
             recency_decay: DEFAULT_RECENCY_DECAY,
             temporal_decay: TemporalDecayConfig::default(),
             mmr: MmrConfig::default(),
+            fusion: SearchFusion::default(),
+            rrf_k: 60.0,
             source_weights,
         }
     }
