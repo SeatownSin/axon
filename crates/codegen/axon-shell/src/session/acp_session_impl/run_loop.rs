@@ -36,6 +36,42 @@ mod yolo_toggle_report_tests {
 /// teardown. A no-op in builds without a scratch producer.
 fn cleanup_session_scratch(_session: &SessionActor) {}
 
+/// Shut the session's LSP backend down and WAIT for it.
+///
+/// Dropping the backend also starts a shutdown, but detached. That is fine
+/// whenever the runtime outlives the session -- every interactive close -- and
+/// fatal when the session's end is immediately followed by process exit, which
+/// is exactly what a headless run does now that it closes its session: the
+/// runtime is torn down mid-shutdown, the LSP client's socket dies while its
+/// main loop is still being polled, and `async-lsp` aborts the process with
+/// `Sender is alive`. v0.3.7 shipped that.
+///
+/// Doing it here makes the shutdown deterministic and leaves `Drop` nothing to
+/// race. Backends are idempotent about it, so the fallback in `Drop` becomes a
+/// no-op rather than a second, competing shutdown.
+///
+/// Never fatal, and bounded: this runs while a session is going away, so a
+/// language server that will not answer must not hold the process open. The
+/// backend's own per-client timeouts bound the normal case; this is the outer
+/// stop for a backend that never returns at all.
+async fn shutdown_session_lsp(session: &SessionActor) {
+    let backend = {
+        let bridge = std::sync::Arc::clone(session.agent.borrow().tool_bridge());
+        let toolset = bridge.toolset();
+        let resources = toolset.resources.lock().await;
+        resources
+            .get::<std::sync::Arc<dyn axon_tools::implementations::lsp::LspBackend>>()
+            .cloned()
+    };
+    let Some(backend) = backend else { return };
+    if tokio::time::timeout(std::time::Duration::from_secs(10), backend.shutdown())
+        .await
+        .is_err()
+    {
+        tracing::warn!("LSP shutdown did not finish within 10s; continuing session teardown");
+    }
+}
+
 /// What a `SessionEnd` hook payload reports about the session's own spend.
 struct SessionEndFacts {
     tokens_used: Option<u64>,
@@ -337,6 +373,7 @@ pub(super) async fn run_session(
             let s = session.clone(); tokio::task::spawn_local(async move { s
             .maybe_fire_laziness_check(). await; }); } } maybe_cmd = cmd_rx.recv() => {
             let Some(cmd) = maybe_cmd else {
+            shutdown_session_lsp(& session). await;
             let session_end_facts = session_end_facts(& session). await;
             let envelope = session
             .fire_hook(axon_hooks::event::HookEventName::SessionEnd, None,
@@ -904,6 +941,7 @@ pub(super) async fn run_session(
             .send(PersistenceMsg::GitHead { commit, branch },); } SessionCommand::Shutdown => { if let Some(notification) = replay_buffer
             .flush() { session.emit_buffered(notification). await; } session
             .drop_pending_synthetic_items(). await;
+            shutdown_session_lsp(& session). await;
             let session_end_facts = session_end_facts(& session). await;
             let envelope = session
             .fire_hook(axon_hooks::event::HookEventName::SessionEnd, None,

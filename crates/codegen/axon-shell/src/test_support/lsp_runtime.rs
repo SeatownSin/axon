@@ -179,6 +179,7 @@ pub(crate) struct DummyLspDispatch;
 #[async_trait::async_trait]
 impl axon_tools::implementations::lsp::LspBackend for DummyLspDispatch {
     fn ensure_started_background(&self) {}
+    async fn shutdown(&self) {}
     async fn ensure_ready(&self) -> Result<(), String> {
         Ok(())
     }

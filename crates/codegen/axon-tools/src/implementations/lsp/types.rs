@@ -48,6 +48,21 @@ pub trait LspBackend: Send + Sync + 'static {
     /// waits briefly for diagnostics to settle, then returns all
     /// ERROR/WARNING diagnostics grouped by file.
     async fn read_diagnostics(&self, paths: &[std::path::PathBuf]) -> Vec<FileDiagnosticEntry>;
+
+    /// Shut the backend down and WAIT for it, before the process might exit.
+    ///
+    /// Dropping the backend also starts a shutdown, but detached: it spawns the
+    /// work and returns. That is fine while the runtime outlives the session,
+    /// which is every interactive close -- and wrong when the session's end is
+    /// immediately followed by process exit, as it is for a headless run. There
+    /// the runtime is torn down mid-shutdown, the client's socket dies while
+    /// its main loop is still polled, and `async-lsp` aborts the process with
+    /// `Sender is alive`.
+    ///
+    /// Calling this during session teardown makes the shutdown deterministic
+    /// and leaves `Drop` nothing to race. Idempotent: a second call, including
+    /// the one `Drop` starts, must do nothing.
+    async fn shutdown(&self);
 }
 
 /// A single diagnostic entry returned by `LspBackend::read_diagnostics`.
