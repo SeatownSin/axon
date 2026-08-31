@@ -87,14 +87,14 @@ Because hooks are unified under folder-trust, a `--trust` / `/hooks-trust` grant
 | `PostToolUse` | A tool completes successfully. | No |
 | `PostToolUseFailure` | A tool fails. | No |
 | `PermissionDenied` | The permission system denies a tool call. | No |
-| `Stop` | An agent turn ends (completed, cancelled, or error). | No |
+| `Stop` | An agent turn ends (completed, cancelled, or error). Carries that turn's token usage. | No |
 | `StopFailure` | A turn ends because of an API error. | No |
 | `Notification` | The agent sends a notification. | No |
 | `SubagentStart` | A subagent starts. | No |
 | `SubagentStop` | A subagent finishes. | No |
 | `PreCompact` | Conversation compaction is about to run. | No |
 | `PostCompact` | Conversation compaction completes. | No |
-| `SessionEnd` | The session ends. | No |
+| `SessionEnd` | The session ends. Carries the session's own token usage. | No |
 
 `SubagentEnd` is accepted as an alias for `SubagentStop`. Either spelling registers a hook that fires, and a command registered under **both** spellings runs once per subagent rather than twice. Prefer `SubagentStop`, which is the canonical name. On builds before 0.3.5 the alias was documented but not implemented: a hook registered under `SubagentStop` was filed under a name nothing dispatched and ran zero times, without reporting an error.
 
@@ -245,6 +245,111 @@ changed. The array is omitted when the child made no model call. A
 nested subagent that was itself incomplete); treat the totals as a floor when
 you see it, and note that empty usage plus no flag means genuinely zero spend,
 such as a spawn that failed before any model ran.
+
+#### `SessionEnd` payload
+
+```json
+{
+  "hookEventName": "session_end",
+  "sessionId": "abc-123",
+  "reason": "shutdown",
+  "turnCount": 12,
+  "toolCallCount": 48,
+  "tokensUsed": 187598,
+  "usageByModel": [
+    {
+      "model": "my-local-70b",
+      "inputTokens": 180000,
+      "outputTokens": 7598,
+      "modelCalls": 12,
+      "apiDurationMs": 400000
+    }
+  ],
+  "timestamp": "2026-08-30T12:00:00Z"
+}
+```
+
+`reason` is `shutdown` for an ordinary exit and `channel_closed` when the
+session's command channel goes away. Every field after `reason` is omitted when
+unknown, so read them all as optional.
+
+`usageByModel` here is the **session's own** ledger and carries the same meaning
+and the same caveats as the subagent version above: `tokensUsed` is the final
+context size and is the wrong number to divide by anything, while `outputTokens`
+over `apiDurationMs` is a real rate. `usageIncomplete` appears when the ledger
+under-counts or could not be read at all — in that case the array is empty *and*
+the flag is set, which is how you tell a session whose bill was lost from one
+that genuinely spent nothing.
+
+Before 0.3.7 this event carried only `reason`: `turnCount` and `toolCallCount`
+were declared but passed as null at every dispatch site, and no usage was
+reported at all. That made a top-level `axon --agent <name>` run invisible to
+hooks — only orchestrated subagents were measurable — so a harness could invoke
+an agent thirty times and leave no record of what any of it cost.
+
+**A subagent session emits both `SubagentStop` and `SessionEnd`.** They describe
+the same run, so a consumer that records both counts it twice. `SessionEnd`
+carries `"isSubagent": true` in that case (and omits the field otherwise); use
+it to skip, or register for only one of the two events.
+
+#### `Stop` payload
+
+```json
+{
+  "hookEventName": "stop",
+  "sessionId": "abc-123",
+  "reason": "end_turn",
+  "usageByModel": [
+    {
+      "model": "my-local-70b",
+      "inputTokens": 10782,
+      "outputTokens": 103,
+      "modelCalls": 1,
+      "apiDurationMs": 5776
+    }
+  ],
+  "timestamp": "2026-08-30T12:00:00Z"
+}
+```
+
+`reason` is `end_turn`, `cancelled`, or `error`.
+
+**`usageByModel` on `Stop` is what THAT TURN spent, not the session total.**
+`Stop` fires once per turn, so summing it across a session gives you the
+session's spend — which is what `SessionEnd` reports in one figure. Adding the
+two together counts everything twice.
+
+There is deliberately no `tokensUsed` here. That field is a context size, which
+is session-scoped; putting it on a per-turn event beside per-turn counters is
+how a reader ends up dividing one by the other.
+
+`Stop` also fires while a session closes, with no usage and no
+`usageIncomplete` — no turn ran at that moment, so there is genuinely nothing to
+report. That is distinct from an empty array *with* the flag, which means a turn
+ran and its ledger could not be read.
+
+**A subagent session fires its own `Stop`, and the parent separately receives a
+`SubagentStop` for the same work.** On a real spawn the child's `Stop` and the
+`SubagentStop` both reported `"outputTokens": 15` for one run — the same tokens,
+twice. Nothing else in the payloads tells the child's `Stop` apart from the
+parent's, so `Stop` carries `"isSubagent": true` on a subagent turn (and omits
+the field otherwise).
+
+**Which events to record, for one number per run without double counting:**
+
+| you want | register | filter |
+|---|---|---|
+| every turn, parent only | `Stop` | skip `isSubagent` |
+| per subagent | `SubagentStop` | — |
+| whole session, one record | `SessionEnd` | skip `isSubagent` |
+
+Do not mix `SessionEnd` with `Stop`, or `Stop` with `SubagentStop`, without the
+`isSubagent` filter. Note that the TOP-LEVEL session's `SessionEnd` does **not** fire in a
+headless single-turn run (`--prompt-file` / `-p`): that path exits without the
+session actor shutting down. Subagent sessions inside such a run are shut down
+properly and do emit their own `SessionEnd` (marked `isSubagent`), so seeing
+one in a headless transcript does not mean the parent reported anything.
+`Stop` fires for both, and is the event to use for headless runs.
 
 ### Output (Blocking Hooks)
 

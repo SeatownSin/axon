@@ -172,15 +172,15 @@ pub struct HookEventEnvelope {
 }
 
 /// One model's share of a subagent's bill, as the child's own ledger recorded
-/// it. Carried by `SubagentStop`, and by the `SubagentFinished` session update
-/// it is built from.
+/// it. Carried by `SubagentStop` (and the `SubagentFinished` session update it
+/// is built from), and by `SessionEnd` for the session's own ledger.
 ///
 /// Deliberately not the whole `UsageTotals`: cost is a vendor concept and is
 /// always absent in this fork, so putting it on the wire would only invite a
 /// reader to divide by zero and believe the answer.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, serde::Deserialize)]
-pub struct SubagentModelUsage {
-    /// The model the child actually called.
+pub struct ModelUsage {
+    /// The model that actually ran.
     pub model: String,
     #[serde(rename = "inputTokens", default)]
     pub input_tokens: u64,
@@ -196,6 +196,11 @@ pub struct SubagentModelUsage {
     #[serde(rename = "apiDurationMs", default)]
     pub api_duration_ms: u64,
 }
+
+/// The name this struct shipped under in v0.3.6, when `SubagentStop` was the
+/// only event carrying it. Kept so existing call sites and any out-of-tree
+/// reader keep compiling; the wire format is unchanged either way.
+pub type SubagentModelUsage = ModelUsage;
 
 /// Event-specific payload variants, flattened into the envelope JSON via
 /// `#[serde(untagged)]`. Grouped to match `HookEventName`.
@@ -216,9 +221,90 @@ pub enum HookPayload {
         turn_count: Option<u64>,
         #[serde(rename = "toolCallCount", skip_serializing_if = "Option::is_none")]
         tool_call_count: Option<u64>,
+        /// The session's final CONTEXT size, not what it generated. Same
+        /// caveat as `SubagentStop::tokens_used`: dividing it by any duration
+        /// yields a throughput-shaped number that measures nothing. Use
+        /// `usage_by_model` for a rate.
+        #[serde(rename = "tokensUsed", skip_serializing_if = "Option::is_none")]
+        tokens_used: Option<u64>,
+        /// What ran and what it generated, per model, from the session's own
+        /// ledger. Before this existed, only a subagent's spend was visible to
+        /// a hook: a top-level `axon --agent X` run reported nothing at all, so
+        /// an eval harness could invoke an agent thirty times and leave no
+        /// trace. Empty when the session made no model call, or when its ledger
+        /// could not be read — `usage_incomplete` distinguishes those.
+        #[serde(
+            rename = "usageByModel",
+            default,
+            skip_serializing_if = "Vec::is_empty"
+        )]
+        usage_by_model: Vec<ModelUsage>,
+        /// The session's bill under-counts, or could not be read at all.
+        /// Present only when true, so a reader that ignores it cannot silently
+        /// treat a partial total as a complete one.
+        #[serde(
+            rename = "usageIncomplete",
+            default,
+            skip_serializing_if = "std::ops::Not::not"
+        )]
+        usage_incomplete: bool,
+        /// True when this session is itself a subagent, which also emits
+        /// `SubagentStop`. Both events describe the SAME run, so a consumer
+        /// that books both double-counts it. There is no way to tell from the
+        /// other fields, which is the whole reason this one is here.
+        #[serde(
+            rename = "isSubagent",
+            default,
+            skip_serializing_if = "std::ops::Not::not"
+        )]
+        is_subagent: bool,
     },
     Stop {
         reason: String,
+        /// What THIS TURN spent, per model — not the session total.
+        ///
+        /// `Stop` fires once per turn, so a consumer that sums these across a
+        /// session gets the session's spend. `SessionEnd` carries the
+        /// cumulative figure instead, and mixing the two scopes is the one
+        /// mistake this pair invites: adding a `SessionEnd` total to the
+        /// `Stop` totals counts everything twice.
+        ///
+        /// Deliberately no `tokens_used` here. That field is a context SIZE,
+        /// which is a session-scoped quantity; putting it on a per-turn event
+        /// beside per-turn counters is how a reader ends up dividing one by the
+        /// other. `output_tokens` over `api_duration_ms` is the rate.
+        ///
+        /// Empty on the teardown `Stop`s that fire when a session closes: no
+        /// turn ran at that moment, so there is genuinely nothing to report.
+        #[serde(
+            rename = "usageByModel",
+            default,
+            skip_serializing_if = "Vec::is_empty"
+        )]
+        usage_by_model: Vec<ModelUsage>,
+        /// The turn's bill under-counts, or its ledger could not be read.
+        /// Present only when true.
+        #[serde(
+            rename = "usageIncomplete",
+            default,
+            skip_serializing_if = "std::ops::Not::not"
+        )]
+        usage_incomplete: bool,
+        /// True when the turn belongs to a subagent session.
+        ///
+        /// A subagent session fires its own `Stop`, and the parent separately
+        /// gets a `SubagentStop` reporting the same spend. Observed on a real
+        /// spawn: the child's `Stop` and the `SubagentStop` both carried
+        /// `outputTokens: 15` for one run. Nothing else in the two payloads
+        /// distinguishes the child's `Stop` from the parent's, so a consumer
+        /// summing `Stop` alongside `SubagentStop` counts every subagent twice.
+        /// Filter on this, or take `Stop` only where it is absent.
+        #[serde(
+            rename = "isSubagent",
+            default,
+            skip_serializing_if = "std::ops::Not::not"
+        )]
+        is_subagent: bool,
     },
     StopFailure {
         error: String,
@@ -412,6 +498,140 @@ mod tests {
 
     /// The camelCase names a hook script actually reads, and the promise that
     /// an empty ledger adds nothing to the payload.
+    #[test]
+    fn stop_reports_only_this_turn_not_the_session() {
+        let payload = HookPayload::Stop {
+            reason: "end_turn".into(),
+            usage_by_model: vec![ModelUsage {
+                model: "qwen38".into(),
+                input_tokens: 12_000,
+                output_tokens: 340,
+                model_calls: 1,
+                api_duration_ms: 17_800,
+            }],
+            usage_incomplete: false,
+            is_subagent: false,
+        };
+        let json = serde_json::to_value(&payload).unwrap();
+        assert_eq!(json["reason"], "end_turn");
+        assert!(
+            json.get("isSubagent").is_none(),
+            "a parent turn must not carry the subagent marker: {json}"
+        );
+        assert_eq!(json["usageByModel"][0]["outputTokens"], 340);
+        assert_eq!(json["usageByModel"][0]["apiDurationMs"], 17_800);
+        // A context size is session-scoped. Putting it on a per-turn event
+        // beside per-turn counters is how a reader ends up dividing one by the
+        // other, which is the mistake `usageByModel` exists to prevent.
+        assert!(
+            json.get("tokensUsed").is_none(),
+            "Stop must not carry a session-scoped context size: {json}"
+        );
+    }
+
+    #[test]
+    fn teardown_stop_reports_no_turn_usage_and_no_caveat() {
+        // The `Stop`s fired while a session closes are not turn ends. Empty
+        // AND unflagged is correct there: nothing ran, so nothing is missing.
+        let payload = HookPayload::Stop {
+            reason: "shutdown".into(),
+            usage_by_model: Vec::new(),
+            usage_incomplete: false,
+            is_subagent: false,
+        };
+        let json = serde_json::to_value(&payload).unwrap();
+        assert!(json.get("usageByModel").is_none());
+        assert!(json.get("usageIncomplete").is_none());
+    }
+
+    #[test]
+    fn session_end_usage_by_model_reaches_the_wire() {
+        let payload = HookPayload::SessionEnd {
+            reason: "shutdown".into(),
+            turn_count: Some(12),
+            tool_call_count: Some(48),
+            tokens_used: Some(187_598),
+            usage_by_model: vec![ModelUsage {
+                model: "qwen38".into(),
+                input_tokens: 180_000,
+                output_tokens: 7_598,
+                model_calls: 12,
+                api_duration_ms: 400_000,
+            }],
+            usage_incomplete: false,
+            is_subagent: false,
+        };
+        let json = serde_json::to_value(&payload).unwrap();
+        let entry = &json["usageByModel"][0];
+        assert_eq!(entry["model"], "qwen38");
+        assert_eq!(entry["inputTokens"], 180_000);
+        // Same reason as the subagent case: `tokensUsed` is a context size, so
+        // only `outputTokens` says what the session produced and only
+        // `apiDurationMs` is an honest denominator for a rate.
+        assert_eq!(entry["outputTokens"], 7_598);
+        assert_eq!(entry["apiDurationMs"], 400_000);
+        assert_eq!(entry["modelCalls"], 12);
+        // These two were declared since before v0.3.6 and passed as None at
+        // every dispatch site, so the wire never carried them. Assert they
+        // actually serialize now.
+        assert_eq!(json["turnCount"], 12);
+        assert_eq!(json["toolCallCount"], 48);
+        assert!(
+            json.get("usageIncomplete").is_none(),
+            "a complete bill must not carry the caveat: {json}"
+        );
+        assert!(
+            json.get("isSubagent").is_none(),
+            "a top-level session must not carry the subagent marker: {json}"
+        );
+        // Cost stays off the wire here too.
+        assert!(entry.get("costUsdTicks").is_none());
+    }
+
+    #[test]
+    fn session_end_marks_a_subagent_so_a_consumer_can_avoid_double_counting() {
+        // A subagent session emits BOTH SubagentStop and SessionEnd for the
+        // same run. Nothing else in the payload distinguishes them, so a
+        // consumer that books both counts that run twice.
+        let payload = HookPayload::SessionEnd {
+            reason: "shutdown".into(),
+            turn_count: Some(1),
+            tool_call_count: Some(2),
+            tokens_used: Some(6_641),
+            usage_by_model: Vec::new(),
+            usage_incomplete: false,
+            is_subagent: true,
+        };
+        let json = serde_json::to_value(&payload).unwrap();
+        assert_eq!(json["isSubagent"], true);
+    }
+
+    #[test]
+    fn session_end_reports_an_unreadable_ledger_as_flagged_not_free() {
+        // The distinction that matters: empty usage WITH the flag means the
+        // session ran and its ledger was lost. Empty usage WITHOUT the flag
+        // would claim it genuinely spent nothing.
+        let payload = HookPayload::SessionEnd {
+            reason: "channel_closed".into(),
+            turn_count: None,
+            tool_call_count: None,
+            tokens_used: None,
+            usage_by_model: Vec::new(),
+            usage_incomplete: true,
+            is_subagent: false,
+        };
+        let json = serde_json::to_value(&payload).unwrap();
+        assert!(
+            json.get("usageByModel").is_none(),
+            "empty usage is omitted, not sent as []: {json}"
+        );
+        assert_eq!(
+            json["usageIncomplete"], true,
+            "an unreadable ledger must be flagged, or it reads as a free session: {json}"
+        );
+        assert!(json.get("tokensUsed").is_none());
+    }
+
     #[test]
     fn subagent_stop_usage_by_model_reaches_the_wire() {
         let payload = HookPayload::SubagentStop {

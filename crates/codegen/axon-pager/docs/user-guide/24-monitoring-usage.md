@@ -23,17 +23,26 @@ only** — it never leaves your machine:
   billed amounts from any provider).
 - **Session history** lives under `~/.axon/sessions/` and can be inspected with
   your own tools.
-- **Per-subagent usage** can be recorded by a `SubagentStop` hook, which
-  receives `usageByModel`: the model each subagent actually called, its input
-  and output tokens, its call count, and the time spent in the API. Since a hook
-  is your own script, the numbers go wherever you send them — a local file, by
-  default nowhere else. See [Hooks](10-hooks.md).
+- **Per-session usage** can be recorded by a `SessionEnd` hook, which receives
+  `usageByModel` for the session itself: the model it actually called, input and
+  output tokens, call count, and time spent in the API. This covers an ordinary
+  interactive session and a headless `axon --agent <name>` run alike. Since a
+  hook is your own script, the numbers go wherever you send them — a local file,
+  by default nowhere else. See [Hooks](10-hooks.md).
+- **Per-subagent usage** is the same payload on a `SubagentStop` hook, reporting
+  what one spawned subagent spent.
 
-  Two limits worth knowing before you build on it. This is the **only** hook
-  payload carrying usage, so main-agent turns are not covered — `Stop` reports a
-  reason and nothing more. And the sibling `tokensUsed` field is the subagent's
-  final **context size**, not what it generated, so a rate derived from it is
-  meaningless; use `outputTokens` over `apiDurationMs` instead.
+  Three things to know before building on these. **A subagent session fires
+  both events**, so recording each one separately double-counts that run;
+  `SessionEnd` sets `"isSubagent": true` so you can skip it. The sibling
+  `tokensUsed` field is a final **context size**, not what was generated, so a
+  rate derived from it is meaningless — use `outputTokens` over `apiDurationMs`.
+  And `Stop` carries what a single TURN spent, which is the event to use for
+  headless runs — `SessionEnd` does not fire there.
+
+  Before 0.3.7, `SubagentStop` was the only payload carrying usage, so a
+  top-level run reported nothing at all and only orchestrated subagents could be
+  measured.
 
 If you need fleet-wide observability across every turn rather than per subagent,
 run everything through your own OpenAI-compatible proxy
