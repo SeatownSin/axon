@@ -29,14 +29,31 @@ pub async fn run_headless(
     cwd: &Path,
 ) -> HeadlessResult {
     let home = TempDir::new().expect("create temp home");
+    run_headless_in_home(server, args, cwd, home.path(), &[]).await
+}
+
+/// [`run_headless`] against a HOME the caller owns and has already populated.
+///
+/// The isolated home in `run_headless` is created and thrown away inside it,
+/// which leaves no window to write anything into it first. Anything read at
+/// startup from `AXON_HOME` — `config.toml`, `lsp.json` — has to be on disk
+/// before the process spawns, so those tests need to own the directory.
+pub async fn run_headless_in_home(
+    server: &MockInferenceServer,
+    args: &[&str],
+    cwd: &Path,
+    home: &Path,
+    env: &[(&str, &str)],
+) -> HeadlessResult {
     let mut cmd = tokio::process::Command::new(axon_binary());
     cmd.args(args)
         .current_dir(cwd)
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
-        .kill_on_drop(true);
-    test_env_cmd_tokio(&mut cmd, &server.url(), home.path());
+        .kill_on_drop(true)
+        .envs(env.iter().copied());
+    test_env_cmd_tokio(&mut cmd, &server.url(), home);
     run_headless_with_cmd(cmd).await
 }
 
