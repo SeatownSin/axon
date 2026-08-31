@@ -6,6 +6,12 @@ edition.workspace = true
 description = "Shared test-support for axon-build crates: mock inference server, SSE generators, ACP stdio client, headless runner, env sandbox"
 publish = false
 
+# A minimal LSP server over stdio, so a test can put a real external process
+# behind `LspBackendAdapter` without a real language server being installed.
+[[bin]]
+name = "lsp-stub"
+path = "src/bin/lsp_stub.rs"
+
 [dependencies]
 agent-client-protocol = { workspace = true }
 anyhow = { workspace = true }

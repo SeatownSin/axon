@@ -1644,3 +1644,183 @@ async fn test_headless_waits_for_short_background_task_and_exits_clean() {
         stderr_tail(&result.stderr, 2000)
     );
 }
+
+// ============================================================================
+// LSP teardown at headless exit
+// ============================================================================
+
+/// Seed an `AXON_HOME` that turns LSP tools on and points them at the stub
+/// language server. Returns the path the stub touches once it has answered
+/// `initialize`, which is the test's proof that a server really ran.
+///
+/// Every part of this is load-bearing and none of it is a default:
+///
+/// - `config.toml` — with `lsp_tools` off, `tool_ctx.lsp` is never populated
+///   and there is no backend to tear down. This is the exact hole the v0.3.7
+///   probe fell into: it ran against a home with the flag disabled, so the one
+///   configuration that could fail was the one not under test.
+/// - `lsp.json` — with no servers configured the session falls back to
+///   `CodeGraphBackend`, an in-process symbol index with no child process and
+///   no socket, which structurally cannot hit this race. A configured server
+///   is what selects `LspBackendAdapter` instead.
+/// - the ready file — see [`assert_lsp_server_actually_ran`].
+///
+/// The stub goes in the *user* config rather than `<cwd>/.axon/lsp.json`
+/// because project-scoped servers are dropped by the folder-trust filter in an
+/// untrusted workspace, which a fresh temp dir always is.
+fn seed_lsp_home(home: &Path, extra_server_env: &[(&str, &str)]) -> std::path::PathBuf {
+    let axon_home = home.join(".axon");
+    std::fs::create_dir_all(&axon_home).expect("create temp AXON_HOME");
+    std::fs::write(
+        axon_home.join("config.toml"),
+        "[features]\nlsp_tools = true\n",
+    )
+    .expect("write config.toml");
+
+    let ready_file = home.join("lsp-stub-ready");
+    let mut env: serde_json::Map<String, Value> = extra_server_env
+        .iter()
+        .map(|(k, v)| ((*k).to_owned(), Value::String((*v).to_owned())))
+        .collect();
+    env.insert(
+        "LSP_STUB_READY_FILE".to_owned(),
+        Value::String(ready_file.to_string_lossy().into_owned()),
+    );
+
+    std::fs::write(
+        axon_home.join("lsp.json"),
+        serde_json::to_vec_pretty(&serde_json::json!({
+            "stub": {
+                "command": axon_test_support::lsp_stub_binary(),
+                // Startup is eager and ignores this map (`ensure_initialized`
+                // starts every configured server), but dispatch routes by
+                // extension, so a realistic entry keeps the config honest.
+                "extensions": { "rs": "rust", "txt": "plaintext", "md": "markdown" },
+                "env": Value::Object(env),
+            }
+        }))
+        .expect("serialize lsp.json"),
+    )
+    .expect("write lsp.json");
+
+    ready_file
+}
+
+/// Fail if the stub never answered `initialize`.
+///
+/// Without this the LSP teardown tests can pass for the wrong reason. Server
+/// startup is spawned in the background by `ensure_started_background`, so a
+/// run whose turn finishes first tears down a backend with no clients, takes
+/// no shutdown path at all, and exits 0 — on the fixed build *and* on the
+/// broken one. That is a test that cannot fail, which is the same mistake as
+/// the probe that let v0.3.7 ship. Asserting the server reached `initialize`
+/// is what makes a green result mean something.
+fn assert_lsp_server_actually_ran(ready_file: &Path, result: &HeadlessResult) {
+    assert!(
+        ready_file.exists(),
+        "the stub language server never answered initialize, so this run never \
+         built an LspBackendAdapter and proves nothing about teardown\n\
+         stderr:\n{}",
+        stderr_tail(&result.stderr, 2000)
+    );
+}
+
+/// Regression test for v0.3.7: `axon -p` with LSP enabled aborted on exit.
+///
+/// v0.3.7 made a headless run close its session, which finally ran
+/// `LspBackendAdapter::drop` in a process that exits immediately afterwards.
+/// Drop started the LSP shutdown *detached*, so the runtime was torn down
+/// mid-shutdown, the client socket died while its main loop was still being
+/// polled, and `async-lsp` aborted the process from
+/// `event.expect("Sender is alive")`. The work completed and telemetry was
+/// written; the process then died with exit -1073740791 and no parseable JSON.
+///
+/// The assertions past the exit code are the regression too, not decoration:
+/// the run produced correct output right up to the abort, so a test that only
+/// checked that the model was called would have passed against the broken
+/// build.
+#[tokio::test]
+#[ignore] // requires pre-built binary; run with --ignored
+async fn test_headless_with_lsp_enabled_exits_cleanly() {
+    let server = MockInferenceServer::start()
+        .await
+        .expect("start mock server");
+    let workdir = git_workdir();
+    let home = tempfile::TempDir::new().expect("create temp home");
+    let ready_file = seed_lsp_home(home.path(), &[]);
+
+    let result = run_headless_in_home(
+        &server,
+        &["-p", "say hello", "--yolo", "--output-format", "json"],
+        workdir.path(),
+        home.path(),
+        &[],
+    )
+    .await;
+
+    assert_headless_success(&result, "axon -p with lsp_tools enabled", Some(&server));
+    assert_no_crashes(&result.stderr);
+    assert!(
+        !result.stderr.contains("Sender is alive"),
+        "async-lsp aborted the process during teardown — the v0.3.7 \
+         regression\nstderr:\n{}",
+        stderr_tail(&result.stderr, 2000)
+    );
+    // The abort killed the process after the turn but before the summary was
+    // flushed, so "did it emit parseable JSON" is what separated broken from
+    // fixed by hand.
+    let output = parse_stdout_json(&result);
+    assert!(
+        output.get("usage").is_some(),
+        "headless JSON summary is missing usage, so the run did not reach a \
+         clean end: {output}"
+    );
+    // Last, so a real regression above reports itself first: this one only
+    // guards against the run having proved nothing at all.
+    assert_lsp_server_actually_ran(&ready_file, &result);
+}
+
+/// The awaited shutdown is bounded, so a server that never answers cannot hold
+/// the process open.
+///
+/// Not a regression test — nothing shipped broken here. It pins the 10s bound
+/// that makes awaiting the shutdown safe in the first place: without it,
+/// moving the shutdown out of `Drop` would trade a crash for a hang, which is
+/// the obvious wrong fix and the one this asserts we did not make.
+#[tokio::test]
+#[ignore] // requires pre-built binary; run with --ignored
+async fn test_headless_lsp_shutdown_is_bounded_when_server_never_answers() {
+    let server = MockInferenceServer::start()
+        .await
+        .expect("start mock server");
+    let workdir = git_workdir();
+    let home = tempfile::TempDir::new().expect("create temp home");
+    let ready_file = seed_lsp_home(home.path(), &[("LSP_STUB_IGNORE_SHUTDOWN", "1")]);
+
+    let started = std::time::Instant::now();
+    let result = run_headless_in_home(
+        &server,
+        &["-p", "say hello", "--yolo", "--output-format", "json"],
+        workdir.path(),
+        home.path(),
+        &[],
+    )
+    .await;
+    let elapsed = started.elapsed();
+
+    assert_headless_success(
+        &result,
+        "axon -p with an LSP server that ignores shutdown",
+        Some(&server),
+    );
+    assert_no_crashes(&result.stderr);
+    // The bound is 10s; the run itself is a mock-server turn. Well under the
+    // harness's own 60s timeout, which would otherwise report this as a
+    // generic "timed out" with no indication that teardown was the cause.
+    assert!(
+        elapsed < Duration::from_secs(45),
+        "teardown did not observe its bound: the run took {elapsed:?}"
+    );
+    // Last, for the same reason as above.
+    assert_lsp_server_actually_ran(&ready_file, &result);
+}

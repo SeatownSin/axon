@@ -34,9 +34,9 @@ pub mod sse;
 pub mod uds_proxy;
 pub use acp_client::{AxonStdioClient, RawStdioClient};
 pub use counting_server::spawn_counting_server;
-pub use env::{EnvGuard, axon_binary, git_workdir};
+pub use env::{EnvGuard, axon_binary, git_workdir, lsp_stub_binary};
 pub use headless::{
-    HeadlessResult, assert_headless_success, assert_no_crashes, run_headless,
+    HeadlessResult, assert_headless_success, assert_no_crashes, run_headless, run_headless_in_home,
     run_headless_with_cmd, stderr_tail,
 };
 pub use inference_override::{InferenceEndpoint, InferenceExpectation, InferenceRequestMatcher};

@@ -77,7 +77,10 @@ fn ensure_local_axon_binary(binary: &Path) {
     let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".to_string());
     let output = Command::new(&cargo)
         .current_dir(workspace_root())
-        .args(["build", "-p", "axon-pager", "--bin", "axon-pager"])
+        // The bin lives in `axon-pager-bin`, not `axon-pager`: the pager
+        // library cannot depend back on the minimal render mode, so the binary
+        // gets its own package. `-p axon-pager` fails outright here.
+        .args(["build", "-p", "axon-pager-bin", "--bin", "axon-pager"])
         .output()
         .unwrap_or_else(|e| panic!("failed to spawn {cargo} to build axon-pager: {e}"));
 
@@ -174,4 +177,51 @@ pub fn test_env_cmd_tokio(
         // Release binaries (CI lifecycle tests) otherwise spawn a background
         // update check that hits the network and can add latency under Rosetta.
         .env("AXON_DISABLE_AUTOUPDATER", "1");
+}
+
+fn local_lsp_stub_path() -> PathBuf {
+    target_dir()
+        .join("debug")
+        .join(format!("lsp-stub{}", std::env::consts::EXE_SUFFIX))
+}
+
+/// Resolve the [`lsp-stub`](../bin/lsp_stub.rs) binary, building it if absent.
+///
+/// Mirrors [`axon_binary`], and for the same reason: `CARGO_BIN_EXE_lsp-stub`
+/// only reaches integration tests of the crate that *declares* the bin, and the
+/// tests that need a language server live in `axon-shell`. Resolving by path
+/// with a build fallback is what makes it usable from there.
+pub fn lsp_stub_binary() -> PathBuf {
+    if let Ok(path) = std::env::var("CARGO_BIN_EXE_lsp-stub") {
+        let p = PathBuf::from(path);
+        if p.exists() {
+            return p;
+        }
+    }
+
+    let binary = local_lsp_stub_path();
+    if binary.exists() {
+        return binary;
+    }
+
+    let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".to_string());
+    let output = Command::new(&cargo)
+        .current_dir(workspace_root())
+        .args(["build", "-p", "axon-test-support", "--bin", "lsp-stub"])
+        .output()
+        .unwrap_or_else(|e| panic!("failed to spawn {cargo} to build lsp-stub: {e}"));
+
+    assert!(
+        output.status.success(),
+        "failed to build lsp-stub (exit {:?})\nstdout:\n{}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+    );
+    assert!(
+        binary.exists(),
+        "lsp-stub build completed but binary missing at {}",
+        binary.display()
+    );
+    binary
 }
