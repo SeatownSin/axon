@@ -1467,6 +1467,7 @@ mod tests {
 
     // ── Reciprocal Rank Fusion ────────────────────────────────────────────
 
+    use crate::embedding::ApiEmbeddingProvider;
     use axon_config_types::SearchFusion;
 
     fn fts(ids: &[(&str, f64)]) -> Vec<crate::index::FtsResult> {
@@ -1734,6 +1735,54 @@ mod tests {
         },
     ];
 
+    /// Build the real API embedding provider from env, or `None` for FTS-only.
+    ///
+    /// `AB_EMBED_URL` is an OpenAI-shaped base (the provider appends
+    /// `/embeddings`), e.g. a local LM Studio at
+    /// `http://127.0.0.1:49152/v1`. `AB_EMBED_MODEL` and `AB_EMBED_DIMS` must
+    /// match what that endpoint actually serves — a dimension mismatch is
+    /// silent until vectors are compared, so the harness verifies it below
+    /// rather than trusting the setting.
+    fn ab_embed_provider() -> Option<(ApiEmbeddingProvider, usize)> {
+        let url = std::env::var("AB_EMBED_URL").ok()?;
+        let model = std::env::var("AB_EMBED_MODEL").ok()?;
+        let dims: usize = std::env::var("AB_EMBED_DIMS")
+            .ok()
+            .and_then(|d| d.parse().ok())
+            .unwrap_or(768);
+        let cfg = axon_config_types::MemoryEmbeddingConfig {
+            provider: "api".to_string(),
+            model: Some(model),
+            dimensions: dims,
+        };
+        let key = std::env::var("AB_EMBED_KEY").unwrap_or_else(|_| "lm-studio".to_string());
+        ApiEmbeddingProvider::from_session(&cfg, url, key).map(|p| (p, dims))
+    }
+
+    /// Embed every chunk that has no vector yet. Returns how many landed.
+    async fn ab_embed_all(idx: &mut MemoryIndex, provider: &ApiEmbeddingProvider) -> usize {
+        let pending = idx.chunks_without_embeddings().unwrap_or_default();
+        let mut done = 0;
+        // The provider batches internally at 32; chunk here too so one failed
+        // batch does not abandon the rest of the corpus.
+        for batch in pending.chunks(32) {
+            let texts: Vec<&str> = batch.iter().map(|(_, text)| text.as_str()).collect();
+            match provider.embed_batch(&texts).await {
+                Ok(vectors) => {
+                    for ((chunk_id, _), vector) in batch.iter().zip(vectors) {
+                        if idx.upsert_embedding(chunk_id, &vector).is_ok() {
+                            done += 1;
+                        }
+                    }
+                }
+                Err(e) => {
+                    eprintln!("  embed batch failed ({e}); continuing FTS-only for those chunks");
+                }
+            }
+        }
+        done
+    }
+
     fn ab_config(fusion: SearchFusion, rrf_k: f32) -> MemorySearchConfig {
         // A realistic weighting in which `global` carries less than 1.0 —
         // the configuration under which the reported pathology appears.
@@ -1774,7 +1823,20 @@ mod tests {
             .expect("set AB_CORPUS to a directory of .md files");
 
         let tmp = TempDir::new().unwrap();
-        let mut idx = test_index(&tmp);
+        // Dimensions must match what the endpoint actually serves, so build
+        // the provider first and size the index from it. A mismatch is silent
+        // until vectors are compared, where it looks like bad retrieval rather
+        // than a config error.
+        let embed = ab_embed_provider();
+        let dims = embed.as_ref().map(|(_, d)| *d).unwrap_or(4);
+        let mut idx = {
+            init_sqlite_vec();
+            let global = tmp.path().join("memory");
+            let workspace = global.join("ab_ws");
+            let storage = MemoryStorage::with_paths(global, workspace);
+            let db = tmp.path().join("ab.sqlite");
+            MemoryIndex::open_or_create(&db, storage, MemoryIndexConfig::default(), dims).unwrap()
+        };
 
         let mut files: Vec<_> = std::fs::read_dir(&corpus)
             .expect("read corpus")
@@ -1799,10 +1861,25 @@ mod tests {
             }
         }
 
+        let embedded = match embed.as_ref() {
+            Some((provider, _)) => ab_embed_all(&mut idx, provider).await,
+            None => 0,
+        };
+        let provider_ref: Option<&dyn EmbeddingProvider> =
+            embed.as_ref().map(|(p, _)| p as &dyn EmbeddingProvider);
+
         println!("\n=== fusion A/B ===");
         println!("corpus:  {} ({indexed} files)", corpus.display());
         println!("queries: {}", AB_CASES.len());
-        println!("vectors: NONE — both arms FTS-only (see the note above this test)");
+        match embed.as_ref() {
+            // `vec_available` is the index's own answer, not the config's:
+            // an endpoint can be reachable and the vector table still empty.
+            Some((_, d)) => println!(
+                "vectors: {embedded} chunks embedded at {d} dims, vec_available={}",
+                idx.vec_available()
+            ),
+            None => println!("vectors: NONE — both arms FTS-only (set AB_EMBED_URL)"),
+        }
 
         let mut summary: Vec<(&str, f64, f64, usize, usize)> = Vec::new();
         for (label, fusion, k) in [
@@ -1824,7 +1901,7 @@ mod tests {
 
             println!("\n  {label}");
             for case in AB_CASES {
-                let results = hybrid_search(&idx, None, case.query, &config)
+                let results = hybrid_search(&idx, provider_ref, case.query, &config)
                     .await
                     .unwrap_or_default();
                 if results.is_empty() {
