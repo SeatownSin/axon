@@ -1544,6 +1544,14 @@ mod tests {
     /// Under RRF the base score is rank-derived and the set is renormalized so
     /// the best is 1.0, so a highly-ranked global chunk survives its source
     /// weight. Asserted through the real search path, not just `fuse_rrf`.
+    ///
+    /// ⚠ **This passing does NOT mean RRF retrieves better.** It is a
+    /// two-file corpus testing presence above a threshold, not rank
+    /// competition among many candidates. `fusion_ab_report` on a 23-file
+    /// corpus shows the opposite: at the default k=60, RRF compresses scores
+    /// into a ~0.07 band, so the post-hoc `source_weight` multiplier
+    /// dominates ranking and global chunks are crowded out entirely (0/12
+    /// queries vs 9/12 for weighted). Read the two together.
     #[tokio::test]
     async fn rrf_keeps_a_weighted_down_global_source_above_min_score() {
         let tmp = TempDir::new().unwrap();
@@ -1599,5 +1607,229 @@ mod tests {
     fn fusion_defaults_to_weighted() {
         assert_eq!(MemorySearchConfig::default().fusion, SearchFusion::Weighted);
         assert!((MemorySearchConfig::default().rrf_k - 60.0).abs() < f32::EPSILON);
+    }
+
+    // ── A/B harness: weighted fusion vs RRF ───────────────────────────────
+    //
+    // `#[ignore]`d — needs a corpus on disk and prints a report rather than
+    // asserting a threshold:
+    //
+    //   AB_CORPUS=/path/to/markdown/dir \
+    //     cargo test -p axon-memory fusion_ab_report -- --ignored --nocapture
+    //
+    // ⚠ **What this measures and what it does not.** With no embedding
+    // provider both arms run FTS-only. That is the right setting for the
+    // failure under investigation — the reported pathology (a source scored
+    // below an absolute `min_score` and vanishing) is FTS-only, and the
+    // existing regression test for it passes `None` as the provider. But it
+    // means **nothing here is evidence about two-list fusion quality**, which
+    // is RRF's other claim. Do not generalize these numbers to the
+    // embeddings-enabled path.
+    //
+    // Ground truth is hand-labelled against a corpus whose contents are known.
+    // Each query's answer lives in exactly one file; anything ambiguous across
+    // files was left out rather than guessed at.
+
+    /// A labelled query: the text, and the file that should come back.
+    struct AbCase {
+        query: &'static str,
+        expect_file: &'static str,
+    }
+
+    const AB_CASES: &[AbCase] = &[
+        AbCase {
+            query: "where is the live Axon install",
+            expect_file: "axon-live-install.md",
+        },
+        AbCase {
+            query: "can cargo test run on Windows NASM",
+            expect_file: "axon-testing.md",
+        },
+        AbCase {
+            query: "what does capabilityMode enforce in an agent file",
+            expect_file: "oh-my-axon.md",
+        },
+        AbCase {
+            query: "how should I wait for CI to finish",
+            expect_file: "no-jq-on-this-box.md",
+        },
+        AbCase {
+            query: "what CRF for h264 video output",
+            expect_file: "video-output-crf18.md",
+        },
+        AbCase {
+            query: "which upscaler should I prefer",
+            expect_file: "upscaling-prefer-ltx25.md",
+        },
+        AbCase {
+            query: "comfyui boot flags pinned memory",
+            expect_file: "comfyui-axon-integration.md",
+        },
+        AbCase {
+            query: "how do I pin framing in an H3 shot",
+            expect_file: "h3-shot-authoring.md",
+        },
+        AbCase {
+            query: "what is the merge convention for main",
+            expect_file: "axon-project.md",
+        },
+        AbCase {
+            query: "does prompt form change rule following",
+            expect_file: "prompt-form-experiment.md",
+        },
+        AbCase {
+            query: "first run wizard port scanning localhost",
+            expect_file: "axon-wizard.md",
+        },
+        AbCase {
+            query: "does graphify support rust",
+            expect_file: "graphify-tool.md",
+        },
+    ];
+
+    fn ab_config(fusion: SearchFusion, rrf_k: f32) -> MemorySearchConfig {
+        // A realistic weighting in which `global` carries less than 1.0 —
+        // the configuration under which the reported pathology appears.
+        // Everything except `fusion` is identical across the two arms.
+        let mut source_weights = std::collections::HashMap::new();
+        source_weights.insert("global".to_string(), 0.7);
+        source_weights.insert("workspace".to_string(), 1.0);
+        source_weights.insert("session".to_string(), 1.0);
+
+        MemorySearchConfig {
+            fusion,
+            rrf_k,
+            min_score: 0.35,
+            max_results: 6,
+            source_weights,
+            ..Default::default()
+        }
+    }
+
+    fn ab_rank_of(results: &[SearchResult], expect_file: &str) -> Option<usize> {
+        results
+            .iter()
+            .position(|r| {
+                std::path::Path::new(&r.path)
+                    .file_name()
+                    .and_then(|f| f.to_str())
+                    == Some(expect_file)
+            })
+            .map(|i| i + 1)
+    }
+
+    #[tokio::test]
+    #[ignore] // needs AB_CORPUS; prints a report rather than asserting
+    async fn fusion_ab_report() {
+        let corpus = std::env::var_os("AB_CORPUS")
+            .map(std::path::PathBuf::from)
+            .filter(|p| p.is_dir())
+            .expect("set AB_CORPUS to a directory of .md files");
+
+        let tmp = TempDir::new().unwrap();
+        let mut idx = test_index(&tmp);
+
+        let mut files: Vec<_> = std::fs::read_dir(&corpus)
+            .expect("read corpus")
+            .filter_map(|e| e.ok())
+            .map(|e| e.path())
+            .filter(|p| p.extension().and_then(|x| x.to_str()) == Some("md"))
+            .collect();
+        files.sort();
+
+        let mut indexed = 0;
+        for path in &files {
+            // MEMORY.md is the index file, which is what `global` means in the
+            // real layout — and `global` is the source carrying the sub-1.0
+            // weight, so it is the one the weighted path can score away.
+            let source = if path.file_name().and_then(|f| f.to_str()) == Some("MEMORY.md") {
+                "global"
+            } else {
+                "workspace"
+            };
+            if idx.reindex_file(path, source).is_ok() {
+                indexed += 1;
+            }
+        }
+
+        println!("\n=== fusion A/B ===");
+        println!("corpus:  {} ({indexed} files)", corpus.display());
+        println!("queries: {}", AB_CASES.len());
+        println!("vectors: NONE — both arms FTS-only (see the note above this test)");
+
+        let mut summary: Vec<(&str, f64, f64, usize, usize)> = Vec::new();
+        for (label, fusion, k) in [
+            ("weighted", SearchFusion::Weighted, 60.0),
+            ("rrf k=60", SearchFusion::Rrf, 60.0),
+            ("rrf k=1", SearchFusion::Rrf, 1.0),
+            ("rrf k=0", SearchFusion::Rrf, 0.0),
+        ] {
+            let config = ab_config(fusion, k);
+            let mut hits = 0usize;
+            let mut mrr = 0.0f64;
+            let mut empty = 0usize;
+            // The metric that actually matches the complaint. Recall of the
+            // *specific* answer file says nothing about the reported failure,
+            // which is a whole SOURCE being scored below an absolute
+            // threshold. `global` is the down-weighted source here, so count
+            // the queries where any global chunk survived into the results.
+            let mut global_visible = 0usize;
+
+            println!("\n  {label}");
+            for case in AB_CASES {
+                let results = hybrid_search(&idx, None, case.query, &config)
+                    .await
+                    .unwrap_or_default();
+                if results.is_empty() {
+                    empty += 1;
+                }
+                if results.iter().any(|r| r.source == "global") {
+                    global_visible += 1;
+                }
+                match ab_rank_of(&results, case.expect_file) {
+                    Some(rank) => {
+                        hits += 1;
+                        mrr += 1.0 / rank as f64;
+                        println!("    rank {rank:>2}  {}", case.query);
+                    }
+                    None => {
+                        let got: Vec<&str> = results
+                            .iter()
+                            .filter_map(|r| std::path::Path::new(&r.path).file_name())
+                            .filter_map(|f| f.to_str())
+                            .collect();
+                        println!(
+                            "    MISS    {}  (got: {})",
+                            case.query,
+                            if got.is_empty() {
+                                "nothing".into()
+                            } else {
+                                got.join(", ")
+                            }
+                        );
+                    }
+                }
+            }
+            let n = AB_CASES.len() as f64;
+            summary.push((
+                label,
+                (hits as f64 / n) * 100.0,
+                mrr / n,
+                empty,
+                global_visible,
+            ));
+        }
+
+        println!(
+            "\n  {:<10} {:>10} {:>8} {:>8}",
+            "arm", "recall@6", "MRR", "empty"
+        );
+        for (label, recall, mrr, empty, global_visible) in &summary {
+            println!(
+                "  {label:<10} {recall:>9.0}% {mrr:>8.3} {empty:>8} {global_visible:>13}/{}",
+                AB_CASES.len()
+            );
+        }
+        println!();
     }
 }
