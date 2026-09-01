@@ -323,24 +323,41 @@ pub(super) fn hybrid_search_merge(
     let mut vec_scores: HashMap<String, f64> = HashMap::new();
 
     // Normalize FTS BM25 scores to [0,1] (BM25 scores are negative in FTS5,
-    // more negative = better match)
+    // more negative = better match).
+    //
+    // Two transforms. The min-max one is relative to the result set and is the
+    // historical default; the saturating one is absolute. See
+    // `bm25_saturation` for why the difference matters — in short, min-max
+    // hands the best keyword hit exactly 1.0 however irrelevant it is, which
+    // no vector-only chunk can outrank.
     if !fts_results.is_empty() {
-        let min_rank = fts_results
-            .iter()
-            .map(|r| r.rank)
-            .fold(f64::INFINITY, f64::min);
-        let max_rank = fts_results
-            .iter()
-            .map(|r| r.rank)
-            .fold(f64::NEG_INFINITY, f64::max);
-        // When there's only 1 FTS result, min_rank == max_rank, so range = EPSILON
-        // and normalized = 1.0. This is correct: a single result gets full score.
-        let range = (max_rank - min_rank).max(f64::EPSILON);
+        let knee = config.bm25_saturation as f64;
+        if knee > 0.0 {
+            for r in &fts_results {
+                // `m` is the BM25 magnitude: 0 at no signal, growing with
+                // rarer terms and more of them matched. `m / (m + knee)` is
+                // monotonic into [0,1) and depends on nothing but this chunk.
+                let m = (-r.rank).max(0.0);
+                fts_scores.insert(r.chunk_id.clone(), m / (m + knee));
+            }
+        } else {
+            let min_rank = fts_results
+                .iter()
+                .map(|r| r.rank)
+                .fold(f64::INFINITY, f64::min);
+            let max_rank = fts_results
+                .iter()
+                .map(|r| r.rank)
+                .fold(f64::NEG_INFINITY, f64::max);
+            // When there's only 1 FTS result, min_rank == max_rank, so range = EPSILON
+            // and normalized = 1.0. This is correct: a single result gets full score.
+            let range = (max_rank - min_rank).max(f64::EPSILON);
 
-        for r in &fts_results {
-            // FTS5 rank: more negative = better. Normalize so best = 1.0
-            let normalized = 1.0 - (r.rank - min_rank) / range;
-            fts_scores.insert(r.chunk_id.clone(), normalized);
+            for r in &fts_results {
+                // FTS5 rank: more negative = better. Normalize so best = 1.0
+                let normalized = 1.0 - (r.rank - min_rank) / range;
+                fts_scores.insert(r.chunk_id.clone(), normalized);
+            }
         }
     }
 
@@ -1955,6 +1972,7 @@ mod tests {
         rrf_k: f32,
         min_score: f32,
         vector_weight: f32,
+        bm25_saturation: f32,
     ) -> MemorySearchConfig {
         // A realistic weighting in which `global` carries less than 1.0 —
         // the configuration under which the reported pathology appears.
@@ -1969,6 +1987,7 @@ mod tests {
             rrf_k,
             min_score,
             vector_weight,
+            bm25_saturation,
             max_results: 6,
             source_weights,
             ..Default::default()
@@ -2012,24 +2031,47 @@ mod tests {
             MemoryIndex::open_or_create(&db, storage, MemoryIndexConfig::default(), dims).unwrap()
         };
 
-        let mut files: Vec<_> = std::fs::read_dir(&corpus)
-            .expect("read corpus")
-            .filter_map(|e| e.ok())
-            .map(|e| e.path())
-            .filter(|p| p.extension().and_then(|x| x.to_str()) == Some("md"))
-            .collect();
+        // Source assignment. If the corpus has `global/` and `workspace/`
+        // subdirectories, they define the sources; otherwise everything is
+        // `workspace` except `MEMORY.md`.
+        //
+        // ⚠ The flat fallback is kept only for older corpora — it makes the
+        // `global visible` column MEANINGLESS. It puts exactly one file in
+        // `global`, `MEMORY.md`, which ground truth defines as never a correct
+        // answer. "Global is visible" and "the right answer ranked well" are
+        // then in direct opposition, so the column cannot adjudicate any
+        // change: driving the index down looks like a regression and is
+        // actually an improvement. The split layout puts the real memory files
+        // in `global`, where the down-weighted source holds true answers and
+        // the column measures what it was introduced to measure — whether a
+        // whole source gets scored away.
+        let split = corpus.join("global").is_dir() && corpus.join("workspace").is_dir();
+        let mut files: Vec<(std::path::PathBuf, &'static str)> = Vec::new();
+        let collect = |dir: &std::path::Path, source: &'static str, out: &mut Vec<_>| {
+            if let Ok(rd) = std::fs::read_dir(dir) {
+                for e in rd.filter_map(|e| e.ok()) {
+                    let p = e.path();
+                    if p.extension().and_then(|x| x.to_str()) == Some("md") {
+                        out.push((p, source));
+                    }
+                }
+            }
+        };
+        if split {
+            collect(&corpus.join("global"), "global", &mut files);
+            collect(&corpus.join("workspace"), "workspace", &mut files);
+        } else {
+            collect(&corpus, "workspace", &mut files);
+            for (p, source) in files.iter_mut() {
+                if p.file_name().and_then(|f| f.to_str()) == Some("MEMORY.md") {
+                    *source = "global";
+                }
+            }
+        }
         files.sort();
 
         let mut indexed = 0;
-        for path in &files {
-            // MEMORY.md is the index file, which is what `global` means in the
-            // real layout — and `global` is the source carrying the sub-1.0
-            // weight, so it is the one the weighted path can score away.
-            let source = if path.file_name().and_then(|f| f.to_str()) == Some("MEMORY.md") {
-                "global"
-            } else {
-                "workspace"
-            };
+        for (path, source) in &files {
             if idx.reindex_file(path, source).is_ok() {
                 indexed += 1;
             }
@@ -2042,8 +2084,43 @@ mod tests {
         let provider_ref: Option<&dyn EmbeddingProvider> =
             embed.as_ref().map(|(p, _)| p as &dyn EmbeddingProvider);
 
+        // ⚠ Fingerprint the corpus, do not just count it. `AB_CORPUS` points
+        // at `.axon/handoffs/` + the memory dir by default — the same files
+        // this experiment's write-up edits. A run whose corpus drifted under
+        // it silently produces numbers that cannot be compared with the last
+        // run's, which happened here (445 -> 446 chunks, weighted paraphrase
+        // recall 60% -> 64%). Numbers are only ever comparable WITHIN one
+        // fingerprint. Freeze the corpus for a real comparison.
+        let fingerprint = {
+            let mut h: u64 = 1469598103934665603;
+            let mut total = 0u64;
+            for (f, source) in &files {
+                let name = f.file_name().and_then(|n| n.to_str()).unwrap_or("");
+                let len = std::fs::metadata(f).map(|m| m.len()).unwrap_or(0);
+                h ^= source.len() as u64;
+                total += len;
+                for b in name.as_bytes().iter().chain(len.to_le_bytes().iter()) {
+                    h ^= *b as u64;
+                    h = h.wrapping_mul(1099511628211);
+                }
+            }
+            (h, total)
+        };
+
         println!("\n=== fusion A/B ===");
-        println!("corpus:  {} ({indexed} files)", corpus.display());
+        println!(
+            "corpus:  {} ({indexed} files, {} sources)",
+            corpus.display(),
+            if split {
+                "split global/workspace"
+            } else {
+                "flat — global visible is MEANINGLESS, see note"
+            }
+        );
+        println!(
+            "corpus fingerprint: {:016x} ({} bytes) — compare arms only within one fingerprint",
+            fingerprint.0, fingerprint.1
+        );
         println!("query sets: {}", AB_SETS.len());
         match embed.as_ref() {
             // `vec_available` is the index's own answer, not the config's:
@@ -2075,14 +2152,28 @@ mod tests {
                 // vector_weight to 1.0 should NOT rescue it: 1.0 × cosine still
                 // loses to 1.0. If recall jumps instead, the diagnosis is wrong
                 // and the weight, not the normalization, was the problem.
-                for (label, fusion, k, vw) in [
-                    ("weighted", SearchFusion::Weighted, 60.0, 0.7),
-                    ("weighted vw=1.0", SearchFusion::Weighted, 60.0, 1.0),
-                    ("rrf k=60", SearchFusion::Rrf, 60.0, 0.7),
-                    ("rrf k=1", SearchFusion::Rrf, 1.0, 0.7),
-                    ("rrf k=0", SearchFusion::Rrf, 0.0, 0.7),
+                // The `sat=` arms sweep the absolute-BM25 knee rather than
+                // picking one. A value that wins only at a hand-chosen k is
+                // overfitting; what would justify the change is a broad
+                // plateau that beats the baseline on BOTH query sets.
+                for (label, fusion, k, vw, sat) in [
+                    ("weighted", SearchFusion::Weighted, 60.0, 0.7, 0.0),
+                    ("weighted vw=1.0", SearchFusion::Weighted, 60.0, 1.0, 0.0),
+                    ("sat=0.5", SearchFusion::Weighted, 60.0, 0.7, 0.5),
+                    ("sat=1", SearchFusion::Weighted, 60.0, 0.7, 1.0),
+                    ("sat=2", SearchFusion::Weighted, 60.0, 0.7, 2.0),
+                    ("sat=5", SearchFusion::Weighted, 60.0, 0.7, 5.0),
+                    ("sat=10", SearchFusion::Weighted, 60.0, 0.7, 10.0),
+                    ("sat=15", SearchFusion::Weighted, 60.0, 0.7, 15.0),
+                    ("sat=20", SearchFusion::Weighted, 60.0, 0.7, 20.0),
+                    ("sat=30", SearchFusion::Weighted, 60.0, 0.7, 30.0),
+                    ("sat=50", SearchFusion::Weighted, 60.0, 0.7, 50.0),
+                    ("sat=100", SearchFusion::Weighted, 60.0, 0.7, 100.0),
+                    ("rrf k=60", SearchFusion::Rrf, 60.0, 0.7, 0.0),
+                    ("rrf k=1", SearchFusion::Rrf, 1.0, 0.7, 0.0),
+                    ("rrf k=0", SearchFusion::Rrf, 0.0, 0.7, 0.0),
                 ] {
-                    let config = ab_config(fusion, k, gate, vw);
+                    let config = ab_config(fusion, k, gate, vw, sat);
                     let mut hits = 0usize;
                     let mut mrr = 0.0f64;
                     let mut empty = 0usize;

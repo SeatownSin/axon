@@ -87,6 +87,24 @@ pub struct MemorySearchConfig {
     pub vector_weight: f32,
     /// Weight for BM25 text similarity in hybrid scoring.
     pub text_weight: f32,
+    /// Knee constant for an ABSOLUTE BM25 transform. `0.0` (the default)
+    /// keeps the historical min-max normalization.
+    ///
+    /// The historical normalization is min-max *within the result set*, so the
+    /// best keyword hit scores exactly 1.0 no matter how weak it is. A query
+    /// sharing no distinctive vocabulary with any document still produces a
+    /// 1.0, and a vector-only chunk — scored `vector_weight × cosine`, at most
+    /// ~0.7 — can never outrank that junk. Measured on 25 lexically-disjoint
+    /// queries, the weighted path reached MRR 0.287 against RRF's 0.530, and
+    /// raising `vector_weight` to 1.0 moved it only to 0.335.
+    ///
+    /// When `> 0`, BM25 is mapped by `m / (m + k)` where `m = -rank` (FTS5
+    /// returns negative BM25, more negative = better). This is absolute: a
+    /// weak keyword list scores low in its own right, so it no longer crowds
+    /// out a strong semantic match. Note the vector side already normalizes on
+    /// an absolute scale for exactly this reason — this makes the two
+    /// commensurable.
+    pub bm25_saturation: f32,
     /// **Deprecated** — use `temporal_decay` instead.
     ///
     /// Per-day decay factor for recency boosting (0.0–1.0).
@@ -121,6 +139,7 @@ impl Default for MemorySearchConfig {
             min_score: 0.35,
             vector_weight: 0.7,
             text_weight: 0.3,
+            bm25_saturation: 0.0,
             recency_decay: DEFAULT_RECENCY_DECAY,
             temporal_decay: TemporalDecayConfig::default(),
             mmr: MmrConfig::default(),
