@@ -1666,72 +1666,228 @@ mod tests {
     //     cargo test -p axon-memory fusion_ab_report -- --ignored --nocapture
     //
     // ⚠ **What this measures and what it does not.** With no embedding
-    // provider both arms run FTS-only. That is the right setting for the
-    // failure under investigation — the reported pathology (a source scored
-    // below an absolute `min_score` and vanishing) is FTS-only, and the
-    // existing regression test for it passes `None` as the provider. But it
-    // means **nothing here is evidence about two-list fusion quality**, which
-    // is RRF's other claim. Do not generalize these numbers to the
-    // embeddings-enabled path.
+    // provider both arms run FTS-only, and then nothing here is evidence about
+    // two-list fusion quality — which is RRF's whole claim. Set `AB_EMBED_URL`
+    // (see `ab_embed_provider`) and check the printed `embedded` count: an
+    // endpoint can be reachable while the vector table stays empty, which
+    // looks exactly like bad retrieval.
     //
-    // Ground truth is hand-labelled against a corpus whose contents are known.
-    // Each query's answer lives in exactly one file; anything ambiguous across
-    // files was left out rather than guessed at.
+    // **Two query sets run, and the difference between them is the point.**
+    //
+    // - `keyword` — the original 12. Written against file *topics*, so each
+    //   query shares distinctive vocabulary with its answer. That is precisely
+    //   what BM25 is best at, so the vector arm has nothing to add and these
+    //   numbers cannot tell you whether a second list helps.
+    // - `paraphrase` — 25 queries built to be semantically clear but
+    //   **lexically disjoint** from their answers: no query term that occurs in
+    //   five or fewer corpus files also occurs in any accepted answer file.
+    //   Checked mechanically over the corpus, not by eye. This is the set where
+    //   embeddings can actually contribute, so it is the one that decides.
+    //
+    // Ground truth is **set-valued**: where topics genuinely overlap, every
+    // acceptable file is listed rather than pretending one is uniquely right,
+    // and a hit is the best rank among them. Each label was derived by reading
+    // the target and confirming it answers the query — not recalled.
+    //
+    // `MEMORY.md` is deliberately never an accepted answer. It is an index of
+    // one-line hooks over the other files, so it nominally "contains" most
+    // answers; counting it correct would make the metric meaningless. It stays
+    // in the corpus as a distractor, and as the `global` source whose
+    // visibility is tracked separately below.
 
-    /// A labelled query: the text, and the file that should come back.
+    /// A labelled query: the text, and the files any of which is an
+    /// acceptable answer. More than one is not hedging — it is the honest
+    /// label when several documents genuinely answer the same question.
     struct AbCase {
         query: &'static str,
-        expect_file: &'static str,
+        expect_files: &'static [&'static str],
+    }
+
+    /// A named query set. Reported separately; see the note above for why the
+    /// two sets are not interchangeable.
+    struct AbSet {
+        name: &'static str,
+        cases: &'static [AbCase],
     }
 
     const AB_CASES: &[AbCase] = &[
         AbCase {
             query: "where is the live Axon install",
-            expect_file: "axon-live-install.md",
+            expect_files: &["axon-live-install.md"],
         },
         AbCase {
             query: "can cargo test run on Windows NASM",
-            expect_file: "axon-testing.md",
+            expect_files: &["axon-testing.md"],
         },
         AbCase {
             query: "what does capabilityMode enforce in an agent file",
-            expect_file: "oh-my-axon.md",
+            expect_files: &["oh-my-axon.md"],
         },
         AbCase {
             query: "how should I wait for CI to finish",
-            expect_file: "no-jq-on-this-box.md",
+            expect_files: &["no-jq-on-this-box.md"],
         },
         AbCase {
             query: "what CRF for h264 video output",
-            expect_file: "video-output-crf18.md",
+            expect_files: &["video-output-crf18.md"],
         },
         AbCase {
             query: "which upscaler should I prefer",
-            expect_file: "upscaling-prefer-ltx25.md",
+            expect_files: &["upscaling-prefer-ltx25.md"],
         },
         AbCase {
             query: "comfyui boot flags pinned memory",
-            expect_file: "comfyui-axon-integration.md",
+            expect_files: &["comfyui-axon-integration.md"],
         },
         AbCase {
             query: "how do I pin framing in an H3 shot",
-            expect_file: "h3-shot-authoring.md",
+            expect_files: &["h3-shot-authoring.md"],
         },
         AbCase {
             query: "what is the merge convention for main",
-            expect_file: "axon-project.md",
+            expect_files: &["axon-project.md"],
         },
         AbCase {
             query: "does prompt form change rule following",
-            expect_file: "prompt-form-experiment.md",
+            expect_files: &["prompt-form-experiment.md"],
         },
         AbCase {
             query: "first run wizard port scanning localhost",
-            expect_file: "axon-wizard.md",
+            expect_files: &["axon-wizard.md"],
         },
         AbCase {
             query: "does graphify support rust",
-            expect_file: "graphify-tool.md",
+            expect_files: &["graphify-tool.md"],
+        },
+    ];
+
+    /// Lexically-disjoint paraphrase queries — the set that can actually
+    /// discriminate a two-list fusion. Built 2026-08-31 against the 31-file
+    /// corpus (`.axon/{plans,audits,handoffs}/` + the memory dir), because the
+    /// labels from the 23-file memory corpus do NOT transfer: terms that pick
+    /// out exactly one memory file appear in up to nine files here.
+    ///
+    /// Disjointness is a checked property, not an intention: no term in a query
+    /// occurs in five or fewer corpus files AND in one of its accepted answers.
+    const AB_PARAPHRASE_CASES: &[AbCase] = &[
+        AbCase {
+            query: "why can't I run the unit tests on this machine by themselves",
+            expect_files: &["axon-testing.md"],
+        },
+        AbCase {
+            query: "the thing I set up to notice when the remote job went green stayed silent for an hour",
+            expect_files: &["no-jq-on-this-box.md"],
+        },
+        AbCase {
+            query: "what number should the encoder be told to use when saving a movie",
+            expect_files: &["video-output-crf18.md"],
+        },
+        AbCase {
+            query: "how should I approach a very large document without spending everything on it",
+            expect_files: &["context-discipline.md"],
+        },
+        AbCase {
+            query: "the verification came back clean but it was pointed at a place where the defect was impossible",
+            expect_files: &["probe-that-cannot-fail.md"],
+        },
+        AbCase {
+            query: "I keep reaching for numbers that miss what the person was actually unhappy about",
+            expect_files: &["metric-must-match-the-complaint.md"],
+        },
+        AbCase {
+            query: "how do I know whether something should stay here or go out where strangers can read it",
+            expect_files: &["scope-confirm-before-publishing.md"],
+        },
+        AbCase {
+            query: "there are two of these installed and I need to know which one really runs",
+            expect_files: &["axon-live-install.md"],
+        },
+        AbCase {
+            query: "which box on the fleet can turn words into numeric representations and which one cannot",
+            expect_files: &["model-hosts-and-serving.md", "axon-and-oh-my-axon.md"],
+        },
+        AbCase {
+            query: "when several projects ship the same low level optimisation code whose should be the default choice",
+            expect_files: &["prefer-comfy-kitchen.md"],
+        },
+        AbCase {
+            query: "the user is tired of one enlargement method and wants the other one tried instead",
+            expect_files: &["upscaling-prefer-ltx25.md"],
+        },
+        AbCase {
+            query: "how do I state what a person's build looks like so the generator actually honours it",
+            expect_files: &["h3-shot-authoring.md"],
+        },
+        AbCase {
+            query: "the field that was supposed to restrict what a helper may touch turns out to restrict nothing",
+            expect_files: &["oh-my-axon.md", "axon-internals.md"],
+        },
+        AbCase {
+            query: "old notes use words that no longer appear anywhere in the tree where is the mapping",
+            expect_files: &["axon-rename-and-purge.md"],
+        },
+        AbCase {
+            query: "should I generate the relationship diagram for everything at once or just one area",
+            expect_files: &["graphify-tool.md"],
+        },
+        AbCase {
+            query: "what has to pass before a change can land",
+            expect_files: &["axon-repo-hygiene.md", "axon-testing.md"],
+        },
+        AbCase {
+            query: "does the way an instruction is worded change whether a small model obeys it",
+            expect_files: &["prompt-form-experiment.md"],
+        },
+        AbCase {
+            query: "on the very first start how does it notice a server already running nearby and what network trap did that hit",
+            expect_files: &["axon-wizard.md"],
+        },
+        AbCase {
+            query: "several nearly identical routines pull declarations out of source files do they actually differ",
+            expect_files: &["2026-08-29-extractor-recon.md"],
+        },
+        AbCase {
+            query: "the singer's face did not line up with the words being sung and that halted the round",
+            expect_files: &[
+                "mv-city-of-scarred.md",
+                "comfyui-axon-integration.md",
+                "comfyui-run-log.md",
+            ],
+        },
+        AbCase {
+            query: "how many claims in the shipped written material contradicted the code",
+            expect_files: &["2026-08-29-docs-drift-axon.md"],
+        },
+        AbCase {
+            query: "the tally of stored runs did not grow even though the box did plenty of work that day",
+            expect_files: &["2026-08-30-sessionend-usage.md"],
+        },
+        AbCase {
+            query: "what has to be written down before everything in this window disappears",
+            expect_files: &["handoff-on-restart.md"],
+        },
+        AbCase {
+            query: "the staged plan for finding out how well the assistant does at different jobs",
+            expect_files: &["2026-08-29-agent-testing-programme.md"],
+        },
+        AbCase {
+            query: "which launch switches keep the render stack from consuming all the ram",
+            expect_files: &[
+                "comfyui-axon-integration.md",
+                "prefer-comfy-kitchen.md",
+                "comfyui-run-log.md",
+            ],
+        },
+    ];
+
+    const AB_SETS: &[AbSet] = &[
+        AbSet {
+            name: "keyword",
+            cases: AB_CASES,
+        },
+        AbSet {
+            name: "paraphrase",
+            cases: AB_PARAPHRASE_CASES,
         },
     ];
 
@@ -1783,7 +1939,23 @@ mod tests {
         done
     }
 
-    fn ab_config(fusion: SearchFusion, rrf_k: f32) -> MemorySearchConfig {
+    /// ⚠ `min_score` is swept, and it is NOT a cosmetic knob — it is a
+    /// confound that would otherwise be read as a fusion result.
+    ///
+    /// The two arms are not gated alike. The weighted path compares an
+    /// ABSOLUTE score against `min_score`, so a true positive can be pruned
+    /// outright. `fuse_rrf` renormalizes its output so the best hit is exactly
+    /// 1.0, which makes the same `min_score` *relative to the top hit* — and
+    /// since RRF scores land in a narrow band, nearly everything survives.
+    /// A win measured only at 0.35 could therefore be "RRF's gate is looser",
+    /// not "rank-space fusion ranks better". Running at 0.0 removes the gate
+    /// from both arms and isolates the fusion.
+    fn ab_config(
+        fusion: SearchFusion,
+        rrf_k: f32,
+        min_score: f32,
+        vector_weight: f32,
+    ) -> MemorySearchConfig {
         // A realistic weighting in which `global` carries less than 1.0 —
         // the configuration under which the reported pathology appears.
         // Everything except `fusion` is identical across the two arms.
@@ -1795,21 +1967,23 @@ mod tests {
         MemorySearchConfig {
             fusion,
             rrf_k,
-            min_score: 0.35,
+            min_score,
+            vector_weight,
             max_results: 6,
             source_weights,
             ..Default::default()
         }
     }
 
-    fn ab_rank_of(results: &[SearchResult], expect_file: &str) -> Option<usize> {
+    /// Best (lowest) 1-based rank at which any acceptable answer appears.
+    fn ab_rank_of(results: &[SearchResult], expect_files: &[&str]) -> Option<usize> {
         results
             .iter()
             .position(|r| {
                 std::path::Path::new(&r.path)
                     .file_name()
                     .and_then(|f| f.to_str())
-                    == Some(expect_file)
+                    .is_some_and(|f| expect_files.contains(&f))
             })
             .map(|i| i + 1)
     }
@@ -1870,7 +2044,7 @@ mod tests {
 
         println!("\n=== fusion A/B ===");
         println!("corpus:  {} ({indexed} files)", corpus.display());
-        println!("queries: {}", AB_CASES.len());
+        println!("query sets: {}", AB_SETS.len());
         match embed.as_ref() {
             // `vec_available` is the index's own answer, not the config's:
             // an endpoint can be reachable and the vector table still empty.
@@ -1881,78 +2055,101 @@ mod tests {
             None => println!("vectors: NONE — both arms FTS-only (set AB_EMBED_URL)"),
         }
 
-        let mut summary: Vec<(&str, f64, f64, usize, usize)> = Vec::new();
-        for (label, fusion, k) in [
-            ("weighted", SearchFusion::Weighted, 60.0),
-            ("rrf k=60", SearchFusion::Rrf, 60.0),
-            ("rrf k=1", SearchFusion::Rrf, 1.0),
-            ("rrf k=0", SearchFusion::Rrf, 0.0),
-        ] {
-            let config = ab_config(fusion, k);
-            let mut hits = 0usize;
-            let mut mrr = 0.0f64;
-            let mut empty = 0usize;
-            // The metric that actually matches the complaint. Recall of the
-            // *specific* answer file says nothing about the reported failure,
-            // which is a whole SOURCE being scored below an absolute
-            // threshold. `global` is the down-weighted source here, so count
-            // the queries where any global chunk survived into the results.
-            let mut global_visible = 0usize;
+        for set in AB_SETS {
+            let n = set.cases.len() as f64;
+            for gate in [0.35f32, 0.0] {
+                println!(
+                    "\n─── query set: {} ({} queries), min_score={gate}",
+                    set.name,
+                    set.cases.len()
+                );
 
-            println!("\n  {label}");
-            for case in AB_CASES {
-                let results = hybrid_search(&idx, provider_ref, case.query, &config)
-                    .await
-                    .unwrap_or_default();
-                if results.is_empty() {
-                    empty += 1;
-                }
-                if results.iter().any(|r| r.source == "global") {
-                    global_visible += 1;
-                }
-                match ab_rank_of(&results, case.expect_file) {
-                    Some(rank) => {
-                        hits += 1;
-                        mrr += 1.0 / rank as f64;
-                        println!("    rank {rank:>2}  {}", case.query);
-                    }
-                    None => {
-                        let got: Vec<&str> = results
-                            .iter()
-                            .filter_map(|r| std::path::Path::new(&r.path).file_name())
-                            .filter_map(|f| f.to_str())
-                            .collect();
-                        println!(
-                            "    MISS    {}  (got: {})",
-                            case.query,
-                            if got.is_empty() {
-                                "nothing".into()
-                            } else {
-                                got.join(", ")
+                let mut summary: Vec<(&str, f64, f64, usize, usize)> = Vec::new();
+                // `weighted vw=1.0` is a diagnostic arm, not a candidate. The
+                // weighted path scores an FTS-only chunk at its full min-max
+                // normalized BM25 — and that normalization is *within the
+                // result set*, so the best keyword hit is always exactly 1.0
+                // however irrelevant it is — while a vector-only chunk scores
+                // `vector_weight × cosine` ≈ 0.7 × 0.65 ≈ 0.45. If that ceiling
+                // is what buries the semantically correct document, raising
+                // vector_weight to 1.0 should NOT rescue it: 1.0 × cosine still
+                // loses to 1.0. If recall jumps instead, the diagnosis is wrong
+                // and the weight, not the normalization, was the problem.
+                for (label, fusion, k, vw) in [
+                    ("weighted", SearchFusion::Weighted, 60.0, 0.7),
+                    ("weighted vw=1.0", SearchFusion::Weighted, 60.0, 1.0),
+                    ("rrf k=60", SearchFusion::Rrf, 60.0, 0.7),
+                    ("rrf k=1", SearchFusion::Rrf, 1.0, 0.7),
+                    ("rrf k=0", SearchFusion::Rrf, 0.0, 0.7),
+                ] {
+                    let config = ab_config(fusion, k, gate, vw);
+                    let mut hits = 0usize;
+                    let mut mrr = 0.0f64;
+                    let mut empty = 0usize;
+                    // The metric that actually matches the complaint. Recall of the
+                    // *specific* answer file says nothing about the reported failure,
+                    // which is a whole SOURCE being scored below an absolute
+                    // threshold. `global` is the down-weighted source here, so count
+                    // the queries where any global chunk survived into the results.
+                    let mut global_visible = 0usize;
+
+                    println!("\n  {label}");
+                    for case in set.cases {
+                        let results = hybrid_search(&idx, provider_ref, case.query, &config)
+                            .await
+                            .unwrap_or_default();
+                        if results.is_empty() {
+                            empty += 1;
+                        }
+                        if results.iter().any(|r| r.source == "global") {
+                            global_visible += 1;
+                        }
+                        match ab_rank_of(&results, case.expect_files) {
+                            Some(rank) => {
+                                hits += 1;
+                                mrr += 1.0 / rank as f64;
+                                println!("    rank {rank:>2}  {}", case.query);
                             }
-                        );
+                            None => {
+                                let got: Vec<&str> = results
+                                    .iter()
+                                    .filter_map(|r| std::path::Path::new(&r.path).file_name())
+                                    .filter_map(|f| f.to_str())
+                                    .collect();
+                                println!(
+                                    "    MISS    {}  (got: {})",
+                                    case.query,
+                                    if got.is_empty() {
+                                        "nothing".into()
+                                    } else {
+                                        got.join(", ")
+                                    }
+                                );
+                            }
+                        }
                     }
+                    summary.push((
+                        label,
+                        (hits as f64 / n) * 100.0,
+                        mrr / n,
+                        empty,
+                        global_visible,
+                    ));
+                }
+
+                println!(
+                    "\n  {} min_score={gate} — {:<10} {:>9} {:>8} {:>7} {:>14}",
+                    set.name, "arm", "recall@6", "MRR", "empty", "global visible"
+                );
+                for (label, recall, mrr, empty, global_visible) in &summary {
+                    println!(
+                        "  {:<width$} {label:<16} {recall:>8.0}% {mrr:>8.3} {empty:>7} {global_visible:>11}/{}",
+                        "",
+                        set.cases.len(),
+                        width = set.name.len() + 15
+                    );
                 }
             }
-            let n = AB_CASES.len() as f64;
-            summary.push((
-                label,
-                (hits as f64 / n) * 100.0,
-                mrr / n,
-                empty,
-                global_visible,
-            ));
-        }
-
-        println!(
-            "\n  {:<10} {:>10} {:>8} {:>8}",
-            "arm", "recall@6", "MRR", "empty"
-        );
-        for (label, recall, mrr, empty, global_visible) in &summary {
-            println!(
-                "  {label:<10} {recall:>9.0}% {mrr:>8.3} {empty:>8} {global_visible:>13}/{}",
-                AB_CASES.len()
-            );
         }
         println!();
     }
