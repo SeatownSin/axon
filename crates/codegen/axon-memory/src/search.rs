@@ -143,30 +143,43 @@ fn temporal_decay_multiplier(
 #[tracing::instrument(name = "memory.hybrid_search", skip_all, fields(
     max_results = config.max_results,
 ))]
-/// Reciprocal Rank Fusion over the FTS and vector result lists.
+/// Reciprocal Rank Fusion over the FTS and vector result lists, with source
+/// weights applied **in rank space**.
 ///
-/// `RRF(d) = Σ_lists  weight_list / (k + rank_d_in_list)`, 1-based ranks,
-/// lists the chunk is absent from contributing nothing.
+/// `RRF(d) = Σ_lists  list_weight / (k + rank_d / source_weight_d)`, 1-based
+/// ranks, lists the chunk is absent from contributing nothing.
 ///
 /// Why this exists alongside the weighted path: RRF reads only the ORDER of
 /// each list, never the scores. That removes three scale hazards the weighted
-/// path has to defend against by hand —
+/// path defends against by hand — BM25 is min-max normalized *within* the
+/// result set (so its worst hit is always exactly 0.0), cosine is on an
+/// absolute scale, and the product of base × decay × source_weight × access
+/// boost is compared against an ABSOLUTE `min_score`, which once capped global
+/// chunks at `text_weight × source_weight = 0.21` and hid them entirely.
 ///
-/// 1. BM25 is min-max normalized *within the result set*, so the worst FTS hit
-///    normalizes to exactly 0.0 no matter how good it actually is;
-/// 2. cosine similarity is on an absolute [0,1] scale, so the two signals are
-///    not commensurable and the weights have to paper over that;
-/// 3. the product `base × decay × source_weight × access_boost` is then
-///    compared against an ABSOLUTE `min_score`, so multiplying enough sub-1.0
-///    factors silently drops a whole source below the threshold. That is not
-///    hypothetical: global chunks were once capped at
-///    `text_weight × source_weight = 0.21` and invisible above 0.2.
+/// **Why the source weight divides the RANK and is not a multiplier.** The
+/// first cut of this applied `source_weight` downstream, as a factor on the
+/// fused score, and it was much worse than the weighted path: measured 0/12
+/// queries returning a global chunk against 9/12. With k=60, `1/(k + rank)`
+/// barely varies — the whole candidate set lands in a ~0.07 band — so a 0.7
+/// factor applied afterwards dwarfs every rank difference and becomes the
+/// dominant ranking signal. Multiplying the *contribution* instead
+/// (`w / (k + rank)`) has the same defect for the same reason.
 ///
-/// The returned scores are renormalized so the best is 1.0. That keeps the
-/// [0,1] contract the display score and `min_score` gate expect, at the cost
-/// of making `min_score` relative to the best hit rather than absolute — which
-/// is the point: a relative floor cannot make an entire source unreachable.
+/// Dividing the rank makes the weight commensurate with what RRF actually
+/// measures. `w = 0.7` at rank 2 competes as though it were rank 2.86: a
+/// demotion of a fraction of a place, which is what "this source is somewhat
+/// less trusted" should mean, rather than a 30% score cut applied to items
+/// that differ from each other by 1.6%.
+///
+/// Because the weight is consumed here, the caller must NOT apply
+/// `source_weight` again downstream.
+///
+/// Results are renormalized so the best hit is 1.0, keeping the [0,1] contract
+/// the display score and `min_score` gate expect — at the cost of making
+/// `min_score` relative to the best hit rather than absolute.
 fn fuse_rrf(
+    index: &MemoryIndex,
     fts_results: &[super::index::FtsResult],
     vec_results: &[(String, f32)],
     config: &MemorySearchConfig,
@@ -184,14 +197,38 @@ fn fuse_rrf(
 
     let mut fused: HashMap<String, f64> = HashMap::new();
 
+    // Source weight for a chunk. An id with no row — a chunk that vanished
+    // between the list query and now — takes the neutral 1.0 rather than
+    // being dropped here; the downstream loop drops it anyway when its own
+    // `get_chunk` misses, and that is the one place it should happen.
+    let weight_for = |chunk_id: &str| -> f64 {
+        index
+            .get_chunk(chunk_id)
+            .ok()
+            .flatten()
+            .and_then(|c| config.source_weights.get(&c.source).copied())
+            .unwrap_or(1.0) as f64
+    };
+
     // Both input lists arrive already ordered best-first, so position IS rank.
+    let contribute =
+        |chunk_id: &str, rank: f64, list_weight: f64, fused: &mut HashMap<String, f64>| {
+            let w = weight_for(chunk_id);
+            // A non-positive weight means the source is switched off. Effective
+            // rank would be infinite, so contribute nothing rather than dividing
+            // by zero or flipping the sign.
+            if w <= 0.0 {
+                return;
+            }
+            let effective_rank = rank / w;
+            *fused.entry(chunk_id.to_string()).or_insert(0.0) += list_weight / (k + effective_rank);
+        };
+
     for (i, r) in fts_results.iter().enumerate() {
-        let rank = (i + 1) as f64;
-        *fused.entry(r.chunk_id.clone()).or_insert(0.0) += text_weight / (k + rank);
+        contribute(&r.chunk_id, (i + 1) as f64, text_weight, &mut fused);
     }
     for (i, (chunk_id, _distance)) in vec_results.iter().enumerate() {
-        let rank = (i + 1) as f64;
-        *fused.entry(chunk_id.clone()).or_insert(0.0) += vector_weight / (k + rank);
+        contribute(chunk_id, (i + 1) as f64, vector_weight, &mut fused);
     }
 
     // Renormalize to [0,1]. `max` is over a non-empty map by construction here,
@@ -329,7 +366,7 @@ pub(super) fn hybrid_search_merge(
     // score — is identical for both strategies; they differ only in how the
     // two candidate lists become one base score per chunk.
     let scores: HashMap<String, f64> = match config.fusion {
-        SearchFusion::Rrf => fuse_rrf(&fts_results, &vec_results, config),
+        SearchFusion::Rrf => fuse_rrf(index, &fts_results, &vec_results, config),
         SearchFusion::Weighted => {
             // use max(fts_only, hybrid) so FTS-only chunks are never penalized
             // by the existence of unrelated vector results.
@@ -391,11 +428,19 @@ pub(super) fn hybrid_search_merge(
         let decay_multiplier =
             temporal_decay_multiplier(&chunk.source, chunk.created_at, now_secs, half_life);
 
-        let source_weight = config
-            .source_weights
-            .get(&chunk.source)
-            .copied()
-            .unwrap_or(1.0) as f64;
+        // RRF already consumed the source weight, in rank space, inside
+        // `fuse_rrf`. Applying it again here would both double-count it and
+        // reintroduce exactly the defect that made the first prototype worse
+        // than the weighted path: a multiplier on scores that RRF has
+        // compressed into a narrow band swamps every rank difference.
+        let source_weight = match config.fusion {
+            SearchFusion::Rrf => 1.0,
+            SearchFusion::Weighted => config
+                .source_weights
+                .get(&chunk.source)
+                .copied()
+                .unwrap_or(1.0) as f64,
+        };
 
         // Access-frequency boost: chunks retrieved before score slightly higher.
         //
@@ -1434,6 +1479,20 @@ mod tests {
             .collect()
     }
 
+    /// `fuse_rrf` against a throwaway empty index. The synthetic chunk ids here
+    /// resolve to no row, so every source weight is the neutral 1.0 and these
+    /// cases measure pure rank behaviour — which is what they are for. Weighting
+    /// is covered by `rrf_*_global_*`, which uses a real corpus.
+    fn rrf_of(
+        fts_list: &[(&str, f64)],
+        vecs: &[(String, f32)],
+        cfg: &MemorySearchConfig,
+    ) -> std::collections::HashMap<String, f64> {
+        let tmp = TempDir::new().unwrap();
+        let idx = test_index(&tmp);
+        fuse_rrf(&idx, &fts(fts_list), vecs, cfg)
+    }
+
     fn rrf_config(text_weight: f32, vector_weight: f32) -> MemorySearchConfig {
         MemorySearchConfig {
             fusion: SearchFusion::Rrf,
@@ -1446,8 +1505,8 @@ mod tests {
     #[test]
     fn rrf_preserves_list_order_and_normalizes_best_to_one() {
         // Single list, so fusion is just its order.
-        let fused = fuse_rrf(
-            &fts(&[("a", -5.0), ("b", -3.0), ("c", -1.0)]),
+        let fused = rrf_of(
+            &[("a", -5.0), ("b", -3.0), ("c", -1.0)],
             &[],
             &rrf_config(1.0, 0.0),
         );
@@ -1464,16 +1523,8 @@ mod tests {
         // Same ORDER, wildly different BM25 magnitudes. RRF must not care:
         // this is the property the weighted path cannot have, because it
         // min-max normalizes within the result set.
-        let tight = fuse_rrf(
-            &fts(&[("a", -5.0), ("b", -4.9)]),
-            &[],
-            &rrf_config(1.0, 0.0),
-        );
-        let wide = fuse_rrf(
-            &fts(&[("a", -900.0), ("b", -0.1)]),
-            &[],
-            &rrf_config(1.0, 0.0),
-        );
+        let tight = rrf_of(&[("a", -5.0), ("b", -4.9)], &[], &rrf_config(1.0, 0.0));
+        let wide = rrf_of(&[("a", -900.0), ("b", -0.1)], &[], &rrf_config(1.0, 0.0));
 
         assert!((tight["a"] - wide["a"]).abs() < 1e-12);
         assert!((tight["b"] - wide["b"]).abs() < 1e-12);
@@ -1483,8 +1534,8 @@ mod tests {
     fn rrf_rewards_agreement_between_the_two_lists() {
         // `b` is mid-ranked in both lists; `a` is top of one and absent from
         // the other. Appearing in both is what RRF is for.
-        let fused = fuse_rrf(
-            &fts(&[("a", -9.0), ("b", -8.0)]),
+        let fused = rrf_of(
+            &[("a", -9.0), ("b", -8.0)],
             &[("b".to_string(), 0.1), ("c".to_string(), 0.2)],
             &rrf_config(0.5, 0.5),
         );
@@ -1500,8 +1551,8 @@ mod tests {
         // always exactly 0.0 however good it was. Under RRF it is merely
         // last, which is what lets source weighting scale it without
         // annihilating it.
-        let fused = fuse_rrf(
-            &fts(&[("a", -5.0), ("b", -4.0), ("c", -3.0)]),
+        let fused = rrf_of(
+            &[("a", -5.0), ("b", -4.0), ("c", -3.0)],
             &[],
             &rrf_config(1.0, 0.0),
         );
@@ -1510,17 +1561,13 @@ mod tests {
 
     #[test]
     fn rrf_k_falls_back_to_the_paper_default_when_unusable() {
-        let good = fuse_rrf(
-            &fts(&[("a", -5.0), ("b", -4.0)]),
-            &[],
-            &rrf_config(1.0, 0.0),
-        );
+        let good = rrf_of(&[("a", -5.0), ("b", -4.0)], &[], &rrf_config(1.0, 0.0));
         for bad_k in [-1.0_f32, f32::NAN, f32::INFINITY] {
             let cfg = MemorySearchConfig {
                 rrf_k: bad_k,
                 ..rrf_config(1.0, 0.0)
             };
-            let got = fuse_rrf(&fts(&[("a", -5.0), ("b", -4.0)]), &[], &cfg);
+            let got = rrf_of(&[("a", -5.0), ("b", -4.0)], &[], &cfg);
             assert!(
                 (got["b"] - good["b"]).abs() < 1e-12,
                 "rrf_k={bad_k} must fall back to 60, got {got:?}"
@@ -1530,7 +1577,7 @@ mod tests {
 
     #[test]
     fn rrf_on_empty_input_is_empty_not_a_division_by_zero() {
-        assert!(fuse_rrf(&[], &[], &rrf_config(1.0, 0.0)).is_empty());
+        assert!(rrf_of(&[], &[], &rrf_config(1.0, 0.0)).is_empty());
     }
 
     /// The pathology RRF exists to prevent, stated as a test.
