@@ -2100,8 +2100,8 @@ Key options under `[memory]` in `~/.axon/config.toml`:
 | `watcher.enabled` | `true` | Watch `~/.axon/memory/` for external edits and reindex on search |
 | `search.max_results` | `6` | Default number of memory results to return |
 | `search.min_score` | `0.35` | Minimum relevance score threshold for explicit memory search and recovery paths |
-| `search.fusion` | `"weighted"` | How the keyword and vector result lists are combined. `"weighted"` normalizes each signal to [0,1] and blends by weight; `"rrf"` uses Reciprocal Rank Fusion, which reads only the ORDER of each list and so is immune to BM25-vs-cosine scale mismatch. Under `"rrf"`, `search.min_score` is a threshold RELATIVE to the best hit, not an absolute one |
-| `search.rrf_k` | `60` | RRF rank constant; larger flattens the advantage of top ranks. Ignored unless `search.fusion = "rrf"` |
+| `search.fusion` | `"rrf"` | How the keyword and vector result lists are combined. `"weighted"` normalizes each signal to [0,1] and blends by weight; `"rrf"` uses Reciprocal Rank Fusion, which reads only the ORDER of each list and so is immune to BM25-vs-cosine scale mismatch. Under `"rrf"`, `search.min_score` is a threshold RELATIVE to the best hit, not an absolute one |
+| `search.rrf_k` | `1` | RRF rank constant; larger flattens the advantage of top ranks (the RRF paper's value is 60). Ignored unless `search.fusion = "rrf"` |
 | `initial_injection.enabled` | `true` | Enable automatic first-turn memory injection |
 | `initial_injection.min_score` | `0.0` | Override score threshold for first-turn injection (`0.0` preserves historical no-filter behavior) |
 | `embedding.model` | *(unset)* | Embedding model for vector search; unset disables embeddings |
