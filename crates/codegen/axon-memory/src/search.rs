@@ -133,6 +133,28 @@ fn temporal_decay_multiplier(
     (-lambda * age_days).exp()
 }
 
+/// 1-based competition ranks ("1224") for a list already ordered best-first,
+/// where a smaller score is better (BM25 `rank` and vector distance both are).
+/// Equal scores share the rank of the first of them; the next distinct score
+/// takes the rank its position would have had.
+fn competition_ranks<'a, I>(ordered: I) -> Vec<(&'a str, f64)>
+where
+    I: IntoIterator<Item = (&'a str, f64)>,
+{
+    let mut out = Vec::new();
+    let mut prev: Option<f64> = None;
+    let mut rank = 0usize;
+    for (pos, (id, score)) in ordered.into_iter().enumerate() {
+        let tied = prev.is_some_and(|p| (p - score).abs() <= 1e-9 * p.abs().max(1.0));
+        if !tied {
+            rank = pos + 1;
+        }
+        prev = Some(score);
+        out.push((id, rank as f64));
+    }
+    out
+}
+
 /// Run a hybrid search across the memory index.
 ///
 /// Combines FTS5 keyword search with optional vector KNN similarity.
@@ -186,11 +208,11 @@ fn fuse_rrf(
 ) -> HashMap<String, f64> {
     // Guard the rank constant: k <= -1 would divide by zero at rank 1, and a
     // negative k inverts the ordering. Clamp rather than reject so a bad
-    // config degrades to the paper default instead of returning nothing.
+    // config degrades to the shipped default instead of returning nothing.
     let k = if config.rrf_k.is_finite() && config.rrf_k >= 0.0 {
         config.rrf_k as f64
     } else {
-        60.0
+        MemorySearchConfig::default().rrf_k as f64
     };
     let text_weight = config.text_weight as f64;
     let vector_weight = config.vector_weight as f64;
@@ -210,7 +232,14 @@ fn fuse_rrf(
             .unwrap_or(1.0) as f64
     };
 
-    // Both input lists arrive already ordered best-first, so position IS rank.
+    // Both input lists arrive already ordered best-first. Rank is
+    // *competition* rank, not position: entries with an equal score share the
+    // rank of the first of them ("1224"). Two chunks with identical text tie
+    // exactly in BM25, and the order the engine happens to emit them in
+    // carries no information — yet at k=1 position-as-rank would turn that
+    // coin flip into a 1.0-vs-0.667 gap that no downstream signal (access
+    // boost ≈ 1.035, temporal decay) could ever cross. Tied ranks keep those
+    // signals able to order what the lists themselves could not.
     let contribute =
         |chunk_id: &str, rank: f64, list_weight: f64, fused: &mut HashMap<String, f64>| {
             let w = weight_for(chunk_id);
@@ -224,11 +253,15 @@ fn fuse_rrf(
             *fused.entry(chunk_id.to_string()).or_insert(0.0) += list_weight / (k + effective_rank);
         };
 
-    for (i, r) in fts_results.iter().enumerate() {
-        contribute(&r.chunk_id, (i + 1) as f64, text_weight, &mut fused);
+    for (chunk_id, rank) in
+        competition_ranks(fts_results.iter().map(|r| (r.chunk_id.as_str(), r.rank)))
+    {
+        contribute(chunk_id, rank, text_weight, &mut fused);
     }
-    for (i, (chunk_id, _distance)) in vec_results.iter().enumerate() {
-        contribute(chunk_id, (i + 1) as f64, vector_weight, &mut fused);
+    for (chunk_id, rank) in
+        competition_ranks(vec_results.iter().map(|(id, d)| (id.as_str(), *d as f64)))
+    {
+        contribute(chunk_id, rank, vector_weight, &mut fused);
     }
 
     // Renormalize to [0,1]. `max` is over a non-empty map by construction here,
@@ -1119,8 +1152,15 @@ mod tests {
         .unwrap();
         idx.reindex_file(&file_b, "workspace").unwrap();
 
+        // This guards the WEIGHTED formula: it once scored an FTS-only chunk
+        // against a vector term it could not have, and the 0.3 floor is that
+        // formula's. Under RRF an FTS-only chunk's ceiling is
+        // `text_weight / (text_weight + vector_weight)` by definition — the
+        // vector list simply has nothing to add for it — so the assertion is
+        // meaningless there, not violated.
         let config = MemorySearchConfig {
             min_score: 0.0,
+            fusion: SearchFusion::Weighted,
             ..Default::default()
         };
 
@@ -1578,7 +1618,7 @@ mod tests {
     }
 
     #[test]
-    fn rrf_k_falls_back_to_the_paper_default_when_unusable() {
+    fn rrf_k_falls_back_to_the_shipped_default_when_unusable() {
         let good = rrf_of(&[("a", -5.0), ("b", -4.0)], &[], &rrf_config(1.0, 0.0));
         for bad_k in [-1.0_f32, f32::NAN, f32::INFINITY] {
             let cfg = MemorySearchConfig {
@@ -1588,9 +1628,36 @@ mod tests {
             let got = rrf_of(&[("a", -5.0), ("b", -4.0)], &[], &cfg);
             assert!(
                 (got["b"] - good["b"]).abs() < 1e-12,
-                "rrf_k={bad_k} must fall back to 60, got {got:?}"
+                "rrf_k={bad_k} must fall back to the default, got {got:?}"
             );
         }
+    }
+
+    #[test]
+    fn competition_ranks_share_rank_on_ties_and_skip_after() {
+        let ranks = competition_ranks(vec![
+            ("a", -5.0),
+            ("b", -5.0),
+            ("c", -4.0),
+            ("d", -4.0),
+            ("e", -1.0),
+        ]);
+        let got: Vec<f64> = ranks.iter().map(|(_, r)| *r).collect();
+        assert_eq!(got, vec![1.0, 1.0, 3.0, 3.0, 5.0]);
+        assert!(competition_ranks(Vec::<(&str, f64)>::new()).is_empty());
+    }
+
+    #[test]
+    fn rrf_gives_tied_inputs_identical_scores() {
+        // Identical BM25 in one list must not become a rank gap: at k=1 that
+        // gap is 1.0 vs 0.667 and the access boost could never cross it.
+        let fused = rrf_of(
+            &[("a", -5.0), ("b", -5.0), ("c", -4.0)],
+            &[],
+            &rrf_config(1.0, 0.0),
+        );
+        assert!((fused["a"] - fused["b"]).abs() < 1e-12, "{fused:?}");
+        assert!(fused["c"] < fused["a"], "{fused:?}");
     }
 
     #[test]
@@ -1669,9 +1736,9 @@ mod tests {
     /// The default must stay `Weighted`: this is a prototype behind a flag,
     /// and flipping the default would silently re-rank every existing install.
     #[test]
-    fn fusion_defaults_to_weighted() {
-        assert_eq!(MemorySearchConfig::default().fusion, SearchFusion::Weighted);
-        assert!((MemorySearchConfig::default().rrf_k - 60.0).abs() < f32::EPSILON);
+    fn fusion_defaults_to_rrf_k1() {
+        assert_eq!(MemorySearchConfig::default().fusion, SearchFusion::Rrf);
+        assert!((MemorySearchConfig::default().rrf_k - 1.0).abs() < f32::EPSILON);
     }
 
     // ── A/B harness: weighted fusion vs RRF ───────────────────────────────

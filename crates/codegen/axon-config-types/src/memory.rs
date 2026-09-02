@@ -54,7 +54,7 @@ impl Default for MemoryEmbeddingConfig {
 #[serde(rename_all = "lowercase")]
 pub enum SearchFusion {
     /// Normalize each signal to [0,1] and combine by weight. The historical
-    /// behaviour, and still the default.
+    /// behaviour, and the default up to v0.3.8.
     ///
     /// Fragile in a way RRF is not: BM25 is min-max normalized *within the
     /// result set* (so the worst hit is always exactly 0.0 however good it
@@ -63,15 +63,31 @@ pub enum SearchFusion {
     /// against an absolute `min_score`. Multiply enough sub-1.0 factors and a
     /// whole source drops below the threshold — which is exactly what
     /// happened to global chunks at `text_weight × source_weight = 0.21`.
-    #[default]
     Weighted,
     /// Reciprocal Rank Fusion: score each list by `1 / (k + rank)` and sum.
+    /// The default after v0.3.8 (PR #9, 2026-09).
+    ///
+    /// Measured against `Weighted` on two corpora with real embeddings
+    /// (`fusion_ab_report` in `axon-memory`): on lexically-disjoint
+    /// paraphrase queries recall went 36%→72% and 50%→83% and MRR roughly
+    /// doubled (paired 13-0 and 15-2 per query), at the cost of an occasional
+    /// one- or two-place slip on queries that already share vocabulary with
+    /// their answer.
     ///
     /// Uses only the ORDER of each list, so the BM25-vs-cosine scale mismatch
     /// cannot arise and no source can be multiplied into invisibility.
     /// Results are renormalized so the best hit is 1.0, which keeps the [0,1]
     /// display contract — but note this makes `min_score` a threshold
     /// RELATIVE to the best hit rather than an absolute one.
+    ///
+    /// Known edge: a chunk present in only ONE list caps at that list's share
+    /// of the weight — an un-embedded chunk at `text_weight / (text_weight +
+    /// vector_weight)` = 0.3 under defaults, which is below the default
+    /// `min_score` of 0.35 whenever some other chunk is in both lists. Chunks
+    /// are embedded on search and at session start, so this only bites while
+    /// the embedding provider is failing; `Weighted` would still surface such
+    /// a chunk.
+    #[default]
     Rrf,
 }
 
@@ -120,8 +136,9 @@ pub struct MemorySearchConfig {
     /// Which fusion strategy combines the FTS and vector lists.
     pub fusion: SearchFusion,
     /// RRF rank constant `k` — larger flattens the contribution of top ranks.
-    /// 60 is the value from the original RRF paper and the usual default.
-    /// Ignored unless `fusion = "rrf"`.
+    /// Defaults to 1: on both A/B corpora k=1 matched or beat the paper's
+    /// k=60 on paraphrase MRR and kept keyword recall at 100%, where k=60
+    /// dropped it to 92% on one corpus. Ignored unless `fusion = "rrf"`.
     pub rrf_k: f32,
     /// Source-type weight multipliers: all default to 1.0.
     pub source_weights: std::collections::HashMap<String, f32>,
@@ -144,7 +161,7 @@ impl Default for MemorySearchConfig {
             temporal_decay: TemporalDecayConfig::default(),
             mmr: MmrConfig::default(),
             fusion: SearchFusion::default(),
-            rrf_k: 60.0,
+            rrf_k: 1.0,
             source_weights,
         }
     }
