@@ -1711,6 +1711,29 @@ mod tests {
     // answers; counting it correct would make the metric meaningless. It stays
     // in the corpus as a distractor, and as the `global` source whose
     // visibility is tracked separately below.
+    //
+    // **Replicated on a second corpus (2026-09-01).** Different domain and
+    // density: the pager user guide (27 files, 10–40 KB each) as `global`
+    // and the oh-my-axon agent/skill files (9) as `workspace` — 36 files,
+    // 960 chunks, real 768-d vectors. 14 keyword + 24 paraphrase queries,
+    // supplied via `AB_QUERIES` and disjointness-checked the same way. At
+    // `min_score=0.35`:
+    //
+    //   set         weighted        rrf k=60        rrf k=1
+    //   keyword     100% / 0.964    100% / 0.905    100% / 0.905
+    //   paraphrase   50% / 0.299     83% / 0.608     83% / 0.602
+    //
+    // Paired vs weighted: paraphrase rrf k=60 **15-1** (sign p=0.0005),
+    // rrf k=1 **15-2** (p=0.002). Keyword: 0-2, both losses a slip from
+    // rank 1→3 or 2→3, so recall is untouched and the MRR gap is that. Every
+    // arm keeps `global` visible on 24/24 paraphrase queries, so the source
+    // vanishing bug never triggers here — the corpus-1 keyword loss for k=60
+    // (92%) did not recur either. Same shape as corpus 1: RRF gives up a
+    // little top-rank precision on vocabulary-matched queries and roughly
+    // doubles MRR where the two lists disagree. k=1 vs k=60 is a wash on
+    // this corpus (k=1 wins recall ungated 88% vs 83%; k=60 wins one MRR
+    // point gated) and k=1 was strictly better on corpus 1, so k=1 stays the
+    // recommendation.
 
     /// A labelled query: the text, and the files any of which is an
     /// acceptable answer. More than one is not hedging — it is the honest
@@ -1907,6 +1930,78 @@ mod tests {
             cases: AB_PARAPHRASE_CASES,
         },
     ];
+
+    /// Owned mirror of [`AbSet`] so a query file can be loaded at runtime.
+    struct AbOwnedCase {
+        query: String,
+        expect_files: Vec<String>,
+    }
+    struct AbOwnedSet {
+        name: String,
+        cases: Vec<AbOwnedCase>,
+    }
+
+    /// The query sets to run: `AB_QUERIES=<file.json>` if set, else the
+    /// built-in sets above.
+    ///
+    /// The built-in labels are tied to ONE corpus (the 31-file memory +
+    /// `.axon/` split), and labels do not transfer — a term that picks out a
+    /// single file there can be in nine files elsewhere. A second corpus
+    /// therefore needs its own file, shaped as
+    ///
+    /// ```json
+    /// [{"name": "keyword", "cases": [{"query": "...", "expect_files": ["a.md"]}]},
+    ///  {"name": "paraphrase", "cases": [...]}]
+    /// ```
+    ///
+    /// The set names are free text but `paraphrase` is the one that carries
+    /// the lexical-disjointness claim, and that claim must be checked
+    /// mechanically against the corpus before the file is trusted; this
+    /// harness only runs what it is given.
+    fn ab_sets() -> Vec<AbOwnedSet> {
+        if let Some(path) = std::env::var_os("AB_QUERIES") {
+            let text = std::fs::read_to_string(&path)
+                .unwrap_or_else(|e| panic!("AB_QUERIES {}: {e}", path.to_string_lossy()));
+            let v: serde_json::Value = serde_json::from_str(&text).expect("AB_QUERIES is not JSON");
+            let sets = v
+                .as_array()
+                .expect("AB_QUERIES: top level must be an array of sets");
+            return sets
+                .iter()
+                .map(|s| AbOwnedSet {
+                    name: s["name"].as_str().expect("set.name").to_string(),
+                    cases: s["cases"]
+                        .as_array()
+                        .expect("set.cases")
+                        .iter()
+                        .map(|c| AbOwnedCase {
+                            query: c["query"].as_str().expect("case.query").to_string(),
+                            expect_files: c["expect_files"]
+                                .as_array()
+                                .expect("case.expect_files")
+                                .iter()
+                                .map(|f| f.as_str().expect("expect_files entry").to_string())
+                                .collect(),
+                        })
+                        .collect(),
+                })
+                .collect();
+        }
+        AB_SETS
+            .iter()
+            .map(|s| AbOwnedSet {
+                name: s.name.to_string(),
+                cases: s
+                    .cases
+                    .iter()
+                    .map(|c| AbOwnedCase {
+                        query: c.query.to_string(),
+                        expect_files: c.expect_files.iter().map(|f| f.to_string()).collect(),
+                    })
+                    .collect(),
+            })
+            .collect()
+    }
 
     /// Build the real API embedding provider from env, or `None` for FTS-only.
     ///
@@ -2121,7 +2216,14 @@ mod tests {
             "corpus fingerprint: {:016x} ({} bytes) — compare arms only within one fingerprint",
             fingerprint.0, fingerprint.1
         );
-        println!("query sets: {}", AB_SETS.len());
+        let sets = ab_sets();
+        println!(
+            "query sets: {} ({})",
+            sets.len(),
+            std::env::var("AB_QUERIES")
+                .map(|p| format!("from {p}"))
+                .unwrap_or_else(|_| "built-in".into())
+        );
         match embed.as_ref() {
             // `vec_available` is the index's own answer, not the config's:
             // an endpoint can be reachable and the vector table still empty.
@@ -2132,7 +2234,7 @@ mod tests {
             None => println!("vectors: NONE — both arms FTS-only (set AB_EMBED_URL)"),
         }
 
-        for set in AB_SETS {
+        for set in &sets {
             let n = set.cases.len() as f64;
             for gate in [0.35f32, 0.0] {
                 println!(
@@ -2185,8 +2287,10 @@ mod tests {
                     let mut global_visible = 0usize;
 
                     println!("\n  {label}");
-                    for case in set.cases {
-                        let results = hybrid_search(&idx, provider_ref, case.query, &config)
+                    for case in &set.cases {
+                        let expect: Vec<&str> =
+                            case.expect_files.iter().map(String::as_str).collect();
+                        let results = hybrid_search(&idx, provider_ref, &case.query, &config)
                             .await
                             .unwrap_or_default();
                         if results.is_empty() {
@@ -2195,7 +2299,7 @@ mod tests {
                         if results.iter().any(|r| r.source == "global") {
                             global_visible += 1;
                         }
-                        match ab_rank_of(&results, case.expect_files) {
+                        match ab_rank_of(&results, &expect) {
                             Some(rank) => {
                                 hits += 1;
                                 mrr += 1.0 / rank as f64;
