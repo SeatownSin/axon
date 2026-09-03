@@ -247,12 +247,18 @@ The `/flush`, `/dream`, and `/memory` commands require `--experimental-memory` o
 
 ### `/memory`
 
-Browse, view, and manage your saved memories. Pass `on` or `off` to enable or disable memory.
+Browse, view, and manage your saved memories. Pass `on` or `off` to toggle
+memory for the rest of the session.
 
 ```
 /memory
 /memory off
+/memory on
 ```
+
+The toggle only works in a session that started with memory enabled. If it did
+not, `/memory` is hidden from this list entirely and memory cannot be turned on
+without restarting -- see [Memory](13-memory.md#mid-session-toggle).
 
 Aliases: `/mem`
 

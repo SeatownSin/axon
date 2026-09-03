@@ -58,14 +58,25 @@ The `--no-memory` flag has absolute highest priority and always disables memory.
 
 ### Mid-Session Toggle
 
-Toggle memory on or off during a session without restarting:
+> **This is not a fourth way to enable memory.** `/memory on` only works in a
+> session that *already had memory configured at startup* by one of the three
+> methods above. In a session started without memory there is no memory backend
+> to switch on, and the `/memory` command is not offered at all -- it is hidden
+> from the command list rather than failing with a message. **Enabling memory in
+> a running session that started without it requires a restart.**
+
+Within a session that started with memory enabled, you can toggle it off and
+back on without restarting:
 
 ```
 /memory on
 /memory off
 ```
 
-The toggle is session-scoped -- it does not persist to `config.toml`. Toggling off removes access to memory tools but keeps existing files on disk. Toggling on re-initializes memory storage and registers the memory tools.
+The toggle is session-scoped -- it does not persist to `config.toml`. Toggling
+off unregisters the `memory_search` and `memory_get` tools and drops the storage
+handle, but keeps every file on disk. Toggling on re-initializes storage from
+the session's existing backend configuration and re-registers the tools.
 
 You can also toggle from inside the `/memory` modal by pressing `t`.
 
@@ -76,6 +87,10 @@ You can also toggle from inside the `/memory` modal by pressing `t`.
 3. `AXON_MEMORY` env var: `1`/`true` enables, `0`/`false` disables
 4. `[memory]` section in config.toml
 5. Default: disabled
+
+This order is resolved **once, at startup**. If it resolves to disabled, the
+session is built with no memory configuration at all, which is why the
+mid-session toggle has nothing to re-enable.
 
 ---
 
