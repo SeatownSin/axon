@@ -2078,6 +2078,54 @@ mod tests {
     /// match what that endpoint actually serves — a dimension mismatch is
     /// silent until vectors are compared, so the harness verifies it below
     /// rather than trusting the setting.
+    /// Wraps a provider so every text gets a task-instruction prefix.
+    ///
+    /// Some embedders are trained with an asymmetric instruction — nomic's card
+    /// states the prompt *must* carry one (`search_document:` when indexing,
+    /// `search_query:` when searching), while bge-m3 wants none. Axon's product
+    /// path sends neither, so a straight comparison between the two models
+    /// would be measuring Axon's omission as if it were a property of nomic.
+    /// This makes the prefix an arm of the experiment instead of a constant.
+    ///
+    /// An empty prefix is a pass-through, so the default arm is byte-identical
+    /// to the un-prefixed path.
+    struct AbPrefixedProvider {
+        inner: ApiEmbeddingProvider,
+        prefix: String,
+    }
+
+    #[async_trait::async_trait]
+    impl EmbeddingProvider for AbPrefixedProvider {
+        async fn embed_batch(
+            &self,
+            texts: &[&str],
+        ) -> Result<Vec<Vec<f32>>, Box<dyn std::error::Error>> {
+            if self.prefix.is_empty() {
+                return self.inner.embed_batch(texts).await;
+            }
+            let owned: Vec<String> = texts
+                .iter()
+                .map(|t| format!("{}{t}", self.prefix))
+                .collect();
+            let refs: Vec<&str> = owned.iter().map(String::as_str).collect();
+            self.inner.embed_batch(&refs).await
+        }
+        fn model_name(&self) -> &str {
+            self.inner.model_name()
+        }
+        fn dimensions(&self) -> usize {
+            self.inner.dimensions()
+        }
+    }
+
+    /// Build a provider whose texts carry `prefix`. Called twice per run — once
+    /// for the document side, once for the query side — because the two take
+    /// different instructions.
+    fn ab_embed_provider_with(prefix: String) -> Option<(AbPrefixedProvider, usize)> {
+        let (inner, dims) = ab_embed_provider()?;
+        Some((AbPrefixedProvider { inner, prefix }, dims))
+    }
+
     fn ab_embed_provider() -> Option<(ApiEmbeddingProvider, usize)> {
         let url = std::env::var("AB_EMBED_URL").ok()?;
         let model = std::env::var("AB_EMBED_MODEL").ok()?;
@@ -2103,7 +2151,7 @@ mod tests {
     }
 
     /// Embed every chunk that has no vector yet. Returns how many landed.
-    async fn ab_embed_all(idx: &mut MemoryIndex, provider: &ApiEmbeddingProvider) -> usize {
+    async fn ab_embed_all(idx: &mut MemoryIndex, provider: &dyn EmbeddingProvider) -> usize {
         let pending = idx.chunks_without_embeddings().unwrap_or_default();
         let mut done = 0;
         // The provider batches internally at 32; chunk here too so one failed
@@ -2190,7 +2238,13 @@ mod tests {
         // the provider first and size the index from it. A mismatch is silent
         // until vectors are compared, where it looks like bad retrieval rather
         // than a config error.
-        let embed = ab_embed_provider();
+        // Documents and queries are embedded through separate providers so an
+        // asymmetric instruction model can be measured honestly. Both default
+        // to no prefix, which is what the product sends today.
+        let doc_prefix = std::env::var("AB_EMBED_DOC_PREFIX").unwrap_or_default();
+        let query_prefix = std::env::var("AB_EMBED_QUERY_PREFIX").unwrap_or_default();
+        let embed = ab_embed_provider_with(doc_prefix.clone());
+        let query_embed = ab_embed_provider_with(query_prefix.clone());
         let dims = embed.as_ref().map(|(_, d)| *d).unwrap_or(4);
         let mut idx = {
             init_sqlite_vec();
@@ -2251,8 +2305,10 @@ mod tests {
             Some((provider, _)) => ab_embed_all(&mut idx, provider).await,
             None => 0,
         };
-        let provider_ref: Option<&dyn EmbeddingProvider> =
-            embed.as_ref().map(|(p, _)| p as &dyn EmbeddingProvider);
+        // Queries go through the query-prefixed provider, never the document one.
+        let provider_ref: Option<&dyn EmbeddingProvider> = query_embed
+            .as_ref()
+            .map(|(p, _)| p as &dyn EmbeddingProvider);
 
         // ⚠ Fingerprint the corpus, do not just count it. `AB_CORPUS` points
         // at `.axon/handoffs/` + the memory dir by default — the same files
@@ -2290,6 +2346,18 @@ mod tests {
         println!(
             "corpus fingerprint: {:016x} ({} bytes) — compare arms only within one fingerprint",
             fingerprint.0, fingerprint.1
+        );
+        // Name the embedder AND the prefixes in the report itself: a run whose
+        // model or instruction differed is not comparable, and a number without
+        // its configuration attached is how the earlier rounds went wrong.
+        println!(
+            "embedder: {} @ {} dims{}",
+            std::env::var("AB_EMBED_MODEL").unwrap_or_else(|_| "(none — FTS only)".into()),
+            dims,
+            match (doc_prefix.as_str(), query_prefix.as_str()) {
+                ("", "") => "  prefixes: none (as the product sends today)".to_string(),
+                (d, q) => format!("  prefixes: doc={d:?} query={q:?}"),
+            }
         );
         let sets = ab_sets();
         println!(
