@@ -426,6 +426,7 @@ while Axon is open and it reports what a new session would actually load.
 | `rrf_k` | `1` | RRF rank constant; larger flattens the advantage of the top ranks. Ignored unless `fusion = "rrf"` |
 | `vector_weight` | `0.7` | Weight for vector similarity |
 | `text_weight` | `0.3` | Weight for BM25 text similarity |
+| `bm25_saturation` | `0.0` | Knee constant for an absolute BM25 transform. `0.0` keeps the historical min-max normalization, in which the best keyword hit scores 1.0 however weak it is. Setting it above `0` was measured and did **not** improve retrieval; `fusion = "rrf"` addresses the same scale mismatch and is the supported answer |
 
 ### Initial Injection Settings (`[memory.initial_injection]`)
 

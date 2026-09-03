@@ -2102,6 +2102,7 @@ Key options under `[memory]` in `~/.axon/config.toml`:
 | `search.min_score` | `0.35` | Minimum relevance score threshold for explicit memory search and recovery paths |
 | `search.fusion` | `"rrf"` | How the keyword and vector result lists are combined. `"weighted"` normalizes each signal to [0,1] and blends by weight; `"rrf"` uses Reciprocal Rank Fusion, which reads only the ORDER of each list and so is immune to BM25-vs-cosine scale mismatch. Under `"rrf"`, `search.min_score` is a threshold RELATIVE to the best hit, not an absolute one |
 | `search.rrf_k` | `1` | RRF rank constant; larger flattens the advantage of top ranks (the RRF paper's value is 60). Ignored unless `search.fusion = "rrf"` |
+| `search.bm25_saturation` | `0.0` | Knee constant for an ABSOLUTE BM25 transform (`m / (m + k)`). `0.0` keeps the historical min-max normalization, under which the best keyword hit is always exactly 1.0 however weak it is. Raising it was measured and did not improve retrieval — `search.fusion = "rrf"` is the supported fix for the same scale mismatch |
 | `initial_injection.enabled` | `true` | Enable automatic first-turn memory injection |
 | `initial_injection.min_score` | `0.0` | Override score threshold for first-turn injection (`0.0` preserves historical no-filter behavior) |
 | `embedding.model` | *(unset)* | Embedding model for vector search; unset disables embeddings |
