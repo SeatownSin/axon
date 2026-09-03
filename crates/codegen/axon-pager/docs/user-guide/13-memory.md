@@ -282,11 +282,39 @@ The model has access to two memory tools:
 
 ### Hybrid Scoring
 
-Memory search uses a weighted combination of:
-- **Vector similarity** (semantic) -- weight: 0.7
-- **BM25 text similarity** (keyword) -- weight: 0.3
+Every search runs two queries -- a BM25 keyword query and a vector similarity
+query -- and then *fuses* the two result lists into one ranking. How they are
+fused is set by `search.fusion`:
 
-Results are filtered by a minimum score threshold (default: 0.35).
+**`"rrf"` -- Reciprocal Rank Fusion (the default since 0.3.9).** Each list
+contributes `1 / (k + rank)` per chunk, weighted by `vector_weight` and
+`text_weight`, and the sums are renormalized so the best hit scores 1.0. Only
+the *order* of each list is read, never the raw scores, so BM25 and cosine
+never have to be made comparable. `search.rrf_k` sets `k` (default `1`; the
+RRF paper's value is 60, which flattens the advantage of the top ranks).
+
+**`"weighted"` -- normalize and blend (the default up to 0.3.8).** Each signal
+is normalized to [0,1] and combined by weight -- vector 0.7, text 0.3 by
+default.
+
+RRF is the default because it is markedly better at paraphrased queries, where
+the wording shares little vocabulary with the stored text. Measured against
+`weighted` on two corpora with real embeddings, recall on paraphrase queries
+went 36%->72% and 50%->83% and MRR roughly doubled, at the cost of an
+occasional one- or two-place slip on queries that already share wording with
+their answer.
+
+Results are then filtered by `search.min_score` (default: 0.35). Note the
+threshold means different things under the two strategies: under `"weighted"`
+it is an absolute score, while under `"rrf"` -- where the top hit is always 1.0
+-- it is relative to the best hit in that search.
+
+> **When embeddings are unavailable:** under `"rrf"`, a chunk that appears in
+> only one list caps at that list's share of the weight, so an un-embedded
+> chunk tops out at 0.3 under default weights -- below the default `min_score`.
+> Chunks are embedded on search and at session start, so this only bites while
+> the embedding provider is failing. Set `min_score = 0.0`, or
+> `fusion = "weighted"`, to keep such chunks visible.
 
 ### Source Weights
 
@@ -324,7 +352,8 @@ lambda = 0.7             # 0.0 = max diversity, 1.0 = pure relevance
 
 ## CLI Commands
 
-The `axon memory` command manages memory from the shell. It has one subcommand, `clear`:
+The `axon memory` command manages memory from the shell. It has three
+subcommands -- `clear`, `edit`, and `stats`:
 
 ```bash
 # Clear workspace memory (MEMORY.md, sessions/, and index.sqlite). This is the default scope.
@@ -341,9 +370,24 @@ axon memory clear --all
 
 # Skip the confirmation prompt (-y is the short form)
 axon memory clear --yes
+
+# Open this workspace's MEMORY.md in $VISUAL / $EDITOR
+axon memory edit
+
+# Open the global MEMORY.md instead
+axon memory edit --global
+
+# Report file counts by scope, total size, indexed chunk count, and index size
+axon memory stats
 ```
 
-To edit memory from the shell, open the files in your editor directly -- for example, `$EDITOR ~/.axon/memory/MEMORY.md`.
+`memory edit` resolves the editor as `$VISUAL`, then `$EDITOR`, falling back to
+Notepad on Windows and vi elsewhere. It creates the file if it does not exist
+yet, which is the normal case in a workspace that has not run with memory
+enabled before.
+
+`memory stats` reads everything from disk at call time, so it is safe to run
+while Axon is open and it reports what a new session would actually load.
 
 ---
 
@@ -377,7 +421,9 @@ To edit memory from the shell, open the files in your editor directly -- for exa
 | Key | Default | Description |
 |-----|---------|-------------|
 | `max_results` | `6` | Maximum search results |
-| `min_score` | `0.35` | Minimum relevance score |
+| `min_score` | `0.35` | Minimum relevance score. Absolute under `fusion = "weighted"`; relative to the best hit under `fusion = "rrf"` |
+| `fusion` | `"rrf"` | How the keyword and vector lists are combined: `"rrf"` (Reciprocal Rank Fusion, order only) or `"weighted"` (normalize each signal and blend). See [Hybrid Scoring](#hybrid-scoring) |
+| `rrf_k` | `1` | RRF rank constant; larger flattens the advantage of the top ranks. Ignored unless `fusion = "rrf"` |
 | `vector_weight` | `0.7` | Weight for vector similarity |
 | `text_weight` | `0.3` | Weight for BM25 text similarity |
 

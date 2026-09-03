@@ -342,6 +342,8 @@ enabled = true                        # watch memory files for external edits
 [memory.search]
 max_results = 6                       # default number of results
 min_score = 0.35                      # minimum relevance score
+fusion = "rrf"                        # "rrf" or "weighted" list fusion
+rrf_k = 1                             # RRF rank constant; ignored unless fusion = "rrf"
 
 [memory.initial_injection]
 enabled = true                        # auto-inject memory on first turn
