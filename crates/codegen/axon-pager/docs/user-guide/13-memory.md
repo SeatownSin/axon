@@ -428,8 +428,36 @@ while Axon is open and it reports what a new session would actually load.
 | Key | Default | Description |
 |-----|---------|-------------|
 | `provider` | `"api"` | Embedding provider (currently `"api"`) |
-| `model` | *(provider default)* | Embedding model name |
-| `dimensions` | `1024` | Embedding vector dimensions |
+| `model` | *(provider default)* | Embedding model name. Unset disables vector search entirely, leaving keyword-only results |
+| `dimensions` | `1024` | Embedding vector dimensions. Must match the model -- see the warning below |
+| `base_url` | *(the chat model's endpoint)* | Where to send embedding requests. Unset means embeddings go to whichever endpoint the active chat model uses |
+| `api_key` | *(none)* | API key for `base_url`. Only consulted when `base_url` is set; unset then means send no key at all |
+
+#### Pointing embeddings at their own server
+
+By default embeddings are sent to the **active chat model's endpoint**, so one
+server has to serve both roles. Many inference servers cannot: they load a
+single model, and an embedding request to a chat model is rejected. Setting
+`base_url` separates the two:
+
+```toml
+[memory.embedding]
+model = "bge-m3"
+dimensions = 1024
+base_url = "http://192.168.1.10:8090/v1"   # a small always-on embedding server
+```
+
+The key follows the URL. When `base_url` is set, Axon uses only `api_key` for
+that endpoint and never the chat endpoint's credential -- and if `api_key` is
+unset it sends no credential at all, which is what a local embedding server
+normally wants. On the inherited endpoint a key is still required; a keyless
+request there is never intended, and starting without one would silently embed
+nothing.
+
+> **Changing `model` or `dimensions` invalidates the index.** Vectors are stored
+> at a fixed width and are not comparable across models. After changing either,
+> clear the index (`axon memory clear`) and let it rebuild, or vector search will
+> mix incompatible vectors.
 
 ### Search Settings (`[memory.search]`)
 

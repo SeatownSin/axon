@@ -37,6 +37,25 @@ pub struct MemoryEmbeddingConfig {
     pub model: Option<String>,
     /// Embedding vector dimensions.
     pub dimensions: usize,
+    /// Base URL of the embeddings endpoint.
+    ///
+    /// `None` (the default) sends embedding requests to the **active chat
+    /// model's** endpoint, which is the historical behaviour and forces one
+    /// server to serve both roles. Setting this points embeddings somewhere
+    /// else — an always-on local embedding server, say, while chat goes to a
+    /// single-model inference server that cannot also embed.
+    ///
+    /// Setting it also changes the credential rule: see [`Self::api_key`].
+    pub base_url: Option<String>,
+    /// API key for `base_url`.
+    ///
+    /// Only consulted when `base_url` is set. `None` then means **send no
+    /// key**, which is what a local, unauthenticated embedding server wants.
+    ///
+    /// On the inherited endpoint a key is still mandatory — a keyless request
+    /// to the chat endpoint is never what the user meant, and silently
+    /// embedding nothing is worse than not starting.
+    pub api_key: Option<String>,
 }
 
 impl Default for MemoryEmbeddingConfig {
@@ -45,6 +64,8 @@ impl Default for MemoryEmbeddingConfig {
             provider: "api".to_string(),
             model: None,
             dimensions: 1024,
+            base_url: None,
+            api_key: None,
         }
     }
 }
@@ -481,6 +502,9 @@ mod tests {
     fn sub_config_defaults_match() {
         assert_eq!(MemoryIndexConfig::default().max_chunk_chars, 1600);
         assert_eq!(MemoryEmbeddingConfig::default().dimensions, 1024);
+        // Absent by default: embeddings inherit the chat model's endpoint.
+        assert!(MemoryEmbeddingConfig::default().base_url.is_none());
+        assert!(MemoryEmbeddingConfig::default().api_key.is_none());
         let s = MemorySearchConfig::default();
         assert_eq!(s.max_results, 6);
         assert_eq!(s.recency_decay, DEFAULT_RECENCY_DECAY);
@@ -489,6 +513,38 @@ mod tests {
         assert!(MemorySessionConfig::default().save_on_end);
         assert_eq!(MemoryGcConfig::default().max_age_days, 30);
         assert_eq!(PruningConfig::default().keep_last_n_turns, 3);
+    }
+
+    /// The embedding endpoint is deserializable, and omitting it leaves the
+    /// historical "inherit the chat model's endpoint" behaviour in place.
+    ///
+    /// Driven through `serde_json` rather than `toml`: this is a leaf crate that
+    /// deliberately carries no TOML dependency, and what is under test is
+    /// serde's handling of the two new `Option` fields under the struct's
+    /// `#[serde(default)]`, which is the same either way.
+    #[test]
+    fn embedding_endpoint_round_trips() {
+        let cfg: MemoryEmbeddingConfig = serde_json::from_str(
+            r#"{"model":"bge-m3","dimensions":1024,
+                "base_url":"http://192.168.1.10:8090/v1","api_key":"local-key"}"#,
+        )
+        .expect("embedding config with an endpoint should parse");
+        assert_eq!(cfg.base_url.as_deref(), Some("http://192.168.1.10:8090/v1"));
+        assert_eq!(cfg.api_key.as_deref(), Some("local-key"));
+        assert_eq!(cfg.dimensions, 1024);
+
+        // A local server with no auth: the endpoint alone is enough.
+        let keyless: MemoryEmbeddingConfig =
+            serde_json::from_str(r#"{"model":"bge-m3","base_url":"http://192.168.1.10:8090/v1"}"#)
+                .expect("embedding config without a key should parse");
+        assert!(keyless.api_key.is_none());
+        assert_eq!(keyless.dimensions, 1024, "dimensions still defaults");
+
+        // Nothing named: inherit, exactly as before this field existed.
+        let inherited: MemoryEmbeddingConfig =
+            serde_json::from_str(r#"{"model":"nomic-embed-text-v1.5"}"#).unwrap();
+        assert!(inherited.base_url.is_none());
+        assert!(inherited.api_key.is_none());
     }
 
     #[test]

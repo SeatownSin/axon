@@ -352,6 +352,8 @@ min_score = 0.0                       # score threshold for first-turn injection
 [memory.embedding]
 model = "embedding-model"             # embedding model name
 dimensions = 1024                     # vector dimensions
+# base_url = "http://host:8090/v1"    # optional: embed on a separate server
+# api_key = "..."                     # optional: key for base_url (omit if none)
 ```
 
 ### Subagents

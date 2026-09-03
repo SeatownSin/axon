@@ -2106,7 +2106,9 @@ Key options under `[memory]` in `~/.axon/config.toml`:
 | `initial_injection.enabled` | `true` | Enable automatic first-turn memory injection |
 | `initial_injection.min_score` | `0.0` | Override score threshold for first-turn injection (`0.0` preserves historical no-filter behavior) |
 | `embedding.model` | *(unset)* | Embedding model for vector search; unset disables embeddings |
-| `embedding.dimensions` | `1024` | Embedding vector dimensions |
+| `embedding.dimensions` | `1024` | Embedding vector dimensions. Changing this (or `model`) invalidates an existing index — clear it and rebuild |
+| `embedding.base_url` | *(the chat model's endpoint)* | Endpoint for embedding requests. Unset, embeddings go wherever the active chat model points, so one server must serve both roles; set it to run embeddings on a separate always-on server |
+| `embedding.api_key` | *(none)* | Key for `embedding.base_url`, consulted only when that is set. Unset means send no credential — what a local, unauthenticated embedding server wants. The inherited endpoint still requires a key |
 
 ---
 

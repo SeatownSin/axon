@@ -374,8 +374,26 @@ pub(crate) async fn spawn_session_actor(
         tracing::warn!("web_search disabled: configured model could not be resolved");
         axon_tools::implementations::WebSearchConfig::Disabled
     };
-    let embed_base_url = sampling_config.base_url.clone();
-    let embed_api_key = sampling_config.api_key.clone();
+    // Embeddings default to the active chat model's endpoint, which forces one
+    // server to serve both roles. `[memory.embedding] base_url` breaks that tie
+    // so an always-on embedding server can back memory while chat points at a
+    // single-model inference server that cannot embed at all. The key follows
+    // the URL: an overridden endpoint uses only its own key (possibly none),
+    // never the chat endpoint's.
+    let embed_endpoint_override = memory_config
+        .as_ref()
+        .and_then(|mc| mc.embedding.base_url.clone())
+        .filter(|url| !url.trim().is_empty());
+    let embed_base_url = embed_endpoint_override
+        .clone()
+        .unwrap_or_else(|| sampling_config.base_url.clone());
+    let embed_api_key = if embed_endpoint_override.is_some() {
+        memory_config
+            .as_ref()
+            .and_then(|mc| mc.embedding.api_key.clone())
+    } else {
+        sampling_config.api_key.clone()
+    };
     let session_pruning_config: crate::config::PruningConfig = memory_config.as_ref().map_or_else(
         || crate::config::PruningConfig {
             enabled: false,
@@ -1434,8 +1452,8 @@ pub(crate) async fn spawn_session_actor(
             .map(|mc| mc.embedding.clone())
             .unwrap_or_default();
         let embed_dims = embed_config.dimensions;
-        let sampling_base_url = embed_base_url.clone();
-        let sampling_api_key = embed_api_key.clone();
+        let reindex_embed_base_url = embed_base_url.clone();
+        let reindex_embed_api_key = embed_api_key.clone();
         let session_id_for_reindex = session_info.id.to_string();
         let chunks_added_counter = session.memory.chunks_added.clone();
         tokio::task::spawn_local(async move {
@@ -1461,21 +1479,27 @@ pub(crate) async fn spawn_session_actor(
                     target : axon_telemetry::memory_log::TARGET, files = files.len(),
                     "MEMORY_REINDEX: background reindex complete"
                 );
-                let embedded_count = if let Some(api_key) = sampling_api_key {
-                    if let Some(provider) =
-                        crate::session::memory::embedding::ApiEmbeddingProvider::from_session(
-                            &embed_config,
-                            sampling_base_url,
-                            api_key,
-                        )
-                    {
-                        crate::session::memory::embed_missing_chunks(&index, &provider).await
+                // A key is required only on the inherited chat endpoint; an
+                // endpoint named in `[memory.embedding] base_url` may legitimately
+                // have none. Gating this on a key being present is what made the
+                // session-start pass embed zero chunks against a keyless local
+                // server while still reporting the backend as vector-capable.
+                let embedded_count =
+                    if reindex_embed_api_key.is_some() || embed_config.base_url.is_some() {
+                        if let Some(provider) =
+                            crate::session::memory::embedding::ApiEmbeddingProvider::from_session(
+                                &embed_config,
+                                reindex_embed_base_url,
+                                reindex_embed_api_key,
+                            )
+                        {
+                            crate::session::memory::embed_missing_chunks(&index, &provider).await
+                        } else {
+                            0
+                        }
                     } else {
                         0
-                    }
-                } else {
-                    0
-                };
+                    };
                 axon_telemetry::session_ctx::log_event(
                     axon_telemetry::memory_telemetry::MemoryReindex {
                         session_id: session_id_for_reindex.clone(),

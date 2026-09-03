@@ -2089,8 +2089,16 @@ mod tests {
             provider: "api".to_string(),
             model: Some(model),
             dimensions: dims,
+            // The harness has always talked to an endpoint of its own choosing;
+            // recording it here keeps it on the same code path the product uses
+            // for an explicitly configured embedding endpoint.
+            base_url: Some(url.clone()),
+            api_key: std::env::var("AB_EMBED_KEY").ok(),
         };
-        let key = std::env::var("AB_EMBED_KEY").unwrap_or_else(|_| "lm-studio".to_string());
+        // `AB_EMBED_KEY` is optional: a local embedding server usually wants no
+        // key at all, and the old "lm-studio" default was a placeholder that
+        // happened to be ignored rather than a credential.
+        let key = cfg.api_key.clone();
         ApiEmbeddingProvider::from_session(&cfg, url, key).map(|p| (p, dims))
     }
 

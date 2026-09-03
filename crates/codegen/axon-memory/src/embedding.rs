@@ -67,12 +67,14 @@ impl ApiEmbeddingProvider {
         Some(Self::new(api_base, model, config.dimensions, client))
     }
 
+    /// `auth_key` of `None` builds a client that sends no credential at all,
+    /// for a local embedding server that has no auth.
     pub fn from_session(
         config: &axon_config_types::MemoryEmbeddingConfig,
         proxy_base_url: String,
-        auth_key: String,
+        auth_key: Option<String>,
     ) -> Option<Self> {
-        let client = build_static_middleware_client(Some(auth_key));
+        let client = build_static_middleware_client(auth_key);
         Self::from_config(config, proxy_base_url, client)
     }
 }

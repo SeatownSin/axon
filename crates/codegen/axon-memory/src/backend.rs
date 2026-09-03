@@ -192,7 +192,27 @@ async fn build_embedding_provider(
     } else {
         None
     };
-    let api_key = per_call_key.or_else(|| static_api_key.map(|s| s.to_owned()))?;
+    let api_key = per_call_key.or_else(|| static_api_key.map(|s| s.to_owned()));
+
+    // A missing key is fatal on the INHERITED endpoint (the chat model's), where
+    // an unauthenticated request is never what was meant — but not on an
+    // endpoint the user named in `[memory.embedding] base_url`, which is
+    // typically a local server with no auth at all. Returning None here is
+    // especially costly: the caller's only fallback is FTS-only search, which
+    // still reports itself as healthy, so the failure shows up as silently
+    // embedding zero chunks rather than as an error.
+    let api_key = match api_key {
+        Some(key) => Some(key),
+        None if config.base_url.is_some() => {
+            tracing::debug!(
+                base_url,
+                "memory embeddings: no API key for the configured embedding \
+                 endpoint; sending unauthenticated requests"
+            );
+            None
+        }
+        None => return None,
+    };
     super::embedding::ApiEmbeddingProvider::from_session(config, base_url.to_owned(), api_key)
 }
 
@@ -958,9 +978,15 @@ mod factory_tests {
         drop(idx);
 
         let params = MemoryBackendParams {
-            embed_config: Some(MemoryEmbeddingConfig::default()),
+            // A model MUST be set here: with the default `model: None` the
+            // provider is refused at the model check and this test would pass
+            // even if the key requirement were deleted outright.
+            embed_config: Some(MemoryEmbeddingConfig {
+                model: Some("some-embed-model".to_string()),
+                ..MemoryEmbeddingConfig::default()
+            }),
             embed_base_url: "http://localhost".to_string(),
-            embed_api_key: None, // no key → provider cannot be created
+            embed_api_key: None, // no key, no base_url override → refused
             ..make_params_fts_only("test-embed-no-key")
         };
         let backend = MemoryBackendImpl::from_session_params(storage, &params);
@@ -969,6 +995,70 @@ mod factory_tests {
         assert!(
             !results.is_empty(),
             "should fall back to FTS when api_key is None"
+        );
+    }
+
+    /// The key requirement applies to the INHERITED endpoint only. An endpoint
+    /// named in `[memory.embedding] base_url` is typically a local server with
+    /// no auth, so a missing key must NOT refuse the provider there — otherwise
+    /// vector search silently degrades to FTS-only while still reporting itself
+    /// as healthy, which reads as "embedded 0 chunks" rather than as an error.
+    #[tokio::test]
+    async fn test_embed_base_url_override_allows_missing_key() {
+        let with_model = |base_url: Option<&str>| MemoryEmbeddingConfig {
+            model: Some("bge-m3".to_string()),
+            base_url: base_url.map(str::to_owned),
+            ..MemoryEmbeddingConfig::default()
+        };
+
+        // Inherited endpoint, no key → refused.
+        let inherited = with_model(None);
+        let provider = build_embedding_provider(
+            Some(&inherited),
+            &EndpointScopedCredentials::none(),
+            None,
+            "http://127.0.0.1:8090/v1",
+        )
+        .await;
+        assert!(
+            provider.is_none(),
+            "a keyless request to the inherited chat endpoint must be refused"
+        );
+
+        // Explicit embedding endpoint, no key → allowed.
+        let overridden = with_model(Some("http://127.0.0.1:8090/v1"));
+        let provider = build_embedding_provider(
+            Some(&overridden),
+            &EndpointScopedCredentials::none(),
+            None,
+            "http://127.0.0.1:8090/v1",
+        )
+        .await;
+        let provider = provider
+            .expect("an explicitly configured embedding endpoint must not require an API key");
+        assert_eq!(provider.model_name(), "bge-m3");
+        assert_eq!(provider.dimensions(), 1024);
+    }
+
+    /// The axiom outranks the override: naming a blocked host in
+    /// `[memory.embedding] base_url` must not become a way to reach it.
+    #[tokio::test]
+    async fn test_embed_base_url_override_still_blocked_for_vendor_host() {
+        let config = MemoryEmbeddingConfig {
+            model: Some("bge-m3".to_string()),
+            base_url: Some("https://api.blocked.invalid/v1".to_string()),
+            ..MemoryEmbeddingConfig::default()
+        };
+        let provider = build_embedding_provider(
+            Some(&config),
+            &EndpointScopedCredentials::none(),
+            Some("a-key"),
+            "https://api.blocked.invalid/v1",
+        )
+        .await;
+        assert!(
+            provider.is_none(),
+            "a blocked host must stay blocked even when named explicitly"
         );
     }
 
