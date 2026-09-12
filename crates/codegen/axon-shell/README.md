@@ -1769,6 +1769,17 @@ api_key = "sk-custom"
 > api_backend = "responses"            # required — web search uses the Responses API
 > # base_url, api_key, env_key optional — defaults to cli-chat-proxy
 > ```
+>
+> **An `api_key` is required on the resolved endpoint.** A keyless `[model.*]`
+> entry (`no_auth = true`, or simply no key) disables `web_search` — the tool is
+> never registered and the model never sees it. The reason is logged with the
+> model id and endpoint, but nothing is shown on screen.
+>
+> This rules out local inference servers entirely: llama.cpp, sglang, and vLLM
+> serve `/v1/chat/completions`, not `/responses`, and are keyless by default. To
+> give a local model web access, keep chat local and either point
+> `[models] web_search` at a keyed cloud endpoint or add a search MCP server and
+> let the model call its tools.
 
 ### Examples
 

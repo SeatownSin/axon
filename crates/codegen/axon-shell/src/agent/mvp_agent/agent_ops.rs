@@ -1384,8 +1384,15 @@ impl MvpAgent {
     }
     /// Prepare the web fetch configuration based on feature flags.
     ///
-    /// Enabled gate: `disable_web_search` kill-switch > `AXON_WEB_FETCH` env >
-    /// remote settings `web_fetch_enabled` > default (false).
+    /// Enabled gate (`resolve_web_fetch`, via `resolve_bool_flag` precedence):
+    /// `disable_web_search` kill-switch > pinned requirement > `AXON_WEB_FETCH`
+    /// env > **`[features] web_fetch`** > managed config > remote settings
+    /// `web_fetch_enabled` > default (**false**).
+    ///
+    /// The `[features] web_fetch` layer is the one users reach for and was
+    /// missing from this list. Note the default is off, so a research goal --
+    /// whose fact-check lens orders the verifier to OPEN every citation with
+    /// `web_fetch` -- has no fetcher until it is turned on.
     ///
     /// Params resolution (TOML > env > remote settings > default):
     /// - `proxy_endpoint`: `[toolset.web_fetch] proxy_endpoint` > `AXON_WEB_FETCH_PROXY` > remote settings > None
