@@ -77,6 +77,111 @@ pub struct InspectReport {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub model_override_warnings:
         Vec<crate::agent::config_model_override_parse::ModelOverrideWarning>,
+    /// Resolved state of the `web_search` tool. A keyless endpoint, or one that
+    /// does not serve the Responses API, disables the tool with no on-screen
+    /// signal at all — it is simply never registered, so the model never sees
+    /// it and the user sees a model that "won't search". This section is the
+    /// place that says so out loud.
+    pub web_search: WebSearchReport,
+}
+
+/// `web_search` reachability, derived from config alone.
+#[derive(Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct WebSearchReport {
+    /// The model id the tool resolves to (`[models] web_search`, else default).
+    pub model: String,
+    /// False only when config *proves* the tool cannot run.
+    pub enabled: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub base_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub api_backend: Option<String>,
+    /// Why it is off, or a caveat when the verdict cannot be proven here.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+}
+
+/// Decide `web_search` reachability from the resolved model id and the
+/// `[model.*]` table.
+///
+/// Only conditions provable from config mark it disabled:
+/// a keyless endpoint (`no_auth`, or neither `api_key` nor `env_key` beside an
+/// explicit `base_url`), and a non-Responses `api_backend`. Anything else is
+/// reported as enabled — the entry may still resolve its key at login time, and
+/// claiming otherwise here would be a guess.
+fn build_web_search_report(
+    web_search_model: &str,
+    config_models: &indexmap::IndexMap<String, crate::agent::config::ConfigModelOverride>,
+) -> WebSearchReport {
+    use crate::sampling::ApiBackend;
+
+    let model = web_search_model.to_owned();
+    if model.is_empty() {
+        return WebSearchReport {
+            model,
+            enabled: false,
+            base_url: None,
+            api_backend: None,
+            reason: Some(
+                "no web_search model resolved; set `[models] web_search` or a default model"
+                    .to_owned(),
+            ),
+        };
+    }
+    let Some(entry) = config_models.get(&model) else {
+        return WebSearchReport {
+            model,
+            enabled: true,
+            base_url: None,
+            api_backend: None,
+            reason: Some(
+                "no `[model.*]` entry — falls back to the default provider endpoint; add one \
+                 with `api_backend = \"responses\"` to point it elsewhere"
+                    .to_owned(),
+            ),
+        };
+    };
+    let base_url = entry
+        .base_url
+        .clone()
+        .or_else(|| entry.api_base_url.clone());
+    let api_backend = entry.api_backend.as_ref().map(|b| format!("{b:?}"));
+    let keyless = entry.no_auth == Some(true)
+        || (entry.api_key.is_none() && entry.env_key.is_none() && base_url.is_some());
+    // Responses is what the tool posts to; an explicitly non-Responses backend
+    // cannot serve it. An unset backend is the provider default, not a defect.
+    let wrong_backend = matches!(
+        entry.api_backend,
+        Some(ApiBackend::ChatCompletions) | Some(ApiBackend::Messages)
+    );
+    let reason = if keyless && wrong_backend {
+        Some(format!(
+            "DISABLED: `[model.{model}]` is keyless and serves {} — web_search needs an \
+             api_key and the Responses API. A local OpenAI-compatible server cannot serve it.",
+            api_backend.as_deref().unwrap_or("another backend")
+        ))
+    } else if keyless {
+        Some(format!(
+            "DISABLED: `[model.{model}]` has no api_key/env_key — set one, or point \
+             `[models] web_search` at a keyed endpoint"
+        ))
+    } else if wrong_backend {
+        Some(format!(
+            "DISABLED: `[model.{model}]` sets api_backend = {} — web_search posts to \
+             /responses; set `api_backend = \"responses\"`",
+            api_backend.as_deref().unwrap_or("another backend")
+        ))
+    } else {
+        None
+    };
+    WebSearchReport {
+        model,
+        enabled: reason.is_none(),
+        base_url,
+        api_backend,
+        reason,
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -385,6 +490,17 @@ async fn build_report(cwd: &Path) -> InspectReport {
         .map(|c| c.model_override_warnings.clone())
         .unwrap_or_default();
 
+    let web_search = parsed_config
+        .as_ref()
+        .map(|c| build_web_search_report(&c.web_search_model, &c.config_models))
+        .unwrap_or_else(|| WebSearchReport {
+            model: String::new(),
+            enabled: false,
+            base_url: None,
+            api_backend: None,
+            reason: Some("config could not be parsed".to_owned()),
+        });
+
     InspectReport {
         axon_version: axon_version::VERSION.to_string(),
         channel: crate::util::config::channel_name_from_cache()
@@ -406,6 +522,7 @@ async fn build_report(cwd: &Path) -> InspectReport {
         config_sources: configs,
         external_compat,
         model_override_warnings,
+        web_search,
     }
 }
 
@@ -1241,6 +1358,32 @@ fn disabled_compat_tags(
 
 /// Renders the "Model Overrides" section of the human report; empty when
 /// there are no warnings.
+/// Render the `web_search` section. Always printed: the whole point is that a
+/// disabled tool is otherwise invisible, so "off, and here is why" has to be as
+/// visible as "on".
+fn render_web_search(r: &WebSearchReport) -> String {
+    use std::fmt::Write as _;
+
+    let mut out = String::from("\n  Web Search\n");
+    let state = if r.enabled { "enabled" } else { "DISABLED" };
+    let model = if r.model.is_empty() {
+        "(unresolved)"
+    } else {
+        r.model.as_str()
+    };
+    let _ = writeln!(out, "  {TREE} {state} — model: {model}");
+    if let Some(url) = &r.base_url {
+        let _ = writeln!(out, "  {TREE} endpoint: {url}");
+    }
+    if let Some(b) = &r.api_backend {
+        let _ = writeln!(out, "  {TREE} api_backend: {b}");
+    }
+    if let Some(reason) = &r.reason {
+        let _ = writeln!(out, "  {TREE} {reason}");
+    }
+    out
+}
+
 fn render_model_override_warnings(
     warnings: &[crate::agent::config_model_override_parse::ModelOverrideWarning],
 ) -> String {
@@ -1547,6 +1690,8 @@ fn print_human(r: &InspectReport) {
         render_model_override_warnings(&r.model_override_warnings)
     );
 
+    print!("{}", render_web_search(&r.web_search));
+
     print!("{}", render_harness_compatibility(&r.external_compat));
 }
 
@@ -1837,6 +1982,91 @@ mod tests {
             "Permissions mode: always-approve disabled"
         );
         assert!(!enforced_label(&p).contains("yolo"));
+    }
+
+    /// The failure this section exists for: a keyless local endpoint. Nothing
+    /// on screen says web_search is off today, so the report must.
+    #[test]
+    fn web_search_report_flags_keyless_local_endpoint() {
+        let effective: toml::Value = toml::from_str(
+            r#"
+            [models]
+            web_search = "local-qwen"
+
+            [model.local-qwen]
+            model = "local-qwen"
+            base_url = "http://192.168.50.140:30000/v1"
+            no_auth = true
+            api_backend = "chat_completions"
+            "#,
+        )
+        .unwrap();
+        let cfg = crate::agent::config::Config::new_from_toml_cfg(&effective).unwrap();
+        let r = build_web_search_report(&cfg.web_search_model, &cfg.config_models);
+        assert!(!r.enabled, "keyless endpoint must report disabled: {r:?}");
+        let reason = r.reason.as_deref().unwrap_or_default();
+        assert!(reason.contains("DISABLED"), "{reason}");
+        assert!(
+            reason.contains("api_key") || reason.contains("Responses"),
+            "the reason must name the remedy, not just the state: {reason}"
+        );
+        assert_eq!(
+            r.base_url.as_deref(),
+            Some("http://192.168.50.140:30000/v1"),
+            "naming the endpoint is what makes it diagnosable"
+        );
+
+        let human = render_web_search(&r);
+        assert!(human.contains("Web Search"), "{human}");
+        assert!(human.contains("DISABLED"), "{human}");
+    }
+
+    /// A keyed Responses endpoint is the working case and must stay quiet.
+    #[test]
+    fn web_search_report_clean_for_keyed_responses_endpoint() {
+        let effective: toml::Value = toml::from_str(
+            r#"
+            [models]
+            web_search = "cloud-search"
+
+            [model.cloud-search]
+            model = "cloud-search"
+            base_url = "https://api.example.com/v1"
+            env_key = "EXAMPLE_API_KEY"
+            api_backend = "responses"
+            "#,
+        )
+        .unwrap();
+        let cfg = crate::agent::config::Config::new_from_toml_cfg(&effective).unwrap();
+        let r = build_web_search_report(&cfg.web_search_model, &cfg.config_models);
+        assert!(r.enabled, "keyed Responses endpoint must be enabled: {r:?}");
+        assert!(r.reason.is_none(), "no reason when nothing is wrong: {r:?}");
+    }
+
+    /// No `[model.*]` entry is not a defect — it falls back to the default
+    /// provider endpoint, so the report must not claim it is broken.
+    #[test]
+    fn web_search_report_absent_entry_is_not_a_failure() {
+        let effective: toml::Value = toml::from_str(
+            r#"
+            [models]
+            web_search = "not-in-the-table"
+            "#,
+        )
+        .unwrap();
+        let cfg = crate::agent::config::Config::new_from_toml_cfg(&effective).unwrap();
+        let r = build_web_search_report(&cfg.web_search_model, &cfg.config_models);
+        assert!(
+            r.enabled,
+            "absent entry must not be reported disabled: {r:?}"
+        );
+        assert!(
+            r.reason
+                .as_deref()
+                .unwrap_or_default()
+                .contains("no `[model.*]` entry"),
+            "the caveat must still be stated: {r:?}"
+        );
     }
 
     /// Model-override warnings flow from an effective config through `Config`

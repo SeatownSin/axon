@@ -358,6 +358,10 @@ pub(crate) async fn spawn_session_actor(
     let web_search_config = if disable_web_search {
         axon_tools::implementations::WebSearchConfig::Disabled
     } else if let Some(cfg) = web_search_sampling_config {
+        // Keep the identifying fields before the `api_key` match partially
+        // moves `cfg`, so the disabled path can name what it disabled.
+        let ws_model = cfg.model.clone();
+        let ws_base_url = cfg.base_url.clone();
         if let Some(api_key) = cfg.api_key {
             axon_tools::implementations::WebSearchConfig::Enabled {
                 api_key,
@@ -367,11 +371,31 @@ pub(crate) async fn spawn_session_actor(
                 alpha_test_key: credentials.alpha_test_key.clone(),
             }
         } else {
-            tracing::warn!("web_search disabled: resolved config has no API key");
+            // A keyless endpoint disables web_search *silently*: the tool is
+            // simply never registered, so neither the user nor the model is
+            // told why searching is impossible. That is the normal outcome of
+            // pointing `[models] web_search` at a local inference server --
+            // llama.cpp / sglang / vLLM are keyless by default and serve no
+            // `/responses` endpoint, which this tool requires. Name the model,
+            // the endpoint, and the remedy; a bare "no API key" line is the
+            // same unreadable failure as the pre-0.3.10 embedding endpoint.
+            tracing::warn!(
+                model = %ws_model,
+                base_url = %ws_base_url,
+                "web_search disabled: the resolved web_search model '{ws_model}' at \
+                 {ws_base_url} has no api_key. Set `api_key` on that `[model.*]` entry, or \
+                 point `[models] web_search` at a keyed endpoint. Note that a local \
+                 OpenAI-compatible server cannot serve this tool at all: it requires a \
+                 provider-side `/responses` web-search tool, not /v1/chat/completions."
+            );
             axon_tools::implementations::WebSearchConfig::Disabled
         }
     } else {
-        tracing::warn!("web_search disabled: configured model could not be resolved");
+        tracing::warn!(
+            "web_search disabled: the configured web_search model could not be resolved to an \
+             endpoint. Check that `[models] web_search` (or the default model) names a real \
+             `[model.*]` entry."
+        );
         axon_tools::implementations::WebSearchConfig::Disabled
     };
     // Embeddings default to the active chat model's endpoint, which forces one
