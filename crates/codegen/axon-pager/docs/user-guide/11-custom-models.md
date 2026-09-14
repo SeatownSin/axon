@@ -378,12 +378,22 @@ Or via environment variable:
 export AXON_WEB_SEARCH_MODEL="my-search-model"
 ```
 
-If you point web search at a custom model, you also need a `[model.*]` entry so Axon can reach it. Server-side ("backend") web search runs only when the model sets `supports_backend_search = true` (and the build enables backend search); it does not depend on `api_backend`:
+If you point web search at a custom model, you also need a `[model.*]` entry so Axon can reach it — and that entry has to be a **keyed endpoint that serves the Responses API**. The `web_search` tool is not a search-API client: it POSTs to `{base_url}/responses` and asks the *provider* to run the search server-side. A no-auth endpoint (`no_auth = true`, or a loopback `base_url`) receives no credential at all and the tool is silently not registered — `axon inspect` has a **Web Search** section that names the verdict and the remedy. See [Configuration](05-configuration.md#web_search-needs-a-provider-that-searches-for-you) for the full story, including why a local OpenAI-compatible server cannot serve this tool.
 
 ```toml
 [models]
-web_search = "my-custom-model"
+web_search = "my-search-model"
 
+[model.my-search-model]
+model = "my-search-model"
+base_url = "https://api.example.com/v1"
+env_key = "EXAMPLE_API_KEY"          # a usable key is required
+api_backend = "responses"            # web_search posts to /responses
+```
+
+**Server-side ("backend") search is a different mechanism, not a variant of the above.** When the *chat* model sets `supports_backend_search = true` and the build enables backend search, that model performs the search itself and Axon **drops the `web_search` tool from the turn entirely** — so this path ignores `[models] web_search`, needs no separate search model, and does not depend on `api_backend`:
+
+```toml
 [model.my-custom-model]
 model = "my-custom-model"
 supports_backend_search = true
