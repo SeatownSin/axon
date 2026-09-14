@@ -25,8 +25,10 @@ where
 
 /// Verify the mock `/v1/settings` endpoint returns 404 when no settings
 /// are configured (the default). This preserves backward compatibility:
-/// existing tests that never call `set_settings` see a 404, and
-/// `fetch_settings_blocking` returns `None`.
+/// existing tests that never call `set_settings` see a 404. Note this says
+/// nothing about the client — `fetch_settings_blocking` answers `None` without
+/// asking, 404 or not (see
+/// `test_fetch_settings_blocking_never_contacts_the_server`).
 #[tokio::test]
 async fn test_settings_endpoint_returns_404_when_unconfigured() {
     with_local_set(|| async {
@@ -112,16 +114,34 @@ async fn test_settings_endpoint_reflects_runtime_mutations() {
     .await;
 }
 
-/// Verify `fetch_settings_blocking` round-trips through the mock server.
-/// This is the actual client function used by `refresh_remote_settings`.
+/// `fetch_settings_blocking` is a stub, and this pins the removal rather than
+/// the round-trip it used to perform: the remote-settings pull was deleted in
+/// `f1beac4` so this build never asks cli-chat-proxy for announcements, promos,
+/// campaigns or feature flags, and every caller already reads `None` as "use
+/// local defaults". So the contract worth defending is that the answer stays
+/// `None` **while the server is serving settings**, and that no request leaves
+/// the process at all.
+///
+/// What this replaces: a round-trip test that could never pass, because no code
+/// path can return `Some`. Worse, its first assertion — "`None` when settings
+/// are not configured" — passed *vacuously*: the stub returns before any I/O,
+/// so it never consulted the mock's 404. A probe that cannot fail sat next to
+/// one that cannot pass, which is why the failure read as a broken round-trip
+/// instead of a deleted function.
 #[tokio::test]
-async fn test_fetch_settings_blocking_round_trip() {
+async fn test_fetch_settings_blocking_never_contacts_the_server() {
     with_local_set(|| async {
         let server = MockInferenceServer::start()
             .await
             .expect("start mock server");
 
-        // Without settings configured: returns None (404 from mock)
+        // The one arrangement under which a *live* client would return Some.
+        server.set_settings(RemoteSettings {
+            tips: Some(vec!["fetched_tip".into()]),
+            ..Default::default()
+        });
+        assert_eq!(server.request_count(), 0, "nothing has been asked yet");
+
         let auth = axon_shell::auth::AxonAuth {
             key: "test-key".into(),
             ..Default::default()
@@ -133,25 +153,18 @@ async fn test_fetch_settings_blocking_round_trip() {
         })
         .await
         .unwrap();
+
         assert!(
             result.is_none(),
-            "Expected None when settings not configured"
+            "the remote-settings pull is removed; a Some here means it came back \
+             (the settings struct is ~130 fields, so it is not dumped)"
         );
-
-        // With settings configured: returns Some(settings)
-        server.set_settings(RemoteSettings {
-            tips: Some(vec!["fetched_tip".into()]),
-            ..Default::default()
-        });
-        let result = tokio::task::spawn_blocking({
-            let url = server.url().to_string();
-            let auth = auth.clone();
-            move || axon_shell::remote::fetch_settings_blocking(&url, &auth, None)
-        })
-        .await
-        .unwrap();
-        let settings = result.expect("Expected Some when settings are configured");
-        assert_eq!(settings.tips, Some(vec!["fetched_tip".into()]));
+        assert_eq!(
+            server.request_count(),
+            0,
+            "removed means no request at all, not a request whose answer is discarded: {:?}",
+            server.requests()
+        );
     })
     .await;
 }
