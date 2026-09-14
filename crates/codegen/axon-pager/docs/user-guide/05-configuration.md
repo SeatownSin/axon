@@ -93,10 +93,14 @@ then returns the synthesized answer plus citation URLs. Two consequences:
 - **A local OpenAI-compatible server cannot serve it.** llama.cpp, sglang, and
   vLLM expose `/v1/chat/completions` and have no `/responses` endpoint and no
   hosted search, so pointing `[models] web_search` at one cannot work.
-- **A keyless endpoint disables it.** When the resolved web_search model has no
-  `api_key`, the tool is not registered at all — the model simply never sees it.
-  The reason is logged (with the model id and endpoint), but nothing appears on
-  screen, so a local-model setup looks like a model that "won't search".
+- **A no-auth endpoint disables it.** `no_auth = true`, or a loopback
+  `base_url`, gets no credential at all — the login session token is never sent
+  to one — so the tool is not registered and the model never sees it. (An entry
+  that just omits `api_key`/`env_key` on a *remote* endpoint still falls through
+  to the session token, then `AXON_API_KEY`.) The reason is logged with the
+  model id and endpoint, but nothing appears on screen, so a local-model setup
+  looks like a model that "won't search". `axon inspect` reports the verdict in
+  its **Web Search** section.
 
 To give a local model web access, keep chat on the local endpoint and either
 point `[models] web_search` at a keyed cloud endpoint, or add a search MCP

@@ -105,11 +105,16 @@ pub struct WebSearchReport {
 /// Decide `web_search` reachability from the resolved model id and the
 /// `[model.*]` table.
 ///
-/// Only conditions provable from config mark it disabled:
-/// a keyless endpoint (`no_auth`, or neither `api_key` nor `env_key` beside an
-/// explicit `base_url`), and a non-Responses `api_backend`. Anything else is
-/// reported as enabled — the entry may still resolve its key at login time, and
-/// claiming otherwise here would be a guess.
+/// Only conditions provable from config mark it disabled, and "provable" means
+/// mirroring the runtime credential chain in `resolve_credentials`: a *no-auth*
+/// endpoint (`no_auth = true`, or a loopback `base_url` — llama.cpp, Ollama,
+/// LM Studio, vLLM) with no entry credential gets no key at all, because the
+/// session token is deliberately never allowed to fall through to one. Any
+/// other endpoint *does* fall through to the login session token or
+/// `AXON_API_KEY`, neither of which this process can see, so it is reported
+/// enabled with a caveat — a false DISABLED would send the user to fix a key
+/// that was never the problem. A non-Responses `api_backend` is the other
+/// provable failure.
 fn build_web_search_report(
     web_search_model: &str,
     config_models: &indexmap::IndexMap<String, crate::agent::config::ConfigModelOverride>,
@@ -136,8 +141,11 @@ fn build_web_search_report(
             base_url: None,
             api_backend: None,
             reason: Some(
-                "no `[model.*]` entry — falls back to the default provider endpoint; add one \
-                 with `api_backend = \"responses\"` to point it elsewhere"
+                "no `[model.*]` entry — resolves to the built-in first-party search endpoint, \
+                 which needs a login session token, else `AXON_API_KEY`. With \
+                 neither, web_search is off and nothing further is shown. Add a \
+                 `[model.*]` entry with `api_backend = \"responses\"` to point it \
+                 elsewhere"
                     .to_owned(),
             ),
         };
@@ -146,42 +154,90 @@ fn build_web_search_report(
         .base_url
         .clone()
         .or_else(|| entry.api_base_url.clone());
-    let api_backend = entry.api_backend.as_ref().map(|b| format!("{b:?}"));
-    let keyless = entry.no_auth == Some(true)
-        || (entry.api_key.is_none() && entry.env_key.is_none() && base_url.is_some());
+    let api_backend = entry.api_backend.as_ref().map(backend_toml_name);
+    // Probe the credential the way the runtime does: `first_own_credential` is
+    // its single source of truth, and it resolves `env_key` against the actual
+    // environment — an entry that *names* an unset variable is keyed in the
+    // file and keyless in practice.
+    let has_own_credential = crate::agent::config::first_own_credential(
+        entry.api_key.as_deref(),
+        entry.env_key.as_ref(),
+    )
+    .is_some();
+    // `ModelEntry::requires_no_auth`, mirrored: these endpoints get no
+    // credential at all, so a missing entry key is the final answer here rather
+    // than a fall-through to the session token.
+    let no_auth_endpoint = entry.no_auth == Some(true)
+        || base_url
+            .as_deref()
+            .is_some_and(crate::util::is_loopback_url);
+    let keyless = no_auth_endpoint && !has_own_credential;
     // Responses is what the tool posts to; an explicitly non-Responses backend
     // cannot serve it. An unset backend is the provider default, not a defect.
     let wrong_backend = matches!(
         entry.api_backend,
         Some(ApiBackend::ChatCompletions) | Some(ApiBackend::Messages)
     );
-    let reason = if keyless && wrong_backend {
-        Some(format!(
-            "DISABLED: `[model.{model}]` is keyless and serves {} — web_search needs an \
-             api_key and the Responses API. A local OpenAI-compatible server cannot serve it.",
-            api_backend.as_deref().unwrap_or("another backend")
-        ))
+    let (enabled, reason) = if keyless && wrong_backend {
+        (
+            false,
+            Some(format!(
+                "DISABLED: `[model.{model}]` is a no-auth endpoint serving {} — web_search \
+                 needs an api_key and the Responses API. A local OpenAI-compatible server \
+                 cannot serve it.",
+                api_backend.as_deref().unwrap_or("another backend")
+            )),
+        )
     } else if keyless {
-        Some(format!(
-            "DISABLED: `[model.{model}]` has no api_key/env_key — set one, or point \
-             `[models] web_search` at a keyed endpoint"
-        ))
+        (
+            false,
+            Some(format!(
+                "DISABLED: `[model.{model}]` is a no-auth endpoint (no_auth, or a loopback \
+                 base_url) with no api_key/env_key — the login session token is never sent \
+                 to one, so nothing can authenticate it. Set `api_key`, or point `[models] \
+                 web_search` at a keyed endpoint"
+            )),
+        )
     } else if wrong_backend {
-        Some(format!(
-            "DISABLED: `[model.{model}]` sets api_backend = {} — web_search posts to \
-             /responses; set `api_backend = \"responses\"`",
-            api_backend.as_deref().unwrap_or("another backend")
-        ))
+        (
+            false,
+            Some(format!(
+                "DISABLED: `[model.{model}]` sets api_backend = {} — web_search posts to \
+                 /responses; set `api_backend = \"responses\"`",
+                api_backend.as_deref().unwrap_or("another backend")
+            )),
+        )
+    } else if !has_own_credential {
+        // On, but keyed from somewhere this process cannot read. Say so rather
+        // than guess either way.
+        (
+            true,
+            Some(format!(
+                "`[model.{model}]` carries no api_key/env_key — web_search will use the login \
+                 session token, else `AXON_API_KEY`. If neither is present the tool is off \
+                 with no warning beyond this line"
+            )),
+        )
     } else {
-        None
+        (true, None)
     };
     WebSearchReport {
         model,
-        enabled: reason.is_none(),
+        enabled,
         base_url,
         api_backend,
         reason,
     }
+}
+
+/// The TOML spelling of a backend. `{:?}` prints `ChatCompletions`, a name that
+/// appears nowhere in a config file, so a remedy quoting it cannot be followed;
+/// the enum's own snake_case `Serialize` is the spelling the user typed.
+fn backend_toml_name(backend: &crate::sampling::ApiBackend) -> String {
+    serde_json::to_value(backend)
+        .ok()
+        .and_then(|v| v.as_str().map(str::to_owned))
+        .unwrap_or_else(|| format!("{backend:?}"))
 }
 
 #[derive(Debug, Serialize)]
@@ -1356,8 +1412,6 @@ fn disabled_compat_tags(
     }
 }
 
-/// Renders the "Model Overrides" section of the human report; empty when
-/// there are no warnings.
 /// Render the `web_search` section. Always printed: the whole point is that a
 /// disabled tool is otherwise invisible, so "off, and here is why" has to be as
 /// visible as "on".
@@ -1384,6 +1438,8 @@ fn render_web_search(r: &WebSearchReport) -> String {
     out
 }
 
+/// Renders the "Model Overrides" section of the human report; empty when
+/// there are no warnings.
 fn render_model_override_warnings(
     warnings: &[crate::agent::config_model_override_parse::ModelOverrideWarning],
 ) -> String {
@@ -1995,7 +2051,7 @@ mod tests {
 
             [model.local-qwen]
             model = "local-qwen"
-            base_url = "http://192.168.50.140:30000/v1"
+            base_url = "http://192.0.2.10:30000/v1"
             no_auth = true
             api_backend = "chat_completions"
             "#,
@@ -2012,8 +2068,14 @@ mod tests {
         );
         assert_eq!(
             r.base_url.as_deref(),
-            Some("http://192.168.50.140:30000/v1"),
+            Some("http://192.0.2.10:30000/v1"),
             "naming the endpoint is what makes it diagnosable"
+        );
+
+        assert_eq!(
+            r.api_backend.as_deref(),
+            Some("chat_completions"),
+            "the remedy must quote the spelling the user typed, not the Rust variant: {r:?}"
         );
 
         let human = render_web_search(&r);
@@ -2022,8 +2084,14 @@ mod tests {
     }
 
     /// A keyed Responses endpoint is the working case and must stay quiet.
+    /// The env var is really set: `env_key` naming an *unset* variable resolves
+    /// to no credential, which is a different case (below).
     #[test]
     fn web_search_report_clean_for_keyed_responses_endpoint() {
+        let env_var = "INSPECT_WEB_SEARCH_CLEAN_CASE_KEY";
+        unsafe {
+            std::env::set_var(env_var, "sk-test-value");
+        }
         let effective: toml::Value = toml::from_str(
             r#"
             [models]
@@ -2032,15 +2100,113 @@ mod tests {
             [model.cloud-search]
             model = "cloud-search"
             base_url = "https://api.example.com/v1"
-            env_key = "EXAMPLE_API_KEY"
+            env_key = "INSPECT_WEB_SEARCH_CLEAN_CASE_KEY"
             api_backend = "responses"
             "#,
         )
         .unwrap();
         let cfg = crate::agent::config::Config::new_from_toml_cfg(&effective).unwrap();
         let r = build_web_search_report(&cfg.web_search_model, &cfg.config_models);
+        unsafe {
+            std::env::remove_var(env_var);
+        }
         assert!(r.enabled, "keyed Responses endpoint must be enabled: {r:?}");
         assert!(r.reason.is_none(), "no reason when nothing is wrong: {r:?}");
+        assert_eq!(
+            r.api_backend.as_deref(),
+            Some("responses"),
+            "the backend must be reported in its TOML spelling, not `{{:?}}`: {r:?}"
+        );
+    }
+
+    /// The report must not claim DISABLED for a remote endpoint that simply
+    /// keeps its key elsewhere: `resolve_credentials` falls through to the login
+    /// session token, then `AXON_API_KEY`, so the tool may well be on. A wrong
+    /// DISABLED is worse than the silence this section replaces — it sends the
+    /// user to fix a key that was never the problem.
+    #[test]
+    fn web_search_report_remote_entry_without_key_is_not_disabled() {
+        let effective: toml::Value = toml::from_str(
+            r#"
+            [models]
+            web_search = "cloud-search"
+
+            [model.cloud-search]
+            model = "cloud-search"
+            base_url = "https://api.example.com/v1"
+            api_backend = "responses"
+            "#,
+        )
+        .unwrap();
+        let cfg = crate::agent::config::Config::new_from_toml_cfg(&effective).unwrap();
+        let r = build_web_search_report(&cfg.web_search_model, &cfg.config_models);
+        assert!(
+            r.enabled,
+            "a remote endpoint keyed by session/AXON_API_KEY must not be called DISABLED: {r:?}"
+        );
+        let reason = r.reason.as_deref().unwrap_or_default();
+        assert!(
+            !reason.contains("DISABLED"),
+            "the caveat must not read as a verdict: {reason}"
+        );
+        assert!(
+            reason.contains("session token"),
+            "the caveat must name where the key comes from: {reason}"
+        );
+    }
+
+    /// A loopback endpoint with no key is the case that *is* provable: the
+    /// session token is never sent to one, so nothing can authenticate it. This
+    /// must stay DISABLED even without `no_auth = true`, which nobody writes for
+    /// a localhost server.
+    #[test]
+    fn web_search_report_loopback_without_no_auth_is_disabled() {
+        let effective: toml::Value = toml::from_str(
+            r#"
+            [models]
+            web_search = "local-llama"
+
+            [model.local-llama]
+            model = "local-llama"
+            base_url = "http://127.0.0.1:8080/v1"
+            "#,
+        )
+        .unwrap();
+        let cfg = crate::agent::config::Config::new_from_toml_cfg(&effective).unwrap();
+        let r = build_web_search_report(&cfg.web_search_model, &cfg.config_models);
+        assert!(
+            !r.enabled,
+            "a keyless loopback endpoint is provably off: {r:?}"
+        );
+        assert!(
+            r.reason.as_deref().unwrap_or_default().contains("DISABLED"),
+            "{r:?}"
+        );
+    }
+
+    /// `env_key` naming a variable that is not set is keyed on paper only; the
+    /// runtime resolves no credential from it. The report must not read as a
+    /// clean bill of health.
+    #[test]
+    fn web_search_report_unset_env_key_is_not_treated_as_keyed() {
+        let effective: toml::Value = toml::from_str(
+            r#"
+            [models]
+            web_search = "local-llama"
+
+            [model.local-llama]
+            model = "local-llama"
+            base_url = "http://127.0.0.1:8080/v1"
+            env_key = "INSPECT_WEB_SEARCH_DELIBERATELY_UNSET_KEY"
+            "#,
+        )
+        .unwrap();
+        let cfg = crate::agent::config::Config::new_from_toml_cfg(&effective).unwrap();
+        let r = build_web_search_report(&cfg.web_search_model, &cfg.config_models);
+        assert!(
+            !r.enabled,
+            "an env_key whose variable is unset resolves to no credential: {r:?}"
+        );
     }
 
     /// No `[model.*]` entry is not a defect — it falls back to the default

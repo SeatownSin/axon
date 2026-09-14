@@ -1770,10 +1770,15 @@ api_key = "sk-custom"
 > # base_url, api_key, env_key optional — defaults to cli-chat-proxy
 > ```
 >
-> **An `api_key` is required on the resolved endpoint.** A keyless `[model.*]`
-> entry (`no_auth = true`, or simply no key) disables `web_search` — the tool is
-> never registered and the model never sees it. The reason is logged with the
-> model id and endpoint, but nothing is shown on screen.
+> **The resolved endpoint must end up with an `api_key`.** A *no-auth* endpoint
+> — `no_auth = true`, or a loopback `base_url` — never gets one: the login
+> session token is deliberately not allowed to fall through to it, so
+> `web_search` is disabled, the tool is never registered, and the model never
+> sees it. An entry that merely omits `api_key`/`env_key` on a **remote**
+> endpoint is different: it falls through to the session token, then
+> `AXON_API_KEY`, and may well work. The reason is logged with the model id and
+> endpoint but nothing is shown on screen, so `axon inspect` has a **Web
+> Search** section that states the verdict and the remedy.
 >
 > This rules out local inference servers entirely: llama.cpp, sglang, and vLLM
 > serve `/v1/chat/completions`, not `/responses`, and are keyless by default. To

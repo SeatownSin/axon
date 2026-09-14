@@ -17,6 +17,18 @@ function fromPkg(base) {
   } catch { return null; }
 }
 
+// npm's default global node_modules, derived from env alone -- no subprocess.
+// Windows puts per-user global installs under %APPDATA%\npm; POSIX prefixes are
+// already covered by fromPkg(<prefix>/lib). Tried before globalRoot() because
+// with BAKED emptied (this file is committed) every other cheap candidate misses
+// on Windows, so `npm root -g` was being spawned -- measured ~207 ms -- on every
+// hook and every statusline render.
+function defaultGlobalRoot() {
+  const appdata = process.platform === 'win32' && process.env.APPDATA;
+  if (!appdata) return null;
+  return path.join(appdata, 'npm', 'node_modules', '@nanonets', 'graft', 'dist', 'claude');
+}
+
 // The global node_modules dir per npm (handles Homebrew/Windows/volta). Queried on demand.
 function globalRoot() {
   try {
@@ -58,7 +70,7 @@ function best(dirs, name) {
 
 function entry(name) {
   // Cheap candidates first, and only shell out to npm when every one of them misses.
-  const cheap = [BAKED, fromPkg(dir), fromPkg(path.join(path.dirname(process.execPath), '..', 'lib'))];
+  const cheap = [BAKED, fromPkg(dir), fromPkg(path.join(path.dirname(process.execPath), '..', 'lib')), defaultGlobalRoot()];
   const hit = best(cheap, name);
   if (hit) return path.join(hit, name);
   const gr = globalRoot();

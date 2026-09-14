@@ -70,9 +70,7 @@
   "permissions": {
     "allow": [
       "Bash(graft:*)",
-      "Bash(npx graft:*)",
-      "Bash(graft-dev:*)",
-      "Bash(node dist/cli.js:*)"
+      "Bash(npx graft:*)"
     ]
   }
 }
