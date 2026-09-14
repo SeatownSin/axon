@@ -32,7 +32,9 @@ auto_update = true                     # check for updates on launch
 
 [models]
 default = "local"                      # model used for new sessions
-web_search = "my-search-model"         # model used by the web_search tool
+web_search = "my-search-model"         # model used by the web_search tool. Must be a KEYED
+                                       # provider endpoint that serves /responses with a
+                                       # server-side web-search tool -- see the note below
 
 # Defaults applied to every model; a per-model [model.<id>] value always wins.
 # See "Custom Models" for the per-model overrides and full details.
@@ -72,6 +74,7 @@ two_pass_compaction = false            # prefire two-pass compaction (default: f
 remote_fetch = true                    # allow optional online model-catalog fetches (default: true;
                                        # set false for firewalled/air-gapped deployments; background
                                        # managed-config sync has its own switch: managed_config)
+web_fetch = true                       # expose the web_fetch tool (default: FALSE, opt-in)
 
 [session]
 auto_compact_threshold_percent = 85    # auto-compact at this % of context window
@@ -80,6 +83,28 @@ load_envrc = true                      # load .envrc environment variables
 [tools]
 respect_gitignore = false              # default: false; set true to make every tool skip gitignored files
 ```
+
+#### `web_search` needs a provider that searches for you
+
+The `web_search` tool is not a search-API client. It POSTs to
+`{base_url}/responses` and asks the **provider** to run the search server-side,
+then returns the synthesized answer plus citation URLs. Two consequences:
+
+- **A local OpenAI-compatible server cannot serve it.** llama.cpp, sglang, and
+  vLLM expose `/v1/chat/completions` and have no `/responses` endpoint and no
+  hosted search, so pointing `[models] web_search` at one cannot work.
+- **A no-auth endpoint disables it.** `no_auth = true`, or a loopback
+  `base_url`, gets no credential at all — the login session token is never sent
+  to one — so the tool is not registered and the model never sees it. (An entry
+  that just omits `api_key`/`env_key` on a *remote* endpoint still falls through
+  to the session token, then `AXON_API_KEY`.) The reason is logged with the
+  model id and endpoint, but nothing appears on screen, so a local-model setup
+  looks like a model that "won't search". `axon inspect` reports the verdict in
+  its **Web Search** section.
+
+To give a local model web access, keep chat on the local endpoint and either
+point `[models] web_search` at a keyed cloud endpoint, or add a search MCP
+server (see **MCP Servers**) and let the model call its tools instead.
 
 #### Input Mode
 
@@ -238,6 +263,21 @@ proxy_endpoint = "https://proxy.example.com"   # egress proxy URL
 allowed_domains = ["docs.rs", "github.com"]     # override the built-in allowlist
 allow_local = false                              # true = allow localhost / 127.0.0.0/8 / ::1 only
 ```
+
+**`web_fetch` is off by default.** Nothing under `[toolset.web_fetch]` turns the
+tool on — it only configures it. Enable it with `[features] web_fetch = true`
+(or `AXON_WEB_FETCH=1`). Full gate precedence: pinned requirement → env →
+`[features] web_fetch` → managed config → remote settings → default **off**.
+This matters for research work: the research fact-check lens instructs the
+verifier to open every citation with `web_fetch`, and with the tool off it has
+no way to do that.
+
+`allowed_domains` **replaces** the built-in allowlist rather than extending it,
+and everything outside the list is rejected before any network I/O. An explicit
+empty list disables the tool entirely. The built-in default is a documentation
+allowlist (docs.rs, MDN, docs.python.org, react.dev, …), so a research task that
+cites an arbitrary page needs that page's domain added here — or a fetcher from
+an MCP server instead.
 
 `allow_local` is off by default (SSRF fail-closed). When `true` (or
 `AXON_WEB_FETCH_ALLOW_LOCAL=1`), `web_fetch` may reach **explicit** loopback

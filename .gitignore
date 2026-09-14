@@ -12,3 +12,10 @@
 # demand, and ~1.5 MB per run (graph.json + graph.html + a semantic cache).
 # Written to the cwd and beside the analysed path, so ignore it at any depth.
 graphify-out/
+
+# graft's local graph cache — regenerable, not committed (run `graft build`).
+/graft/
+
+# Per-developer Claude Code state — the graft wiring beside it IS shared.
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
