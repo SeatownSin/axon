@@ -691,7 +691,9 @@ impl ToolOutput {
             ToolOutput::Todo(
                 TodoWriteOutput::DuplicateId(_) | TodoWriteOutput::InvalidArgument(_),
             ) => true,
-            ToolOutput::GrepSearch(g) => g.exit_code > 1,
+            // rg exits 0 (matches) or 1 (no matches) on success and 2 on error.
+            // Negative codes are ours: rg could not be started, or timed out.
+            ToolOutput::GrepSearch(g) => g.exit_code > 1 || g.exit_code < 0,
             _ => false,
         }
     }
@@ -747,8 +749,16 @@ impl ToolOutput {
                 | SearchReplaceOutput::FilenameTooLong(error_string) => error_string.to_owned(),
             },
             ToolOutput::Bash(bash_output) => bash_output.output_for_prompt.clone(),
+            // stdout carries the model-facing card. If a producer left it empty
+            // but wrote an error to stderr, show the error: an empty string
+            // reads to the model as "no matches", which is how a missing `rg`
+            // went unnoticed.
             ToolOutput::GrepSearch(grep_search_output) => {
-                String::from_utf8_lossy(&grep_search_output.stdout).into_owned()
+                if grep_search_output.stdout.is_empty() && !grep_search_output.stderr.is_empty() {
+                    String::from_utf8_lossy(&grep_search_output.stderr).into_owned()
+                } else {
+                    String::from_utf8_lossy(&grep_search_output.stdout).into_owned()
+                }
             }
             ToolOutput::Todo(todo_output) => match todo_output {
                 TodoWriteOutput::TodosUpdated(success) => success.summary_for_prompt.to_owned(),
@@ -1279,6 +1289,35 @@ mod tests {
     /// Serialize a ToolOutput to JSON value
     fn to_json(output: ToolOutput) -> serde_json::Value {
         serde_json::to_value(&output).unwrap()
+    }
+    fn grep_output(stdout: &str, stderr: &str, exit_code: i32) -> ToolOutput {
+        ToolOutput::GrepSearch(GrepSearchOutput {
+            stdout: stdout.as_bytes().to_vec(),
+            stderr: stderr.as_bytes().to_vec(),
+            exit_code,
+            match_count: 0,
+            file_matches: Vec::new(),
+        })
+    }
+    #[test]
+    fn grep_is_error_covers_negative_exit_codes() {
+        // rg: 0 = matches, 1 = no matches, 2 = error. Negative = ours (could
+        // not spawn rg, or timed out) and must count as a failure too.
+        for (code, want) in [(0, false), (1, false), (2, true), (-1, true)] {
+            assert_eq!(grep_output("x", "", code).is_error(), want, "exit {code}");
+        }
+    }
+    #[test]
+    fn grep_prompt_format_shows_stderr_only_when_stdout_is_empty() {
+        assert_eq!(
+            grep_output("", "rg: boom", -1).to_prompt_format(),
+            "rg: boom"
+        );
+        assert_eq!(
+            grep_output("card", "rg: boom", 2).to_prompt_format(),
+            "card"
+        );
+        assert_eq!(grep_output("", "", 1).to_prompt_format(), "");
     }
     #[test]
     fn text_output_to_prompt_format_omits_consumed_completion_task_id() {

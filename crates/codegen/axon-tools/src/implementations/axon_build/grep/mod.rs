@@ -757,7 +757,7 @@ async fn prepare_grep(
 
     let rg_exec = rg_path();
 
-    let mut cmd = Command::new(rg_exec);
+    let mut cmd = Command::new(&rg_exec);
     cmd.arg("--heading")
         .arg("--with-filename")
         .arg("--line-number")
@@ -832,15 +832,7 @@ async fn prepare_grep(
 
     let mut child = match cmd.spawn() {
         Ok(c) => c,
-        Err(e) => {
-            return Ok(GrepStep::Early(GrepSearchOutput {
-                stdout: Vec::new(),
-                stderr: format!("Error calling tool: {}", e).into_bytes(),
-                exit_code: -1,
-                match_count: 0,
-                file_matches: Vec::new(),
-            }));
-        }
+        Err(e) => return Ok(GrepStep::Early(rg_spawn_failure_output(&rg_exec, &e))),
     };
 
     // Take pipes so child remains accessible for cleanup on timeout.
@@ -989,6 +981,36 @@ async fn read_rg_stdout_capped(mut stdout_pipe: ChildStdout, max_lines: usize) -
         }
     }
     (buf, truncated)
+}
+
+/// Terminal card for a grep whose `rg` could not be started at all, most often
+/// because ripgrep is not installed: Windows builds do not bundle it (see
+/// `build.rs`) and fall back to a bare `rg` on PATH.
+///
+/// The message goes in `stdout`, like every other error card here, because
+/// `stdout` is what the model is shown. It used to go only in `stderr`, so a
+/// machine without ripgrep returned an empty, apparently successful search for
+/// every query, and agents concluded the strings they were looking for did not
+/// exist.
+pub(crate) fn rg_spawn_failure_output(
+    rg: &std::path::Path,
+    err: &std::io::Error,
+) -> GrepSearchOutput {
+    let msg = format!(
+        "Error calling tool: could not start ripgrep (`{}`): {err}. \
+         The grep tool needs ripgrep: install it and make sure `rg` is on PATH \
+         (Windows: `winget install BurntSushi.ripgrep.MSVC`; macOS: `brew install ripgrep`; \
+         Linux: your package manager), or set RG_BIN_PATH to the binary. \
+         Until then, search with the shell or read files directly.",
+        rg.display()
+    );
+    GrepSearchOutput {
+        stdout: msg.clone().into_bytes(),
+        stderr: msg.into_bytes(),
+        exit_code: -1,
+        match_count: 0,
+        file_matches: Vec::new(),
+    }
 }
 
 /// Terminal card for a grep that exceeded its wall-clock timeout. Shared by the
@@ -1506,6 +1528,44 @@ mod tests {
         assert!(msg.contains("timed out after 20 seconds"), "msg: {msg}");
         assert!(msg.contains("did not complete in time"), "msg: {msg}");
         assert!(msg.contains("more specific path or pattern"), "msg: {msg}");
+        // A timeout is a failure for telemetry too, not a search with no hits.
+        assert!(crate::types::output::ToolOutput::GrepSearch(out).is_error());
+    }
+
+    /// A machine without ripgrep (every Windows build: rg is not bundled there)
+    /// must get a visible, actionable error -- not an empty, successful-looking
+    /// result that the model reads as "no matches".
+    #[test]
+    fn missing_rg_binary_is_reported_to_the_model() {
+        let dir = TempDir::new().unwrap();
+        let missing = dir.path().join("no-such-rg");
+        // A real spawn failure, the same io::Error the tool sees.
+        let err = std::process::Command::new(&missing)
+            .spawn()
+            .expect_err("spawning a nonexistent binary must fail");
+
+        let out = rg_spawn_failure_output(&missing, &err);
+        assert_eq!(out.exit_code, -1);
+        assert_eq!(out.match_count, 0);
+
+        let tool = crate::types::output::ToolOutput::GrepSearch(out);
+        let text = tool.to_prompt_format();
+        assert!(!text.is_empty(), "the model must not get an empty result");
+        assert!(text.contains("could not start ripgrep"), "text: {text}");
+        assert!(
+            text.contains("no-such-rg"),
+            "names the binary it tried: {text}"
+        );
+        assert!(
+            text.contains(&err.to_string()),
+            "carries the OS error: {text}"
+        );
+        assert!(
+            text.contains("winget install BurntSushi.ripgrep.MSVC"),
+            "text: {text}"
+        );
+        assert!(text.contains("RG_BIN_PATH"), "text: {text}");
+        assert!(tool.is_error(), "a search that never ran is a failure");
     }
 
     #[test]

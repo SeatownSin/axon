@@ -162,7 +162,7 @@ impl axon_tool_runtime::Tool for GrepTool {
 
         // Build rg command.
         let rg_exec = rg_path();
-        let mut cmd = Command::new(rg_exec);
+        let mut cmd = Command::new(&rg_exec);
         cmd.args([
             "-n",
             "-H",
@@ -187,14 +187,12 @@ impl axon_tool_runtime::Tool for GrepTool {
         // Spawn.
         let mut child = match cmd.spawn() {
             Ok(c) => c,
+            // Same card as the axon_build grep: the message must reach the
+            // model (stdout), not just stderr.
             Err(e) => {
-                return Ok(GrepSearchOutput {
-                    stdout: Vec::new(),
-                    stderr: format!("Error spawning rg: {e}").into_bytes(),
-                    exit_code: -1,
-                    match_count: 0,
-                    file_matches: Vec::new(),
-                });
+                return Ok(
+                    crate::implementations::axon_build::grep::rg_spawn_failure_output(&rg_exec, &e),
+                );
             }
         };
 
