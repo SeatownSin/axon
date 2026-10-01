@@ -280,18 +280,31 @@ pub fn acp_tool_update(
                     .raw_output(raw_output_json(output, rewriter)),
             ))
         }
-        ToolOutput::GrepSearch(grep_search_output) => Some(acp::ToolCallUpdate::new(
-            acp::ToolCallId::new(Arc::from(tool_call_id)),
-            acp::ToolCallUpdateFields::new()
-                .status(Some(acp::ToolCallStatus::Completed))
-                .content(Some(vec![acp::ToolCallContent::from(
-                    acp::ContentBlock::Text(acp::TextContent::new(format!(
-                        "found {} matches",
-                        grep_search_output.match_count
-                    ))),
-                )]))
-                .raw_output(raw_output_json(output, rewriter)),
-        )),
+        ToolOutput::GrepSearch(grep_search_output) => {
+            // A grep that failed (rg missing, timed out, bad regex) used to show
+            // as Completed / "found 0 matches" -- indistinguishable from a real
+            // empty result. Show it as Failed, with the error card the model sees.
+            let (status, text) = if output.is_error() {
+                (
+                    acp::ToolCallStatus::Failed,
+                    maybe_rewrite(rewriter, output.to_prompt_format()),
+                )
+            } else {
+                (
+                    acp::ToolCallStatus::Completed,
+                    format!("found {} matches", grep_search_output.match_count),
+                )
+            };
+            Some(acp::ToolCallUpdate::new(
+                acp::ToolCallId::new(Arc::from(tool_call_id)),
+                acp::ToolCallUpdateFields::new()
+                    .status(Some(status))
+                    .content(Some(vec![acp::ToolCallContent::from(
+                        acp::ContentBlock::Text(acp::TextContent::new(text)),
+                    )]))
+                    .raw_output(raw_output_json(output, rewriter)),
+            ))
+        }
         ToolOutput::WebSearch(_) => Some(acp::ToolCallUpdate::new(
             acp::ToolCallId::new(Arc::from(tool_call_id)),
             acp::ToolCallUpdateFields::new()
@@ -833,6 +846,58 @@ mod tests {
         assert_eq!(entries[2].priority, acp::PlanEntryPriority::High);
         // No cancelled marker (it was in_progress, not cancelled)
         assert!(entries[2].meta.is_none());
+    }
+
+    fn grep(stdout: &str, exit_code: i32, match_count: usize) -> ToolOutput {
+        ToolOutput::GrepSearch(GrepSearchOutput {
+            stdout: stdout.as_bytes().to_vec(),
+            stderr: vec![],
+            exit_code,
+            match_count,
+            file_matches: vec![],
+        })
+    }
+
+    fn update_text(update: &acp::ToolCallUpdate) -> String {
+        match update.fields.content.as_deref() {
+            Some([acp::ToolCallContent::Content(c)]) => match &c.content {
+                acp::ContentBlock::Text(t) => t.text.clone(),
+                other => panic!("expected text, got {other:?}"),
+            },
+            other => panic!("expected one content block, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_acp_tool_update_grep_success_and_no_matches_are_completed() {
+        for (exit_code, n) in [(0, 3), (1, 0)] {
+            let update = acp_tool_update(&grep("card", exit_code, n), "c", None, None).unwrap();
+            assert_eq!(
+                update.fields.status,
+                Some(acp::ToolCallStatus::Completed),
+                "exit {exit_code}"
+            );
+            assert_eq!(update_text(&update), format!("found {n} matches"));
+        }
+    }
+
+    #[test]
+    fn test_acp_tool_update_grep_failure_is_failed_with_the_error() {
+        // rg could not be started (or timed out): exit -1. Must not read as
+        // "found 0 matches" in the UI.
+        let msg = "Error calling tool: could not start ripgrep (`rg`): program not found.";
+        let update = acp_tool_update(&grep(msg, -1, 0), "c", None, None).unwrap();
+        assert_eq!(update.fields.status, Some(acp::ToolCallStatus::Failed));
+        assert_eq!(update_text(&update), msg);
+
+        let update = acp_tool_update(
+            &grep("Error calling tool: bad regex", 2, 0),
+            "c",
+            None,
+            None,
+        )
+        .unwrap();
+        assert_eq!(update.fields.status, Some(acp::ToolCallStatus::Failed));
     }
 
     #[test]

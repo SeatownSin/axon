@@ -1053,7 +1053,11 @@ fn finalize_grep(
         return GrepSearchOutput {
             stdout: result.into_bytes(),
             stderr: Vec::new(),
-            exit_code,
+            // rg reports "No files were searched" (e.g. a glob that matched
+            // nothing) as exit 2, but we present it as no matches, so record
+            // it as no matches (1) -- otherwise is_error() and the UI call a
+            // "No matches found" card a failure.
+            exit_code: 1,
             match_count: 0,
             file_matches: Vec::new(),
         };
@@ -2348,6 +2352,34 @@ mod tests {
         assert!(hit);
         assert_eq!(&chunk[..n], "café\n".as_bytes());
         assert!(std::str::from_utf8(&chunk[..n]).is_ok());
+    }
+
+    /// "No files were searched" (rg exit 2) is shown as "No matches found", so it
+    /// must be recorded as no matches, not as an error.
+    #[test]
+    fn no_files_searched_is_no_matches_not_an_error() {
+        let config = grep_config(OutputMode::Content, DEFAULT_TOOL_OUTPUT_BYTES, None);
+        let out = finalize_grep(
+            Vec::new(),
+            false,
+            b"rg: No files were searched, which means ripgrep probably applied a filter".to_vec(),
+            2,
+            &config,
+        );
+        assert_eq!(out.exit_code, 1);
+        assert!(String::from_utf8_lossy(&out.stdout).contains("No matches found"));
+        assert!(!crate::types::output::ToolOutput::GrepSearch(out).is_error());
+
+        // A real rg error (exit 2, other stderr) stays an error.
+        let err = finalize_grep(
+            Vec::new(),
+            false,
+            b"rg: regex parse error".to_vec(),
+            2,
+            &config,
+        );
+        assert_eq!(err.exit_code, 2);
+        assert!(crate::types::output::ToolOutput::GrepSearch(err).is_error());
     }
 
     /// Regression: a stdout truncation landing mid-CRLF leaves a final
