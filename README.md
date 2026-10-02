@@ -144,6 +144,18 @@ infrastructure. Pass a version to pin one (`... | bash -s 0.3.2`); set
 and put it on your `PATH` — it is a single static binary named
 `axon-<version>-<os>-<arch>`.
 
+**Windows: install ripgrep too.** The `grep` tool runs ripgrep (`rg`), and the
+Windows binaries do not bundle it, so Axon uses whatever `rg` is on your
+`PATH`:
+
+```powershell
+winget install BurntSushi.ripgrep.MSVC   # or: scoop install ripgrep
+```
+
+Open a new terminal afterwards so `PATH` picks it up. Without it, `grep` reports
+that ripgrep could not be started (since 0.3.12; earlier versions returned an
+empty result that looked like "no matches").
+
 ## Building from source
 
 Requirements:

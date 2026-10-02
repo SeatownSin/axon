@@ -12,8 +12,8 @@ Axon is an independent fork of xAI's Apache-2.0-licensed Grok Build; it is not a
 # Build and run from a clone of the repo
 cargo run -p axon-pager-bin
 
-# Or install the published CLI
-npm i -g @axon-official/axon
+# Or install a prebuilt release (Linux/Windows; see the top-level README)
+curl -fsSL https://raw.githubusercontent.com/SeatownSin/axon/main/crates/codegen/axon-pager/scripts/install.sh | bash
 
 # Interactive TUI
 axon
@@ -76,11 +76,17 @@ To install it onto your `PATH`:
 cargo install --path crates/codegen/axon-pager-bin
 ```
 
-**Or install the published CLI** via npm:
+**Or install a prebuilt release** (Linux and Windows) with the install script:
 
 ```bash
-npm i -g @axon-official/axon
+curl -fsSL https://raw.githubusercontent.com/SeatownSin/axon/main/crates/codegen/axon-pager/scripts/install.sh | bash
 ```
+
+```powershell
+irm https://raw.githubusercontent.com/SeatownSin/axon/main/crates/codegen/axon-pager/scripts/install.ps1 | iex
+```
+
+On Windows, also install ripgrep (`winget install BurntSushi.ripgrep.MSVC`): the `grep` tool needs `rg` on `PATH`.
 
 Verify installation:
 

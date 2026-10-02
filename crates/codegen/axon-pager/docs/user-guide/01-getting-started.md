@@ -18,14 +18,31 @@ scripting and CI/CD, or integrate it into editors via the Agent Client Protocol
 Axon is distributed through the project repository,
 [SeatownSin/axon](https://github.com/SeatownSin/axon).
 
-Install the CLI from npm (macOS, Linux, or Windows via Git Bash or PowerShell):
+Prebuilt binaries for Linux and Windows (`x86_64` and `aarch64`) are published on
+the repository's [GitHub Releases](https://github.com/SeatownSin/axon/releases/latest)
+page. Install the latest one with the install script:
 
 ```bash
-npm i -g @axon-official/axon
+# macOS / Linux / Git-Bash / WSL - installs to ~/.axon/bin
+curl -fsSL https://raw.githubusercontent.com/SeatownSin/axon/main/crates/codegen/axon-pager/scripts/install.sh | bash
 ```
 
-Or build from source: clone the repository and follow the build steps in the
-README. Prebuilt binaries are published on the repository's GitHub Releases page.
+```powershell
+# Windows PowerShell
+irm https://raw.githubusercontent.com/SeatownSin/axon/main/crates/codegen/axon-pager/scripts/install.ps1 | iex
+```
+
+There is no prebuilt macOS binary; macOS users build from source by following the
+steps in the README.
+
+**Windows: also install ripgrep.** The `grep` tool runs ripgrep (`rg`), which the
+Windows binaries do not bundle:
+
+```powershell
+winget install BurntSushi.ripgrep.MSVC   # or: scoop install ripgrep
+```
+
+Open a new terminal afterwards so `PATH` picks it up.
 
 Verify the installation:
 
